@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3 uid="uid://mageproj001"]
+
+[ext_resource type="Script" path="res://scenes/projectile/mage_projectile.gd" id="1_proj"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_001"]
+radius = 0.12
+
+[sub_resource type="SphereMesh" id="SphereMesh_001"]
+radius = 0.12
+height = 0.24
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
+albedo_color = Color(0.9, 0.9, 1.0, 1)
+emission_enabled = true
+emission = Color(0.7, 0.7, 1.0, 1)
+emission_energy_multiplier = 2.0
+
+[node name="MageProjectile" type="Area3D"]
+collision_layer = 0
+collision_mask = 5
+script = ExtResource("1_proj")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_001")
+material_override = SubResource("StandardMaterial3D_001")

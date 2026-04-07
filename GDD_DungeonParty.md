@@ -126,6 +126,11 @@ Taberna (Lobby) → Asesora del Gremio → Entrar a la torre → Explorar/Combat
 
 ### 4.2 Mago
 
+**Ataque base (sin rama — "desarmado"):**
+- Gesto: finger guns (pistolita con los dedos)
+- Proyectil: bolita pequeña de energía (blanca o color suave), con mini-relámpagos/líneas de energía alrededor, aspecto ligeramente distorsionado pero sutil — se nota que es débil e inestable, como que apenas se mantiene junta
+- Stats base: 70 HP, 120 MP, 20 dmg, 15m rango, más lento que el guerrero (4.5 m/s)
+
 | Aspecto | Rama: Elementalista | Rama: Arcano |
 |---------|-------------------|--------------|
 | **Estilo** | Fuego, hielo, rayo | Energía pura, manipulación espacial |
@@ -222,6 +227,55 @@ Las habilidades se pueden activar mediante comandos de voz O teclas tradicionale
 - **Curva**: sube rápido al principio, se ralentiza al acercarse al 50 (sin ser excesivo)
 - El nivel es **persistente** — se guarda en el perfil del jugador
 - Desbloquea puntos de habilidad para el árbol
+- **3 stat points por nivel** para repartir libremente entre atributos
+
+#### Sistema de Atributos
+
+| Atributo | Abreviación | Efecto |
+|----------|-------------|--------|
+| **Fuerza** | STR | +2 daño físico por punto |
+| **Inteligencia** | INT | +2 daño mágico, +3 MP por punto |
+| **Destreza** | DEX | Futuro: crit, dodge |
+| **Defensa** | DEF | Reduce daño físico recibido (1:1) |
+| **Vitalidad** | VIT | +5 HP por punto |
+
+**Stats base por clase:**
+
+| Stat | Guerrero | Mago |
+|------|----------|------|
+| STR | 12 | 4 |
+| INT | 3 | 12 |
+| DEX | 6 | 5 |
+| DEF | 10 | 3 |
+| VIT | 10 | 5 |
+
+**Rango** es un stat modificable por ítems (ej: "+2 Rango" en un legendario).
+
+**Resistencias elementales** (cap 75%):
+
+| Resistencia | Guerrero | Mago |
+|-------------|----------|------|
+| Fuego | 0% | 10% |
+| Hielo | 0% | 10% |
+| Rayo | 0% | 10% |
+
+Fórmulas:
+- Daño físico = daño_base + (STR × 2)
+- Daño mágico = daño_base + (INT × 2)
+- Reducción física = DEF puntos menos de daño (mínimo 1)
+- HP total = hp_base + (VIT × 5)
+- MP total = mp_base + (INT × 3)
+- Daño elemental recibido = daño × (1 - resistencia%)
+
+**Escalado de enemigos por piso:**
+
+| Piso | HP | Daño | DEF |
+|------|----|------|-----|
+| 1 - Pradera | 100 | 10 | 0 |
+| 2 - Bosque | 200 | 20 | 5 |
+| 3 - Hielo | 350 | 35 | 12 |
+| 4 - Tormenta | 500 | 50 | 20 |
+| 5 - Dimensión Rota | 700 | 70 | 30 |
 
 #### Progresión por piso
 
@@ -592,7 +646,31 @@ Lo primero que hay que construir para tener algo JUGABLE:
 - [x] ¿Temáticas? → Portales a mundos diferentes, expandible sin límite
 - [x] ¿Pociones? → Curación (comunes), descanso (comunes), buff (misión especial)
 
-## 14. Preguntas Abiertas (Por Definir)
+## 14. Interfaz de Usuario (HUD & Menús)
+
+### HUD en juego
+- Barra de vida (roja), maná (azul), XP (dorada) — abajo izquierda
+- Hotbar de 8 slots (teclas 1-8)
+- Crosshair central
+
+### Ventana de Personaje
+- **Acceso**: icono de cruz roja sobre la barra de vida (estilo Metin2)
+- **Contenido**:
+  - Nombre del personaje
+  - Clase y nivel
+  - Stats (STR, INT, DEX, DEF, VIT) con botones de + si hay puntos disponibles
+  - Resistencias elementales (fuego, hielo, rayo)
+  - Slots de equipamiento (por definir cuántos)
+  - Guild/Gremio (si pertenece a uno)
+- Se puede abrir/cerrar durante el juego
+
+### Regeneración de Recursos
+- **Vida**: regenera SOLO fuera de combate (15s sin recibir daño). Velocidad: 1 + (VIT × 0.3) HP/s. Modificable por stats, equipamiento, buffs
+- **Maná**: regenera SIEMPRE (incluso en combate), sin delay. Velocidad: 3 + (INT × 0.2) MP/s. Modificable por stats, equipamiento, buffs
+
+---
+
+## 15. Preguntas Abiertas (Por Definir)
 
 - [ ] ¿Nombre definitivo del juego? (AGOD es provisional)
 - [ ] ¿Qué porcentaje de probabilidad para modo Hardcore?
