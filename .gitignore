@@ -1,0 +1,18 @@
+# Godot
+.godot/
+*.import
+export_presets.cfg
+
+# Godot engine binary
+Godot_v*.exe/
+Godot_v*.exe
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+*.swp
+*.swo
