@@ -7,9 +7,11 @@ extends BasePlayer
 @export var drain_tick := 0.15
 @export var drain_range := 12.0
 @export var heavy_cooldown_orb := 0.9
+@export var drain_heal_percent := 0.25
 
 # Estado del drenaje
 var is_draining := false
+var _drain_active := false
 var drain_line: MeshInstance3D = null
 
 # Referencia al proyectil
@@ -86,11 +88,15 @@ func _start_drain() -> void:
 
 func _stop_drain() -> void:
 	is_draining = false
+	_drain_active = false
 	if is_instance_valid(drain_line):
 		drain_line.queue_free()
 	drain_line = null
 
 func _channel_drain() -> void:
+	if _drain_active:
+		return
+	_drain_active = true
 	while is_draining and is_holding_attack and not is_dead:
 		if not use_mana(drain_mana_cost):
 			_stop_drain()
@@ -109,8 +115,8 @@ func _channel_drain() -> void:
 			if result.collider.is_in_group("enemies") and result.collider.has_method("take_damage"):
 				var dmg = get_magic_damage(base_drain_damage)
 				result.collider.take_damage(dmg)
-				# Curar al necromante un 50% del daño aplicado
-				heal(dmg * 0.5)
+				# Curar al necromante un 25% del daño aplicado
+				heal(dmg * drain_heal_percent)
 
 		# Dibujar el rayo visual
 		if is_instance_valid(drain_line) and drain_line.mesh is ImmediateMesh:
@@ -126,4 +132,5 @@ func _channel_drain() -> void:
 			_stop_drain()
 			return
 
+	_drain_active = false
 	_stop_drain()

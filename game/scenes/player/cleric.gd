@@ -2,13 +2,11 @@ extends BasePlayer
 
 # Combate — click: maza (melee físico), mantener: Smite Divino (mágico, raycast)
 @export var base_heavy_damage := 25.0
-@export var base_smite_damage := 40.0
+@export var base_smite_damage := 60.0
 @export var smite_mana_cost := 15.0
-@export var smite_cooldown := 1.2
+@export var smite_cooldown := 0.8
 @export var smite_range := 12.0
 
-# Estado del smite
-var smite_ready := true
 
 func _on_class_ready() -> void:
 	speed = 4.5
@@ -56,12 +54,6 @@ func _attack_mace() -> void:
 
 func _smite_loop() -> void:
 	while is_holding_attack and not is_dead:
-		if not smite_ready:
-			await get_tree().process_frame
-			if not is_instance_valid(self) or is_dead:
-				return
-			continue
-
 		if mana < smite_mana_cost:
 			# Sin maná, salir del loop
 			is_holding_attack = false
@@ -69,11 +61,9 @@ func _smite_loop() -> void:
 
 		_do_smite()
 
-		smite_ready = false
 		await get_tree().create_timer(smite_cooldown).timeout
 		if not is_instance_valid(self) or is_dead:
 			return
-		smite_ready = true
 
 		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			is_holding_attack = false
@@ -125,5 +115,7 @@ func _spawn_light_pillar(pos: Vector3) -> void:
 
 	# Desaparecer tras 0.4 segundos
 	await get_tree().create_timer(0.4).timeout
+	if not is_instance_valid(self):
+		return
 	if is_instance_valid(pillar):
 		pillar.queue_free()

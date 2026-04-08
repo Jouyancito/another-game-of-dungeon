@@ -3,6 +3,7 @@ extends BasePlayer
 # Combate — click: flecha rápida, mantener: flecha cargada (2.5x daño, 1s de carga)
 @export var base_arrow_damage := 20.0
 @export var charge_time := 1.0
+@export var charge_multiplier := 2.5
 
 # Estado de carga
 var is_charging := false
@@ -30,14 +31,16 @@ func _on_class_ready() -> void:
 	health = max_health
 	mana = max_mana
 
-func _on_attack_pressed() -> void:
-	is_holding_attack = false
+func _stop_charge() -> void:
 	is_charging = false
+	is_holding_attack = false
+
+func _on_attack_pressed() -> void:
+	_stop_charge()
 	_attack_arrow()
 
 func _on_attack_released() -> void:
-	is_holding_attack = false
-	is_charging = false
+	_stop_charge()
 
 func _attack_arrow() -> void:
 	if not can_attack:
@@ -67,9 +70,14 @@ func _charge_loop() -> void:
 			is_charging = false
 			return
 
+		# Si fue interrumpido durante la espera, liberar can_attack y salir
+		if not is_charging:
+			can_attack = true
+			return
+
 		# Solo dispara si aún mantiene y sigue cargando
 		if is_charging and is_holding_attack:
-			_fire_arrow(base_arrow_damage * 2.5)
+			_fire_arrow(base_arrow_damage * charge_multiplier)
 			is_charging = false
 
 			# Cooldown antes de poder volver a cargar
@@ -83,6 +91,8 @@ func _charge_loop() -> void:
 			is_holding_attack = false
 
 func _fire_arrow(dmg: float) -> void:
+	if not is_instance_valid(self) or is_dead:
+		return
 	var arrow = arrow_scene.instantiate()
 	arrow.damage = get_dex_damage(dmg)
 	var spawn_pos = camera.global_position + (-camera.global_basis.z) * 0.8
