@@ -94,4 +94,4 @@ theme_override_font_sizes/font_size = 18
 visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.0, 0.0, 0.0, 0.5)
+color = Color(0.0, 0.0, 0.0, 0.85)
