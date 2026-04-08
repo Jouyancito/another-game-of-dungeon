@@ -4,6 +4,7 @@ extends BasePlayer
 @export var base_arrow_damage := 20.0
 @export var charge_time := 1.0
 @export var charge_multiplier := 2.5
+@export var charge_interrupt_cooldown := 0.5
 
 # Estado de carga
 var is_charging := false
@@ -32,8 +33,15 @@ func _on_class_ready() -> void:
 	mana = max_mana
 
 func _stop_charge() -> void:
+	var was_charging := is_charging
 	is_charging = false
 	is_holding_attack = false
+	if was_charging:
+		can_attack = false
+		await get_tree().create_timer(charge_interrupt_cooldown).timeout
+		if not is_instance_valid(self) or is_dead:
+			return
+		can_attack = true
 
 func _on_attack_pressed() -> void:
 	_stop_charge()
@@ -70,9 +78,8 @@ func _charge_loop() -> void:
 			is_charging = false
 			return
 
-		# Si fue interrumpido durante la espera, liberar can_attack y salir
+		# Si fue interrumpido durante la espera, _stop_charge() ya maneja el recovery
 		if not is_charging:
-			can_attack = true
 			return
 
 		# Solo dispara si aún mantiene y sigue cargando

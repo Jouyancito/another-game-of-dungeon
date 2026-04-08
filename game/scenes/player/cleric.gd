@@ -116,6 +116,8 @@ func _spawn_light_pillar(pos: Vector3) -> void:
 	# Desaparecer tras 0.4 segundos
 	await get_tree().create_timer(0.4).timeout
 	if not is_instance_valid(self):
+		if is_instance_valid(pillar):
+			pillar.queue_free()
 		return
 	if is_instance_valid(pillar):
 		pillar.queue_free()

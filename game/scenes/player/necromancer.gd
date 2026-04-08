@@ -8,6 +8,7 @@ extends BasePlayer
 @export var drain_range := 12.0
 @export var heavy_cooldown_orb := 0.9
 @export var drain_heal_percent := 0.25
+@export var drain_end_cooldown := 0.5
 
 # Estado del drenaje
 var is_draining := false
@@ -88,10 +89,13 @@ func _start_drain() -> void:
 
 func _stop_drain() -> void:
 	is_draining = false
-	_drain_active = false
 	if is_instance_valid(drain_line):
 		drain_line.queue_free()
 	drain_line = null
+	await get_tree().create_timer(drain_end_cooldown).timeout
+	if not is_instance_valid(self):
+		return
+	_drain_active = false
 
 func _channel_drain() -> void:
 	if _drain_active:
@@ -132,5 +136,4 @@ func _channel_drain() -> void:
 			_stop_drain()
 			return
 
-	_drain_active = false
 	_stop_drain()
