@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://selector001"]
+
+[ext_resource type="Script" path="res://scenes/ui/class_selector.gd" id="1_selector"]
+
+[node name="ClassSelector" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_selector")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
+text = "Selecciona tu clase"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+
+[node name="BtnGuerrero" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(300, 60)
+text = "Guerrero"
+theme_override_font_sizes/font_size = 24
+
+[node name="BtnMago" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(300, 60)
+text = "Mago"
+theme_override_font_sizes/font_size = 24
+
+[node name="BtnArquero" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(300, 60)
+text = "Arquero"
+theme_override_font_sizes/font_size = 24
+
+[node name="BtnNigromante" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(300, 60)
+text = "Nigromante"
+theme_override_font_sizes/font_size = 24
+
+[node name="BtnClerigo" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(300, 60)
+text = "Clérigo"
+theme_override_font_sizes/font_size = 24

@@ -87,6 +87,9 @@ func get_physical_damage(base_dmg: float) -> float:
 func get_magic_damage(base_dmg: float) -> float:
 	return base_dmg + (int_stat * 2)
 
+func get_dex_damage(base_dmg: float) -> float:
+	return base_dmg + (dex_stat * 2)
+
 func apply_physical_defense(raw_damage: float) -> float:
 	return maxf(raw_damage - def_stat, 1.0)
 
