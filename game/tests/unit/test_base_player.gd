@@ -351,13 +351,11 @@ func test_die_is_idempotent_via_take_damage() -> void:
 	assert_signal_emit_count(player, "player_died", 1, "take_damage no re-emite player_died")
 
 
-func test_die_direct_double_call_emits_twice() -> void:
-	# NOTA: die() NO tiene guard contra doble llamada — esto documenta el comportamiento actual.
-	# Si se agrega guard en el futuro, cambiar expected count a 1.
+func test_die_direct_double_call_is_idempotent() -> void:
 	watch_signals(player)
 	player.die()
 	player.die()
-	assert_signal_emit_count(player, "player_died", 2, "die() sin guard emite 2 veces (bug conocido)")
+	assert_signal_emit_count(player, "player_died", 1, "die() con guard emite solo una vez")
 
 
 func test_signal_health_changed_params() -> void:
