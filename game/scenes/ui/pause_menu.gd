@@ -19,13 +19,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _pause() -> void:
 	visible = true
-	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _resume() -> void:
 	visible = false
-	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -38,7 +36,6 @@ func _on_opciones() -> void:
 
 
 func _on_menu_principal() -> void:
-	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
 
 
