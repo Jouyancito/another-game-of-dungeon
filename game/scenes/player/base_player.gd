@@ -256,5 +256,7 @@ func assign_stat(stat_name: String) -> bool:
 	return true
 
 func die() -> void:
+	if is_dead:
+		return
 	is_dead = true
 	player_died.emit()
