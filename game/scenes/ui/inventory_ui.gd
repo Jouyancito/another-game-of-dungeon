@@ -14,7 +14,7 @@ var _selected_entry: Dictionary = {}   # entry activo para mover
 var _hovered_pos := Vector2i(-1, -1)   # celda bajo el mouse
 
 # Sub-nodos (asignados en _ready desde la escena)
-@onready var _bg: ColorRect = $Background
+@onready var _bg: PanelContainer = $Background
 @onready var _grid_panel: Control = $Background/VBoxContainer/GridPanel
 @onready var _coin_label: Label = $Background/VBoxContainer/FooterRow/CoinLabel
 @onready var _close_btn: Button = $Background/VBoxContainer/TitleRow/CloseBtn
