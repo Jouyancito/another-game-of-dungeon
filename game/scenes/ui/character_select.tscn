@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/character_select.gd" id="1_charselect"]
+
+[node name="CharacterSelect" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_charselect")
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.08, 0.08, 0.1, 1.0)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/separation = 32
+
+[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
+text = "Selecciona tu Personaje"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+
+[node name="CardContainer" type="HBoxContainer" parent="CenterContainer/VBoxContainer"]
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="ActionRow" type="HBoxContainer" parent="CenterContainer/VBoxContainer"]
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="BtnJugar" type="Button" parent="CenterContainer/VBoxContainer/ActionRow"]
+custom_minimum_size = Vector2(300, 60)
+text = "Jugar"
+disabled = true
+theme_override_font_sizes/font_size = 24
+
+[node name="BtnEliminar" type="Button" parent="CenterContainer/VBoxContainer/ActionRow"]
+custom_minimum_size = Vector2(200, 60)
+text = "Eliminar"
+disabled = true
+theme_override_font_sizes/font_size = 20
+
+[node name="BtnVolver" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+size_flags_horizontal = 4
+text = "Volver"
+theme_override_font_sizes/font_size = 20

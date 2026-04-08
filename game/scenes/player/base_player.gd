@@ -87,6 +87,9 @@ func get_physical_damage(base_dmg: float) -> float:
 func get_magic_damage(base_dmg: float) -> float:
 	return base_dmg + (int_stat * 2)
 
+func get_dex_damage(base_dmg: float) -> float:
+	return base_dmg + (dex_stat * 2)
+
 func apply_physical_defense(raw_damage: float) -> float:
 	return maxf(raw_damage - def_stat, 1.0)
 
@@ -109,9 +112,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if is_dead:
 		return
-
-	if event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	# Atacar — cada clase maneja el input de ataque
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
