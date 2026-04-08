@@ -115,8 +115,8 @@ func _channel_beam() -> void:
 			var im: ImmediateMesh = beam_line.mesh
 			im.clear_surfaces()
 			im.surface_begin(Mesh.PRIMITIVE_LINES)
-			im.surface_add_vertex(from)
-			im.surface_add_vertex(end_point)
+			im.surface_add_vertex(beam_line.to_local(from))
+			im.surface_add_vertex(beam_line.to_local(end_point))
 			im.surface_end()
 
 		await get_tree().create_timer(beam_tick).timeout

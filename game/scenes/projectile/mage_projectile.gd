@@ -19,6 +19,8 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _on_body_entered(body: Node3D) -> void:
+	if not is_instance_valid(self):
+		return
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		body.take_damage(damage)
 	# Desaparecer al impactar cualquier cosa (enemigo o pared)
