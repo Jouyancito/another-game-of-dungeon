@@ -83,6 +83,7 @@ func _start_beam() -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	beam_line.material_override = mat
+	beam_line.custom_aabb = AABB(Vector3(-50, -50, -50), Vector3(100, 100, 100))
 	add_child(beam_line)
 
 func _stop_beam() -> void:

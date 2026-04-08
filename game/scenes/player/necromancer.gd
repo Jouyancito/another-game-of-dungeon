@@ -85,6 +85,7 @@ func _start_drain() -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	drain_line.material_override = mat
+	drain_line.custom_aabb = AABB(Vector3(-50, -50, -50), Vector3(100, 100, 100))
 	add_child(drain_line)
 
 func _stop_drain() -> void:
