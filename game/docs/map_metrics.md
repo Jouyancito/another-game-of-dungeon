@@ -2,7 +2,7 @@
 
 **Departamento**: Game Design  
 **Fecha**: 2026-04-08  
-**Estado**: v1.0 — aprobado para uso del departamento Gameplay
+**Estado**: v1.1 — agregado Piso 1 Pradera + tipología por bioma
 
 ---
 
@@ -273,17 +273,183 @@ Antes de marcar una sala/piso como "playtest-ready", verificar:
 
 ---
 
+## 11. Adaptación por Piso: Métricas en Contexto Temático
+
+Las métricas genéricas de las secciones 1-9 aplican a todos los pisos, pero cada bioma tiene restricciones y posibilidades propias. Esta sección define cómo se doblan esas reglas para cada mundo.
+
+### 11.1 Tipología: Abierto vs. Cerrado vs. Mixto
+
+| Piso | Mundo | Tipo | Techo | Estructura dominante |
+|------|-------|------|-------|---------------------|
+| 1 | Pradera Interior | **Abierto simulado** | Luz de diamante (sin techo geométrico) | Campo abierto + senderos naturales |
+| 2 | Bosque / Selva | **Cerrado verde** | Dosel de árboles (opaco, bajo) | Senderos entre vegetación densa |
+| 3 | Hielo / Nieve | **Cerrado duro** | Cuevas y formaciones de hielo | Cavernas con columnas de hielo |
+| 4 | Tormenta / Cielo | **Abierto hostil** | Sin techo — vacío tormentoso | Plataformas flotantes conectadas |
+| 5 | Dimensión Rota | **Imposible** | Varía por zona — gravedad propia | Geometría no euclidiana |
+
+### 11.2 Características Ambientales por Piso
+
+| Piso | Luz | Visibilidad de enemigos | Cobertura dominante | Tensión primaria |
+|------|-----|------------------------|--------------------|--------------------|
+| 1 — Pradera | Luz cálida (atardecer) | Alta — ves a lo lejos | Arbustos, rocas, muros de piedra rotos | Emboscada desde pasto alto / flanqueo |
+| 2 — Bosque | Poca luz, rayos de sol filtrados | Baja — niebla y árboles bloquean | Troncos, raíces, maleza | Sorpresa — el enemigo aparece de la nada |
+| 3 — Hielo | Fría, azulada, reflejos en el hielo | Media — rebota en cristales | Estalactitas, bloques de hielo | Terreno resbaloso + distancias engañosas |
+| 4 — Tormenta | Relámpagos intermitentes, oscuridad | Alta pero rota por el caos | Bordes de plataforma (cobertura = caída) | Caos visual + peligro ambiental activo |
+| 5 — Dimensión | Imposible — fuentes que no tienen sentido | Impredecible | Geometría que se dobla | Las reglas del juego se alteran |
+
+---
+
+## 12. Piso 1 — Pradera Interior: Diseño de Mapa Detallado
+
+### 12.1 Contexto y Concepto
+
+El Piso 1 no es un dungeon cerrado. Es una **pradera interior gigante** — el primer piso de la torre es en realidad un mundo entero encapsulado: cielo de luz (cristal o diamante en el techo a gran altura), árboles, casas en ruinas, pilares descomunales que sostienen el piso de arriba.
+
+**Referencia de sensación**:
+- Dark Souls — Undead Burg al bajar al Valle de los Drakos: transición de ciudad a campo, el espacio se abre de golpe y los enemigos se ven a distancia antes de que te vean a vos
+- Zelda: Breath of the Wild — Great Plateau: el mundo abierto como tutorial natural, el peligro se aprende leyendo el terreno
+- Valheim — Meadows: bioma de entrada, calmado en apariencia, peligroso si no prestás atención
+
+### 12.2 Qué Cambia vs. un Dungeon Cerrado
+
+| Elemento | Dungeon cerrado | Pradera Interior |
+|----------|----------------|-----------------|
+| Techo | 3.5 m — opresivo | Luz de diamante a ~20-30 m de altura — expansivo |
+| Paredes | Piedra geométrica | Acantilados, árboles densos, ríos, muros de piedra rotos |
+| Pasillos | Corredores de piedra tallada | Senderos naturales entre arbustos, cerca de piedra, taludes |
+| Zonas entre salas | Pasillo vacío con firma | **Campo abierto** — vegetación, fauna pasiva, loot en el pasto, ruinas menores |
+| Orientación | Arquitectura guía al jugador | Landmarks naturales guían (árbol enorme, ruina visible a lo lejos, columna de la torre) |
+| Cobertura | Cajas, pilares tallados | Rocas, troncos, cercas de madera, carros abandonados |
+
+### 12.3 Métricas Ajustadas para la Pradera
+
+Las reglas genéricas de pasillos y salas se reinterpretan así:
+
+**En lugar de "sala"** → **zona de combate abierta**
+
+| Tipo | Equivalente en Pradera | Tamaño | Delimitación |
+|------|----------------------|--------|--------------|
+| Sala pequeña | Claro entre árboles / patio de ruina | 8 × 8 m — 10 × 10 m | Árboles densos, roca, muro roto |
+| Sala mediana | Campo abierto con accidentes de terreno | 16 × 16 m — 20 × 20 m | Acantilado, río, arboleda |
+| Sala grande | Explanada pre-boss / ruinas centrales | 28 × 24 m — 32 × 28 m | Combinación natural + ruinas |
+| Sala de boss | Llanura plana o arena de ruinas | 32 × 32 m | Borde natural infranqueable (ej: muralla caída) |
+
+**En lugar de "pasillo"** → **sendero natural**
+
+| Tipo | Equivalente en Pradera | Ancho | Largo |
+|------|----------------------|-------|-------|
+| Pasillo estándar | Camino entre cercas de piedra o arbustos | 3.0 – 4.0 m | 8 – 20 m |
+| Pasillo estrecho | Paso entre rocas / entrada a arboleda | 2.0 – 2.5 m | 6 – 12 m |
+| Pasillo de escape | Camino ancho post-boss hacia el portal | 6.0 m | 20 – 30 m |
+
+> **Nota**: los senderos de la pradera son más anchos que los pasillos de dungeon (2.5 m → 3.0 m base) porque el contexto visual es abierto. En un dungeon, 2.5 m se siente estrecho. En campo abierto, 2.5 m se siente un sendero de cabra — demasiado angosto para la escala visual del bioma.
+
+**Altura efectiva**: no aplica la regla de 3.5 m. El techo es la bóveda de luz del diamante, a ~20-30 m. La "altura" relevante son los obstáculos: rocas de 1.5-2.5 m, cercas de 1.2 m, árboles de 5-8 m.
+
+### 12.4 Tensión sin Paredes: Los Tres Mecanismos
+
+En un dungeon cerrado, la tensión viene del espacio limitado. En campo abierto, la tensión se construye de otra manera:
+
+#### Mecanismo 1: Visibilidad Larga → Ansiedad por lo que se Acerca
+- El jugador ve enemigos a 15-20 m. Sabe que van a atacar. El tiempo de anticipación genera tensión.
+- Diseño: posicionar grupos de enemigos en puntos visibles desde zonas de entrada. El jugador elige si avanza o flanquea.
+- Referencia: Dark Souls — los huecos con arcos en las murallas se ven antes de entrar al rango.
+
+#### Mecanismo 2: Pasto Alto y Rocas → Emboscada
+- Zonas de vegetación alta (1.0-1.5 m) donde el jugador no ve al enemigo hasta estar a 5-6 m.
+- Visualmente marcadas con pasto más alto o arbustos más densos — el jugador puede *saber* que es peligroso si presta atención.
+- Diseño: no combinarlas con combates frontales al mismo tiempo. La emboscada es una sorpresa táctica, no un spam de daño.
+
+#### Mecanismo 3: Variación de Terreno → Posicionamiento
+- Zonas elevadas (un peñasco de 2 m, una colina suave) que dan ventaja de visibilidad.
+- Cruces de camino con ángulos múltiples — el grupo tiene que coordinar para no ser rodeado.
+- El Mago prefiere altura. El Guerrero prefiere terreno plano. La pradera fuerza conversaciones tácticas naturales.
+
+### 12.5 Sub-zonas de la Pradera (Composición del Piso)
+
+El Piso 1 se compone de sub-zonas que el jugador atraviesa en orden general pero con libertad de exploración lateral:
+
+| Sub-zona | Descripción | Combates | Loot | Referencia visual |
+|----------|-------------|----------|------|-------------------|
+| **Entrada** | Campo abierto, luz cálida, 2-3 enemigos dispersos | 1-2 grupos fáciles | Monedas, ítem común | Great Plateau — apertura de BotW |
+| **Arboleda** | Árboles densos, luz filtrada, pasto alto | 1 emboscada + 1 grupo | Cofre oculto entre raíces | Valheim — Black Forest boundary |
+| **Ruinas menores** | Muros de piedra caídos, pozos secos, carros | 1 grupo élite o 2 grupos básicos | Cofre con ítem raro posible | Undead Burg exterior — Dark Souls |
+| **Río** | Zona de transición — agua de 0.3 m, movimiento lento | Sin combate (respiro activo) | Loot en el agua (visible) | — |
+| **Explanada central** | Campo abierto grande, pilares de la torre visibles | 3-4 grupos, punto de resistencia | Cofre garantizado | — |
+| **Cueva pequeña** | Mini-dungeon dentro del piso — techo bajo (3.5 m) | 1-2 grupos densos | Cofre épico (loot garantizado+) | Opcional — recompensa de exploración |
+| **Arena del boss** | Llanura amplia con muralla caída como borde | Boss piso 1 | Drop de boss | — |
+
+#### Mapa Mental del Flujo
+
+```
+[Entrada] ──→ [Arboleda]
+    │               │
+    │               ↓
+    └──────→ [Ruinas menores] ──→ [Río] ──→ [Explanada central] ──→ [Arena boss]
+                                                     │
+                                                     └──→ [Cueva pequeña] (opcional)
+```
+
+El jugador siempre puede llegar al boss sin pasar por la cueva. La cueva es recompensa para quien explora.
+
+### 12.6 Llenado del Campo Abierto (Zonas entre Combates)
+
+El campo abierto entre sub-zonas no puede estar vacío, pero tampoco puede tener combate constante. Aplicar la estrategia de "Pasillos con Firma" (sección 7) adaptada al bioma:
+
+| Tipo de firma | Ejemplo en pradera | Propósito |
+|--------------|-------------------|-----------|
+| **Ambiental** | Mariposas luminosas, viento que mueve el pasto, humo de ruina lejana | Inmersión, el mundo se siente vivo |
+| **Sonoro** | Viento, pájaros lejanos, agua del río, un rugido distante | Anticipación — ¿qué hay más adelante? |
+| **Fauna pasiva** | Ciervos que huyen al acercarse, aves que levantan vuelo | Señalización natural de zonas de emboscada (los animales huyen cuando el enemigo está cerca) |
+| **Loot menor** | Bolsa de cuero en el pasto, cuerpo de un aventurero anterior con ítem | Razón para explorar fuera del camino |
+| **Ruina menor** | Pedestal de piedra roto, pozo cegado, estatua caída | Historia ambiental, posible interactivo futuro |
+| **Peligro latente** | Zona de pasto quemado (trampas), piedras inestables | Tensión ambiental sin enemigo activo |
+
+### 12.7 Iluminación y Mood
+
+El Piso 1 usa **luz de atardecer** como estado por defecto (naranja-dorado, sombras largas). Razones:
+
+1. **Legibilidad**: la luz lateral larga hace que el terreno tenga volumen — los accidentes de terreno se ven con claridad. No hay confusión de dónde pararse.
+2. **Mood de bienvenida**: cálido pero no festivo. Hay belleza y hay peligro. El jugador entiende que esto es una intro, no el final.
+3. **Contraste con pisos siguientes**: el Bosque (Piso 2) es oscuro y verde. La transición de dorado a oscuro marca el aumento de dificultad de forma sensorial, no solo en números.
+
+En Godot: `DirectionalLight3D` con ángulo bajo (15-25°), color naranja (#FF9040 o similar), sombras activadas. El techo de diamante a 20-30 m refracta la luz en destellos — partículas o shader sencillo de destello en el material del techo.
+
+### 12.8 Checklist de Validación — Pradera
+
+Adicional al checklist genérico (sección 9):
+
+- [ ] ¿El jugador tiene un landmark visible al entrar que le da orientación (árbol enorme, columna de la torre, ruina)?
+- [ ] ¿Hay al menos una zona de pasto alto claramente visible antes de que el jugador entre en ella?
+- [ ] ¿El río marca una pausa de combate y tiene loot visible para invitar a cruzarlo?
+- [ ] ¿La cueva pequeña es opcional y claramente separada del camino principal?
+- [ ] ¿Los senderos tienen al menos 3.0 m de ancho para que la escala se sienta pradera y no pasillo?
+- [ ] ¿La fauna pasiva reacciona a los enemigos cercanos (para enseñar al jugador a leer el entorno)?
+- [ ] ¿La arena del boss tiene borde claro (muralla, acantilado, río) que encierre el combate?
+- [ ] ¿El cielo de diamante a gran altura es visible pero no protagonista — está, pero no distrae?
+
+---
+
 ## 10. Resumen Rápido (referencia de bolsillo)
 
 ```
-ALTURAS
+ALTURAS (dungeon cerrado)
   Pasillo / sala estándar : 3.5 m
   Sala grande             : 4.5 m
   Sala de boss            : 8.0 m
 
-PASILLOS
+ALTURAS (pradera interior — piso 1)
+  Techo efectivo          : ~20-30 m (bóveda de diamante)
+  Obstáculos              : 1.2 m (cerca) — 2.5 m (roca) — 5-8 m (árbol)
+
+PASILLOS (dungeon cerrado)
   Estándar  : 2.5 m ancho × 6-16 m largo
   Estrecho  : 1.4 m ancho × 4-8 m largo
+
+SENDEROS (pradera — piso 1)
+  Estándar  : 3.0–4.0 m ancho × 8-20 m largo
+  Estrecho  : 2.0–2.5 m ancho × 6-12 m largo
+  Escape    : 6.0 m ancho × 20-30 m largo
 
 SALAS (ancho × largo)
   Pequeña   : 6×6 m — 10×8 m
@@ -301,4 +467,11 @@ TIEMPOS CRUCE DIAGONAL (peor caso)
   Sala mediana : 4.5 s normal / 2.8 s sprint
   Sala grande  : 7.4 s normal / 4.6 s sprint
   Boss         : 9.1 s normal / 5.7 s sprint
+
+TIPOLOGÍA POR PISO
+  Piso 1 — Pradera    : Abierto simulado (campo, senderos, sub-zonas)
+  Piso 2 — Bosque     : Cerrado verde (dosel, vegetación densa)
+  Piso 3 — Hielo      : Cerrado duro (cuevas, cristal)
+  Piso 4 — Tormenta   : Abierto hostil (plataformas flotantes)
+  Piso 5 — Dimensión  : Imposible (geometría no euclidiana)
 ```
