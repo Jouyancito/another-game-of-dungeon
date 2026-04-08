@@ -17,9 +17,9 @@ const CLASS_DATA: Dictionary = {
 		"scene": "res://scenes/player/necromancer.tscn",
 		"display": "Nigromante",
 	},
-	"Clerigo": {
+	"Clérigo": {
 		"scene": "res://scenes/player/cleric.tscn",
-		"display": "Clerigo",
+		"display": "Clérigo",
 	},
 }
 
@@ -29,7 +29,19 @@ func _ready() -> void:
 	$CenterContainer/VBoxContainer/BtnMago.pressed.connect(func() -> void: _select_class("Mago"))
 	$CenterContainer/VBoxContainer/BtnArquero.pressed.connect(func() -> void: _select_class("Arquero"))
 	$CenterContainer/VBoxContainer/BtnNigromante.pressed.connect(func() -> void: _select_class("Nigromante"))
-	$CenterContainer/VBoxContainer/BtnClerigo.pressed.connect(func() -> void: _select_class("Clerigo"))
+	$CenterContainer/VBoxContainer/BtnClerigo.pressed.connect(func() -> void: _select_class("Clérigo"))
+
+
+func _unique_character_name(display_name: String) -> String:
+	var existing: Array = []
+	for i in range(SaveManager.get_character_count()):
+		existing.append(SaveManager.get_character(i).get("name", ""))
+	var candidate := display_name
+	var n := 1
+	while candidate in existing:
+		n += 1
+		candidate = "%s #%d" % [display_name, n]
+	return candidate
 
 
 func _select_class(class_key: String) -> void:
@@ -37,8 +49,7 @@ func _select_class(class_key: String) -> void:
 	var scene_path: String = data["scene"]
 	var display_name: String = data["display"]
 
-	var count: int = SaveManager.get_character_count()
-	var char_name: String = "%s #%d" % [display_name, count + 1]
+	var char_name: String = _unique_character_name(display_name)
 
 	SaveManager.create_character(char_name, scene_path, class_key)
 
@@ -46,4 +57,4 @@ func _select_class(class_key: String) -> void:
 	GameManager.selected_character_index = new_index
 	GameManager.selected_class_scene = scene_path
 
-	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")

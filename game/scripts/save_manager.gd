@@ -1,6 +1,7 @@
 extends Node
 
 const SAVE_PATH = "user://characters.json"
+const SAVE_PATH_TMP = "user://characters.json.tmp"
 
 var characters: Array = []
 
@@ -51,20 +52,28 @@ func load_characters() -> void:
 
 	var parsed = json.get_data()
 	if parsed is Array:
-		characters = parsed
+		characters = parsed.filter(func(e): return e is Dictionary)
 	else:
 		push_warning("SaveManager: formato inesperado en el archivo de guardado.")
 		characters = []
 
 
 func save_characters() -> void:
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(SAVE_PATH_TMP, FileAccess.WRITE)
 	if file == null:
-		push_error("SaveManager: no se pudo abrir el archivo para guardar.")
+		push_error("SaveManager: no se pudo abrir el archivo temporal para guardar.")
 		return
 
 	file.store_string(JSON.stringify(characters, "\t"))
 	file.close()
+
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		push_error("SaveManager: no se pudo acceder al directorio de guardado.")
+		return
+	var err := dir.rename(SAVE_PATH_TMP, SAVE_PATH)
+	if err != OK:
+		push_error("SaveManager: no se pudo renombrar el archivo temporal. Error: %d" % err)
 
 
 func create_character(char_name: String, class_scene: String, class_display_name: String) -> int:

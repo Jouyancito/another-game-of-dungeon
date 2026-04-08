@@ -33,4 +33,6 @@ func _show_proximamente() -> void:
 	var label: Label = $CenterContainer/VBoxContainer/StatusLabel
 	label.visible = true
 	await get_tree().create_timer(2.0).timeout
+	if not is_instance_valid(self):
+		return
 	label.visible = false
