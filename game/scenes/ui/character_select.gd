@@ -12,6 +12,7 @@ const MAX_CHARACTERS: int = 6
 
 var selected_index: int = -1
 var _delete_pending: bool = false
+var _play_pending: bool = false
 
 
 func _ready() -> void:
@@ -24,6 +25,7 @@ func _ready() -> void:
 func _refresh_characters() -> void:
 	selected_index = -1
 	_delete_pending = false
+	_play_pending = false
 	_update_buttons()
 
 	var container: HBoxContainer = $CenterContainer/VBoxContainer/CardContainer
@@ -120,6 +122,8 @@ func _create_new_card() -> PanelContainer:
 func _select_card(index: int) -> void:
 	selected_index = index
 	_delete_pending = false
+	_play_pending = false
+	$CenterContainer/VBoxContainer/ActionRow/BtnJugar.text = "Jugar"
 	$CenterContainer/VBoxContainer/ActionRow/BtnEliminar.text = "Eliminar"
 	_update_buttons()
 	_highlight_selected()
@@ -147,6 +151,10 @@ func _update_buttons() -> void:
 
 func _on_btn_jugar_pressed() -> void:
 	if selected_index < 0:
+		return
+	if not _play_pending:
+		_play_pending = true
+		$CenterContainer/VBoxContainer/ActionRow/BtnJugar.text = "Confirmar?"
 		return
 	var character: Dictionary = SaveManager.get_character(selected_index)
 	if character.is_empty() or character.get("class_scene", "") == "":
