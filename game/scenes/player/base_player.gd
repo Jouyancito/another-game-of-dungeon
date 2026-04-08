@@ -59,6 +59,7 @@ var is_dead := false
 var is_holding_attack := false
 var is_crouching := false
 var time_since_last_hit := 0.0
+var _reloading := false
 
 # Referencias
 @onready var collider: CollisionShape3D = $CollisionShape3D
@@ -95,12 +96,15 @@ func apply_elemental_damage(raw_damage: float, element: String) -> float:
 		"fire": res = res_fire
 		"ice": res = res_ice
 		"lightning": res = res_lightning
+		_: push_warning("apply_elemental_damage: unknown element '%s'" % element)
 	return raw_damage * (1.0 - clampf(res, 0.0, 0.75))
 
 func _unhandled_input(event: InputEvent) -> void:
 	# TEST: respawn con R (temporal para prototipo)
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R and is_dead:
-		get_tree().reload_current_scene()
+		if not _reloading:
+			_reloading = true
+			get_tree().reload_current_scene()
 		return
 
 	if is_dead:

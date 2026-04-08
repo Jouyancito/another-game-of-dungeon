@@ -76,6 +76,8 @@ func perform_attack() -> void:
 		can_attack = true
 
 func take_damage(amount: float) -> void:
+	if is_dead:
+		return
 	health -= amount
 
 	# Efecto visual de daño — ponerse rojo brevemente
@@ -98,6 +100,10 @@ func take_damage(amount: float) -> void:
 
 func die() -> void:
 	is_dead = true
+	remove_from_group("enemies")
+	var col = get_node_or_null("CollisionShape3D")
+	if col:
+		col.set_deferred("disabled", true)
 	# Dar XP al jugador
 	if target and target.has_method("gain_xp"):
 		target.gain_xp(xp_reward)

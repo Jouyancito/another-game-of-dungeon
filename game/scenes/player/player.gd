@@ -41,6 +41,8 @@ func _attack_heavy() -> void:
 	_do_melee(base_heavy_damage)
 
 	await get_tree().create_timer(heavy_cooldown).timeout
+	if not is_instance_valid(self) or is_dead:
+		return
 	can_attack = true
 
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -48,17 +50,18 @@ func _attack_heavy() -> void:
 		_attack_combo()
 
 func _attack_combo() -> void:
-	if not can_attack or not is_holding_attack:
-		return
-	can_attack = false
+	while can_attack and is_holding_attack and not is_dead:
+		can_attack = false
 
-	_do_melee(base_combo_damage)
+		_do_melee(base_combo_damage)
 
-	await get_tree().create_timer(combo_cooldown).timeout
-	can_attack = true
+		await get_tree().create_timer(combo_cooldown).timeout
+		if not is_instance_valid(self) or is_dead:
+			return
+		can_attack = true
 
-	if is_holding_attack and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		_attack_combo()
+		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			is_holding_attack = false
 
 func _do_melee(base_dmg: float) -> void:
 	var space_state = get_world_3d().direct_space_state
