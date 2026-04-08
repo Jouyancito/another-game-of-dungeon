@@ -1,8 +1,8 @@
 extends Area3D
 
-@export var speed := 20.0
+@export var speed := 30.0
 @export var damage := 20.0
-@export var max_range := 15.0
+@export var max_range := 25.0
 
 var direction := Vector3.FORWARD
 var distance_traveled := 0.0
@@ -23,5 +23,4 @@ func _on_body_entered(body: Node3D) -> void:
 		return
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		body.take_damage(damage)
-	# Desaparecer al impactar cualquier cosa (enemigo o pared)
 	queue_free()

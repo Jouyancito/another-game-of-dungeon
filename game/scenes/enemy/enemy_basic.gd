@@ -36,6 +36,8 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= gravity * delta
 
 	# Si no hay objetivo, no hacer nada
+	if target != null and not is_instance_valid(target):
+		target = null
 	if target == null:
 		return
 
@@ -70,12 +72,17 @@ func _physics_process(delta: float) -> void:
 
 func perform_attack() -> void:
 	can_attack = false
-	target.take_damage(damage)
+	if is_instance_valid(target):
+		target.take_damage(damage)
 	await get_tree().create_timer(attack_cooldown).timeout
+	if not is_instance_valid(self):
+		return
 	if not is_dead:
 		can_attack = true
 
 func take_damage(amount: float) -> void:
+	if is_dead:
+		return
 	health -= amount
 
 	# Efecto visual de daño — ponerse rojo brevemente
@@ -90,14 +97,19 @@ func take_damage(amount: float) -> void:
 			material.albedo_color = Color(1, 0, 0)
 			# Volver al color original después de 0.2 segundos
 			await get_tree().create_timer(0.2).timeout
-			if not is_dead:
-				material.albedo_color = Color(0.8, 0.2, 0.2)
+			if not is_instance_valid(self) or is_dead:
+				return
+			material.albedo_color = Color(0.8, 0.2, 0.2)
 
 	if health <= 0:
 		die()
 
 func die() -> void:
 	is_dead = true
+	remove_from_group("enemies")
+	var col = get_node_or_null("CollisionShape3D")
+	if col:
+		col.set_deferred("disabled", true)
 	# Dar XP al jugador
 	if target and target.has_method("gain_xp"):
 		target.gain_xp(xp_reward)

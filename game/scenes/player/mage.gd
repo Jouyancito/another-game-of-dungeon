@@ -37,7 +37,7 @@ func _on_class_ready() -> void:
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false
-	is_channeling = false
+	_stop_beam()
 	_attack_heavy()
 
 func _on_attack_released() -> void:
@@ -58,6 +58,8 @@ func _attack_heavy() -> void:
 	get_tree().current_scene.add_child(projectile)
 
 	await get_tree().create_timer(heavy_cooldown).timeout
+	if not is_instance_valid(self) or is_dead:
+		return
 	can_attack = true
 
 	# Si sigue manteniendo, cambiar a rayo canalizado
@@ -81,13 +83,14 @@ func _start_beam() -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	beam_line.material_override = mat
-	get_tree().current_scene.add_child(beam_line)
+	beam_line.custom_aabb = AABB(Vector3(-50, -50, -50), Vector3(100, 100, 100))
+	add_child(beam_line)
 
 func _stop_beam() -> void:
 	is_channeling = false
-	if beam_line != null:
+	if is_instance_valid(beam_line):
 		beam_line.queue_free()
-		beam_line = null
+	beam_line = null
 
 func _channel_beam() -> void:
 	while is_channeling and is_holding_attack and not is_dead:
@@ -109,14 +112,17 @@ func _channel_beam() -> void:
 				result.collider.take_damage(get_magic_damage(base_beam_damage))
 
 		# Dibujar el rayo visual
-		if beam_line and beam_line.mesh is ImmediateMesh:
+		if is_instance_valid(beam_line) and beam_line.mesh is ImmediateMesh:
 			var im: ImmediateMesh = beam_line.mesh
 			im.clear_surfaces()
 			im.surface_begin(Mesh.PRIMITIVE_LINES)
-			im.surface_add_vertex(from)
-			im.surface_add_vertex(end_point)
+			im.surface_add_vertex(beam_line.to_local(from))
+			im.surface_add_vertex(beam_line.to_local(end_point))
 			im.surface_end()
 
 		await get_tree().create_timer(beam_tick).timeout
+		if not is_instance_valid(self) or is_dead:
+			_stop_beam()
+			return
 
 	_stop_beam()
