@@ -1,0 +1,654 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/character_window.gd" id="1_charwin"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.1, 0.1, 0.12, 0.95)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_stat_row"]
+bg_color = Color(0.15, 0.15, 0.18, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_right = 12.0
+content_margin_top = 4.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_derived"]
+bg_color = Color(0.12, 0.12, 0.15, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_right = 12.0
+content_margin_top = 6.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_equip"]
+bg_color = Color(0.13, 0.11, 0.08, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 12.0
+content_margin_right = 12.0
+content_margin_top = 6.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_skill_slot"]
+bg_color = Color(0.18, 0.18, 0.22, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.35, 0.4, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="CharacterWindow" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_charwin")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.4)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -320.0
+offset_right = 260.0
+offset_bottom = 320.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="LevelLabel" type="Label" parent="Panel/Margin/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "Nivel 1"
+
+[node name="StatPointsLabel" type="Label" parent="Panel/Margin/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.9, 0.75, 0.1, 1)
+text = "Puntos: 0"
+
+[node name="HpMp" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="HpLabel" type="Label" parent="Panel/Margin/VBox/HpMp"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.85, 0.15, 0.15, 1)
+text = "HP: 100/100"
+
+[node name="MpLabel" type="Label" parent="Panel/Margin/VBox/HpMp"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.2, 0.4, 0.9, 1)
+text = "MP: 80/80"
+
+[node name="Sep1" type="HSeparator" parent="Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Tabs" type="TabContainer" parent="Panel/Margin/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Stats" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="StatsTitle" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
+text = "— Atributos Base —"
+horizontal_alignment = 1
+
+[node name="StrRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "FUE"
+theme_override_font_sizes/font_size = 15
+
+[node name="StrValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "5"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="StrBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "+"
+theme_override_font_sizes/font_size = 16
+
+[node name="IntRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "INT"
+theme_override_font_sizes/font_size = 15
+
+[node name="IntValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "5"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="IntBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "+"
+theme_override_font_sizes/font_size = 16
+
+[node name="DexRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "DES"
+theme_override_font_sizes/font_size = 15
+
+[node name="DexValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "5"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="DexBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "+"
+theme_override_font_sizes/font_size = 16
+
+[node name="DefRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "DEF"
+theme_override_font_sizes/font_size = 15
+
+[node name="DefValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "5"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="DefBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "+"
+theme_override_font_sizes/font_size = 16
+
+[node name="VitRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow"]
+layout_mode = 2
+
+[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "VIT"
+theme_override_font_sizes/font_size = 15
+
+[node name="VitValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "5"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="VitBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "+"
+theme_override_font_sizes/font_size = 16
+
+[node name="StatDescLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 20)
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
+horizontal_alignment = 1
+
+[node name="SepDerived" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+
+[node name="DerivedTitle" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
+text = "— Combate —"
+horizontal_alignment = 1
+
+[node name="DerivedPanel" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_derived")
+
+[node name="DerivedGrid" type="GridContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel"]
+layout_mode = 2
+columns = 2
+
+[node name="PhysDmgName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "Daño Físico"
+
+[node name="PhysDmgValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.9, 0.6, 0.3, 1)
+text = "10"
+horizontal_alignment = 2
+
+[node name="MagicDmgName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "Daño Mágico"
+
+[node name="MagicDmgValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.5, 0.5, 0.95, 1)
+text = "10"
+horizontal_alignment = 2
+
+[node name="DexDmgName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "Daño a Distancia"
+
+[node name="DexDmgValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.3, 0.85, 0.4, 1)
+text = "10"
+horizontal_alignment = 2
+
+[node name="DefenseName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "Defensa"
+
+[node name="DefenseValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
+text = "5"
+horizontal_alignment = 2
+
+[node name="MoveSpeedName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+text = "Velocidad"
+
+[node name="MoveSpeedValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
+text = "5.0"
+horizontal_alignment = 2
+
+[node name="SepEquip" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+
+[node name="EquipTitle" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
+text = "— Bonos de Equipo —"
+horizontal_alignment = 1
+
+[node name="EquipBonusSection" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EquipPanel" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/EquipBonusSection"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_equip")
+
+[node name="EquipLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/EquipBonusSection/EquipPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.45, 0.45, 0.5, 1)
+text = "Sin equipo"
+horizontal_alignment = 1
+
+[node name="SepAdvanced" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+
+[node name="AdvancedToggle" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "▼ Stats Avanzados"
+flat = true
+
+[node name="AdvancedSection" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="AdvancedPanel" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_derived")
+
+[node name="AdvGrid" type="GridContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel"]
+layout_mode = 2
+columns = 2
+
+[node name="ResFireName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Res. Fuego"
+
+[node name="ResFireValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.95, 0.4, 0.2, 1)
+text = "0%"
+horizontal_alignment = 2
+
+[node name="ResIceName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Res. Hielo"
+
+[node name="ResIceValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.3, 0.7, 0.95, 1)
+text = "0%"
+horizontal_alignment = 2
+
+[node name="ResLightningName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Res. Rayo"
+
+[node name="ResLightningValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.95, 0.9, 0.3, 1)
+text = "0%"
+horizontal_alignment = 2
+
+[node name="HpRegenName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Regen HP"
+
+[node name="HpRegenValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.85, 0.3, 0.3, 1)
+text = "0.5/s"
+horizontal_alignment = 2
+
+[node name="MpRegenName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Regen MP"
+
+[node name="MpRegenValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.3, 0.5, 0.9, 1)
+text = "1.0/s"
+horizontal_alignment = 2
+
+[node name="PlaceholderLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+text = "Daño vs Demonios, No Muertos, Humanos,
+Bloqueo, Evasión, Golpe Crítico...
+(disponibles con equipo e ítems)"
+horizontal_alignment = 1
+
+[node name="Habilidades" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SkillsLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
+text = "Especialización disponible a nivel 10"
+horizontal_alignment = 1
+
+[node name="SkillGrid" type="GridContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+layout_mode = 2
+columns = 4
+
+[node name="Skill1" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill1"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill2" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill2"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill3" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill3"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill4" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill4"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill5" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill5"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill6" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill6"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill7" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill7"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="Skill8" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 80)
+theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
+
+[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill8"]
+layout_mode = 2
+text = "?"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+
+[node name="BranchInfo" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
+text = "2 ramas de especialización por clase.
+Elegí tu camino a nivel 10."
+horizontal_alignment = 1
+
+[node name="CloseHint" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.45, 0.45, 0.5, 1)
+text = "Presioná C para cerrar"
+horizontal_alignment = 1

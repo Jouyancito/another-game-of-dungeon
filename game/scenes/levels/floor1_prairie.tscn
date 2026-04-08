@@ -1,0 +1,45 @@
+[gd_scene load_steps=5 format=3 uid="uid://floor1_prairie"]
+
+[ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_script"]
+
+; ── Sky / Environment ──────────────────────────────────────────────────────────
+
+[sub_resource type="Sky" id="sky_resource"]
+
+[sub_resource type="Environment" id="env_resource"]
+background_mode = 2
+sky = SubResource("sky_resource")
+sky_custom_fov = 0.0
+ambient_light_color = Color(0.9, 0.75, 0.55, 1)
+ambient_light_energy = 0.4
+
+; ── Floor material ────────────────────────────────────────────────────────────
+
+[sub_resource type="StandardMaterial3D" id="mat_floor"]
+albedo_color = Color(0.290, 0.478, 0.180, 1)
+
+; ── Scene Root ─────────────────────────────────────────────────────────────────
+
+[node name="Floor1Prairie" type="Node3D"]
+script = ExtResource("1_script")
+
+; ── Lighting — ángulo bajo (~20°), naranja cálido, sombras ─────────────────────
+
+[node name="SunLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.940, 0.342, 0, -0.342, 0.940, 40, 20, 10)
+light_color = Color(1.0, 0.565, 0.251, 1)
+light_energy = 1.3
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env_resource")
+
+; ── Ground — 200×200m ─────────────────────────────────────────────────────────
+; El centro del mapa está en (0, 0, 0). El piso está ligeramente bajo cero
+; para que los CSG generados por script queden perfectamente rasantes.
+
+[node name="GroundFloor" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0)
+size = Vector3(200, 0.3, 200)
+use_collision = true
+material_override = SubResource("mat_floor")
