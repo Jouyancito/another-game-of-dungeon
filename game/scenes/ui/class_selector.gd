@@ -1,78 +1,99 @@
 extends Control
 
-const CLASS_DATA: Dictionary = {
-	"Guerrero": {
+const CLASSES: Array = [
+	{
+		"key": "Guerrero",
 		"scene": "res://scenes/player/player.tscn",
 		"display": "Guerrero",
+		"desc": "Tanque melee. Golpea fuerte de cerca.",
+		"color": Color(0.9, 0.9, 0.9, 1.0),
 	},
-	"Mago": {
+	{
+		"key": "Mago",
 		"scene": "res://scenes/player/mage.tscn",
 		"display": "Mago",
+		"desc": "Daño mágico a distancia. Bolitas de energía y rayo canalizado.",
+		"color": Color(0.3, 0.3, 0.8, 1.0),
 	},
-	"Arquero": {
+	{
+		"key": "Arquero",
 		"scene": "res://scenes/player/archer.tscn",
 		"display": "Arquero",
+		"desc": "Daño físico a distancia. Flechas rápidas y carga potente.",
+		"color": Color(0.2, 0.6, 0.3, 1.0),
 	},
-	"Nigromante": {
+	{
+		"key": "Nigromante",
 		"scene": "res://scenes/player/necromancer.tscn",
 		"display": "Nigromante",
+		"desc": "Orbes oscuros y drenaje de vida. Daña y se cura.",
+		"color": Color(0.4, 0.1, 0.5, 1.0),
 	},
-	"Clérigo": {
+	{
+		"key": "Clérigo",
 		"scene": "res://scenes/player/cleric.tscn",
 		"display": "Clérigo",
+		"desc": "Melee con maza y castigo divino. Fuerte contra no-muertos.",
+		"color": Color(0.8, 0.7, 0.2, 1.0),
 	},
-}
+]
 
-var _selected_class_key: String = ""
+var current_index: int = 0
+
+@onready var class_icon: ColorRect = $VBoxContainer/CarouselRow/ClassDisplay/ClassIcon
+@onready var class_name_label: Label = $VBoxContainer/CarouselRow/ClassDisplay/ClassName
+@onready var class_desc: Label = $VBoxContainer/CarouselRow/ClassDisplay/ClassDesc
+@onready var name_input: LineEdit = $VBoxContainer/NameRow/NameInput
 
 
 func _ready() -> void:
-	$CenterContainer/VBoxContainer/BtnGuerrero.pressed.connect(func() -> void: _show_name_panel("Guerrero"))
-	$CenterContainer/VBoxContainer/BtnMago.pressed.connect(func() -> void: _show_name_panel("Mago"))
-	$CenterContainer/VBoxContainer/BtnArquero.pressed.connect(func() -> void: _show_name_panel("Arquero"))
-	$CenterContainer/VBoxContainer/BtnNigromante.pressed.connect(func() -> void: _show_name_panel("Nigromante"))
-	$CenterContainer/VBoxContainer/BtnClerigo.pressed.connect(func() -> void: _show_name_panel("Clérigo"))
-	$CenterContainer/VBoxContainer/BtnVolver.pressed.connect(func() -> void:
-		get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
-	)
-	$NamePanel/VBox/BtnRow/BtnConfirmar.pressed.connect(_on_confirm_name)
-	$NamePanel/VBox/BtnRow/BtnCancelar.pressed.connect(_on_cancel_name)
-	$NamePanel/VBox/NameInput.text_submitted.connect(func(_text: String) -> void: _on_confirm_name())
+	$VBoxContainer/CarouselRow/BtnLeft.pressed.connect(_on_prev)
+	$VBoxContainer/CarouselRow/BtnRight.pressed.connect(_on_next)
+	$VBoxContainer/ButtonRow/BtnCrear.pressed.connect(_on_crear)
+	$VBoxContainer/ButtonRow/BtnVolver.pressed.connect(_on_volver)
+	name_input.text_submitted.connect(func(_text: String) -> void: _on_crear())
+	_update_display()
 
 
-func _show_name_panel(class_key: String) -> void:
-	_selected_class_key = class_key
-	var input: LineEdit = $NamePanel/VBox/NameInput
-	input.text = ""
-	input.placeholder_text = "Nombre de tu %s..." % CLASS_DATA[class_key]["display"]
-	$DimBackground.visible = true
-	$NamePanel.visible = true
-	input.grab_focus()
+func _on_prev() -> void:
+	current_index -= 1
+	if current_index < 0:
+		current_index = CLASSES.size() - 1
+	_update_display()
 
 
-func _on_cancel_name() -> void:
-	$DimBackground.visible = false
-	$NamePanel.visible = false
-	_selected_class_key = ""
+func _on_next() -> void:
+	current_index += 1
+	if current_index >= CLASSES.size():
+		current_index = 0
+	_update_display()
 
 
-func _on_confirm_name() -> void:
-	var input: LineEdit = $NamePanel/VBox/NameInput
-	var char_name: String = input.text.strip_edges()
+func _update_display() -> void:
+	var data: Dictionary = CLASSES[current_index]
+	class_icon.color = data["color"]
+	class_name_label.text = data["display"]
+	class_desc.text = data["desc"]
+	name_input.placeholder_text = "Nombre de tu %s..." % data["display"]
+
+
+func _on_crear() -> void:
+	var data: Dictionary = CLASSES[current_index]
+	var char_name: String = name_input.text.strip_edges()
 
 	if char_name.is_empty():
-		# Si no escribe nada, usar nombre por defecto
-		char_name = _unique_character_name(CLASS_DATA[_selected_class_key]["display"])
+		char_name = _unique_character_name(data["display"])
 
-	var data: Dictionary = CLASS_DATA[_selected_class_key]
-	var scene_path: String = data["scene"]
-
-	SaveManager.create_character(char_name, scene_path, _selected_class_key)
+	SaveManager.create_character(char_name, data["scene"], data["key"])
 
 	var new_index: int = SaveManager.get_character_count() - 1
 	GameManager.selected_character_index = new_index
-	GameManager.selected_class_scene = scene_path
+	GameManager.selected_class_scene = data["scene"]
 
+	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
+
+
+func _on_volver() -> void:
 	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
 
 

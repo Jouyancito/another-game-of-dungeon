@@ -7,91 +7,82 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_selector")
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="Background" type="ColorRect" parent="."]
 anchor_right = 1.0
 anchor_bottom = 1.0
+color = Color(0.08, 0.08, 0.1, 1.0)
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
-size_flags_horizontal = 4
-size_flags_vertical = 4
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.1
+anchor_right = 0.5
+anchor_bottom = 0.9
+offset_left = -250.0
+offset_right = 250.0
 theme_override_constants/separation = 20
+alignment = 1
 
-[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
-text = "Selecciona tu clase"
+[node name="Title" type="Label" parent="VBoxContainer"]
+text = "Elige tu Clase"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 36
 
-[node name="BtnGuerrero" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(300, 60)
-text = "Guerrero"
-theme_override_font_sizes/font_size = 24
+[node name="CarouselRow" type="HBoxContainer" parent="VBoxContainer"]
+alignment = 1
+theme_override_constants/separation = 30
 
-[node name="BtnMago" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(300, 60)
-text = "Mago"
-theme_override_font_sizes/font_size = 24
+[node name="BtnLeft" type="Button" parent="VBoxContainer/CarouselRow"]
+custom_minimum_size = Vector2(60, 60)
+text = "<"
+theme_override_font_sizes/font_size = 32
 
-[node name="BtnArquero" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(300, 60)
-text = "Arquero"
-theme_override_font_sizes/font_size = 24
-
-[node name="BtnNigromante" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(300, 60)
-text = "Nigromante"
-theme_override_font_sizes/font_size = 24
-
-[node name="BtnClerigo" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(300, 60)
-text = "Clérigo"
-theme_override_font_sizes/font_size = 24
-
-[node name="BtnVolver" type="Button" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(200, 50)
-text = "Volver"
-theme_override_font_sizes/font_size = 20
-
-[node name="NamePanel" type="PanelContainer" parent="."]
-visible = false
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -175.0
-offset_top = -80.0
-offset_right = 175.0
-offset_bottom = 80.0
-
-[node name="VBox" type="VBoxContainer" parent="NamePanel"]
+[node name="ClassDisplay" type="VBoxContainer" parent="VBoxContainer/CarouselRow"]
+custom_minimum_size = Vector2(200, 250)
+alignment = 1
 theme_override_constants/separation = 12
 
-[node name="NameLabel" type="Label" parent="NamePanel/VBox"]
-text = "Nombre del personaje:"
+[node name="ClassIcon" type="ColorRect" parent="VBoxContainer/CarouselRow/ClassDisplay"]
+custom_minimum_size = Vector2(150, 150)
+size_flags_horizontal = 4
+
+[node name="ClassName" type="Label" parent="VBoxContainer/CarouselRow/ClassDisplay"]
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 28
+
+[node name="ClassDesc" type="Label" parent="VBoxContainer/CarouselRow/ClassDisplay"]
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 16
+modulate = Color(1.0, 1.0, 1.0, 0.6)
+autowrap_mode = 3
+
+[node name="BtnRight" type="Button" parent="VBoxContainer/CarouselRow"]
+custom_minimum_size = Vector2(60, 60)
+text = ">"
+theme_override_font_sizes/font_size = 32
+
+[node name="NameRow" type="HBoxContainer" parent="VBoxContainer"]
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="NameLabel" type="Label" parent="VBoxContainer/NameRow"]
+text = "Nombre:"
 theme_override_font_sizes/font_size = 20
 
-[node name="NameInput" type="LineEdit" parent="NamePanel/VBox"]
-custom_minimum_size = Vector2(300, 40)
+[node name="NameInput" type="LineEdit" parent="VBoxContainer/NameRow"]
+custom_minimum_size = Vector2(250, 40)
 placeholder_text = "Escribe un nombre..."
 theme_override_font_sizes/font_size = 18
+
+[node name="ButtonRow" type="HBoxContainer" parent="VBoxContainer"]
 alignment = 1
+theme_override_constants/separation = 20
 
-[node name="BtnRow" type="HBoxContainer" parent="NamePanel/VBox"]
-alignment = 1
-theme_override_constants/separation = 16
+[node name="BtnCrear" type="Button" parent="VBoxContainer/ButtonRow"]
+custom_minimum_size = Vector2(200, 55)
+text = "Crear Personaje"
+theme_override_font_sizes/font_size = 22
 
-[node name="BtnConfirmar" type="Button" parent="NamePanel/VBox/BtnRow"]
-custom_minimum_size = Vector2(130, 40)
-text = "Crear"
-theme_override_font_sizes/font_size = 18
-
-[node name="BtnCancelar" type="Button" parent="NamePanel/VBox/BtnRow"]
-custom_minimum_size = Vector2(130, 40)
-text = "Cancelar"
-theme_override_font_sizes/font_size = 18
-
-[node name="DimBackground" type="ColorRect" parent="."]
-visible = false
-anchor_right = 1.0
-anchor_bottom = 1.0
-color = Color(0.0, 0.0, 0.0, 0.85)
+[node name="BtnVolver" type="Button" parent="VBoxContainer/ButtonRow"]
+custom_minimum_size = Vector2(150, 55)
+text = "Volver"
+theme_override_font_sizes/font_size = 22
