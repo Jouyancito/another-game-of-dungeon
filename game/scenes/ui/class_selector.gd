@@ -1,28 +1,49 @@
 extends Control
 
+const CLASS_DATA: Dictionary = {
+	"Guerrero": {
+		"scene": "res://scenes/player/player.tscn",
+		"display": "Guerrero",
+	},
+	"Mago": {
+		"scene": "res://scenes/player/mage.tscn",
+		"display": "Mago",
+	},
+	"Arquero": {
+		"scene": "res://scenes/player/archer.tscn",
+		"display": "Arquero",
+	},
+	"Nigromante": {
+		"scene": "res://scenes/player/necromancer.tscn",
+		"display": "Nigromante",
+	},
+	"Clerigo": {
+		"scene": "res://scenes/player/cleric.tscn",
+		"display": "Clerigo",
+	},
+}
+
+
 func _ready() -> void:
-	$CenterContainer/VBoxContainer/BtnGuerrero.pressed.connect(_select_warrior)
-	$CenterContainer/VBoxContainer/BtnMago.pressed.connect(_select_mage)
-	$CenterContainer/VBoxContainer/BtnArquero.pressed.connect(_select_archer)
-	$CenterContainer/VBoxContainer/BtnNigromante.pressed.connect(_select_necromancer)
-	$CenterContainer/VBoxContainer/BtnClerigo.pressed.connect(_select_cleric)
+	$CenterContainer/VBoxContainer/BtnGuerrero.pressed.connect(func() -> void: _select_class("Guerrero"))
+	$CenterContainer/VBoxContainer/BtnMago.pressed.connect(func() -> void: _select_class("Mago"))
+	$CenterContainer/VBoxContainer/BtnArquero.pressed.connect(func() -> void: _select_class("Arquero"))
+	$CenterContainer/VBoxContainer/BtnNigromante.pressed.connect(func() -> void: _select_class("Nigromante"))
+	$CenterContainer/VBoxContainer/BtnClerigo.pressed.connect(func() -> void: _select_class("Clerigo"))
 
-func _select_warrior() -> void:
-	GameManager.selected_class_scene = "res://scenes/player/player.tscn"
-	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
 
-func _select_mage() -> void:
-	GameManager.selected_class_scene = "res://scenes/player/mage.tscn"
-	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+func _select_class(class_key: String) -> void:
+	var data: Dictionary = CLASS_DATA[class_key]
+	var scene_path: String = data["scene"]
+	var display_name: String = data["display"]
 
-func _select_archer() -> void:
-	GameManager.selected_class_scene = "res://scenes/player/archer.tscn"
-	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+	var count: int = SaveManager.get_character_count()
+	var char_name: String = "%s #%d" % [display_name, count + 1]
 
-func _select_necromancer() -> void:
-	GameManager.selected_class_scene = "res://scenes/player/necromancer.tscn"
-	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+	SaveManager.create_character(char_name, scene_path, class_key)
 
-func _select_cleric() -> void:
-	GameManager.selected_class_scene = "res://scenes/player/cleric.tscn"
+	var new_index: int = SaveManager.get_character_count() - 1
+	GameManager.selected_character_index = new_index
+	GameManager.selected_class_scene = scene_path
+
 	get_tree().change_scene_to_file("res://scenes/main/main.tscn")

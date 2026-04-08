@@ -10,7 +10,7 @@ func _ready() -> void:
 
 
 func _on_btn_jugar_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/ui/class_selector.tscn")
+	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
 
 
 func _on_btn_hostear_pressed() -> void:
