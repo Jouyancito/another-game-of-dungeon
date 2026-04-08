@@ -45,3 +45,8 @@ theme_override_font_sizes/font_size = 24
 custom_minimum_size = Vector2(300, 60)
 text = "Clérigo"
 theme_override_font_sizes/font_size = 24
+
+[node name="BtnVolver" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(200, 50)
+text = "Volver"
+theme_override_font_sizes/font_size = 20

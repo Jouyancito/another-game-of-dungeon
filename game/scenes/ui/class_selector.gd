@@ -30,6 +30,9 @@ func _ready() -> void:
 	$CenterContainer/VBoxContainer/BtnArquero.pressed.connect(func() -> void: _select_class("Arquero"))
 	$CenterContainer/VBoxContainer/BtnNigromante.pressed.connect(func() -> void: _select_class("Nigromante"))
 	$CenterContainer/VBoxContainer/BtnClerigo.pressed.connect(func() -> void: _select_class("Clérigo"))
+	$CenterContainer/VBoxContainer/BtnVolver.pressed.connect(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
+	)
 
 
 func _unique_character_name(display_name: String) -> String:
