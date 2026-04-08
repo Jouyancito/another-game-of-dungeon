@@ -2,9 +2,9 @@ extends CanvasLayer
 
 # Inventario Diablo 2 estilo — toggle con TAB, click para mover, right-click para contexto
 
-@export var cell_size := 50
-@export var grid_cols := 10
-@export var grid_rows := 6
+@export var cell_size := 45
+@export var grid_cols := 12
+@export var grid_rows := 7
 
 # Referencia al inventario lógico del jugador
 var inventory: Inventory = null

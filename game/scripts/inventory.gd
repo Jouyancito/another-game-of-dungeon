@@ -3,8 +3,8 @@ class_name Inventory
 
 # Inventario por jugador. No es autoload — se instancia con Inventory.new()
 
-const GRID_COLS := 10
-const GRID_ROWS := 6
+const GRID_COLS := 12
+const GRID_ROWS := 7
 
 # grid[row][col] = item_id o "" si vacío
 var grid: Array = []
