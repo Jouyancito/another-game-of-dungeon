@@ -67,15 +67,42 @@ var _reloading := false
 @onready var camera: Camera3D = $Head/Camera3D
 
 func _ready() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_on_class_ready()
+	_load_character_stats()
 	recalculate_stats()
 	health = max_health
 	mana = max_mana
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	_on_class_ready()
 
-# Override en cada clase si necesita setup extra
+# Override en cada clase para combat values (speed, base_health, attack_range, etc.)
 func _on_class_ready() -> void:
 	pass
+
+# Carga stats del personaje guardado, o defaults de la clase si es nuevo
+func _load_character_stats() -> void:
+	var idx = GameManager.selected_character_index
+	if idx >= 0:
+		var data = SaveManager.get_character(idx)
+		if not data.is_empty():
+			str_stat = data.get("str_stat", str_stat)
+			int_stat = data.get("int_stat", int_stat)
+			dex_stat = data.get("dex_stat", dex_stat)
+			def_stat = data.get("def_stat", def_stat)
+			vit_stat = data.get("vit_stat", vit_stat)
+			stat_points = data.get("stat_points", 0)
+			level = data.get("level", 1)
+			xp = data.get("xp", 0.0)
+			xp_to_next_level = 100.0 * pow(1.15, level - 1)
+			return
+	# Sin personaje guardado: usar CLASS_DEFAULTS según la escena
+	var scene_path = GameManager.selected_class_scene
+	var defaults = SaveManager.CLASS_DEFAULTS.get(scene_path, {})
+	if not defaults.is_empty():
+		str_stat = defaults.get("str_stat", str_stat)
+		int_stat = defaults.get("int_stat", int_stat)
+		dex_stat = defaults.get("dex_stat", dex_stat)
+		def_stat = defaults.get("def_stat", def_stat)
+		vit_stat = defaults.get("vit_stat", vit_stat)
 
 func recalculate_stats() -> void:
 	max_health = base_health + (vit_stat * 5)

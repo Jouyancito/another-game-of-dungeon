@@ -22,21 +22,10 @@ func _on_class_ready() -> void:
 	speed = 4.5
 	sprint_speed = 7.0
 	crouch_speed = 2.0
-	str_stat = 3
-	int_stat = 10
-	dex_stat = 4
-	def_stat = 4
-	vit_stat = 6
-	res_fire = 0.0
-	res_ice = 0.0
-	res_lightning = 0.0
 	base_health = 80.0
 	base_mana = 110.0
 	attack_range = 15.0
 	heavy_cooldown = heavy_cooldown_orb
-	recalculate_stats()
-	health = max_health
-	mana = max_mana
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false

@@ -16,21 +16,10 @@ func _on_class_ready() -> void:
 	speed = 5.5
 	sprint_speed = 9.0
 	crouch_speed = 2.5
-	str_stat = 5
-	int_stat = 3
-	dex_stat = 12
-	def_stat = 5
-	vit_stat = 7
-	res_fire = 0.0
-	res_ice = 0.0
-	res_lightning = 0.0
 	base_health = 85.0
 	base_mana = 70.0
 	attack_range = 20.0
 	heavy_cooldown = 0.7
-	recalculate_stats()
-	health = max_health
-	mana = max_mana
 
 func _stop_charge() -> void:
 	var was_charging := is_charging

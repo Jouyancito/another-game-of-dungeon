@@ -15,15 +15,9 @@ var beam_line: MeshInstance3D = null
 var projectile_scene: PackedScene = preload("res://scenes/projectile/mage_projectile.tscn")
 
 func _on_class_ready() -> void:
-	# Stats del Mago
 	speed = 4.5
 	sprint_speed = 7.0
 	crouch_speed = 2.0
-	str_stat = 4
-	int_stat = 12
-	dex_stat = 5
-	def_stat = 3
-	vit_stat = 5
 	res_fire = 0.1
 	res_ice = 0.1
 	res_lightning = 0.1
@@ -31,9 +25,6 @@ func _on_class_ready() -> void:
 	base_mana = 120.0
 	attack_range = 15.0
 	heavy_cooldown = 1.0
-	recalculate_stats()
-	health = max_health
-	mana = max_mana
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false
