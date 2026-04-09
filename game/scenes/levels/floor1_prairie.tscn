@@ -34,12 +34,10 @@ shadow_enabled = true
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env_resource")
 
-; ── Ground — 200×200m ─────────────────────────────────────────────────────────
-; El centro del mapa está en (0, 0, 0). El piso está ligeramente bajo cero
-; para que los CSG generados por script queden perfectamente rasantes.
+; ── Ground — 600×600m ─────────────────────────────────────────────────────────
 
 [node name="GroundFloor" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0)
-size = Vector3(200, 0.3, 200)
+size = Vector3(600, 0.3, 600)
 use_collision = true
 material_override = SubResource("mat_floor")

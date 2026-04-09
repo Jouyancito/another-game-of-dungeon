@@ -22,32 +22,42 @@ class POI:
 # ── POI Type Catalog ───────────────────────────────────────────────────────────
 
 const POI_CATALOG: Dictionary = {
-	"entrance": { "size": Vector2(15, 15), "enemy_count": 0 },
-	"ruins":    { "size": Vector2(25, 20), "enemy_count": 4 },
-	"boss":     { "size": Vector2(32, 32), "enemy_count": 2 },
+	# Anchor POIs (siempre presentes)
+	"entrance":   { "size": Vector2(30, 30),  "enemy_count": 0,  "category": "anchor" },
+	"boss":       { "size": Vector2(80, 80),  "enemy_count": 8,  "category": "anchor" },
+
+	# Major POIs (3-5 por piso)
+	"ruins":      { "size": Vector2(60, 60),  "enemy_count": 8,  "category": "major" },
+	"camp":       { "size": Vector2(40, 40),  "enemy_count": 3,  "category": "major" },
+	"giant_tree": { "size": Vector2(50, 50),  "enemy_count": 5,  "category": "major" },
+
+	# Minor POIs (2-4 por piso)
+	"altar":      { "size": Vector2(15, 15),  "enemy_count": 2,  "category": "minor" },
+	"well":       { "size": Vector2(12, 12),  "enemy_count": 0,  "category": "minor" },
+	"pond":       { "size": Vector2(25, 25),  "enemy_count": 2,  "category": "minor" },
 }
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-const MIN_EDGE_MARGIN: float   = 10.0
+const MIN_EDGE_MARGIN: float   = 30.0
 const MIN_POI_GAP: float       = 80.0
-const BOSS_MIN_DISTANCE: float = 200.0
+const BOSS_MIN_DISTANCE: float = 350.0
 const MAX_PLACE_TRIES: int     = 500
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-func generate_pois(p_seed: int, map_size: Vector2) -> Array[POI]:
+func generate_pois(p_seed: int, map_size: Vector2, border_func: Callable = Callable()) -> Array[POI]:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = p_seed
 
 	var pois: Array[POI] = []
 
-	# -- Entrada: centro en borde West, Z aleatoria ----
+	# -- Entrada: borde West --
 	var entrance_def: Dictionary = POI_CATALOG["entrance"]
 	var entrance_size: Vector2 = entrance_def["size"] as Vector2
-	var entrance_z: float = rng.randf_range(-map_size.y * 0.25, map_size.y * 0.25)
+	var entrance_z: float = rng.randf_range(-map_size.y * 0.15, map_size.y * 0.15)
 	var entrance_pos: Vector3 = Vector3(
-		-map_size.x * 0.5 + entrance_size.x * 0.5 + MIN_EDGE_MARGIN,
+		-map_size.x * 0.5 + entrance_size.x * 0.5 + MIN_EDGE_MARGIN + 20.0,
 		0.0,
 		entrance_z
 	)
@@ -56,52 +66,74 @@ func generate_pois(p_seed: int, map_size: Vector2) -> Array[POI]:
 	entrance.enemy_count = entrance_def["enemy_count"]
 	pois.append(entrance)
 
-	# -- Boss: centro en borde East, Z aleatoria, >= BOSS_MIN_DISTANCE de entrada --
+	# -- Boss: borde East --
 	var boss_def: Dictionary = POI_CATALOG["boss"]
 	var boss_size: Vector2 = boss_def["size"] as Vector2
 	var boss_poi: POI = null
 	for _t in range(MAX_PLACE_TRIES):
-		var boss_z: float = rng.randf_range(-map_size.y * 0.35, map_size.y * 0.35)
+		var boss_z: float = rng.randf_range(-map_size.y * 0.25, map_size.y * 0.25)
 		var boss_pos: Vector3 = Vector3(
-			map_size.x * 0.5 - boss_size.x * 0.5 - MIN_EDGE_MARGIN,
+			map_size.x * 0.5 - boss_size.x * 0.5 - MIN_EDGE_MARGIN - 20.0,
 			0.0,
 			boss_z
 		)
-		var candidate: POI = POI.new("boss", boss_size, boss_pos)
 		if boss_pos.distance_to(entrance_pos) >= BOSS_MIN_DISTANCE:
-			boss_poi = candidate
-			break
+			if _is_inside_border(boss_pos, border_func):
+				boss_poi = POI.new("boss", boss_size, boss_pos)
+				break
 	if boss_poi == null:
 		boss_poi = POI.new("boss", boss_size, Vector3(
-			map_size.x * 0.5 - boss_size.x * 0.5 - MIN_EDGE_MARGIN, 0.0, 0.0
+			map_size.x * 0.5 - boss_size.x * 0.5 - MIN_EDGE_MARGIN - 20.0, 0.0, 0.0
 		))
 	boss_poi.is_boss = true
 	boss_poi.enemy_count = boss_def["enemy_count"]
 	pois.append(boss_poi)
 
-	# -- POIs intermedios --
-	var intermediate_types: Array = POI_CATALOG.keys().filter(func(k: String) -> bool: return k != "entrance" and k != "boss")
-	for poi_type: String in intermediate_types:
-		var def: Dictionary = POI_CATALOG[poi_type] as Dictionary
-		var poi_size: Vector2 = def["size"] as Vector2
-		var placed: bool = false
-		for _t in range(MAX_PLACE_TRIES):
-			var rx: float = rng.randf_range(-map_size.x * 0.5 + poi_size.x * 0.5 + MIN_EDGE_MARGIN,
-										map_size.x * 0.5 - poi_size.x * 0.5 - MIN_EDGE_MARGIN)
-			var rz: float = rng.randf_range(-map_size.y * 0.5 + poi_size.y * 0.5 + MIN_EDGE_MARGIN,
-										map_size.y * 0.5 - poi_size.y * 0.5 - MIN_EDGE_MARGIN)
-			var candidate: POI = POI.new(poi_type, poi_size, Vector3(rx, 0.0, rz))
-			if _no_overlap(candidate, pois):
-				candidate.enemy_count = def["enemy_count"]
-				pois.append(candidate)
-				placed = true
-				break
-		if not placed:
-			push_warning("POISystem: no se pudo colocar POI '%s' con seed %d" % [poi_type, p_seed])
+	# -- Major POIs (3-5) --
+	var major_types: Array = _get_types_by_category("major")
+	var major_count: int = rng.randi_range(3, 5)
+	for i in range(major_count):
+		var poi_type: String = major_types[rng.randi() % major_types.size()]
+		_try_place_poi(poi_type, pois, rng, map_size, border_func)
+
+	# -- Minor POIs (2-4) --
+	var minor_types: Array = _get_types_by_category("minor")
+	var minor_count: int = rng.randi_range(2, 4)
+	for i in range(minor_count):
+		var poi_type: String = minor_types[rng.randi() % minor_types.size()]
+		_try_place_poi(poi_type, pois, rng, map_size, border_func)
 
 	return pois
 
 # ── Private helpers ────────────────────────────────────────────────────────────
+
+func _get_types_by_category(category: String) -> Array:
+	var result: Array = []
+	for key: String in POI_CATALOG:
+		if POI_CATALOG[key]["category"] == category:
+			result.append(key)
+	return result
+
+func _try_place_poi(poi_type: String, pois: Array[POI], rng: RandomNumberGenerator, map_size: Vector2, border_func: Callable) -> void:
+	var def: Dictionary = POI_CATALOG[poi_type] as Dictionary
+	var poi_size: Vector2 = def["size"] as Vector2
+	for _t in range(MAX_PLACE_TRIES):
+		var rx: float = rng.randf_range(-map_size.x * 0.4 + poi_size.x * 0.5,
+									map_size.x * 0.4 - poi_size.x * 0.5)
+		var rz: float = rng.randf_range(-map_size.y * 0.4 + poi_size.y * 0.5,
+									map_size.y * 0.4 - poi_size.y * 0.5)
+		var candidate_pos: Vector3 = Vector3(rx, 0.0, rz)
+		var candidate: POI = POI.new(poi_type, poi_size, candidate_pos)
+		if _no_overlap(candidate, pois) and _is_inside_border(candidate_pos, border_func):
+			candidate.enemy_count = def["enemy_count"]
+			pois.append(candidate)
+			return
+	push_warning("POISystem: no se pudo colocar POI '%s'" % poi_type)
+
+func _is_inside_border(pos: Vector3, border_func: Callable) -> bool:
+	if not border_func.is_valid():
+		return true
+	return border_func.call(pos) as bool
 
 func _no_overlap(candidate: POI, existing: Array[POI]) -> bool:
 	for other in existing:
