@@ -37,7 +37,12 @@ custom_minimum_size = Vector2(0, 24)
 
 [node name="BtnJugar" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(300, 60)
-text = "1 Jugador"
+text = "Jugar"
+theme_override_font_sizes/font_size = 24
+
+[node name="BtnArena" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(300, 60)
+text = "Campo de Práctica"
 theme_override_font_sizes/font_size = 24
 
 [node name="BtnHostear" type="Button" parent="CenterContainer/VBoxContainer"]

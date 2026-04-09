@@ -68,7 +68,159 @@ func _ready() -> void:
 	if hud.has_method("connect_to_player"):
 		hud.connect_to_player(player)
 
+	# 8. UI — pausa, ventana de personaje, inventario
+	var pause_menu = preload("res://scenes/ui/pause_menu.tscn").instantiate()
+	add_child(pause_menu)
+
+	var character_window = preload("res://scenes/ui/character_window.tscn").instantiate()
+	add_child(character_window)
+
+	GameManager.player_inventory = Inventory.new()
+	GameManager.player_coins = 0
+
+	# Arma inicial según clase
+	var starter = {
+		"res://scenes/player/player.tscn": "sword_rusty",
+		"res://scenes/player/mage.tscn": "book_apprentice",
+		"res://scenes/player/archer.tscn": "bow_short",
+		"res://scenes/player/necromancer.tscn": "wand_cracked",
+		"res://scenes/player/cleric.tscn": "garrote_wood",
+	}
+	var weapon: String = starter.get(GameManager.selected_class_scene, "")
+	if weapon != "":
+		GameManager.player_inventory.auto_place_item(weapon)
+	GameManager.player_inventory.auto_place_item("potion_hp_small", 2)
+
+	var inventory_ui = preload("res://scenes/ui/inventory_ui.tscn").instantiate()
+	inventory_ui.inventory = GameManager.player_inventory
+	add_child(inventory_ui)
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+# ── Border system ─────────────────────────────────────────────────────────────
+
+func _precalculate_border() -> void:
+	_border_noise_offsets.clear()
+	var noise_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	noise_rng.seed = world_seed + 9999
+	for i in range(360):
+		var angle_rad: float = deg_to_rad(float(i))
+		# Simple noise: suma de senos con diferentes frecuencias
+		var noise_val: float = (
+			sin(angle_rad * BORDER_NOISE_FREQ) * 0.5 +
+			sin(angle_rad * BORDER_NOISE_FREQ * 2.3 + 1.7) * 0.3 +
+			sin(angle_rad * BORDER_NOISE_FREQ * 0.7 + 3.1) * 0.2
+		)
+		_border_noise_offsets.append(noise_val * BORDER_NOISE_AMP)
+
+func _get_border_radius_at_angle(angle_deg: float) -> float:
+	var idx: int = wrapi(int(angle_deg), 0, 360)
+	var idx_next: int = wrapi(idx + 1, 0, 360)
+	var frac: float = angle_deg - floor(angle_deg)
+	var noise: float = lerp(_border_noise_offsets[idx], _border_noise_offsets[idx_next], frac)
+	return BORDER_RADIUS_BASE + noise
+
+func _is_inside_border(pos: Variant) -> bool:
+	var world_pos: Vector3
+	if pos is Vector3:
+		world_pos = pos
+	else:
+		return false
+	var dx: float = world_pos.x - MAP_CENTER.x
+	var dz: float = world_pos.z - MAP_CENTER.z
+	var dist: float = sqrt(dx * dx + dz * dz)
+	var angle_deg: float = rad_to_deg(atan2(dz, dx))
+	if angle_deg < 0:
+		angle_deg += 360.0
+	var border_r: float = _get_border_radius_at_angle(angle_deg)
+	return dist < border_r - 10.0  # 10m de margen de seguridad
+
+func _build_organic_border() -> void:
+	for i in range(BORDER_WALL_SEGMENTS):
+		var angle1: float = float(i) / float(BORDER_WALL_SEGMENTS) * 360.0
+		var angle2: float = float(i + 1) / float(BORDER_WALL_SEGMENTS) * 360.0
+		var r1: float = _get_border_radius_at_angle(angle1)
+		var r2: float = _get_border_radius_at_angle(angle2)
+		var rad1: float = deg_to_rad(angle1)
+		var rad2: float = deg_to_rad(angle2)
+
+		var p1: Vector3 = Vector3(cos(rad1) * r1, 0, sin(rad1) * r1)
+		var p2: Vector3 = Vector3(cos(rad2) * r2, 0, sin(rad2) * r2)
+		var mid: Vector3 = (p1 + p2) * 0.5
+		var seg_len: float = p1.distance_to(p2)
+		var seg_angle: float = atan2(p2.z - p1.z, p2.x - p1.x)
+
+		var wall: CSGBox3D = CSGBox3D.new()
+		wall.name = "BorderWall%d" % i
+		wall.size = Vector3(seg_len + 0.5, BORDER_WALL_HEIGHT, 3.0)
+		wall.use_collision = true
+		wall.material_override = _make_material(COLOR_BORDER)
+		wall.position = mid + Vector3(0, BORDER_WALL_HEIGHT * 0.5, 0)
+		wall.rotation.y = -seg_angle
+		add_child(wall)
+
+# ── Atmosphere ────────────────────────────────────────────────────────────────
+
+func _build_ceiling() -> void:
+	var ceiling: CSGBox3D = CSGBox3D.new()
+	ceiling.name = "CavernCeiling"
+	ceiling.size = Vector3(MAP_SIZE.x + 100, 2.0, MAP_SIZE.y + 100)
+	ceiling.position = Vector3(0, CEILING_HEIGHT, 0)
+	ceiling.material_override = _make_material(COLOR_CEILING)
+	ceiling.use_collision = false
+	add_child(ceiling)
+
+func _build_diamond_light() -> void:
+	# Diamante emisivo en el techo
+	var diamond: CSGBox3D = CSGBox3D.new()
+	diamond.name = "DiamondLight"
+	diamond.size = Vector3(DIAMOND_SIZE, DIAMOND_SIZE * 1.5, DIAMOND_SIZE)
+	diamond.position = Vector3(0, DIAMOND_HEIGHT, 0)
+	diamond.rotation.y = deg_to_rad(45)
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = COLOR_DIAMOND
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.9, 0.7)
+	mat.emission_energy_multiplier = 3.0
+	diamond.material_override = mat
+	diamond.use_collision = false
+	add_child(diamond)
+
+	# OmniLight para que el diamante ilumine
+	var light: OmniLight3D = OmniLight3D.new()
+	light.name = "DiamondOmniLight"
+	light.light_color = Color(1.0, 0.92, 0.75)
+	light.light_energy = 0.8
+	light.omni_range = 300.0
+	light.omni_attenuation = 1.5
+	light.shadow_enabled = false
+	light.position = Vector3(0, DIAMOND_HEIGHT - 2.0, 0)
+	add_child(light)
+
+func _build_landmark_pillars() -> void:
+	for i in range(PILLAR_COUNT):
+		var angle: float = (float(i) / float(PILLAR_COUNT)) * TAU + _rng.randf_range(-0.2, 0.2)
+		var dist: float = _rng.randf_range(100.0, 200.0)
+		var px: float = cos(angle) * dist
+		var pz: float = sin(angle) * dist
+		var pos: Vector3 = Vector3(px, 0, pz)
+		if not _is_inside_border(pos):
+			continue
+		var height: float = _rng.randf_range(PILLAR_MIN_HEIGHT, PILLAR_MAX_HEIGHT)
+		var radius: float = _rng.randf_range(2.0, 4.0)
+
+		var pillar: CSGCylinder3D = CSGCylinder3D.new()
+		pillar.name = "LandmarkPillar%d" % i
+		pillar.radius = radius
+		pillar.height = height
+		pillar.sides = 8
+		pillar.use_collision = true
+		pillar.material_override = _make_material(COLOR_PILLAR)
+		pillar.position = pos + Vector3(0, height * 0.5, 0)
+		add_child(pillar)
+
+# ── POI builders ──────────────────────────────────────────────────────────────
+>>>>>>> 1807c1e (feat: add practice arena and full game modes with menu selection)
 
 func _find_entrance_pos(pois: Array) -> Vector3:
 	for poi in pois:

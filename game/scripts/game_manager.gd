@@ -6,6 +6,9 @@ var selected_class_scene: String = "res://scenes/player/mage.tscn"
 # Índice del personaje activo (apunta a SaveManager.characters)
 var selected_character_index: int = -1
 
+# Escena destino después del character select (arena o nivel real)
+var target_scene: String = "res://scenes/main/main.tscn"
+
 # Inventario del jugador activo (se crea al entrar al juego)
 var player_inventory: Inventory = null
 

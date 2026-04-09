@@ -54,6 +54,7 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 	var color_rect := ColorRect.new()
 	color_rect.custom_minimum_size = Vector2(80, 80)
 	color_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	color_rect.mouse_filter = Control.MOUSE_FILTER_PASS
 	var class_key: String = character.get("class_name", "Guerrero")
 	color_rect.color = CLASS_COLORS.get(class_key, Color(1.0, 1.0, 1.0, 1.0))
 	vbox.add_child(color_rect)
@@ -63,6 +64,7 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_size_override("font_size", 16)
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(name_label)
 
 	var class_label := Label.new()
@@ -70,6 +72,7 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 	class_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	class_label.add_theme_font_size_override("font_size", 14)
 	class_label.modulate = Color(1.0, 1.0, 1.0, 0.7)
+	class_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(class_label)
 
 	var level_label := Label.new()
@@ -77,6 +80,7 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.add_theme_font_size_override("font_size", 14)
 	level_label.modulate = Color(1.0, 0.85, 0.3, 1.0)
+	level_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(level_label)
 
 	panel.gui_input.connect(func(event: InputEvent) -> void:
@@ -161,7 +165,7 @@ func _on_btn_jugar_pressed() -> void:
 		return
 	GameManager.selected_class_scene = character.get("class_scene", "")
 	GameManager.selected_character_index = selected_index
-	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+	get_tree().change_scene_to_file(GameManager.target_scene)
 
 
 func _on_btn_eliminar_pressed() -> void:
