@@ -4,7 +4,7 @@ extends BasePlayer
 @export var base_heavy_damage := 35.0
 @export var base_combo_damage := 15.0
 @export var combo_cooldown := 0.25
-@export var base_knockback_force := 1.5
+@export var base_knockback_force := 0.7
 
 # Cadena de combo: cada golpe tiene dirección lateral (1.0 = derecha, -1.0 = izquierda)
 # y multiplicador de daño. El último golpe es un finisher más fuerte.
@@ -102,16 +102,34 @@ func _do_melee(base_dmg: float, side: float = 0.0, kb_force: float = 0.0) -> voi
 	if result and result.collider.is_in_group("enemies"):
 		var final_damage = get_physical_damage(base_dmg)
 
-		# Calcular dirección del knockback
-		var forward = -camera.global_basis.z
-		forward.y = 0
-		forward = forward.normalized()
-		var right = camera.global_basis.x
-		right.y = 0
-		right = right.normalized()
+		# Efecto billar: golpe centrado = máxima fuerza, golpe de costado = menos fuerza + desvío
+		var enemy_pos = result.collider.global_position
+		var hit_point = result.position
 
-		# Knockback = empuja hacia adelante + lateral según el lado del puño
-		var hit_direction = forward * 0.7 + right * side * 0.5
-		hit_direction = hit_direction.normalized()
+		# Vector desde el punto de impacto al centro del enemigo (en plano XZ)
+		var impact_to_center = enemy_pos - hit_point
+		impact_to_center.y = 0
 
-		result.collider.take_damage(final_damage, hit_direction, kb_force, str_stat)
+		# Vector desde el jugador al enemigo
+		var player_to_enemy = enemy_pos - global_position
+		player_to_enemy.y = 0
+		player_to_enemy = player_to_enemy.normalized()
+
+		# Qué tan centrado fue el golpe (1.0 = perfecto al centro, 0.0 = rozando el borde)
+		var center_factor = 1.0 - clampf(impact_to_center.length() * 2.0, 0.0, 0.8)
+
+		# Dirección: golpe centrado empuja recto, golpe lateral desvía
+		var hit_direction: Vector3
+		if impact_to_center.length() < 0.05:
+			# Casi perfecto al centro — empuja recto
+			hit_direction = player_to_enemy
+		else:
+			# Golpe descentrado — desvía hacia donde apunta el impacto
+			var deflection = (enemy_pos + impact_to_center.normalized() * 0.5) - global_position
+			deflection.y = 0
+			hit_direction = deflection.normalized()
+
+		# Fuerza reducida por golpe descentrado
+		var effective_kb = kb_force * (0.4 + center_factor * 0.6)
+
+		result.collider.take_damage(final_damage, hit_direction, effective_kb, str_stat)

@@ -14,9 +14,14 @@ enum AggressionType { AGGRESSIVE, NEUTRAL }
 @export var attack_cooldown := 1.0
 @export var aggression: AggressionType = AggressionType.AGGRESSIVE
 
+# Knockback
+@export var mass := 1.0  # 0.5 = liviano (slime), 1.0 = normal, 5.0 = pesado (boss)
+@export var knockback_resistance := 0.0  # 0.0 = sin resistencia, 1.0 = inmune
+
 # Estado
 var target: Node3D = null
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+var knockback_velocity := Vector3.ZERO
 var is_dead := false
 var can_attack := true
 var is_provoked := false  # Para neutrales: se activa al recibir daño
@@ -98,6 +103,25 @@ func _apply_gravity(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
+	# Aplicar y decaer knockback
+	if knockback_velocity.length() > 0.1:
+		velocity.x += knockback_velocity.x
+		velocity.z += knockback_velocity.z
+		velocity.y += knockback_velocity.y
+		knockback_velocity = knockback_velocity.lerp(Vector3.ZERO, delta * 8.0)
+	else:
+		knockback_velocity = Vector3.ZERO
+
+
+## Aplica knockback al enemigo. hit_direction = dirección del golpe, force = fuerza base
+func apply_knockback(hit_direction: Vector3, force: float, attacker_str: int = 0) -> void:
+	if is_dead:
+		return
+	var effective_force = force + (attacker_str * 0.05)
+	effective_force *= (1.0 - knockback_resistance) / maxf(mass, 0.3)
+	knockback_velocity = hit_direction.normalized() * effective_force
+	_on_knockback(knockback_velocity)
+
 
 func _validate_target() -> void:
 	if target != null and not is_instance_valid(target):
@@ -121,7 +145,7 @@ func perform_attack() -> void:
 		can_attack = true
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
 	if is_dead:
 		return
 
@@ -131,6 +155,9 @@ func take_damage(amount: float) -> void:
 
 	health -= amount
 	_flash_damage()
+
+	if knockback_force > 0.0 and hit_direction != Vector3.ZERO:
+		apply_knockback(hit_direction, knockback_force, attacker_str)
 
 	if health <= 0:
 		die()
@@ -169,4 +196,9 @@ func die() -> void:
 
 ## Override para efectos de muerte custom
 func _on_death() -> void:
+	pass
+
+
+## Override para reacciones de knockback custom (ej: slime jelly bounce)
+func _on_knockback(_kb_velocity: Vector3) -> void:
 	pass
