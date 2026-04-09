@@ -109,3 +109,35 @@ func test_crosshair_hidden_on_death() -> void:
 	h.crosshair.visible = true
 	h._on_player_died()
 	assert_false(h.crosshair.visible, "Crosshair se oculta al morir")
+
+
+# ─── _on_level_up ───
+
+func test_stat_indicator_hidden_initially() -> void:
+	var h = await _create_hud()
+	assert_false(h.stat_indicator.visible, "Stat indicator oculto al inicio")
+
+
+func test_level_up_shows_stat_indicator() -> void:
+	var h = await _create_hud()
+	h._on_level_up(2, 3)
+	assert_true(h.stat_indicator.visible, "Stat indicator visible al subir nivel")
+
+
+func test_level_up_shows_notification() -> void:
+	var h = await _create_hud()
+	h._on_level_up(5, 3)
+	assert_true(h.level_up_label.visible, "Notificación visible al subir nivel")
+	assert_eq(h.level_up_label.text, "¡NIVEL 5!")
+
+
+func test_level_up_notification_hidden_initially() -> void:
+	var h = await _create_hud()
+	assert_false(h.level_up_label.visible, "Level up notification oculta al inicio")
+
+
+func test_stat_indicator_hidden_on_death() -> void:
+	var h = await _create_hud()
+	h.stat_indicator.visible = true
+	h._on_player_died()
+	assert_false(h.stat_indicator.visible, "Stat indicator se oculta al morir")

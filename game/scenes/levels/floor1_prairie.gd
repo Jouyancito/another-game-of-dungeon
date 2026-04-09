@@ -22,13 +22,19 @@ const COLOR_BOSS_WALL: Color   = Color(0.314, 0.314, 0.314, 1)
 const COLOR_PATH: Color        = Color(0.420, 0.259, 0.149, 1)
 
 # Escenas de actores
-const SCENE_PLAYER: PackedScene  = preload("res://scenes/player/player.tscn")
+var SCENE_PLAYER: PackedScene  # Se resuelve en _ready() según la clase elegida
 const SCENE_ENEMY: PackedScene   = preload("res://scenes/enemy/enemy_basic.tscn")
 const SCENE_HUD: PackedScene     = preload("res://scenes/hud/hud.tscn")
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 func _ready() -> void:
+	# Resolver escena del jugador según la clase elegida
+	var class_path = GameManager.selected_class_scene
+	if not ResourceLoader.exists(class_path):
+		class_path = "res://scenes/player/player.tscn"
+	SCENE_PLAYER = load(class_path)
+
 	_rng.seed = world_seed
 
 	# 1. Sistema de POIs
@@ -56,9 +62,11 @@ func _ready() -> void:
 	add_child(player)
 	player.global_position = entrance_pos + Vector3(0, 0.9, 0)
 
-	# 6. HUD
+	# 6. HUD — conectar al jugador explícitamente
 	var hud: CanvasLayer = SCENE_HUD.instantiate() as CanvasLayer
 	add_child(hud)
+	if hud.has_method("connect_to_player"):
+		hud.connect_to_player(player)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

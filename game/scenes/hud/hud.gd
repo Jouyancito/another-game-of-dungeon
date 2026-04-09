@@ -18,21 +18,20 @@ func _ready() -> void:
 	stat_indicator.visible = false
 	level_up_label.visible = false
 
-	await get_tree().process_frame
-	var players = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		var player = players[0]
-		player.health_changed.connect(_on_health_changed)
-		player.mana_changed.connect(_on_mana_changed)
-		player.xp_changed.connect(_on_xp_changed)
-		player.player_died.connect(_on_player_died)
-		player.level_up.connect(_on_level_up)
-		_on_health_changed(player.health, player.max_health)
-		_on_mana_changed(player.mana, player.max_mana)
-		_on_xp_changed(player.xp, player.xp_to_next_level, player.level)
-		# Mostrar indicador si ya tiene puntos (ej: al recargar)
-		if player.stat_points > 0:
-			stat_indicator.visible = true
+
+## Llamar desde main.gd después de instanciar al jugador.
+## Esto evita depender del timing de group search en _ready().
+func connect_to_player(player: Node) -> void:
+	player.health_changed.connect(_on_health_changed)
+	player.mana_changed.connect(_on_mana_changed)
+	player.xp_changed.connect(_on_xp_changed)
+	player.player_died.connect(_on_player_died)
+	player.level_up.connect(_on_level_up)
+	_on_health_changed(player.health, player.max_health)
+	_on_mana_changed(player.mana, player.max_mana)
+	_on_xp_changed(player.xp, player.xp_to_next_level, player.level)
+	if player.stat_points > 0:
+		stat_indicator.visible = true
 
 
 func _on_health_changed(new_value: float, max_value: float) -> void:

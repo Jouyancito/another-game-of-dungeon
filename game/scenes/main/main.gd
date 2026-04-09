@@ -41,6 +41,11 @@ func _ready() -> void:
 	player.position = Vector3(0, 2, 0)
 	add_child(player)
 
+	# Conectar HUD al jugador explícitamente
+	var hud = $HUD
+	if hud and hud.has_method("connect_to_player"):
+		hud.connect_to_player(player)
+
 	# Dar arma inicial según clase
 	var starter_weapon: String = CLASS_STARTER_WEAPON.get(class_path, "")
 	if starter_weapon != "":
@@ -51,7 +56,8 @@ func _ready() -> void:
 	# También dar una poción de vida de bienvenida
 	GameManager.player_inventory.auto_place_item("potion_hp_small", 2)
 
-	# Instanciar UI de inventario y conectarla al inventario del jugador
+	# Instanciar UI de inventario — asignar inventario ANTES de add_child
+	# para que _ready() ya tenga la referencia
 	var inventory_ui = inventory_ui_scene.instantiate()
-	add_child(inventory_ui)
 	inventory_ui.inventory = GameManager.player_inventory
+	add_child(inventory_ui)
