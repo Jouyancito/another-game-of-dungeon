@@ -19,6 +19,7 @@ var mini_slime_scene: PackedScene
 
 
 func _on_enemy_ready() -> void:
+	enemy_type = "mini_slime" if is_mini else "slime"
 	default_color = Color(0.2, 0.75, 0.2) if not is_mini else Color(0.3, 0.85, 0.3)
 	mass = 0.5 if not is_mini else 0.2
 	hop_timer = hop_interval
@@ -89,8 +90,15 @@ func _spawn_mini_slimes() -> void:
 
 	for i in split_count:
 		var mini = mini_slime_scene.instantiate()
-		# Posicionar en círculo alrededor de donde murió el slime grande
-		var angle = (TAU / split_count) * i
-		var offset = Vector3(cos(angle) * 0.8, 0.5, sin(angle) * 0.8)
+		# Ángulo base + variación aleatoria para que no sea simétrico
+		var base_angle = (TAU / split_count) * i
+		var angle = base_angle + randf_range(-0.5, 0.5)
+		var radius = randf_range(0.3, 0.6)
+		var offset = Vector3(cos(angle) * radius, 0.3, sin(angle) * radius)
 		mini.global_position = global_position + offset
 		scene_root.call_deferred("add_child", mini)
+		# Impulso hacia afuera — mini explosión
+		var explode_dir = Vector3(cos(angle), 0, sin(angle))
+		var explode_force = randf_range(4.0, 7.0)
+		mini.knockback_velocity = explode_dir * explode_force
+		mini.knockback_velocity.y = randf_range(3.0, 5.0)

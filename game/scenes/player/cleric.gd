@@ -8,6 +8,9 @@ extends BasePlayer
 @export var smite_range := 12.0
 
 
+func get_class_color() -> Color:
+	return Color(0.8, 0.7, 0.2)  # dorado cleric
+
 func _on_class_ready() -> void:
 	speed = 4.5
 	sprint_speed = 7.0
@@ -29,6 +32,7 @@ func _attack_mace() -> void:
 		return
 	can_attack = false
 
+	_animate_attack("mace")
 	_do_mace_hit()
 
 	await get_tree().create_timer(heavy_cooldown).timeout
@@ -48,6 +52,7 @@ func _smite_loop() -> void:
 			is_holding_attack = false
 			return
 
+		_animate_attack("smite")
 		_do_smite()
 
 		await get_tree().create_timer(smite_cooldown).timeout
@@ -56,6 +61,18 @@ func _smite_loop() -> void:
 
 		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			is_holding_attack = false
+
+func _animate_attack(type: String) -> void:
+	if type == "mace":
+		if view_model:
+			view_model.play_attack_right(heavy_cooldown)
+		if world_model:
+			world_model.play_attack_right(heavy_cooldown)
+	elif type == "smite":
+		if view_model:
+			view_model.play_attack_both(smite_cooldown)
+		if world_model:
+			world_model.play_attack_both(smite_cooldown)
 
 func _do_mace_hit() -> void:
 	var space_state = get_world_3d().direct_space_state

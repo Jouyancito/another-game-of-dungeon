@@ -5,4 +5,5 @@ extends BaseEnemy
 
 
 func _on_enemy_ready() -> void:
+	enemy_type = "enemy_basic"
 	default_color = Color(0.8, 0.2, 0.2)

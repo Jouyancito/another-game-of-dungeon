@@ -4,12 +4,20 @@ extends Control
 ## Se abre con C, pausa el juego, muestra cursor.
 
 var player: BasePlayer = null
+var char_preview: CharacterPreview
+
+# Identity
+@onready var identity_row: HBoxContainer = %IdentityRow
+@onready var name_label: Label = %NameLabel
+@onready var title_label: Label = %TitleLabel
+@onready var class_label: Label = %ClassLabel
 
 # Header
 @onready var stat_points_label: Label = %StatPointsLabel
 @onready var level_label: Label = %LevelLabel
 @onready var hp_label: Label = %HpLabel
 @onready var mp_label: Label = %MpLabel
+@onready var xp_label: Label = %XpLabel
 
 # Stat rows — valores base + botones
 @onready var str_value: Label = %StrValue
@@ -37,6 +45,8 @@ var player: BasePlayer = null
 @onready var res_fire_label: Label = %ResFireValue
 @onready var res_ice_label: Label = %ResIceValue
 @onready var res_lightning_label: Label = %ResLightningValue
+@onready var res_poison_label: Label = %ResPoisonValue
+@onready var res_void_label: Label = %ResVoidValue
 @onready var hp_regen_label: Label = %HpRegenValue
 @onready var mp_regen_label: Label = %MpRegenValue
 
@@ -58,6 +68,11 @@ func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	advanced_section.visible = false
+
+	char_preview = CharacterPreview.new()
+	char_preview.custom_minimum_size = Vector2(120, 168)
+	var preview_container := identity_row.get_node("PreviewContainer")
+	preview_container.add_child(char_preview)
 
 	# Conectar botones de asignar stats
 	str_btn.pressed.connect(_assign.bind("str"))
@@ -123,11 +138,26 @@ func _refresh_stats() -> void:
 	if player == null:
 		return
 
+	# Identity
+	var char_data := {}
+	var char_idx: int = GameManager.selected_character_index
+	if char_idx >= 0:
+		char_data = SaveManager.get_character(char_idx)
+	name_label.text = char_data.get("name", "Aventurero") if not char_data.is_empty() else "Aventurero"
+	var active_title: String = char_data.get("active_title", "") if not char_data.is_empty() else ""
+	title_label.text = active_title
+	title_label.visible = active_title != ""
+	class_label.text = char_data.get("class_name", "") if not char_data.is_empty() else ""
+
+	if char_preview and not char_preview._model:
+		char_preview.setup_character(player.get_class_color())
+
 	# Header
 	level_label.text = "Nivel %d" % player.level
 	stat_points_label.text = "Puntos: %d" % player.stat_points
 	hp_label.text = "HP: %d/%d" % [int(player.health), int(player.max_health)]
 	mp_label.text = "MP: %d/%d" % [int(player.mana), int(player.max_mana)]
+	xp_label.text = "XP: %d/%d (próx nivel)" % [int(player.xp), int(player.xp_to_next_level)]
 
 	# Base stats
 	str_value.text = str(player.str_stat)
@@ -147,6 +177,8 @@ func _refresh_stats() -> void:
 	res_fire_label.text = "%d%%" % int(player.res_fire * 100)
 	res_ice_label.text = "%d%%" % int(player.res_ice * 100)
 	res_lightning_label.text = "%d%%" % int(player.res_lightning * 100)
+	res_poison_label.text = "%d%%" % int(player.res_poison * 100)
+	res_void_label.text = "%d%%" % int(player.res_void * 100)
 	hp_regen_label.text = "%.1f/s" % (0.5 + player.vit_stat * 0.15)
 	mp_regen_label.text = "%.1f/s" % (1.0 + player.int_stat * 0.1)
 

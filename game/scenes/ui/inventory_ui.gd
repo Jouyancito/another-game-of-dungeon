@@ -13,8 +13,10 @@ var inventory: Inventory = null
 var _selected_entry: Dictionary = {}   # entry activo para mover
 var _hovered_pos := Vector2i(-1, -1)   # celda bajo el mouse
 
+# Panel de equipamiento (paper doll) — se abre/cierra junto al inventario
+var _equipment_panel: EquipmentPanel = null
+
 # Sub-nodos (asignados en _ready desde la escena)
-@onready var _bg: PanelContainer = $Background
 @onready var _grid_panel: Control = $Background/VBoxContainer/GridPanel
 @onready var _coin_label: Label = $Background/VBoxContainer/FooterRow/CoinLabel
 @onready var _close_btn: Button = $Background/VBoxContainer/TitleRow/CloseBtn
@@ -38,6 +40,12 @@ func _ready() -> void:
 	_grid_panel.gui_input.connect(_on_grid_input)
 	_grid_panel.mouse_exited.connect(_on_grid_mouse_exited)
 
+	# Instanciar el panel de equipamiento como hijo de este CanvasLayer
+	var eq_scene := load("res://scenes/ui/equipment_panel.tscn") as PackedScene
+	if eq_scene:
+		_equipment_panel = eq_scene.instantiate() as EquipmentPanel
+		add_child(_equipment_panel)
+
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -55,12 +63,21 @@ func toggle() -> void:
 
 func _open() -> void:
 	visible = true
+	if _equipment_panel:
+		_equipment_panel.visible = true
+		# Conectar al jugador la primera vez que se abre
+		if _equipment_panel._player == null:
+			var player := _find_player()
+			if player != null:
+				_equipment_panel.setup(player)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_refresh()
 
 
 func _close() -> void:
 	visible = false
+	if _equipment_panel:
+		_equipment_panel.visible = false
 	_selected_entry = {}
 	_tooltip.visible = false
 	# Si el pause menu también está cerrado, volver a capturar el mouse
@@ -109,14 +126,14 @@ func _draw_grid() -> void:
 			continue
 		drawn_ids.append(entry)
 
-		var item_data := ItemDatabase.get_item(entry["item_id"])
+		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 		if item_data.is_empty():
 			continue
 
 		var size: Vector2i = item_data["grid_size"]
 		var anchor: Vector2i = entry["grid_pos"]
 		var rarity: String = item_data.get("rarity", "common")
-		var fill_color := ItemDatabase.get_rarity_color(rarity)
+		var fill_color: Color = ItemDatabase.get_rarity_color(rarity)
 		fill_color.a = 0.55
 
 		var is_selected: bool = (_selected_entry == entry)
@@ -131,7 +148,7 @@ func _draw_grid() -> void:
 		_grid_panel.draw_rect(rect, fill_color)
 
 		# Borde de rareza (más grueso si está seleccionado)
-		var border_color := ItemDatabase.get_rarity_color(rarity)
+		var border_color: Color = ItemDatabase.get_rarity_color(rarity)
 		var border_width := 3 if is_selected else 1
 		_grid_panel.draw_rect(rect, border_color, false, border_width)
 
@@ -170,8 +187,7 @@ func _on_grid_input(event: InputEvent) -> void:
 			_on_left_click(pos, event)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			_on_right_click(pos, event)
-		elif event.button_index == MOUSE_BUTTON_LEFT and event.double_click:
-			_on_double_click(pos)
+		# Note: double-click LEFT is already handled by _on_left_click → _on_double_click
 
 
 func _on_grid_mouse_exited() -> void:
@@ -187,7 +203,7 @@ func _on_left_click(pos: Vector2i, event: InputEventMouseButton) -> void:
 
 	if _selected_entry.is_empty():
 		# Seleccionar item en esa celda
-		var entry := inventory.get_item_at(pos)
+		var entry: Dictionary = inventory.get_item_at(pos)
 		if not entry.is_empty():
 			_selected_entry = entry
 			_grid_panel.queue_redraw()
@@ -215,11 +231,11 @@ func _on_left_click(pos: Vector2i, event: InputEventMouseButton) -> void:
 
 
 func _on_right_click(pos: Vector2i, _event: InputEventMouseButton) -> void:
-	var entry := inventory.get_item_at(pos)
+	var entry: Dictionary = inventory.get_item_at(pos)
 	if entry.is_empty():
 		return
 
-	var item_data := ItemDatabase.get_item(entry["item_id"])
+	var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 
 	_context_menu.clear()
 	_context_menu.set_meta("entry_pos", pos)
@@ -237,11 +253,17 @@ func _on_right_click(pos: Vector2i, _event: InputEventMouseButton) -> void:
 
 
 func _on_double_click(pos: Vector2i) -> void:
-	var entry := inventory.get_item_at(pos)
+	var entry: Dictionary = inventory.get_item_at(pos)
 	if entry.is_empty():
 		return
-	var item_data := ItemDatabase.get_item(entry["item_id"])
-	print("Equipar (placeholder): ", item_data.get("name", entry["item_id"]))
+	var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
+	# Solo equipar items que tienen slot (no consumibles ni materiales)
+	if item_data.get("slot", "") == "":
+		return
+	var player := _find_player()
+	if player != null and player.has_method("equip_item"):
+		player.equip_item(entry["item_id"], pos)
+		_grid_panel.queue_redraw()
 
 
 func _on_context_menu_item(id: int) -> void:
@@ -250,30 +272,34 @@ func _on_context_menu_item(id: int) -> void:
 		return
 
 	match id:
-		0: # Soltar
-			var entry := inventory.remove_item_at(pos)
+		0: # Soltar — dropear al mundo frente al jugador
+			var entry: Dictionary = inventory.remove_item_at(pos)
 			if not entry.is_empty():
-				print("Drop: ", entry["item_id"])
+				_drop_item_to_world(entry["item_id"], entry["quantity"])
 			_grid_panel.queue_redraw()
 		1: # Usar
-			var entry := inventory.get_item_at(pos)
+			var entry: Dictionary = inventory.get_item_at(pos)
 			if not entry.is_empty():
 				_use_item(entry, pos)
 
 
 func _use_item(entry: Dictionary, pos: Vector2i) -> void:
-	var item_data := ItemDatabase.get_item(entry["item_id"])
+	var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 	if item_data.is_empty():
 		return
 
-	var heal: int = item_data.get("stats", {}).get("heal", 0)
+	var stats: Dictionary = item_data.get("stats", {})
+	var player := _find_player()
+
+	var heal: int = stats.get("heal", 0)
 	if heal > 0:
-		var player := _find_player()
 		if player != null and player.has_method("heal"):
 			player.heal(float(heal))
-			print("Usaste: ", item_data.get("name", ""), " — cura %d HP" % heal)
-		else:
-			print("Usaste: ", item_data.get("name", ""), " — sin jugador para curar")
+
+	var restore_mana: int = stats.get("restore_mana", 0)
+	if restore_mana > 0:
+		if player != null and player.has_method("restore_mana"):
+			player.restore_mana(float(restore_mana))
 
 	# Reducir cantidad o eliminar
 	if entry["quantity"] > 1:
@@ -281,15 +307,57 @@ func _use_item(entry: Dictionary, pos: Vector2i) -> void:
 	else:
 		inventory.remove_item_at(pos)
 
+	# Guardar inventario tras usar el item
+	if player != null and player.has_method("_save_inventory"):
+		player._save_inventory()
+
 	_grid_panel.queue_redraw()
 	_refresh()
 
 
 func _find_player() -> Node:
-	var players := get_tree().get_nodes_in_group("player")
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	if players.size() > 0:
 		return players[0]
 	return null
+
+
+func _drop_item_to_world(item_id: String, quantity: int) -> void:
+	var player := _find_player()
+	if player == null:
+		return
+
+	var item_scene := preload("res://scenes/loot/item_drop.tscn")
+	var drop := item_scene.instantiate() as ItemDrop
+
+	# Nombre del jugador para mostrar en party
+	var player_name: String = ""
+	if player.has_method("get_character_name"):
+		player_name = player.get_character_name()
+
+	drop.setup(item_id, quantity, player_name)
+
+	# Dropear 2m frente al jugador (con raycast para evitar paredes)
+	var cam: Camera3D = player.get_viewport().get_camera_3d()
+	var forward := -cam.global_transform.basis.z.normalized()
+	forward.y = 0
+	forward = forward.normalized()
+	var drop_pos: Vector3 = player.global_position + forward * 2.0 + Vector3(0, 0.3, 0)
+
+	# Verificar si hay pared entre jugador y drop_pos
+	var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
+	var ray_from: Vector3 = player.global_position + Vector3(0, 1.0, 0)
+	var ray_to: Vector3 = drop_pos + Vector3(0, 1.0, 0)
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(ray_from, ray_to)
+	query.exclude = [player.get_rid()]
+	query.collision_mask = 1  # Layer World
+	var hit: Dictionary = space.intersect_ray(query)
+	if not hit.is_empty():
+		drop_pos = player.global_position + Vector3(0, 0.3, 0)
+
+	drop.global_position = drop_pos
+
+	get_tree().current_scene.call_deferred("add_child", drop)
 
 
 func _update_tooltip(pos: Vector2i, global_mouse: Vector2) -> void:
@@ -297,12 +365,12 @@ func _update_tooltip(pos: Vector2i, global_mouse: Vector2) -> void:
 		_tooltip.visible = false
 		return
 
-	var entry := inventory.get_item_at(pos)
+	var entry: Dictionary = inventory.get_item_at(pos)
 	if entry.is_empty():
 		_tooltip.visible = false
 		return
 
-	var item_data := ItemDatabase.get_item(entry["item_id"])
+	var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 	if item_data.is_empty():
 		_tooltip.visible = false
 		return

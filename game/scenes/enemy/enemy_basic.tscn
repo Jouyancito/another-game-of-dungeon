@@ -15,6 +15,9 @@ material = SubResource("StandardMaterial3D_001")
 [node name="EnemyBasic" type="CharacterBody3D" groups=["enemies"]]
 script = ExtResource("1_enemy")
 
+display_name = "Enemigo"
+enemy_level = 1
+
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 shape = SubResource("BoxShape3D_001")

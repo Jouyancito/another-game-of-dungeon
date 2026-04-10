@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://wasp0001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/wasp.gd" id="1_wasp"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_001"]
+radius = 0.1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.9, 0.8, 0.1, 1)
+emission_enabled = true
+emission = Color(0.5, 0.4, 0.0, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+radius = 0.1
+height = 0.15
+material = SubResource("StandardMaterial3D_body")
+
+[node name="Wasp" type="CharacterBody3D" groups=["enemies"]]
+script = ExtResource("1_wasp")
+speed = 6.0
+health = 25.0
+damage = 6.0
+attack_range = 1.0
+detection_range = 8.0
+xp_reward = 8.0
+attack_cooldown = 0.8
+aggression = 1
+mass = 0.1
+
+display_name = "Avispa"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+shape = SubResource("SphereShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+mesh = SubResource("SphereMesh_body")

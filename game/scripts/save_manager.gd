@@ -71,6 +71,9 @@ func save_characters() -> void:
 	if dir == null:
 		push_error("SaveManager: no se pudo acceder al directorio de guardado.")
 		return
+	# En Windows, rename falla si el destino ya existe — eliminarlo primero
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
 	var err := dir.rename(SAVE_PATH_TMP, SAVE_PATH)
 	if err != OK:
 		push_error("SaveManager: no se pudo renombrar el archivo temporal. Error: %d" % err)
@@ -94,6 +97,8 @@ func create_character(char_name: String, class_scene: String, class_display_name
 		"def_stat": defaults.get("def_stat", 5),
 		"vit_stat": defaults.get("vit_stat", 5),
 		"stat_points": 0,
+		"titles": [],
+		"active_title": "",
 		"created_at": Time.get_date_string_from_system(),
 	}
 
@@ -115,6 +120,25 @@ func update_character(index: int, data: Dictionary) -> void:
 		return
 	characters[index].merge(data, true)
 	save_characters()
+
+
+func grant_title(char_index: int, title: String) -> void:
+	var data = get_character(char_index)
+	if data.is_empty():
+		return
+	var titles: Array = data.get("titles", [])
+	if title not in titles:
+		titles.append(title)
+		update_character(char_index, {"titles": titles})
+
+
+func set_active_title(char_index: int, title: String) -> void:
+	var data = get_character(char_index)
+	if data.is_empty():
+		return
+	var titles: Array = data.get("titles", [])
+	if title in titles or title == "":
+		update_character(char_index, {"active_title": title})
 
 
 func delete_character(index: int) -> void:

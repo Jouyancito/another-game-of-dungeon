@@ -19,6 +19,9 @@ var combo_index := 0
 var combo_reset_timer := 0.0
 @export var combo_reset_time := 1.5  # Tiempo sin pegar para resetear la cadena
 
+func get_class_color() -> Color:
+	return Color(0.8, 0.3, 0.2)  # rojo guerrero
+
 func _on_class_ready() -> void:
 	# Combat values — únicos del Warrior
 	speed = 5.0
@@ -58,6 +61,22 @@ func _attack_heavy() -> void:
 	if combo_index == combo_chain.size() - 1:
 		kb_force *= 1.8  # Finisher empuja más
 
+	# Animar brazo según el lado del golpe
+	if view_model:
+		if step.side > 0:
+			view_model.play_attack_right(heavy_cooldown)
+		elif step.side < 0:
+			view_model.play_attack_left(heavy_cooldown)
+		else:
+			view_model.play_attack_both(heavy_cooldown)  # finisher
+	if world_model:
+		if step.side > 0:
+			world_model.play_attack_right(heavy_cooldown)
+		elif step.side < 0:
+			world_model.play_attack_left(heavy_cooldown)
+		else:
+			world_model.play_attack_both(heavy_cooldown)
+
 	_do_melee(dmg, step.side, kb_force)
 
 	combo_index = (combo_index + 1) % combo_chain.size()
@@ -78,6 +97,16 @@ func _attack_frenzy() -> void:
 
 		# Frenesí: alterna rápido derecha-izquierda, knockback reducido
 		var side = 1.0 if fmod(combo_reset_timer * 10.0, 2.0) < 1.0 else -1.0
+		if view_model:
+			if side > 0:
+				view_model.play_attack_right(combo_cooldown)
+			else:
+				view_model.play_attack_left(combo_cooldown)
+		if world_model:
+			if side > 0:
+				world_model.play_attack_right(combo_cooldown)
+			else:
+				world_model.play_attack_left(combo_cooldown)
 		_do_melee(base_combo_damage, side, base_knockback_force * 0.3)
 
 		await get_tree().create_timer(combo_cooldown).timeout

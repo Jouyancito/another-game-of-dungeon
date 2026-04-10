@@ -1,0 +1,157 @@
+[gd_scene format=3 uid="uid://journalui1"]
+
+[ext_resource type="Script" path="res://scenes/ui/journal_ui.gd" id="1_journal"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.08, 0.06, 0.98)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.4, 0.3, 0.15, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_inner"]
+bg_color = Color(0.18, 0.13, 0.1, 0.8)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.35, 0.25, 0.15, 1)
+
+[node name="JournalUI" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_journal")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -600.0
+offset_top = -380.0
+offset_right = 600.0
+offset_bottom = 380.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TitleRow" type="HBoxContainer" parent="Panel/VBoxContainer"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/VBoxContainer/TitleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Diario del Aventurero"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(0.9, 0.8, 0.5, 1)
+
+[node name="CloseBtn" type="Button" parent="Panel/VBoxContainer/TitleRow"]
+layout_mode = 2
+text = " X "
+theme_override_font_sizes/font_size = 20
+
+[node name="ProgressLabel" type="Label" parent="Panel/VBoxContainer"]
+layout_mode = 2
+text = "Descubiertos: 0 / 0"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.7, 0.6, 0.4, 1)
+
+[node name="HSplit" type="HSplitContainer" parent="Panel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 350
+
+[node name="LeftPanel" type="PanelContainer" parent="Panel/VBoxContainer/HSplit"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner")
+
+[node name="Scroll" type="ScrollContainer" parent="Panel/VBoxContainer/HSplit/LeftPanel"]
+layout_mode = 2
+
+[node name="EntryList" type="VBoxContainer" parent="Panel/VBoxContainer/HSplit/LeftPanel/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="RightPanel" type="VBoxContainer" parent="Panel/VBoxContainer/HSplit"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PreviewPanel" type="PanelContainer" parent="Panel/VBoxContainer/HSplit/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 280)
+theme_override_styles/panel = SubResource("StyleBoxFlat_inner")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="Panel/VBoxContainer/HSplit/RightPanel/PreviewPanel"]
+layout_mode = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Panel/VBoxContainer/HSplit/RightPanel/PreviewPanel/SubViewportContainer"]
+handle_input_locally = false
+size = Vector2i(700, 280)
+render_target_update_mode = 4
+own_world_3d = true
+
+[node name="Camera3D" type="Camera3D" parent="Panel/VBoxContainer/HSplit/RightPanel/PreviewPanel/SubViewportContainer/SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 0.92, 0.39, 0, -0.39, 0.92, 0, 1.2, 3.5)
+fov = 40.0
+
+[node name="DirLight" type="DirectionalLight3D" parent="Panel/VBoxContainer/HSplit/RightPanel/PreviewPanel/SubViewportContainer/SubViewport"]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 3, 0)
+light_energy = 1.5
+
+[node name="Pivot" type="Node3D" parent="Panel/VBoxContainer/HSplit/RightPanel/PreviewPanel/SubViewportContainer/SubViewport"]
+
+[node name="InfoPanel" type="VBoxContainer" parent="Panel/VBoxContainer/HSplit/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="Name" type="Label" parent="Panel/VBoxContainer/HSplit/RightPanel/InfoPanel"]
+layout_mode = 2
+text = "Seleccioná una entrada"
+theme_override_font_sizes/font_size = 26
+theme_override_colors/font_color = Color(0.95, 0.85, 0.55, 1)
+
+[node name="Category" type="Label" parent="Panel/VBoxContainer/HSplit/RightPanel/InfoPanel"]
+layout_mode = 2
+text = ""
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.7, 0.55, 0.35, 1)
+
+[node name="Stats" type="RichTextLabel" parent="Panel/VBoxContainer/HSplit/RightPanel/InfoPanel"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 80)
+bbcode_enabled = true
+fit_content = true
+
+[node name="Description" type="RichTextLabel" parent="Panel/VBoxContainer/HSplit/RightPanel/InfoPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+fit_content = true
+
+[node name="Flavor" type="RichTextLabel" parent="Panel/VBoxContainer/HSplit/RightPanel/InfoPanel"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 60)
+bbcode_enabled = true
+fit_content = true

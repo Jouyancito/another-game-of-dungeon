@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/character_window.gd" id="1_charwin"]
+[ext_resource type="Script" path="res://scenes/ui/draggable_window.gd" id="1_draggable"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.1, 0.1, 0.12, 0.95)
@@ -79,13 +80,14 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -260.0
-offset_top = -320.0
-offset_right = 260.0
-offset_bottom = 320.0
+offset_left = -300.0
+offset_top = -340.0
+offset_right = 300.0
+offset_bottom = 340.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+script = ExtResource("1_draggable")
 
 [node name="Margin" type="MarginContainer" parent="Panel"]
 layout_mode = 2
@@ -97,6 +99,53 @@ theme_override_constants/margin_bottom = 12
 [node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 6
+
+[node name="DragBar" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 20)
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
+text = "═══ Personaje ═══"
+horizontal_alignment = 1
+mouse_filter = 2
+
+[node name="IdentityRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="PreviewContainer" type="Control" parent="Panel/Margin/VBox/IdentityRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 168)
+size_flags_horizontal = 0
+size_flags_vertical = 0
+
+[node name="InfoColumn" type="VBoxContainer" parent="Panel/Margin/VBox/IdentityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/separation = 4
+
+[node name="NameLabel" type="Label" parent="Panel/Margin/VBox/IdentityRow/InfoColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "Aventurero"
+
+[node name="TitleLabel" type="Label" parent="Panel/Margin/VBox/IdentityRow/InfoColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+text = ""
+
+[node name="ClassLabel" type="Label" parent="Panel/Margin/VBox/IdentityRow/InfoColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
+text = ""
 
 [node name="Header" type="HBoxContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2
@@ -131,6 +180,13 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.2, 0.4, 0.9, 1)
 text = "MP: 80/80"
+
+[node name="XpLabel" type="Label" parent="Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.35, 0.85, 0.45, 1)
+text = "XP: 0/100"
 
 [node name="Sep1" type="HSeparator" parent="Panel/Margin/VBox"]
 layout_mode = 2
@@ -507,6 +563,34 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.3, 0.5, 0.9, 1)
 text = "1.0/s"
+horizontal_alignment = 2
+
+[node name="ResPoisonName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Res. Veneno"
+
+[node name="ResPoisonValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.4, 0.85, 0.3, 1)
+text = "0%"
+horizontal_alignment = 2
+
+[node name="ResVoidName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Res. Vacío"
+
+[node name="ResVoidValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.65, 0.3, 0.85, 1)
+text = "0%"
 horizontal_alignment = 2
 
 [node name="PlaceholderLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection"]

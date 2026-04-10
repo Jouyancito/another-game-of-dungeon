@@ -28,6 +28,9 @@ xp_reward = 15.0
 attack_cooldown = 0.8
 aggression = 1
 
+display_name = "Corvido"
+enemy_level = 1
+
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("SphereShape3D_001")

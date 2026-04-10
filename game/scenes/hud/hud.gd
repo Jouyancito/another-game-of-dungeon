@@ -13,6 +13,8 @@ extends CanvasLayer
 @onready var stat_indicator: Control = $HUDContainer/StatIndicator
 @onready var level_up_label: Label = $LevelUpNotification
 
+var _player: Node = null  # Referencia al jugador vinculado a este HUD
+
 func _ready() -> void:
 	death_screen.visible = false
 	stat_indicator.visible = false
@@ -22,6 +24,7 @@ func _ready() -> void:
 ## Llamar desde main.gd después de instanciar al jugador.
 ## Esto evita depender del timing de group search en _ready().
 func connect_to_player(player: Node) -> void:
+	_player = player
 	player.health_changed.connect(_on_health_changed)
 	player.mana_changed.connect(_on_mana_changed)
 	player.xp_changed.connect(_on_xp_changed)
@@ -51,10 +54,9 @@ func _on_xp_changed(current_xp: float, max_xp: float, current_level: int) -> voi
 	xp_bar.value = current_xp
 	xp_label.text = "Nv.%d  %d/%d" % [current_level, current_xp, max_xp]
 
-	# Verificar si quedan stat points para actualizar indicador
-	var players = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		stat_indicator.visible = players[0].stat_points > 0
+	# Verificar si quedan stat points usando el jugador vinculado
+	if _player != null:
+		stat_indicator.visible = _player.stat_points > 0
 
 
 func _on_level_up(new_level: int, _points: int) -> void:

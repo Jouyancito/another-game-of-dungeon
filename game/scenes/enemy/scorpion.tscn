@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://scorpion001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/scorpion.gd" id="1_scorpion"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.6, 0.25, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.4, 0.25, 0.15, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.6, 0.25, 0.5)
+material = SubResource("StandardMaterial3D_body")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tail"]
+albedo_color = Color(0.3, 0.18, 0.1, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_tail"]
+size = Vector3(0.1, 0.4, 0.1)
+material = SubResource("StandardMaterial3D_tail")
+
+[node name="Scorpion" type="CharacterBody3D" groups=["enemies"]]
+script = ExtResource("1_scorpion")
+speed = 4.0
+health = 75.0
+damage = 8.0
+attack_range = 1.5
+detection_range = 10.0
+xp_reward = 20.0
+attack_cooldown = 1.5
+aggression = 0
+mass = 0.5
+
+display_name = "Escorpion"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.125, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.125, 0)
+mesh = SubResource("BoxMesh_body")
+
+[node name="Tail" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.325, 0.2)
+mesh = SubResource("BoxMesh_tail")

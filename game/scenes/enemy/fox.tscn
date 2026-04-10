@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://fox00001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/fox.gd" id="1_fox"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.3, 0.4, 0.7)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
+albedo_color = Color(0.85, 0.45, 0.15, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_001"]
+size = Vector3(0.3, 0.4, 0.7)
+material = SubResource("StandardMaterial3D_001")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tail"]
+albedo_color = Color(0.9, 0.5, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_tail"]
+size = Vector3(0.15, 0.15, 0.4)
+material = SubResource("StandardMaterial3D_tail")
+
+[node name="Fox" type="CharacterBody3D" groups=["enemies"]]
+script = ExtResource("1_fox")
+speed = 5.5
+health = 70.0
+damage = 9.0
+attack_range = 1.5
+detection_range = 15.0
+xp_reward = 18.0
+attack_cooldown = 0.8
+mass = 0.6
+
+display_name = "Zorro"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BoxMesh_001")
+
+[node name="Tail" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0.5)
+mesh = SubResource("BoxMesh_tail")
