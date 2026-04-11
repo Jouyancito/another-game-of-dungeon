@@ -30,7 +30,7 @@ func _reset_grid() -> void:
 
 # Devuelve true si el item cabe completamente en pos sin superponerse con otro item
 func can_place_item(item_id: String, pos: Vector2i) -> bool:
-	var item_data := ItemDatabase.get_item(item_id)
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
 	if item_data.is_empty():
 		return false
 
@@ -52,22 +52,31 @@ func can_place_item(item_id: String, pos: Vector2i) -> bool:
 
 # Coloca el item en pos. Devuelve true si tuvo éxito.
 func place_item(item_id: String, pos: Vector2i, quantity: int = 1) -> bool:
-	if not can_place_item(item_id, pos):
-		return false
-
-	var item_data := ItemDatabase.get_item(item_id)
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
 	if item_data.is_empty():
 		return false
 
+	var max_stack: int = item_data.get("max_stack", 1)
+
+	# Intentar apilar en entry existente al mismo anchor (stackeables).
+	# IMPORTANTE: este check va ANTES de can_place_item porque can_place_item
+	# rechaza celdas ocupadas, haciendo el stacking directo imposible.
+	if item_data.get("stackable", false):
+		for entry in items:
+			if entry["item_id"] == item_id and entry["grid_pos"] == pos:
+				if entry["quantity"] + quantity > max_stack:
+					return false  # Desbordaría el stack — el caller debe gestionar el sobrante
+				entry["quantity"] += quantity
+				return true
+
+	# Nueva colocación: verificar espacio en grilla y cap de max_stack
+	if not can_place_item(item_id, pos):
+		return false
+
+	if quantity > max_stack:
+		return false  # Cantidad excede max_stack en slot nuevo — caller debe chunkear
+
 	var size: Vector2i = item_data["grid_size"]
-
-	# Si es stackeable y ya existe ese item en esa posición, sumar
-	for entry in items:
-		if entry["item_id"] == item_id and entry["grid_pos"] == pos:
-			entry["quantity"] += quantity
-			return true
-
-	# Marcar las celdas
 	for row in range(size.y):
 		for col in range(size.x):
 			grid[pos.y + row][pos.x + col] = item_id
@@ -102,7 +111,7 @@ func get_item_at(pos: Vector2i) -> Dictionary:
 
 	# Buscar el entry que contiene esta celda
 	for entry in items:
-		var item_data := ItemDatabase.get_item(entry["item_id"])
+		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 		if item_data.is_empty():
 			continue
 		var size: Vector2i = item_data["grid_size"]
@@ -116,20 +125,42 @@ func get_item_at(pos: Vector2i) -> Dictionary:
 
 # Intenta colocar el item en el primer hueco disponible (top-left, fila a fila).
 func auto_place_item(item_id: String, quantity: int = 1) -> bool:
-	var item_data := ItemDatabase.get_item(item_id)
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
 	if item_data.is_empty():
 		return false
 
-	# Si es stackeable, intentar apilar en un entry existente
+	# Si es stackeable, intentar apilar en entries existentes
 	if item_data.get("stackable", false):
+		var remaining := quantity
 		for entry in items:
-			if entry["item_id"] == item_id:
+			if entry["item_id"] == item_id and remaining > 0:
 				var max_stack: int = item_data.get("max_stack", 1)
-				if entry["quantity"] < max_stack:
-					entry["quantity"] = mini(entry["quantity"] + quantity, max_stack)
-					return true
+				var space: int = max_stack - entry["quantity"]
+				if space > 0:
+					var to_add: int = mini(remaining, space)
+					entry["quantity"] += to_add
+					remaining -= to_add
+		if remaining == 0:
+			return true
+		# Hay sobrante — chunkear en múltiples slots de max_stack
+		var max_stack: int = item_data.get("max_stack", 1)
+		while remaining > 0:
+			var chunk: int = mini(remaining, max_stack)
+			var placed := false
+			for row in range(GRID_ROWS):
+				for col in range(GRID_COLS):
+					if can_place_item(item_id, Vector2i(col, row)):
+						if place_item(item_id, Vector2i(col, row), chunk):
+							remaining -= chunk
+							placed = true
+							break
+				if placed:
+					break
+			if not placed:
+				return false  # No hay más espacio — sobrante perdido, caller debe manejar
+		return true
 
-	# Buscar primer posición libre
+	# No stackeable — buscar primer posición libre
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
 			if can_place_item(item_id, Vector2i(col, row)):
@@ -139,7 +170,7 @@ func auto_place_item(item_id: String, quantity: int = 1) -> bool:
 
 
 func has_space_for(item_id: String) -> bool:
-	var item_data := ItemDatabase.get_item(item_id)
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
 	if item_data.is_empty():
 		return false
 
@@ -192,7 +223,7 @@ func _find_entry_by_anchor(pos: Vector2i) -> Dictionary:
 
 
 func _clear_item_cells(entry: Dictionary) -> void:
-	var item_data := ItemDatabase.get_item(entry["item_id"])
+	var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 	if item_data.is_empty():
 		return
 	var size: Vector2i = item_data["grid_size"]

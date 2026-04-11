@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://snake0001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/snake.gd" id="1_snake"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.2, 0.15, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
+albedo_color = Color(0.35, 0.4, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_001"]
+size = Vector3(0.2, 0.15, 1.0)
+material = SubResource("StandardMaterial3D_001")
+
+[node name="Snake" type="CharacterBody3D" groups=["enemies"]]
+script = ExtResource("1_snake")
+speed = 3.5
+health = 40.0
+damage = 6.0
+attack_range = 1.5
+detection_range = 3.0
+xp_reward = 8.0
+attack_cooldown = 2.0
+aggression = 1
+
+display_name = "Serpiente"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+mesh = SubResource("BoxMesh_001")

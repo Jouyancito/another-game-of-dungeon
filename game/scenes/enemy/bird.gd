@@ -24,6 +24,7 @@ var dive_cooldown := 0.0
 
 
 func _on_enemy_ready() -> void:
+	enemy_type = "bird"
 	default_color = Color(0.6, 0.45, 0.25)
 	spawn_position = global_position
 	spawn_position.y = fly_height

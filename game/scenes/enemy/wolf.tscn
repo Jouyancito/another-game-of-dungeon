@@ -1,0 +1,36 @@
+[gd_scene format=3 uid="uid://wolf0001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/wolf.gd" id="1_wolf"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.35, 0.5, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
+albedo_color = Color(0.5, 0.5, 0.5, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_001"]
+size = Vector3(0.35, 0.5, 0.8)
+material = SubResource("StandardMaterial3D_001")
+
+[node name="Wolf" type="CharacterBody3D" groups=["enemies"]]
+script = ExtResource("1_wolf")
+speed = 4.5
+health = 90.0
+damage = 10.0
+attack_range = 1.8
+detection_range = 18.0
+xp_reward = 22.0
+attack_cooldown = 1.0
+mass = 0.8
+knockback_resistance = 0.0
+
+display_name = "Lobo"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+mesh = SubResource("BoxMesh_001")

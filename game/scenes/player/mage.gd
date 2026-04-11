@@ -14,6 +14,9 @@ var beam_line: MeshInstance3D = null
 # Referencia al proyectil
 var projectile_scene: PackedScene = preload("res://scenes/projectile/mage_projectile.tscn")
 
+func get_class_color() -> Color:
+	return Color(0.3, 0.3, 0.8)  # azul mago
+
 func _on_class_ready() -> void:
 	speed = 4.5
 	sprint_speed = 7.0
@@ -40,6 +43,12 @@ func _attack_heavy() -> void:
 		return
 	can_attack = false
 
+	# Animación de cast
+	if view_model:
+		view_model.play_attack_both(heavy_cooldown)
+	if world_model:
+		world_model.play_attack_both(heavy_cooldown)
+
 	# Disparar bolita con daño mágico
 	var projectile = projectile_scene.instantiate()
 	projectile.damage = get_magic_damage(base_heavy_damage)
@@ -57,6 +66,10 @@ func _attack_heavy() -> void:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		is_holding_attack = true
 		is_channeling = true
+		if view_model:
+			view_model.play_channel_start()
+		if world_model:
+			world_model.play_channel_start()
 		_start_beam()
 		_channel_beam()
 
@@ -79,6 +92,10 @@ func _start_beam() -> void:
 
 func _stop_beam() -> void:
 	is_channeling = false
+	if view_model:
+		view_model.play_channel_end()
+	if world_model:
+		world_model.play_channel_end()
 	if is_instance_valid(beam_line):
 		beam_line.queue_free()
 	beam_line = null

@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://rat00001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/rat.gd" id="1_rat"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.3, 0.2, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
+albedo_color = Color(0.5, 0.45, 0.4, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_001"]
+size = Vector3(0.3, 0.2, 0.5)
+material = SubResource("StandardMaterial3D_001")
+
+[node name="Rat" type="CharacterBody3D" groups=["enemies"]]
+script = ExtResource("1_rat")
+speed = 5.0
+health = 30.0
+damage = 3.0
+attack_range = 1.0
+detection_range = 8.0
+xp_reward = 5.0
+attack_cooldown = 0.5
+aggression = 1
+
+display_name = "Rata"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+mesh = SubResource("BoxMesh_001")

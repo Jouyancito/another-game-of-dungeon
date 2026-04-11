@@ -18,6 +18,9 @@ var drain_line: MeshInstance3D = null
 # Referencia al proyectil
 var orb_scene: PackedScene = preload("res://scenes/projectile/necro_projectile.tscn")
 
+func get_class_color() -> Color:
+	return Color(0.4, 0.1, 0.5)  # púrpura necromancer
+
 func _on_class_ready() -> void:
 	speed = 4.5
 	sprint_speed = 7.0
@@ -41,6 +44,12 @@ func _attack_orb() -> void:
 		return
 	can_attack = false
 
+	# Animación de lanzar orbe
+	if view_model:
+		view_model.play_attack_both(heavy_cooldown)
+	if world_model:
+		world_model.play_attack_both(heavy_cooldown)
+
 	var orb = orb_scene.instantiate()
 	orb.damage = get_magic_damage(base_orb_damage)
 	var spawn_pos = camera.global_position + (-camera.global_basis.z) * 0.8
@@ -57,6 +66,10 @@ func _attack_orb() -> void:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		is_holding_attack = true
 		is_draining = true
+		if view_model:
+			view_model.play_channel_start()
+		if world_model:
+			world_model.play_channel_start()
 		_start_drain()
 		_channel_drain()
 
@@ -79,6 +92,10 @@ func _start_drain() -> void:
 
 func _stop_drain() -> void:
 	is_draining = false
+	if view_model:
+		view_model.play_channel_end()
+	if world_model:
+		world_model.play_channel_end()
 	if is_instance_valid(drain_line):
 		drain_line.queue_free()
 	drain_line = null

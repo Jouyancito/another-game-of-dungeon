@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://lootchest1"]
+
+[ext_resource type="Script" path="res://scenes/loot/loot_chest.gd" id="1_chest"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(1.0, 0.6, 0.7)
+
+[sub_resource type="BoxMesh" id="BoxMesh_lid"]
+size = Vector3(1.0, 0.15, 0.7)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_interact"]
+size = Vector3(2.5, 2.0, 2.5)
+
+[node name="LootChest" type="Area3D"]
+collision_layer = 0
+collision_mask = 3
+script = ExtResource("1_chest")
+
+; ── Cuerpo del cofre
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+mesh = SubResource("BoxMesh_body")
+
+; ── Tapa (pivotea desde el borde trasero)
+[node name="Lid" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.675, -0.275)
+mesh = SubResource("BoxMesh_lid")
+
+; ── Zona de interacción
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("BoxShape3D_interact")
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+font_size = 28
+outline_size = 6
+text = "Cofre [E]"

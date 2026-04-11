@@ -12,6 +12,9 @@ var is_charging := false
 # Referencia al proyectil
 var arrow_scene: PackedScene = preload("res://scenes/projectile/arrow_projectile.tscn")
 
+func get_class_color() -> Color:
+	return Color(0.2, 0.6, 0.3)  # verde archer
+
 func _on_class_ready() -> void:
 	speed = 5.5
 	sprint_speed = 9.0
@@ -59,6 +62,9 @@ func _attack_arrow() -> void:
 func _charge_loop() -> void:
 	while is_holding_attack and not is_dead:
 		is_charging = true
+		# Animación de tensar arco
+		if view_model:
+			view_model.play_draw_bow(charge_time)
 
 		# Esperar el tiempo de carga o soltar el botón
 		var timer = get_tree().create_timer(charge_time)
@@ -89,6 +95,11 @@ func _charge_loop() -> void:
 func _fire_arrow(dmg: float) -> void:
 	if not is_instance_valid(self) or is_dead:
 		return
+	# Animación de soltar flecha
+	if view_model:
+		view_model.play_release_bow(0.1)
+	if world_model:
+		world_model.play_attack_both(0.15)
 	var arrow = arrow_scene.instantiate()
 	arrow.damage = get_dex_damage(dmg)
 	var spawn_pos = camera.global_position + (-camera.global_basis.z) * 0.8
