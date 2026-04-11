@@ -5,7 +5,7 @@ extends BaseEnemy
 ## Ataque en picada: baja, pega, sube de vuelta.
 
 # Vuelo
-@export var fly_height := 3.0
+@export var fly_altitude := 3.0  # altura RELATIVA al suelo local (no Y absoluto)
 @export var wander_radius := 8.0
 @export var wander_interval := 3.0
 @export var dive_speed := 8.0
@@ -22,22 +22,44 @@ var spawn_position := Vector3.ZERO
 var circle_angle := 0.0
 var dive_cooldown := 0.0
 
+# Y absoluto al que debe apuntar el ave en vuelo (calculado por raycast al suelo)
+var _current_fly_y := 0.0
+
 
 func _on_enemy_ready() -> void:
 	enemy_type = "bird"
 	default_color = Color(0.6, 0.45, 0.25)
 	spawn_position = global_position
-	spawn_position.y = fly_height
-	global_position.y = fly_height
+	_update_fly_y_at(global_position)
+	spawn_position.y = _current_fly_y
+	global_position.y = _current_fly_y
 	_pick_wander_target()
+
+
+## Raycast hacia abajo para calcular a qué Y absoluto debe volar el ave
+## sobre el terreno en `pos` (fly_altitude metros arriba del piso local).
+func _update_fly_y_at(pos: Vector3) -> void:
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		_current_fly_y = pos.y + fly_altitude
+		return
+	var ray_from := Vector3(pos.x, pos.y + 100.0, pos.z)
+	var ray_to := Vector3(pos.x, pos.y - 100.0, pos.z)
+	var query := PhysicsRayQueryParameters3D.create(ray_from, ray_to)
+	query.collision_mask = 1  # Layer World
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		_current_fly_y = pos.y + fly_altitude
+	else:
+		_current_fly_y = hit.position.y + fly_altitude
 
 
 func _apply_gravity(_delta: float) -> void:
 	# Solo mantener altura en idle y circling
 	if state == BirdState.IDLE or state == BirdState.CIRCLING:
-		velocity.y = (fly_height - global_position.y) * 3.0
+		velocity.y = (_current_fly_y - global_position.y) * 3.0
 	elif state == BirdState.RETREATING:
-		velocity.y = (fly_height - global_position.y) * 5.0
+		velocity.y = (_current_fly_y - global_position.y) * 5.0
 
 
 func _should_pursue(distance: float) -> bool:
@@ -50,7 +72,7 @@ func _should_pursue(distance: float) -> bool:
 func _idle_behavior(delta: float) -> void:
 	if state == BirdState.RETREATING:
 		# Subiendo después de un picotazo — volver a circling cuando llega arriba
-		if global_position.y >= fly_height - 0.3:
+		if global_position.y >= _current_fly_y - 0.3:
 			state = BirdState.CIRCLING if is_provoked else BirdState.IDLE
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta * 3.0)
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta * 3.0)
@@ -94,14 +116,15 @@ func _move_toward_target(delta: float) -> void:
 			)
 
 		BirdState.CIRCLING:
-			# Circular alrededor del jugador a fly_height
+			# Circular alrededor del jugador a altura sobre el suelo local
 			circle_angle += circle_speed * delta
 			var target_pos = target.global_position + Vector3(
 				cos(circle_angle) * circle_radius,
 				0,
 				sin(circle_angle) * circle_radius
 			)
-			target_pos.y = fly_height
+			_update_fly_y_at(target_pos)
+			target_pos.y = _current_fly_y
 
 			var direction = (target_pos - global_position).normalized()
 			velocity.x = direction.x * speed
@@ -139,7 +162,10 @@ func _pick_wander_target() -> void:
 	var angle = randf() * TAU
 	var dist = randf_range(2.0, wander_radius)
 	wander_target = spawn_position + Vector3(cos(angle) * dist, 0, sin(angle) * dist)
-	wander_target.y = fly_height
+	# Recalcular el fly Y para el NUEVO target según el suelo de esa posición
+	# (así el ave no queda enterrada si el terreno cambia de altura)
+	_update_fly_y_at(wander_target)
+	wander_target.y = _current_fly_y
 
 
 func _on_death() -> void:
