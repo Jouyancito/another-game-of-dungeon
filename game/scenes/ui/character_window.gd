@@ -116,14 +116,16 @@ func _open() -> void:
 		return
 	_refresh_stats()
 	visible = true
+	# NUNCA pausar el juego — es coop/MMORPG, los demás jugadores siguen jugando.
+	# Solo liberamos el mouse para navegar la ventana.
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().paused = true
 
 
 func _close() -> void:
 	visible = false
+	# Volver a capturar el mouse solo si no hay otras ventanas UI abiertas
+	# (el pause menu / inventory / etc pueden seguir visibles)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	get_tree().paused = false
 	stat_desc_label.text = ""
 
 

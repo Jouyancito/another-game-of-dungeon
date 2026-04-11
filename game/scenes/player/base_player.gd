@@ -508,9 +508,12 @@ func _physics_process(delta: float) -> void:
 	_update_torch(delta)
 
 func _update_drop_labels() -> void:
-	var forward := -camera.global_basis.z
+	# Estilo Metin 2: labels de drops siempre visibles dentro de un rango amplio
+	# (3x el pickup range) — no hace falta apuntar con el crosshair para verlos.
+	var label_range := pickup_range * 3.0
+	var forward: Vector3 = -camera.global_basis.z
+	var hint_text := ""
 
-	# Labels de drops
 	for drop_node: Node in get_tree().get_nodes_in_group("drops"):
 		if not drop_node.has_method("show_label"):
 			continue
@@ -518,14 +521,19 @@ func _update_drop_labels() -> void:
 		if drop_node3d == null:
 			continue
 		var dist := global_position.distance_to(drop_node3d.global_position)
-		if dist <= pickup_range:
+		if dist <= label_range:
+			drop_node3d.call("show_label")
+		else:
+			drop_node3d.call("hide_label")
+
+		# Hint de pickup: solo item drops (el oro es auto-pickup).
+		# Debe estar dentro del pickup_range real + apuntado con el crosshair.
+		if hint_text == "" and drop_node is ItemDrop and dist <= pickup_range:
 			var to_drop: Vector3 = (drop_node3d.global_position - camera.global_position).normalized()
 			if to_drop.dot(forward) > 0.5:
-				drop_node3d.call("show_label")
-				continue
-		drop_node3d.call("hide_label")
+				hint_text = "Presioná [E] para recoger"
 
-	# Labels de interactuables (cofres, etc.)
+	# Labels de interactuables (cofres, etc.) — se muestran al apuntarlos con el crosshair
 	for node: Node in get_tree().get_nodes_in_group("interactables"):
 		if not node.has_method("show_label"):
 			continue
@@ -537,8 +545,15 @@ func _update_drop_labels() -> void:
 			var to_obj: Vector3 = (node3d.global_position - camera.global_position).normalized()
 			if to_obj.dot(forward) > 0.5:
 				node3d.call("show_label")
+				if hint_text == "":
+					hint_text = "Presioná [E] para interactuar"
 				continue
 		node3d.call("hide_label")
+
+	# Actualizar HUD con el hint (o ocultarlo si no hay nada apuntado)
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud != null and hud.has_method("set_pickup_hint_visible"):
+		hud.set_pickup_hint_visible(hint_text != "", hint_text)
 
 func _regenerate(delta: float) -> void:
 	time_since_last_hit += delta

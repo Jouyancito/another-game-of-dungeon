@@ -74,6 +74,10 @@ func _move_toward_target(_delta: float) -> void:
 ## necesita operar incluso cuando distance < attack_range. Para eso overrideamos
 ## directamente _physics_process.
 func _physics_process(delta: float) -> void:
+	if has_meta("is_preview"):
+		return
+	_update_nameplate()
+
 	if is_dead:
 		return
 

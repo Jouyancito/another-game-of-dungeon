@@ -63,6 +63,7 @@ func _ready() -> void:
 	visible = false
 	_build_ui()
 	_tooltip.visible = false
+	_tooltip_label.custom_minimum_size = Vector2(280, 0)  # fix: sin esto autowrap colapsa a 1 letra/línea
 
 
 func _build_ui() -> void:
@@ -79,15 +80,17 @@ func _build_ui() -> void:
 	style.corner_radius_bottom_left  = 8
 	panel.add_theme_stylebox_override("panel", style)
 
-	# Posición: centrado pero desplazado a la izquierda (~160px)
-	panel.anchor_left   = 0.5
-	panel.anchor_top    = 0.5
-	panel.anchor_right  = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left   = -460.0
-	panel.offset_top    = -225.0
-	panel.offset_right  = -160.0
-	panel.offset_bottom = 225.0
+	# Posición: apoyado arriba del inventario, mismo borde derecho (estilo PoE)
+	# Inventario está en bottom-right con offset_top = -370, así que el equipment
+	# termina 4px arriba de eso y se extiende hacia arriba.
+	panel.anchor_left   = 1.0
+	panel.anchor_top    = 1.0
+	panel.anchor_right  = 1.0
+	panel.anchor_bottom = 1.0
+	panel.offset_left   = -310.0
+	panel.offset_top    = -824.0
+	panel.offset_right  = -10.0
+	panel.offset_bottom = -374.0
 	add_child(panel)
 
 	# --- Margin ---
@@ -124,6 +127,11 @@ func _build_ui() -> void:
 	doll.draw.connect(_draw_paper_doll.bind(doll))
 	doll.gui_input.connect(_on_doll_input.bind(doll))
 	doll.mouse_exited.connect(_on_doll_mouse_exited)
+	doll.set_drag_forwarding(
+		_doll_get_drag_data,
+		_doll_can_drop_data,
+		_doll_drop_data,
+	)
 	_paper_doll = doll
 
 
@@ -247,6 +255,25 @@ func _on_doll_input(event: InputEvent, doll: Control) -> void:
 			_hovered_slot = new_hover
 			doll.queue_redraw()
 			_update_tooltip(new_hover, event.global_position)
+		return
+
+	if event is InputEventMouseButton and event.pressed:
+		var slot_key := _slot_at(event.position)
+		if slot_key == "":
+			return
+		if event.button_index == MOUSE_BUTTON_RIGHT or event.double_click:
+			_try_unequip(slot_key)
+
+
+func _try_unequip(slot_key: String) -> void:
+	if _player == null or not _player.has_method("unequip_slot"):
+		return
+	var success: bool = _player.unequip_slot(slot_key)
+	if not success:
+		return
+	_tooltip.visible = false
+	if _paper_doll:
+		_paper_doll.queue_redraw()
 
 
 func _on_doll_mouse_exited() -> void:
@@ -271,25 +298,26 @@ func _update_tooltip(slot_key: String, global_mouse: Vector2) -> void:
 		return
 
 	var item_id: String = equipped.get(slot_key, "")
-	var slot_label: String = SLOT_NAMES.get(slot_key, slot_key)
-
-	var text: String
+	# Slot vacío → NO mostrar tooltip (nada útil que mostrar)
 	if item_id == "":
-		text = "[%s]\n(vacío)" % slot_label
-	else:
-		var item_data: Dictionary = ItemDatabase.get_item(item_id)
-		if item_data.is_empty():
-			text = "[%s]\n?" % slot_label
-		else:
-			text = "[%s]\n%s\n%s\n" % [
-				slot_label,
-				item_data.get("name", item_id),
-				item_data.get("description", "")
-			]
-			var stats: Dictionary = item_data.get("stats", {})
-			for stat_key in stats.keys():
-				text += "+%s %s\n" % [stats[stat_key], stat_key]
-			text += "Rareza: %s" % item_data.get("rarity", "común")
+		_tooltip.visible = false
+		return
+
+	var slot_label: String = SLOT_NAMES.get(slot_key, slot_key)
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
+	if item_data.is_empty():
+		_tooltip.visible = false
+		return
+
+	var text: String = "[%s]\n%s\n%s\n" % [
+		slot_label,
+		item_data.get("name", item_id),
+		item_data.get("description", "")
+	]
+	var stats: Dictionary = item_data.get("stats", {})
+	for stat_key in stats.keys():
+		text += "+%s %s\n" % [stats[stat_key], stat_key]
+	text += "Rareza: %s" % item_data.get("rarity", "común")
 
 	_tooltip_label.text = text
 	_tooltip.visible = true
@@ -339,5 +367,84 @@ func refresh() -> void:
 			var entry: Dictionary = eq.slots[slot_key]
 			if not entry.is_empty():
 				equipped[slot_key] = entry.get("item_id", "")
+	if _paper_doll:
+		_paper_doll.queue_redraw()
+
+
+# ---------------------------------------------------------------------------
+# Drag & Drop — paper doll ↔ inventario
+# ---------------------------------------------------------------------------
+func _doll_get_drag_data(at_position: Vector2) -> Variant:
+	var slot_key := _slot_at(at_position)
+	if slot_key == "":
+		return null
+	var item_id: String = equipped.get(slot_key, "")
+	if item_id == "":
+		return null
+
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
+	if item_data.is_empty():
+		return null
+
+	# Preview visual del item arrastrado
+	var preview := Panel.new()
+	preview.custom_minimum_size = Vector2(120, 40)
+	var rarity: String = item_data.get("rarity", "common")
+	var style := StyleBoxFlat.new()
+	var fill: Color = ItemDatabase.get_rarity_color(rarity)
+	fill.a = 0.75
+	style.bg_color = fill
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.border_color = ItemDatabase.get_rarity_color(rarity)
+	preview.add_theme_stylebox_override("panel", style)
+
+	var label := Label.new()
+	label.text = item_data.get("name", item_id)
+	label.add_theme_font_size_override("font_size", 10)
+	label.position = Vector2(4, 2)
+	label.size = Vector2(preview.custom_minimum_size.x - 8, 16)
+	label.clip_text = true
+	preview.add_child(label)
+
+	_paper_doll.set_drag_preview(preview)
+	_tooltip.visible = false
+
+	return {
+		"source": "equipment_panel",
+		"slot_key": slot_key,
+		"item_id": item_id,
+	}
+
+
+func _doll_can_drop_data(at_position: Vector2, data: Variant) -> bool:
+	if typeof(data) != TYPE_DICTIONARY:
+		return false
+	if data.get("source", "") != "inventory_grid":
+		return false
+	var item_id: String = data.get("item_id", "")
+	if item_id == "":
+		return false
+	var item_data: Dictionary = ItemDatabase.get_item(item_id)
+	if item_data.is_empty():
+		return false
+	# Solo items equipables (con slot definido en la database)
+	if item_data.get("slot", "") == "":
+		return false
+	# Chequeo adicional: el slot bajo el mouse debe existir
+	var target_slot := _slot_at(at_position)
+	return target_slot != ""
+
+
+func _doll_drop_data(at_position: Vector2, data: Variant) -> void:
+	if _player == null or not _player.has_method("equip_item"):
+		return
+	var item_id: String = data.get("item_id", "")
+	var from_pos: Vector2i = data.get("from_pos", Vector2i.ZERO)
+	if item_id == "":
+		return
+	_player.equip_item(item_id, from_pos)
 	if _paper_doll:
 		_paper_doll.queue_redraw()

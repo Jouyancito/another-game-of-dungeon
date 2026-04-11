@@ -87,18 +87,21 @@ func _spawn_mini_slimes() -> void:
 	var scene_root = get_tree().current_scene
 	if not is_instance_valid(scene_root):
 		return
+	if mini_slime_scene == null:
+		push_warning("slime: mini_slime_scene no cargada, no se spawean minis")
+		return
 
 	for i in split_count:
 		var mini = mini_slime_scene.instantiate()
-		# Ángulo base + variación aleatoria para que no sea simétrico
-		var base_angle = (TAU / split_count) * i
-		var angle = base_angle + randf_range(-0.5, 0.5)
-		var radius = randf_range(0.3, 0.6)
-		var offset = Vector3(cos(angle) * radius, 0.3, sin(angle) * radius)
+		# Ángulo y dirección de impulso totalmente random — cada mini por donde quiera
+		var spawn_angle = randf() * TAU
+		var spawn_radius = randf_range(0.4, 1.0)
+		var offset = Vector3(cos(spawn_angle) * spawn_radius, 0.3, sin(spawn_angle) * spawn_radius)
 		mini.global_position = global_position + offset
 		scene_root.call_deferred("add_child", mini)
-		# Impulso hacia afuera — mini explosión
-		var explode_dir = Vector3(cos(angle), 0, sin(angle))
-		var explode_force = randf_range(4.0, 7.0)
-		mini.knockback_velocity = explode_dir * explode_force
-		mini.knockback_velocity.y = randf_range(3.0, 5.0)
+
+		# Impulso independiente del spawn — dirección random, fuerza variable
+		var explode_angle = randf() * TAU
+		var explode_force = randf_range(3.0, 8.0)
+		mini.knockback_velocity = Vector3(cos(explode_angle), 0, sin(explode_angle)) * explode_force
+		mini.knockback_velocity.y = randf_range(2.5, 6.0)

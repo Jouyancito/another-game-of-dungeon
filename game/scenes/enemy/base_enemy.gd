@@ -45,6 +45,7 @@ var _name_label: Label3D
 var _hp_bar_bg: MeshInstance3D
 var _hp_bar_fill: MeshInstance3D
 var _max_health: float
+var _sighted_once := false  # flag para Journal.sight — evitar spam cada frame
 
 
 func _ready() -> void:
@@ -89,10 +90,12 @@ func _setup_nameplate() -> void:
 	_name_label = Label3D.new()
 	_name_label.name = "NameLabel"
 	_name_label.text = "%s  Lv.%d" % [show_name, enemy_level]
-	_name_label.font_size = 48
-	_name_label.pixel_size = 0.008
+	_name_label.font_size = 32
+	_name_label.pixel_size = 0.00055  # ajuste final — legible sin saturar
+	_name_label.fixed_size = true
 	_name_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_name_label.no_depth_test = true
+	_name_label.width = 600.0  # ancho suficiente para "Bandido Arquero Lv.1"
 	_name_label.modulate = Color(1, 1, 1, 0.9)
 	_name_label.outline_modulate = Color(0, 0, 0, 0.8)
 	_name_label.outline_size = 6
@@ -135,6 +138,11 @@ func _setup_nameplate() -> void:
 func _update_nameplate() -> void:
 	if _nameplate == null or target == null:
 		return
+	# No actualizar el nameplate si el enemigo está muerto (evita que el tween
+	# de muerte arrastre también el nameplate encogiéndolo)
+	if is_dead:
+		_nameplate.visible = false
+		return
 
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	if cam == null:
@@ -157,9 +165,10 @@ func _update_nameplate() -> void:
 
 	_nameplate.visible = show
 
-	# Registrar avistamiento en el diario la primera vez que se ve
-	if show and Journal:
+	# Registrar avistamiento en el diario UNA SOLA VEZ (no cada frame)
+	if show and not _sighted_once and Journal:
 		Journal.sight(enemy_type)
+		_sighted_once = true
 
 	if not show:
 		return
@@ -346,7 +355,7 @@ func die() -> void:
 
 func _spawn_loot() -> void:
 	var loot: Dictionary = LootTable.roll(enemy_type)
-	var drop_pos: Vector3 = global_position + Vector3(0, 0.3, 0)
+	var base_drop_pos: Vector3 = _ground_drop_position(global_position)
 	var scene_root: Node = get_tree().current_scene
 
 	# Oro
@@ -354,7 +363,8 @@ func _spawn_loot() -> void:
 		var gold_scene := preload("res://scenes/loot/gold_drop.tscn")
 		var gold := gold_scene.instantiate() as GoldDrop
 		gold.setup(loot["gold"])
-		gold.global_position = drop_pos + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
+		var offset := Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
+		gold.global_position = _ground_drop_position(base_drop_pos + offset)
 		scene_root.call_deferred("add_child", gold)
 
 	# Items
@@ -362,8 +372,24 @@ func _spawn_loot() -> void:
 		var item_scene := preload("res://scenes/loot/item_drop.tscn")
 		var drop := item_scene.instantiate() as ItemDrop
 		drop.setup(item_entry["item_id"], item_entry["quantity"])
-		drop.global_position = drop_pos + Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
+		var offset := Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
+		drop.global_position = _ground_drop_position(base_drop_pos + offset)
 		scene_root.call_deferred("add_child", drop)
+
+
+## Raycast hacia abajo desde pos para encontrar el suelo — evita que los drops floten.
+func _ground_drop_position(pos: Vector3) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var ray_from: Vector3 = pos + Vector3(0, 2.0, 0)
+	var ray_to: Vector3 = pos + Vector3(0, -5.0, 0)
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(ray_from, ray_to)
+	query.exclude = [get_rid()]
+	query.collision_mask = 1  # Layer World
+	var hit: Dictionary = space.intersect_ray(query)
+	if not hit.is_empty():
+		return Vector3(pos.x, hit.position.y + 0.05, pos.z)
+	# Fallback: 0.8m debajo (aprox feet level para la mayoría de enemigos)
+	return pos - Vector3(0, 0.8, 0)
 
 
 ## Override para efectos de muerte custom

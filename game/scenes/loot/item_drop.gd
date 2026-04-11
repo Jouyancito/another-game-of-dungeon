@@ -7,7 +7,7 @@ class_name ItemDrop
 @export var bob_amplitude := 0.15
 @export var bob_speed := 2.0
 @export var rotation_speed := 1.5
-@export var despawn_time := 300.0  # 5 minutos (estilo Metin 2)
+@export var despawn_time := 180.0  # 3 minutos
 
 var item_id: String = ""
 var item_quantity: int = 1
@@ -31,7 +31,7 @@ func _ready() -> void:
 	if item_id != "":
 		_apply_visuals()
 
-	# Despawn timer — desaparece después de 5 minutos
+	# Despawn timer — desaparece después de 3 minutos (blink últimos 30s)
 	if despawn_time > 0.0:
 		_start_despawn_timer()
 
@@ -54,7 +54,7 @@ func _apply_visuals() -> void:
 	var rarity: String = item_data.get("rarity", "common")
 	var color: Color = ItemDatabase.get_rarity_color(rarity)
 
-	# Nombre del item + quién lo soltó
+	# Nombre del item + quién lo soltó — estilo Metin 2: chico, siempre visible dentro del rango
 	var display_name: String = item_data.get("name", "???")
 	if item_quantity > 1:
 		display_name += " x%d" % item_quantity
@@ -62,7 +62,17 @@ func _apply_visuals() -> void:
 		display_name += "\n[%s]" % dropped_by
 	label_3d.text = display_name
 	label_3d.modulate = color
-	label_3d.visible = false
+	label_3d.fixed_size = true
+	label_3d.pixel_size = 0.00055  # ajuste final — legible sin saturar
+	label_3d.font_size = 24
+	label_3d.outline_size = 3
+	label_3d.no_depth_test = true
+	label_3d.width = 500.0
+	label_3d.render_priority = 1  # por delante del fondo
+	label_3d.visible = false  # lo activa el player cuando entra en rango
+
+	# Cuadradito de fondo detrás del label — se ve más amigable y no se pierde en el vacío
+	_build_label_background()
 
 	# Color del mesh según tipo + emisión por rareza
 	var mat := StandardMaterial3D.new()
@@ -79,18 +89,49 @@ func _apply_visuals() -> void:
 	aura_light.light_energy = energy_by_rarity.get(rarity, 0.3)
 
 
-func _physics_process(delta: float) -> void:
-	_time += delta
-	global_position.y = _base_y + sin(_time * bob_speed) * bob_amplitude
-	rotate_y(rotation_speed * delta)
+func _physics_process(_delta: float) -> void:
+	# Items FIJOS en el suelo — no bob, no rotation.
+	# Los nombres tampoco se mueven, así se leen tranquilos.
+	pass
+
+
+func _build_label_background() -> void:
+	# QuadMesh semi-transparente billboard detrás del Label3D — le da una "cajita"
+	# que lo hace legible sobre cualquier fondo del mundo.
+	var bg_mesh := MeshInstance3D.new()
+	bg_mesh.name = "LabelBackground"
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.85, 0.22)
+	bg_mesh.mesh = quad
+
+	var bg_mat := StandardMaterial3D.new()
+	bg_mat.albedo_color = Color(0.05, 0.05, 0.1, 0.75)
+	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bg_mat.no_depth_test = true
+	bg_mat.render_priority = 0  # detrás del label (render_priority 1)
+	bg_mesh.material_override = bg_mat
+
+	bg_mesh.position = label_3d.position
+	add_child(bg_mesh)
+	# El background se muestra/oculta junto con el label
+	bg_mesh.visible = false
+	label_3d.set_meta("background_node", bg_mesh)
 
 
 func show_label() -> void:
 	label_3d.visible = true
+	var bg: Node = label_3d.get_meta("background_node", null)
+	if bg != null and bg is MeshInstance3D:
+		(bg as MeshInstance3D).visible = true
 
 
 func hide_label() -> void:
 	label_3d.visible = false
+	var bg: Node = label_3d.get_meta("background_node", null)
+	if bg != null and bg is MeshInstance3D:
+		(bg as MeshInstance3D).visible = false
 
 
 func pickup() -> Dictionary:
