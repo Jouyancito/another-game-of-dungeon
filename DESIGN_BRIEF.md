@@ -384,6 +384,74 @@ Un piso abierto (600×600m) puede contener la **entrada a una sub-dungeon**: una
 
 **Why**: Extiende la vida de cada piso sin inflar el tamaño del mapa. Premia la exploración real. Permite meter terror contenido o mecánicas específicas sin obligar a todo el piso a sostenerlas.
 
+### 8.15 Sistema de masa (weight)
+Cada entidad del juego (jugador, enemigo, NPC, invocación) tiene un valor `mass` que afecta cómo responde a fuerzas físicas (knockback, viento, empujones, cargas). No es inventario-weight — es masa física del cuerpo.
+
+**Impacto en el juego**:
+- **Knockback**: `push = force / mass`. Slimes (0.5) salen volando, golems (15.0) apenas se mueven.
+- **Habilidades de viento (Mago Elementalista)**: `wind_power / target.mass` determina si empuja o no. Un nivel 1 empuja ratas; un nivel 15 empuja todo menos bosses. El jugador **ve** que su viento no alcanza para mover al golem → entiende que necesita subir de nivel.
+- **Masa de jugador por clase**: Warrior (5.0) es el más pesado, Danzante de Sombras (2.0) el más liviano. Esto afecta cómo los empujan los enemigos, el viento ambiental, y las trampas de presión.
+- **Trampas y puzzles ambientales**: baldosas de presión, puentes frágiles, plataformas de peso (ver §8.16).
+
+**Regla**: la masa nunca bloquea contenido — solo cambia cómo se interactúa con él. Un jugador liviano puede cruzar un puente frágil que un pesado rompería, pero el pesado puede activar una presión que el liviano no.
+
+### 8.16 Cautela visual — el mundo avisa, vos elegís si escuchás
+
+El juego **nunca** muestra tooltips de peligro ambiental. En su lugar, el mundo **habla con imágenes**. Si el jugador presta atención, evita el problema. Si no presta atención, activa una consecuencia que se convierte en contenido jugable (quest de reparación, desvío, combate emergente).
+
+**Principio**: **leer el mundo es una habilidad del jugador real**, no del personaje. No hay "Percepción +5" que muestre peligros. Hay un cartel de madera con dibujos, y el jugador humano decide si lo mira o lo ignora.
+
+**Ejemplo flagship: el puente frágil**
+
+Un puente de madera viejo cruza un barranco dentro de un bioma cerrado (caverna, ruinas, bosque denso). Antes del puente hay un **cartel de madera con 3 dibujos**:
+1. Una persona sola ANTES del puente (parada, esperando)
+2. Una persona sola CRUZANDO el puente (en el medio)
+3. Una persona sola DESPUÉS del puente (del otro lado, segura)
+
+No hay texto. No hay tooltip. Los dibujos dicen: **"uno a la vez"**.
+
+**Mecánica**:
+- El puente tiene un umbral de masa (`bridge_max_mass`). Ejemplo: 6.0.
+- Solo cuenta la masa de **jugadores en el puente**. Monturas y pets NO cuentan (o cuentan un 20% de su masa). Items equipados no afectan.
+- Un Warrior (5.0) cruza solo → OK (5.0 < 6.0).
+- Un Mage (2.5) + un Archer (3.0) cruzan juntos → OK (5.5 < 6.0).
+- Un Warrior (5.0) + un Healer (3.5) cruzan juntos → **se rompe** (8.5 > 6.0).
+- Dos Warriors → **se rompe** (10.0 > 6.0).
+
+**Cuando el puente se rompe**:
+- Los jugadores en el puente caen al barranco (no mueren — caen a una zona inferior del mismo piso).
+- El puente queda destruido para todo el grupo hasta que se repare.
+- Se activa una **quest de reconstrucción**: recolectar materiales del mismo piso (madera de los árboles del bioma, cuerda de las telarañas, clavos del campamento más cercano).
+- Mientras tanto, el grupo tiene que buscar una ruta alternativa (más larga, más peligrosa) o reparar.
+- La reparación es **cooperativa**: uno sostiene, otro clava, otro vigila enemigos. Cada paso toma ~10s.
+
+**Por qué funciona**:
+- El cartel es **diegético** (dibujos en madera, no UI). Cumple la prohibición #5 ("no minijuegos pegados con cinta").
+- La consecuencia es **contenido, no castigo**. El puente roto abre una quest, no un game over.
+- Refuerza la **coordinación** (pilar 1): el grupo decide quién cruza primero basado en la masa de cada clase.
+- Refuerza la **lectura del mundo**: el jugador que vio el cartel y avisó "ey, uno a la vez" se siente listo. El que no lo vio aprende para la próxima.
+- Funciona especialmente bien en **biomas cerrados** (cavernas, catacumbas, ruinas) donde la inmersión depende del espacio apretado.
+
+**Más ejemplos de cautela visual** (mismo principio, distintos hazards):
+
+| Señal visual | Qué indica | Consecuencia si la ignorás |
+|---|---|---|
+| **Grietas en el suelo** con piedritas cayendo | El piso se va a derrumbar | Caés a una zona inferior (sub-dungeon forzada) |
+| **Marcas de garras enormes** en la pared, cada vez más frescas | Depredador grande cerca | Emboscada de elite si seguís por ese pasillo |
+| **Fogata abandonada todavía caliente** | Alguien (o algo) estuvo acá hace minutos | NPC herido cercano o emboscada de bandidos |
+| **Marcas de agua** en las paredes a la altura de la cintura | La zona se inunda periódicamente | Inundación temporal que empuja al grupo (mass afecta cuánto te empuja el agua) |
+| **Animales muertos** al pie de una planta | Planta carnívora dormida | La planta ataca si te acercás (ya canon del P2 bosque) |
+| **Barras de metal dobladas** en una reja | Algo fuerte rompió la jaula | Criatura suelta por el piso, más peligrosa que los normales |
+| **Espejos tapados con tela** en un pasillo | Los reflejos son peligrosos | Si destapás el espejo, invoca un reflejo tuyo como enemigo |
+| **Marcas de tiza en el suelo** (X, flechas, círculos) | Otro aventurero pasó antes y dejó pistas | Siguen hasta un tesoro O hasta una trampa (ambiguo a propósito) |
+| **Velas encendidas** en un santuario abandonado | Alguien las mantiene encendidas | NPC oculto observando, se revela si dejás una ofrenda |
+
+**Regla de diseño**: cada bioma cerrado (caverna, ruinas, catacumba, forja) debe tener **al menos 2-3 señales de cautela visual** distribuidas. Biomas abiertos (pradera, sabana) las tienen menos (la visibilidad ya protege al jugador). La densidad de señales sube con el tier:
+- Tier I: 1-2 señales por piso (tutorial suave)
+- Tier II: 2-3 señales por piso
+- Tier III: 3-5 señales por piso (wilderness, no hay NPCs que te avisen)
+- Tier IV: 5+ señales por piso (anomalía, las señales a veces mienten)
+
 ### 8.14 Pool de bosses con narrativa compartida (post-MVP)
 Cada tier arranca con **un solo boss** para el MVP (Tier I = Trono Viscoso). Post-lanzamiento, cada tier expande su pool hasta tener **3 bosses alternativos** que el seed elige por run. Pero no son 3 bosses sueltos: son **variantes narrativamente conectadas** — el juego usa el pool para contar una historia de degradación del mundo.
 
