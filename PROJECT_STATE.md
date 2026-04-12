@@ -17,8 +17,8 @@ Snapshot exhaustivo del proyecto para preservar contexto del prototipo inicial. 
 |---------|--------|-----|
 | `GameManager` | `scripts/game_manager.gd` | Estado global sesión: personaje seleccionado, monedas, UI setup |
 | `SaveManager` | `scripts/save_manager.gd` | Persistencia perfiles (JSON), CLASS_DEFAULTS por clase |
-| `ItemDatabase` | `scripts/item_database.gd` | Catálogo de items (stats, slots, types) |
-| `LootTable` | `scripts/loot_table.gd` | Spawn loot por enemigo/piso |
+| `ItemDatabase` | `shared/systems/item_database.gd` | Catálogo de items (stats, slots, types) |
+| `LootTable` | `shared/systems/loot_table.gd` | Spawn loot por enemigo/piso |
 | `Journal` | `scripts/journal.gd` | Entradas de lore/quests |
 | `TitleTracker` | `scripts/title_tracker.gd` | Logros (level-ups, deaths) |
 
@@ -50,8 +50,8 @@ Base común: `base_player.gd` (798 líneas) con herencia + signal-driven HUD.
 
 ### Sistemas de juego
 
-- **Inventory** (`scripts/inventory.gd`) — grilla con auto-place, stack, has_space_for, serializable
-- **Equipment** (`scripts/equipment.gd`) — slots (weapon, armor, ring_1, ring_2...), resolve_slot, get_total_bonuses, get_weapon_damage
+- **Inventory** (`shared/systems/inventory.gd`) — grilla con auto-place, stack, has_space_for, serializable
+- **Equipment** (`shared/systems/equipment.gd`) — slots (weapon, armor, ring_1, ring_2...), resolve_slot, get_total_bonuses, get_weapon_damage
 - **Item drops** — `item_drop.tscn` (pickup por E), `gold_drop.tscn` (auto-pickup), labels flotantes, cone/range detection
 - **Loot chests** — `loot_chest.tscn` (interactable, open by E)
 - **Loot table** — probabilidades por enemigo/piso
@@ -125,7 +125,7 @@ GUT addon instalado (`addons/gut/`). Tests existentes:
 
 ### Fase 1 — Shared (data + lógica pura)
 - [x] **1a**: DamageFormula + Progression (DONE, commit 1a17853)
-- [ ] **1b**: Mover `inventory.gd`, `equipment.gd`, `item_database.gd`, `loot_table.gd` → `shared/systems/`
+- [x] **1b**: Mover `inventory.gd`, `equipment.gd`, `item_database.gd`, `loot_table.gd` → `shared/systems/` (DONE, merged desde `dept/gameplay/refactor-shared-systems`)
 - [ ] **1c**: Mover `CLASS_DEFAULTS` (en SaveManager) → `shared/classes/class_base_stats.gd`
 - [ ] **1d**: Extraer constantes mágicas (cap resistencia 75%, stat points per level 3, pickup range, target frame cone) → `shared/constants.gd`
 
