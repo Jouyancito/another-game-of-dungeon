@@ -1,0 +1,4 @@
+#!/bin/sh
+# Shim: invoca pre-push.ps1 (PowerShell) preservando stdin para que lea los refs pusheados
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec powershell -NoProfile -ExecutionPolicy Bypass -File "$DIR/pre-push.ps1" "$@"

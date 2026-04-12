@@ -16,3 +16,10 @@ desktop.ini
 .vscode/
 *.swp
 *.swo
+
+# Dept status (runtime state, sync via engram no via git)
+.dept-status/*.json
+!.dept-status/README.md
+
+# Test artifacts
+.test-hook
