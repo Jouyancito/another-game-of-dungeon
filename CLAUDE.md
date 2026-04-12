@@ -232,3 +232,8 @@ Para ver estado de todos: `mem_search(query: "dept-status")`.
 
 - **2026-04-07**: Prototipo inicial — movimiento, combate melee, enemigos, HUD.
 - **2026-04-07 (sesión 2)**: Clase Mago (proyectil + rayo canalizado), sistema de stats (STR/INT/DEX/DEF/VIT), defensa, resistencias elementales, regeneración HP/MP, sprint, agacharse, refactor a herencia BasePlayer, repo GitHub creado, 10 issues creados.
+- **2026-04-12**: Expansión masiva — 5 clases jugables (Warrior/Mage/Archer/Cleric/Necromancer), 15+ tipos de enemigos (bandit, slime+mini_slime, golem, wolf, bird, fox, etc.), sistema loot completo (drops, chests, loot table), inventory+equipment con drag&drop, torch system, target frame MMO, knockback, save system JSON, piso 1 pradera en desarrollo, GUT testing addon + 6 test files, docs extensivos en `game/docs/`.
+- **2026-04-12 (coordinación)**: Setup worktrees A/B/C/D + hooks semáforo conflictos + dept-status protocol. Tag `v0.1-prototype`.
+- **2026-04-12 (refactor 1a)**: Extracción `DamageFormula` + `Progression` a `game/shared/stats/`. MMO-ready. Commit `1a17853`.
+
+**ESTADO COMPLETO DEL PROYECTO en `PROJECT_STATE.md`.** Siempre consultar ese archivo antes de refactorizar o agregar sistemas grandes.
