@@ -165,6 +165,17 @@ Ver https://github.com/Jouyancito/another-game-of-dungeon/issues
 - Ventana de personaje para asignar stat points (issue #2)
 - Más tipos de enemigos (issue #4)
 
+## Departamentos — Status Tracking (OBLIGATORIO)
+
+Si sos un departamento (UI, Gameplay, Art, Design, QA), DEBÉS:
+1. Al **arrancar**: `mem_save` con topic_key `dept-status/{tu-código}` y estado `INICIADO`
+2. Al **hacer push**: actualizar a `LISTO PARA QA`
+3. Al **cerrar sesión**: actualizar a `INACTIVO`
+
+Detalle completo en `DEPARTMENTS.md` → sección "Protocolo de Estado".
+
+Para ver estado de todos: `mem_search(query: "dept-status")`.
+
 ## Convenciones
 
 - GDD en `GDD_DungeonParty.md` — consultar antes de decisiones de diseño
