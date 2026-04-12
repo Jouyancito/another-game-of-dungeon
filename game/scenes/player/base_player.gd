@@ -505,6 +505,8 @@ func _physics_process(delta: float) -> void:
 
 	# Mostrar label de item drops cercanos que miramos
 	_update_drop_labels()
+	# Target frame MMO — panel con nombre/HP/tier del enemigo apuntado
+	_update_target_frame()
 	_update_torch(delta)
 
 func _update_drop_labels() -> void:
@@ -554,6 +556,56 @@ func _update_drop_labels() -> void:
 	var hud := get_tree().get_first_node_in_group("hud")
 	if hud != null and hud.has_method("set_pickup_hint_visible"):
 		hud.set_pickup_hint_visible(hint_text != "", hint_text)
+
+const TARGET_FRAME_RANGE := 23.0  # distancia máxima para detectar enemigo apuntado
+const TARGET_FRAME_CONE := 0.97   # dot product mínimo (~14° de cono)
+
+func _update_target_frame() -> void:
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud == null:
+		return
+
+	# Buscar el enemigo más centrado y cercano dentro del cono del crosshair.
+	# Usa el grupo "enemies" en vez de collision layers (más robusto + no requiere config de layers).
+	var cam_pos := camera.global_position
+	var cam_forward := -camera.global_basis.z
+
+	var best_enemy: Node = null
+	var best_dist := TARGET_FRAME_RANGE
+
+	for enemy_node: Node in get_tree().get_nodes_in_group("enemies"):
+		if not enemy_node is BaseEnemy:
+			continue
+		var enemy: BaseEnemy = enemy_node as BaseEnemy
+		if enemy.is_dead:
+			continue
+		var enemy_center := enemy.global_position + Vector3(0, 0.8, 0)  # aprox centro del body
+		var dist := cam_pos.distance_to(enemy_center)
+		if dist > TARGET_FRAME_RANGE:
+			continue
+		var to_enemy := (enemy_center - cam_pos).normalized()
+		if to_enemy.dot(cam_forward) < TARGET_FRAME_CONE:
+			continue
+		# Line of sight — chequear que no haya pared entre la cámara y el enemigo
+		var space := get_world_3d().direct_space_state
+		var los_query := PhysicsRayQueryParameters3D.create(cam_pos, enemy_center)
+		los_query.exclude = [get_rid(), enemy.get_rid()]
+		los_query.collision_mask = 1  # Layer World solamente
+		var los_hit := space.intersect_ray(los_query)
+		if not los_hit.is_empty():
+			continue  # hay una pared en el medio — no se ve
+		# Es visible y más cercano que el anterior candidato
+		if dist < best_dist:
+			best_enemy = enemy
+			best_dist = dist
+
+	if best_enemy != null:
+		if hud.has_method("set_target"):
+			hud.set_target(best_enemy)
+	else:
+		if hud.has_method("clear_target"):
+			hud.clear_target()
+
 
 func _regenerate(delta: float) -> void:
 	time_since_last_hit += delta

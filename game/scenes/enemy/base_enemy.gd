@@ -4,6 +4,9 @@ extends CharacterBody3D
 ## Tipos de agresividad
 enum AggressionType { AGGRESSIVE, NEUTRAL }
 
+## Sub-tier dentro de un piso — define el rol del enemigo en el ecosistema
+enum SubTier { A, B, C, BOSS }
+
 # Stats base
 @export var speed := 3.0
 @export var health := 100.0
@@ -14,6 +17,10 @@ enum AggressionType { AGGRESSIVE, NEUTRAL }
 @export var attack_cooldown := 1.0
 @export var aggression: AggressionType = AggressionType.AGGRESSIVE
 @export var enemy_type: String = "enemy_basic"  # Clave para LootTable
+
+# Tier — define la peligrosidad y el badge en el target frame
+@export var enemy_tier: int = 1  # Tier = piso de procedencia (1-100)
+@export var sub_tier: SubTier = SubTier.A  # A=fauna, B=depredador, C=alfa, BOSS=jefe
 
 # Knockback
 @export var mass := 1.0  # 0.5 = liviano (slime), 1.0 = normal, 5.0 = pesado (boss)
@@ -59,6 +66,17 @@ func _ready() -> void:
 	_max_health = health
 	if not is_preview:
 		_setup_nameplate()
+
+
+func get_tier_label() -> String:
+	var tier_names := {SubTier.A: "A", SubTier.B: "B", SubTier.C: "C", SubTier.BOSS: "BOSS"}
+	return "T%d %s" % [enemy_tier, tier_names.get(sub_tier, "?")]
+
+
+func get_display_name() -> String:
+	if display_name != "":
+		return display_name
+	return scene_file_path.get_file().get_basename().capitalize()
 
 
 ## Override en subclases para setup específico

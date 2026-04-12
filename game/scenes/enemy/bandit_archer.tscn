@@ -27,6 +27,8 @@ mass = 0.8
 
 display_name = "Bandido Arquero"
 enemy_level = 1
+enemy_tier = 1
+sub_tier = 1
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
