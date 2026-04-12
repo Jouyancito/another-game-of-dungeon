@@ -22,8 +22,8 @@ config/features=PackedStringArray("4.6")
 
 GameManager="*res://scripts/game_manager.gd"
 SaveManager="*res://scripts/save_manager.gd"
-ItemDatabase="*res://scripts/item_database.gd"
-LootTable="*res://scripts/loot_table.gd"
+ItemDatabase="*res://shared/systems/item_database.gd"
+LootTable="*res://shared/systems/loot_table.gd"
 Journal="*res://scripts/journal.gd"
 TitleTracker="*res://scripts/title_tracker.gd"
 
