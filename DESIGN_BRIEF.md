@@ -1,618 +1,640 @@
-# Another Game of Dungeon — Design Brief Maestro
+# Dungeon Party — Design Brief
 
-> Documento compilado para compartir la visión completa del juego con otro asistente/colaborador.
-> Incluye **todas** las decisiones de diseño, referencias, y sistemas discutidos hasta hoy.
-> Fecha de corte: 2026-04-10. Estado: prototipo en desarrollo activo.
+**Documento**: Dirección creativa maestra
+**Versión**: 1.0 — 2026-04-11
+**Estado**: Vivo. Se actualiza cuando cambia la visión, no cuando cambian features.
+**Relación con otros docs**:
+- `GDD_DungeonParty.md` → el qué y el cómo técnico (mecánicas, stats, fórmulas).
+- `game/docs/tower_biome_system.md` → catálogo completo de los 25 biomas.
+- `game/docs/art_direction.md` → paleta, poly budget, atmósfera visual.
+- **Este brief** → la **identidad**, el tono, la **gramática de diseño** y la arquitectura macro de la torre.
 
----
-
-## 1. Concepto
-
-**Another Game of Dungeon** (working title **Dungeon Party**) es un **dungeon crawler cooperativo en primera persona** para 1-6 jugadores. El jugador **baja** por un abismo estilo *Made in Abyss* (no sube una torre), atravesando pisos que son **mundos abiertos completos** — no dungeons de salas conectadas.
-
-- **Engine**: Godot 4.6 / GDScript
-- **Plataformas**: Windows, Mac, Linux
-- **Networking**: Steam (via GodotSteam)
-- **Modelo comercial**: Early Access en Steam, precio inicial USD $14.99
-- **Ubicación del equipo**: Chile (tratado fiscal con USA, retención 10%)
-
-### El doble significado de "Party"
-El nombre es intencional: **Party = grupo RPG + party con amigos**. Esto convierte al juego en **dungeon crawler coop con capa social**, posicionándolo distinto de *Dark and Darker* / *Deep Rock Galactic* (puro hardcore). La fiesta y los minijuegos son parte del ADN, no pegados con cinta.
+Cuando el GDD y este brief entren en conflicto, **este brief gana en cuestiones de tono y dirección**; el GDD gana en cuestiones de mecánica.
 
 ---
 
-## 2. Pilares de diseño
+## 0. Cómo usar este brief
 
-1. **Coordinación es poder** — la dificultad no escala con la cantidad de jugadores. Sinergia real, no padding numérico.
-2. **Sinergias ganan batallas** — combinaciones de clases desbloquean efectos reales (ej: hielo + rayo = conductor).
-3. **Cada run importa** — permadeath con pérdida de loot del run (pero el stash es seguro).
-4. **Tu dungeon, tu historia** — mundo persistente con marcas del jugador.
-5. **Fácil de aprender, difícil de dominar** — sistemas simples con profundidad emergente.
-6. **Hermoso y melancólico** — la atmósfera general debe sentirse post-épica, no solo combate frenético.
+Este documento NO es una lista de features. Es una brújula. Sirve para tres cosas:
 
----
+1. **Decidir qué construir** cuando hay múltiples caminos posibles.
+2. **Rechazar ideas** que no encajan con la identidad, aunque sean buenas en abstracto.
+3. **Briefear a cualquier IA o colaborador** para que no desvíe el tono.
 
-## 3. Referencias estéticas y narrativas
-
-### Frieren: Beyond Journey's End (anime) — referencia visual clave
-- Arquitectura élfica/medieval melancólica, ruinas cargadas de historia
-- Paleta cálida pastel, luces doradas, atmósferas nostálgicas
-- Props con personalidad — cada objeto parece tener su historia
-- **Demonios únicos**: NO el típico rojo con cuernos. Antropomórficos con rasgos inquietantes (ojos extraños, proporciones sutilmente mal)
-- Tono general: aventura post-épica, introspectiva, bella tristeza
-
-### Otras referencias
-- **Made in Abyss** — estructura descendente del mundo
-- **SAO / Danmachi** — cada piso como ecosistema completo, no pasillos
-- **Metin 2** — maps MMO grandes con zonas, despawn de drops 3-5 min mostrando el dueño
-- **Kimetsu no Yaiba** — paleta de color y atmósferas elementales
-- **Diablo 2 / Path of Exile** — UI, inventory grid, stash per-account, character select
-- **Shield Hero (Tate no Yusha)** — sistemas de compañeros, monturas, items con progresión narrativa
-- **Lethal Company** — diegetic boombox adaptado a fantasy
-- **BOTW / Skyrim** — fauna ambiental para que el mundo se sienta vivo
-- **Apex Legends** — sistema de ping contextual
+Si algo que estás por construir no puede justificarse con una frase de este brief, probablemente no pertenece al juego **todavía**.
 
 ---
 
-## 4. Estructura del mundo
+## 1. Qué es Dungeon Party (en una página)
 
-### La Torre / Abismo
-- **100 pisos potenciales**, con biomas variados
-- **Piso 1 y piso 100 fijos**, los intermedios aleatorios por pool de dificultad
-- **25 biomas distintos**, no se repiten en un run
-- **Adyacencia temática**: transiciones coherentes (seco → semi-seco → húmedo, no saltos extremos)
-- La dificultad escala por piso, no por bioma
+Dungeon Party es un **dungeon crawler cooperativo en primera persona** para 1–6 jugadores. El núcleo del género es Dark and Darker + Diablo + Deep Rock Galactic, pero el **alma** es otra cosa.
 
-### Cada piso = mundo abierto completo
-- **NO** dungeons de salas
-- Piso 1: **600×600m** (escala MMO pequeña)
-- Distribución procedural por **POIs con seeds**
-- Campo abierto entre POIs con contenido disperso
-- Bordes naturales (acantilados, lagos, paredes de torre, cascadas)
-- El jugador debe sentir que explora un mundo, no un nivel
+El alma es esta: **un viaje melancólico, bello y socialmente vivo a través de una torre de 100 pisos que no son habitaciones sino mundos abiertos**. La cooperación es el pilar — no porque el juego lo obligue, sino porque el juego lo **recompensa emocionalmente**. Se pelea, se saquea y se sube de nivel, sí, pero también se descansa, se hacen fogatas, se juzga en broma a un amigo en la Plaza de los Juicios, se pesca, se monta un carro tirado por cabras y se muere rodeado de enemigos que celebran.
 
-### Filosofía pre-50 vs post-50
-**Pisos 1-50 (civilización)**:
-- Tienen caminos/carreteras con sensación civilizada
-- Cerca del camino: bandidos, eventos de combate, NPCs, mercaderes
-- Lejos del camino: naturaleza, mini pueblos atacados, quests secundarias
-- Progresión narrativa guiada
+La torre se **desciende emocionalmente** mientras se **asciende físicamente**: los primeros pisos son civilizados, con caminos, guardias y mercaderes; a partir del 50 todo se vuelve salvaje, solitario y luego extraño; los últimos pisos son casi un sueño. Cada tramo cambia el estado de ánimo del juego, no solo el skin del bioma.
 
-**Pisos 51-100 (wilderness pura)**:
-- Sin caminos
-- Exploración pura, por cuenta del jugador
-- Se nota la transición narrativa — de sociedad organizada a caos natural
+El jugador no debería recordar "el piso 17" — debería recordar **"el piso del lago ciego"**, **"el piso donde encontramos al mercader emboscado"**, **"el piso donde la campana atraía a los muertos"**. Los pisos memorables no son los que tienen más contenido; son los que tienen **una imagen fuerte, una regla clara y una emoción dominante**.
 
-### Safe zones
-- **Pisos 25 y 50** = zonas seguras con NPCs, comercio, stash, herreros
-- Piso 51+ = hardcore total
+**Tres frases para defender el juego ante cualquiera**:
+- "Es un dungeon crawler coop donde cada piso es un mundo abierto con su propio estado de ánimo."
+- "La cooperación no es un modo, es el motor emocional: hasta el sistema de loot premia a los 4 roles."
+- "Tiene la melancolía de Frieren, el loot de Diablo 2, el humor absurdo de Among Us y los silencios de Made in Abyss."
 
 ---
 
-## 5. Clases (5 al lanzamiento)
+## 2. Pilares de identidad (5)
 
-1. **Warrior** — melee pesado + combo chain de 5 golpes
-   - Ramas: **Tanque** (escudo) / **Berserk** (furia)
-2. **Mage** — elementos y magia arcana
-   - Ataque base: "finger guns" + bolita inestable de energía
-   - Ramas: **Elementalista** (fuego/hielo/rayo) / **Arcano** (espacio)
-3. **Archer** — flecha + disparo cargado
-   - Ramas: **Ranger** (arco rapid fire) / **Artillero** (pistola/granadas/explosivos — NO ballesta)
-4. **Necromancer** — orbe + drenaje de vida
-   - Ramas: **Maldiciones** (debuffs) / **Creador** (invocaciones)
-5. **Healer / Clerigo** — maza + castigo divino
-   - Ramas: **Sanador** (heal directo) / **Buffer** (buffs de party)
+Cada decisión de diseño debe poder trazarse a al menos uno de estos pilares. Si una feature no cumple ninguno, no pertenece al juego.
 
-### Nota sobre ballesta
-Arma genérica, cualquier clase puede usarla. Más lenta que arco, más daño.
+1. **La coordinación es el motor emocional, no solo mecánico.** La dificultad es fija. El loot premia a quien participó en cualquier rol (contribución ponderada). Las habilidades tienen sinergias reales entre clases. **Jugar solo siempre es posible si el jugador se lo gana con farmeo** — nunca hay contenido bloqueado por composición de grupo. Jugar juntos hace todo más fácil, más memorable y más divertido, pero nunca es requisito para cerrar la torre. La cooperación es motor, no gate.
 
-### Progresión
-- Niveles 1-50, curva XP 1.15x
-- **3 stat points por nivel** (150 totales)
-- Stats: STR, INT, DEX, DEF, VIT
-- **Especialización a nivel 10** (2 ramas por clase)
-- **Skill tree** estilo Diablo 2
-- **6 resets máximo** por personaje → después se convierte en "The Lost"
+2. **La torre es un viaje, no un grinder.** 100 pisos no son 100 mazmorras — son un ascenso con curva emocional: curiosidad (1–25), melancolía (26–50), supervivencia (51–75), extrañeza (76–95), mito (96–100). Cada tramo se siente diferente en ánimo, no solo en skin.
+
+3. **Cada piso es un mundo completo a la escala que pide su emoción, no una sala.** La escala NO es fija. El Piso 1 (Pradera) es 600×600m porque la apertura y el asombro son su alma. El Piso 2 (Bosque) es ~200×200m porque la opresión y el laberinto son el suyo. Un claro de descanso puede ser 100×100m porque la intimidad es el punto. Un salón de trono puede ser 80×80m cerrado. Un paso entre colinas puede ser 400×200m lineal. La regla no es "grande" — es **"completo, coherente y a la medida de la emoción dominante"**.
+
+4. **La belleza y el descanso son contenido, no relleno.** Pisos pacíficos, pesca, fogatas, carretas de mercader, ciervos blancos — todo esto es tan importante como el combate. La alternancia entre tensión y calma es lo que hace que el peligro pegue más.
+
+5. **La rareza es una especia, no una base.** Los pisos absurdos, incómodos o "inútiles" existen y son celebrados — pero como **acentos**, no como estructura. Un juego 100% raro pierde la fuerza de la rareza.
 
 ---
 
-## 6. Combate y feel
+## 3. Referencias (el ADN visual y emocional)
 
-### Sistemas implementados
-- **Knockback estilo billar**: dirección del golpe empuja al enemigo
-- **Combo chain del Warrior**: 5 golpes en secuencia
-- **Slime jelly effect**: enemigos gelatinosos se estiran en el golpe y rebotan
-- **Division del slime**: al morir se divide en 4 mini-slimes (con spawn realmente caótico — no en cruz)
+### Referencia central
+**Frieren: Beyond Journey's End** — es la piedra angular.
+- Aventura **post-épica**: el mundo ya fue salvado, quedan ruinas cargadas de historia.
+- Demonios **únicos** y diseñados, nunca clichés rojos con cuernos.
+- Paleta **cálida pastel**, luz dorada suave, emisión contenida.
+- Props con personalidad narrativa: una silla olvidada cuenta algo.
+- La "bella tristeza" es el tono dominante.
 
-### Fórmulas
-- Daño físico = base + (STR × 2)
-- Daño mágico = base + (INT × 2)
-- DEF reduce daño físico (mínimo 1)
-- Resistencias elementales cap 75%
-- HP total = HP base + (VIT × 5)
-- MP total = MP base + (INT × 3)
+### Referencias de soporte
+| Fuente | Qué tomamos |
+|---|---|
+| **Made in Abyss** | Descenso emocional, silencios, peligros que no se ven venir, belleza hostil. |
+| **Kimetsu no Yaiba** (Demon Slayer) | Atmósferas por tramo, contrastes de luz, **y especialmente diseño de color + animación de habilidades** (los "respirar agua/fuego/trueno" son la referencia maestra para el look de las habilidades de clase). |
+| **Jujutsu Kaisen** | Animación y estilo de los jutsus cantados — timing dramático, cámara que se inclina en el momento del cast, trail visual del hechizo. |
+| **One Piece** | Estilo cartoon-épico de las habilidades con nombre, fuerza del impacto visible, poses de cast. |
+| **Sword Art Online (Aincrad)** | Pisos como mundos completos con identidad propia. |
+| **DanMachi** | Pisos como ecosistemas vivos, labyrinths con personalidad (Piso 3 brumoso, Labyrinth del Gran Árbol). |
+| **Shield Hero** | Compañeros, pets, monturas con progresión, evolución de equipo. |
+| **Metin 2** | Loot al mundo con despawn de 3–5 min, mundo abierto con campos y ciudades. |
+| **Diablo 2** | Grilla 12×7, raridades (pero **sin Épico**), stash per-account, sockets con riesgo. |
+| **Path of Exile** | Mantener la progresión fresca vía variación controlada. |
+| **Dark and Darker** | Tensión coop, fuego amigo, audio que importa. |
+| **Monster Hunter** | Cooperación ponderada por contribución. |
+| **Deep Rock Galactic** | Hermandad coop + humor + rituales de celebración. |
+| **Lethal Company** | Cristal Cantor = boombox diegético adaptado a fantasía. |
+| **Among Us** | Sistema de Juicios medieval cómico, sin pérdida real. |
+| **Overlord** | Torre con pisos temáticos + Floor Guardians con personalidad y lore propio. Mezcla de dark fantasy con humor absurdo (Ainz pretendiendo ser sabio). Estética undead/magia oscura para Necromancer y Tier III-IV. NPCs con jerarquía y voz propia (no menús con cara). |
+| **Skyrim / BOTW** | Fauna ambiental pasiva (mariposas, pájaros, ciervos) como worldbuilding barato y potente. |
+| **Terraria, Spelunky** | Biomas temáticos con identidad mecánica propia. |
 
-### Escalado de enemigos por piso
-| Piso | HP | Daño | DEF |
-|------|----|------|-----|
-| 1 Pradera | 100 | 10 | 0 |
-| 2 Bosque | 200 | 20 | 5 |
-| 3 Hielo | 350 | 35 | 12 |
-| 4 Tormenta | 500 | 50 | 20 |
-| 5 Dimensión Rota | 700 | 70 | 30 |
+### Paleta y mood maestros
+- Cálida, pastel, emisión suave.
+- **Nunca** grimdark gore. Si hay terror, es terror de **extrañeza y pérdida**, no de sangre y tripas.
+- Luces doradas, verdes musgo, azules fríos, rojos óxido. Casi nada saturado al 100%.
+- El sol es un diamante emisivo dentro del techo de caverna — la torre entera es un **interior**, no un exterior. Esto es **canon**.
 
----
+### Estilo visual de habilidades (canon)
 
-## 7. Loot, raridades y economía
+Las habilidades de clase deben verse y **sentirse** como habilidades de anime shonen moderno. Es el contraste intencional con el mundo: el mundo es Frieren (contemplativo, cálido, melancólico), pero **cuando un jugador lanza una habilidad grande, la cámara y el efecto son anime de pelea**.
 
-### Raridades (4 tiers — NO hay Epic)
-- **Común** (blanco)
-- **Mágico** (amarillo)
-- **Raro** (azul)
-- **Único** (rojo vino)
+Referencias ordenadas de mayor a menor autoridad para el look de habilidades:
 
-### Reglas de loot
-- **Equipment drops**: solo **rare, magic y unique**. El common se compra, no cae.
-- **Drops en el mundo**: estilo Metin 2 — caen al piso, persisten **3 minutos**, muestran el nombre del dueño en party, blinkean los últimos 30s antes de despawn.
-- **Cofres**: aparecen cerca de campamentos de bandidos y POIs civilizados. 3 tiers (common / rare / boss).
-- **Moneda**: contador, no ocupa grilla de inventario.
+1. **Kimetsu no Yaiba — PRIMARIA**. Los "respirar agua", "respirar fuego", "respirar trueno" son el norte. Color saturado solo durante el cast, trail del arma con forma distintiva por estilo, cámara que sigue el arco del golpe, momento de impacto con freeze-frame muy corto. Cada rama de clase es una "forma de respiración" visualmente.
+2. **Jujutsu Kaisen**. Timing dramático del cast, cámara inclinada al activarse, nombre de la habilidad visible brevemente, trails gruesos con negro al borde. Útil especialmente para Mago y Necromancer.
+3. **One Piece**. Estilo cartoon-épico, pose de cast, impacto exagerado visualmente, nombres propios para habilidades grandes. Útil para Warrior (Berserker rama) y Archer (Artillero rama).
 
-### Enhancement (+1 a +9)
-- Items pueden mejorarse
-- Chance de romper al enhancear
-- NO hay riesgo de perder enhancement al reparar
+**Regla**: las habilidades **pequeñas** (ataque base, click) son funcionales, sin drama. Las habilidades **medias** (mantener, cooldown corto) tienen trail y color pero sin pausa. Las habilidades **grandes** (ultimate, cooldown largo) se llevan la cámara: nombre visible, pose, impacto, contraste de color sobre el mundo pastel.
 
----
-
-## 8. Inventario, stash y equipamiento
-
-### Inventario
-- **Grilla 12×7** estilo Diablo 2
-- Posición: abajo a la derecha en pantalla
-- **Per-character** — se pierde al morir
-- Drag & drop real para mover items, double-click para equipar
-- Right-click → contextual (Soltar / Usar)
-- Toggle con TAB
-
-### Stash (Alijo)
-- **Per-account** — shared entre personajes del mismo user
-- Solo accesible en **zonas seguras** (outposts pisos 1, 25, 50)
-- **Grilla inicial 20×10 = 200 slots**
-- **Expandible comprando páginas con oro**
-- Persistente, NO se pierde con la muerte
-- Estilo Diablo 2 / Path of Exile
-
-### Equipment slots (12)
-`head, chest, legs, feet, hands, belt, main_hand, off_hand, ring_1, ring_2, amulet, cape`
-
-Off-hand puede ser: shield / tome / quiver / focus.
-Expandible a futuro (15-16 slots con mascotas activas).
-
-### UI del personaje
-- **Paper doll** con silueta humanoide dibujada
-- Right-click o double-click en slot → desequipar
-- Drag desde inventario → slot (futuro)
-- Character preview ventana flotante
+**Por qué el contraste funciona**: el juego se siente contemplativo el 90% del tiempo, pero cuando un jugador ejecuta una sinergia perfecta o lanza su ultimate, la cámara cambia de Frieren a Demon Slayer. Esto hace que las habilidades grandes se sientan **importantes** sin que el juego entero parezca ruidoso.
 
 ---
 
-## 9. Muerte, revive y estados
+## 4. Gramática de diseño de pisos (las 7 preguntas)
 
-### Estados
-1. **Vivo** — normal
-2. **Downed** — HP a 0, tirado en el suelo, crawl lento (~1 m/s)
-3. **Muerto** — pierde TODO el loot del run, respawn en outpost
+Un piso no está diseñado hasta que responde estas 7 preguntas. Si falta una, todavía está solo "ambientado".
 
-### Mecánica del Downed
-- Timer base **30 segundos** antes de morir
-- Acciones bloqueadas: saltar, atacar, usar items (excepto pergaminos)
-- Vista: cámara baja, vignette rojo, audio amortiguado
-- HUD: marcador a los compañeros
-- HP regenera muy lento (1%/s) — puede auto-levantarse si termina el timer con >10% HP
-- **Pergamino de Auto-Revive**: item raro que permite levantarse solo
+1. **Función** — ¿Qué hace este piso en el ritmo del juego? (avanzar, descansar, sorprender, preparar, cerrar)
+2. **Emoción dominante** — ¿Qué debe sentir el jugador a los primeros 30 segundos? (tensión, calma, asombro, incomodidad, codicia, melancolía)
+3. **Landmark** — ¿Cuál es la imagen que el jugador recordará y compartirá con un amigo? (el cristal Vía Láctea, el lago ciego, la estatua que mira distinto al volver)
+4. **Lectura espacial** — ¿Cómo se navega? (abierto, laberíntico, vertical, circular, fragmentado, lineal con desvíos)
+5. **Mecánica distintiva** — ¿Qué regla propia introduce? (niebla, ecos, verticalidad, campana que atrae, luz limitada) **Máximo una por piso**.
+6. **Recompensa** — ¿Qué ofrece además de loot? (shortcut, información, NPC, buff, historia, evento único)
+7. **Rol en el tier** — ¿Abre, sostiene, rompe o cierra el tono del tramo al que pertenece?
 
-### Revive por compañero
-- **Canalización 5 segundos** sin moverse ni recibir >10 daño
-- Completar → downed vuelve con **50% HP + buff "Segunda Chance"** (3s invulnerabilidad)
-
-### Límite de revives por run
-- 1er caída: 30s
-- 2da caída: 20s
-- 3ra caída: 10s
-- **4ta caída = muerte instantánea** — no hay revive
-- Contador resetea al volver al outpost
-
-### ⭐ Idea clave: enemigos celebran la kill
-Cuando el jugador queda downed, los enemigos en el área **dejan de atacar** y entran en **modo celebración 15 segundos**. Esto:
-- Crea ventana natural para revivir
-- Da feedback visual claro de dónde está el downed
-- Personalidad por enemigo (slime baila, lobo aúlla, bandido taunt, golem pecho, escorpión aguijón al cielo, boss rugido dramático + temblor)
-- Reduce frustración — no hay chain-kill en downed
-- Tras 15s vuelven a patrulla, NO atacan al downed hasta que alguien entra al área
+**Regla de oro**: un piso bueno se resume en **una frase**. Si no podés resumirlo, todavía no está diseñado.
 
 ---
 
-## 10. Durabilidad y reparación
+## 5. Tipos de piso (las 6 familias)
 
-### Items con durabilidad (degradan con uso)
-- Armas (pierden por golpe aterrizado)
-- Armaduras (pierden por daño recibido)
-- Antorcha de madera (pierde por tiempo)
-- Herramientas futuras (picos, hachas, cañas)
+No diseñamos pisos sueltos — diseñamos instancias de familias. Cada familia tiene un propósito claro. La identidad del bioma es la ropa; la familia es el esqueleto.
 
-### Items SIN durabilidad (permanentes)
-- Orbe arcano, hongo bioluminiscente (luces mágicas/orgánicas)
-- Accesorios (anillos, amuletos, capas, cinturones — son mágicos)
-- Consumibles (pociones, pergaminos, comida)
-- Materiales
+| Familia | Función | Emoción típica | Ejemplo |
+|---|---|---|---|
+| **COMBATE** | Avance principal, presión, loot | Tensión, acción, coordinación | Pradera con campamento bandido, cuevas con slimes |
+| **EXPLORACIÓN** | Rutas, secretos, POIs, codicia | Curiosidad, asombro | Ruinas con cofres ocultos, bosque con senderos múltiples |
+| **DESCANSO** | Bajar tensión, socializar, comerciar | Alivio, apego, calidez | Safe zone, fogata, pesca, taverna itinerante |
+| **EVENTO** | Romper rutina con reglas especiales | Sorpresa, historia | Caravana bajo ataque, fiesta del pueblo, noche de estrellas fugaces |
+| **ANOMALÍA** | Piso raro, incómodo o "inútil" | Misterio, recuerdo fuerte | Piso donde solo hay viento y cabras, aldea vacía preparada para fiesta que nunca ocurrió |
+| **UMBRAL / BOSS** | Clímax de tramo, cambio de tono | Anticipación, resolución | Antes y después del boss, safe zones 25/50 |
 
-### Items de un solo uso
-- Pergaminos de hechizo, granadas/bombas, cuchillos arrojadizos
-- Comida, llaves especiales, pergaminos de teletransporte
+### Subtipos de Descanso (importante — el descanso es contenido)
 
-### Herreros
-- **Piso 1 (Pradera)** — reparaciones básicas
-- **Piso 25** — repara items raros
-- **Piso 50** — repara unique y items enhanced
+- **Cálido**: taverna, fogata, música, comida, NPCs. Apego y comunidad.
+- **Triste**: ruina silenciosa, santuario, lago, memorial. Melancolía, worldbuilding.
+- **Lúdico**: minijuego, pesca, concurso, animales, ritual festivo. Humor y memoria.
 
-### Costo
-`cost = item.value * (max_durability - current) / max_durability`
-Multiplicadores: Common ×1.0, Rare ×1.5, Magic ×2.0, Unique ×3.0.
+**Cada piso de descanso debe decir algo del mundo.** Un descanso sin voz es un menú con flores.
 
-### Sin riesgo de romper
-**NO hay chance de romper permanente al reparar.** La tensión ya viene de perder loot al morir, no hace falta doble castigo.
+### Subtipos de Anomalía
 
-### Items rotos
-- NO se destruyen automáticamente
-- Aparecen como "ROTO" (gris, tachado)
-- Armas rotas: pierden daño base, conservan stats
-- Armaduras rotas: pierden DEF, conservan stats
+- **Bella pero sin sentido**: viento, cabras, vista inmensa. No hace nada, pero se recuerda.
+- **Incómoda**: reglas rotas, luz que no obedece, gestos humanos en criaturas no humanas.
+- **Cálida pero rara**: pueblo vacío con señales de vida reciente, fiesta abandonada que parece reciente.
+
+El terror, si aparece, vive en esta familia — y es terror **de extrañeza y pérdida**, nunca gore.
 
 ---
 
-## 11. Iluminación, antorchas y oscuridad como mecánica
+## 6. Arquitectura de los 100 pisos
 
-### Sistema de antorchas
-- **OmniLight3D** hija del player, tecla **F** para activar/desactivar
-- Quick-swap: guarda "last main weapon" para volver
-- Tipos de luz (equip slot offhand o slot dedicado):
+### Principios arquitectónicos
 
-| Item | Range | Color | Duración | Nota |
-|------|-------|-------|----------|------|
-| Antorcha de madera | 6m | Cálido | X min | Inicial, barato |
-| Linterna de aceite | 10m | Blanco cálido | Recargable | Mejor alcance |
-| Orbe arcano | 12m | Azul | ∞ | Mágico, no se apaga |
-| Hongo biolum | 4m | Verde | ∞ | Débil pero free |
+1. **Anclas fijas y pool procedural**. La torre tiene anclas fijas en posiciones clave y pool procedural entre ellas. Las anclas son: **P1** (tutorial), **bosses de tier** (P24, P49, P74, P95 — fijos al final de cada tier), **safe zones 25 y 50**, y **P100** (boss final). Todo lo demás vive en pools del tier y se reordena por seed en cada run.
+2. **El Piso 1 es tutorial zone**, no safe zone. Tiene outpost fortificado con servicios básicos (comerciante, herrero básico, stash inicial) **pero el peligro está al otro lado de la puerta**. El jugador aprende acá: combate, loot, muerte, revive, inventario, equipamiento. Es la primera aventura, no el refugio.
+3. **Las safe zones 25 y 50 son canon**. Son pisos de DESCANSO **reales** — sin peligro adentro, con mercaderes, herrería avanzada, stash grande, Plaza de los Juicios, NPCs recurrentes. La diferencia con el Piso 1: en la safe zone no se pelea. En el Piso 1 sí, apenas salís del outpost.
+4. **Los bosses de tier son anclas fijas al final del tramo**, no templates del pool. Tier I boss = P24 (Trono Viscoso, justo antes de la SZ del P25). Tier II boss = P49. Tier III boss = P74. Tier IV boss = P95. Esto respeta la generación procedural: entre anclas hay 22-24 pisos random del pool del tier. Solo las anclas son fijas.
+5. **Cada run reconfigura el orden del pool entre anclas**. La identidad del tier se mantiene; el orden de los pisos random cambia. Así el jugador repite con variedad y las anclas son puntos de referencia constantes.
+6. **Reglas de adyacencia**: nunca 2 anomalías consecutivas, nunca 3 combates sin un descanso o evento, un umbral siempre precede a un boss, un evento puede aparecer en cualquier lado.
+7. **El piso 1 y el piso 100 se reflejan**. El 100 es la pradera marchita + el santuario del umbral. Callback visual intencional.
 
-### Sombras (phase 2, pendiente)
-- Setting de calidad en el shader system
-- Low/Med: shadows OFF
-- High/Ultra: shadows ON
-- Para 6 jugadores: "mi antorcha + 2 más cercanos" para evitar overdraw
+### Distribución macro (proporciones por tier)
 
-### Dark zones
-- **Area3D** con tag `dark_zone` marcadas por level designer
-- Al entrar: aviso "Está oscuro. Pulsa F para encender antorcha"
+| Tier | Rango | Pisos | Filosofía | Civilización | Emoción dominante |
+|---|---|---|---|---|---|
+| **I — Ascenso Civilizado** | 1–25 | 25 | La casa del jugador. Caminos, guardias, mercaderes. Primera aventura. | Alta (pre-50) | Curiosidad, asombro, calidez |
+| **II — Frontera del Mundo** | 26–50 | 25 | La civilización se adelgaza. Pueblos olvidados. Aparece la melancolía. | Media (pre-50) | Asombro, melancolía, respeto |
+| **III — Wilderness** | 51–75 | 25 | No hay caminos, no hay NPCs. El mundo existe sin la gente. | Nula (post-50) | Hostilidad, aislamiento, belleza dura |
+| **IV — Anomalía** | 76–95 | 20 | Las reglas se rompen. Belleza torcida. Extrañeza. | Nula o distorsionada | Extrañeza, incomodidad, memoria fallida |
+| **V — Mito** | 96–100 | 5 | Cierre. Callback al Piso 1. Descenso final. | Cero | Trascendencia, melancolía plena |
 
-### Biomas con oscuridad como mecánica
-- **Piso 2 Bosque**: canopy denso, zonas intermitentes
-- **Piso 3 Hielo**: cavernas oscuras
-- **Piso 5 Dimensión Rota**: oscuridad antinatural, algunos items de luz fallan
-- En coop: uno lleva luz, otro pelea → tensión y coordinación real
+### Distribución por familia dentro de cada tier
 
----
+Estos porcentajes son objetivos de diseño, no camisas de fuerza. El pool se balancea en cada run respetándolos.
 
-## 12. Mascotas, monturas y carro cooperativo
+| Familia | Tier I | Tier II | Tier III | Tier IV | Tier V |
+|---|---|---|---|---|---|
+| **Combate** | 14 | 13 | 17 | 9 | 1 |
+| **Exploración** | 3 | 3 | 3 | 2 | 0 |
+| **Descanso** | 3 (+SZ P25) | 3 (+SZ P50) | 1 | 2 | 1 |
+| **Evento** | 3 | 3 | 2 | 2 | 0 |
+| **Anomalía** | 1 | 1 | 1 | 4 | 1 |
+| **Umbral** | 0 | 1 | 0 | 0 | 1 |
+| **Boss** | 1 (P25\*) | 1 (P50\*) | 1 | 1 | 1 (P100) |
+| **Total** | **25** | **25** | **25** | **20** | **5** |
 
-### Mascotas — filosofía: valor emocional > poder
-- **Cosméticas (no-combat)**: gatos, perros, cuervos, conejos, luciérnagas, slime bebé, búhos, ardillas, mini dragón
-- **Combat pets (débiles pero útiles)**: lobo entrenado (Archer), esqueleto (Necro), golem (Mage), águila (Ranger), oso (Warrior), fénix (Mage)
-- Sistemas: alimentar con hambre decay, bonding 0-100, cosméticos (collares, gorros, bandanas, mini-armaduras)
-- **Solo 1 mascota activa**, las demás en la taverna
-- NPCs relacionados: Señora de los Gatos, Domador de Bestias, Veterinario, Sastre de Mascotas
+\* Los bosses del tier I y II NO son los de piso 25 y 50 — las safe zones son de descanso. Los bosses son **menores** (tier bosses) distribuidos en el pool del tramo, no fijos.
 
-### Monturas
-**Regla de oro**: solo funcionan en **zonas abiertas**, NO en dungeons interiores.
-- Tipos: caballo común, caballo de guerra, jabalí, lobo montaña, grifo, caballo fantasma, slime gigante, dragón joven
-- Combate montado: Warrior (-20% precisión), Archer (sin penalización — es su fantasía), Mage/Necro/Cleric (no pueden castear, desmontan)
-- Montura recibe daño separado, "desaparece" en 0 HP (no muere permanente), cooldown 2 min
+### Tier I — Ascenso Civilizado (Pisos 1–25)
 
-### ⭐ Carro cooperativo (feature diferenciador)
-- **Cabras tirando un carro, 2-4 jugadores**
-- 1 conductor + hasta 3 pasajeros
-- Pasajeros: Archer dispara, Cleric cura conductor, Mage barrera, turista
-- Escenarios: huida de bandidos, viaje coop con música, persecución, carreras
-- Upgrades: refuerzos HP, ruedas de hierro, caja trasera, cañón (Artillero)
-- **Nadie en el género coop tiene algo así** — contenido único, "cinemática viviente"
+**Filosofía**: El jugador acaba de entrar a la torre. Todo es nuevo. El mundo es acogedor aunque peligroso. Hay guardias, caminos, carretas, mercaderes, campesinos, fauna pacífica, eventos divertidos. La muerte duele pero se siente como "mala suerte", no como castigo cósmico.
 
-### Inspiración
-El usuario cita **Shield Hero (Tate no Yusha)**: Filo la filolial, Raphtalia, el sistema de evolución del escudo de Naofumi. Vínculo > grinding.
+**Piso 1 — Pradera Interior (FIJO — Tutorial Zone)**
+- Bioma: pradera con techo de caverna, diamante emisivo, cristales Vía Láctea.
+- Mundo vivo: puesto fortificado, NPCs civiles, carreta de mercader con 5 estados, fauna pacífica.
+- **Rol especial**: el Piso 1 es **tutorial zone**, no safe zone. El outpost ofrece servicios básicos (comercio, herrería inicial, stash pequeño, quests iniciales) pero apenas el jugador sale del perímetro fortificado empieza el peligro real. Acá el jugador aprende todo: cómo se pelea, cómo se cura, cómo se lootea, qué es el downed, cómo revivir, cómo equipar, cómo morir. El outpost sirve de red de seguridad; la pradera enseña.
+- Boss del tramo: **Trono Viscoso** (Rey Slime poseyendo el salón del trono devorado) — **ancla fija en P24**, justo antes de la safe zone del P25. NO es el boss del Piso 1 (en el modelo viejo de 5 pisos lo era; en el modelo nuevo de 100 pisos, el Tier I entero es "el antiguo Piso 1", y el boss es su clímax al final del tramo).
 
----
+**Biomas del pool del tier I**: Pradera Interior (P1 fijo + variantes), Bosque Denso ligero, Sabana Seca, Ruinas Antiguas (superficiales), Pantano borde.
 
-## 13. Party Activities — el corazón social del juego
+**Landmarks memorables del tier I** (ideas sembradas):
+- El puesto fortificado con el capitán y el veterinario de pets.
+- La carreta del mercader con la rueda rota y el bandido.
+- El lago con pesca y ciervos blancos.
+- El altar olvidado con el diario del último peregrino.
+- El árbol gigante con el nido y la ardilla ladrona.
 
-### Principio clave: minijuegos DIEGÉTICOS
-**NUNCA arcade genérico pegado con cinta.** Cada minijuego es una **mini-quest** con:
-- NPC que lo inicia
-- Lore que lo justifica
-- Recompensas que encajan con el mundo
-- Se descubren explorando
+**Safe Zone Piso 25 — "Último Puesto"**
+- Herrería básica (reparación común + raro).
+- Stash expandido.
+- Comercio variado.
+- Plaza de los Juicios (primer sitio donde funciona).
+- NPCs recurrentes con quests pequeñas.
 
-### Sistema de señales (coop-critical)
-- **Ping rápido** (tecla Q): marker 3D 5s estilo Apex. Contextual según apuntás (enemigo/item/NPC/suelo)
-- **Fuegos artificiales**: items consumibles lanzables al cielo, visibles 300m+
-  - Bengala roja: help
-  - Verde: meeting point
-  - Azul: loot importante
-  - Multicolor: celebración
-  - Humo amarillo: persistente
-  - En combate atraen enemigos (tradeoff real)
-- Complementarios: ping corto/cerca, fuego artificial largo/lejos
+### Tier II — Frontera del Mundo (Pisos 26–50)
 
-### Emotes
-Cantidad **escalable**, no 12 fijos. Set base: saludar, bailar, reír, sí, no, sentarse, brindar, **fumar pipa**, rezar, hierba del bardo, tocar instrumento.
+**Filosofía**: La civilización empieza a desaparecer. Aldeas olvidadas, peregrinos solitarios, santuarios abandonados. Aquí entra la melancolía por primera vez. El jugador empieza a sentir que "estamos lejos de casa".
 
-### Cristal Cantor = boombox diegético
-Items mágicos que reproducen música grabada por bardos. Tipos con efectos distintos (del héroe, del descanso, del baile, prohibido, del amor). Referencia Lethal Company adaptada a fantasy.
+**Biomas del pool**: Tundra Congelada, Cavernas de Cristal, Ruinas Antiguas profundas, Bosque de Hongos Gigantes, Desierto Abrasador (borde), Bosque Denso profundo.
 
-### Categorías de minijuegos
+**Landmarks posibles**:
+- Una aldea congelada con señales de vida reciente que no deberían estar ahí.
+- Un bosque de hongos bioluminiscentes donde el sonido se comporta raro.
+- Un santuario cubierto de polvo donde solo queda un NPC esperando a alguien que no viene.
+- Ruinas con una biblioteca donde los libros se reordenan solos cuando nadie mira.
+- Una catedral vegetal donde la luz importa más que el daño.
 
-**Heist / Stealth — robar a criaturas imposibles de pelear**
-- El Huevo de la Dragona (dormida en nido, distraer y robar, persecución al despertar)
-- La Flauta del Gigante (trepar cíclope dormido)
-- El Tesoro de la Bruja (líneas de visión, distracciones)
-- Las Plumas del Grifo (trepar árbol, distraer con piedras)
+**Safe Zone Piso 50 — "Última Luz"**
+- Herrería avanzada (reparación de únicos, enhancement +7 en adelante).
+- Stash grande, última vez.
+- Mercader viajero que **solo aparece acá**.
+- Santuario con un NPC que te cuenta qué hay más adelante — nunca directamente, siempre en metáforas.
+- Plaza de los Juicios con castigos más absurdos.
+- **Punto de despedida emocional**: el juego deja claro que lo que sigue es distinto.
 
-**Chase / Catch — atrapar lo que huye**
-- El Cerdo del Aldeano (arrinconar entre 4 jugadores)
-- El Gnomo Ladrón (seguir huellas invisibles)
-- La Gallina Dorada (criatura rara, random spawn)
-- La Mariposa Fantasma (solo de noche, material de alquimia)
+### Tier III — Wilderness (Pisos 51–75)
 
-**Cooperación sincronizada**
-- Cocinar un Banquete (roles: carnicero, cocinero, servidor)
-- Ritual de Invocación (4 pedestales mantenidos)
-- Levantar la Estatua (rhythm sincronizado)
-- Puente de Hielo (coordinación de orden)
+**Filosofía**: No hay caminos. No hay NPCs humanos. El mundo existe sin la gente. El jugador está solo con su equipo, y el equipo es todo lo que importa.
 
-**Duelos temáticos**
-- Torneo de la Taverna (espadas de práctica, apuestas)
-- Trago del Valiente (pócima con efectos random)
-- Concurso de Tiro (arco y blancos)
-- Lucha de Brazos del Campeón (NPCs progresivos)
+**Biomas del pool**: Volcán Activo, Pantano Putrefacto profundo, Selva Tropical, Ciudad Abandonada, Catacumbas/Necrópolis, Forja Infernal, Océano Sumergido (borde), Desierto Abrasador profundo, **Salar de los Espejos** (nuevo — ver abajo).
 
-**Eventos ambientales — aparecen sin buscarlos**
-- Fiesta del Pueblo (unirse al baile, buff de moral)
-- Concurso de Pesca (día específico en el lago)
-- Carrera del Caballo Fantasma (aparece al atardecer)
-- Noche de las Estrellas Fugaces (deseo random)
-- **Contest de Humo de Pipa estilo Gandalf**
+**Bioma nuevo: Salar de los Espejos**
+Planicie infinita de sal blanca con una lámina delgada de agua encima. El agua refleja perfectamente el techo de la torre — el diamante emisivo del Piso 1 se ve como un segundo sol abajo, y el jugador camina **sobre su propio reflejo**. Espejismo perfecto, sin horizonte real. Inspiración: Salar de Uyuni (Bolivia). Hostilidad: exposición total (no hay cobertura), luz cegadora, enemigos que aparecen desde lejos por el reflejo. Belleza que duele. Encaja con el Tier III por el aislamiento, la exposición y la belleza dura sin civilización. Landmark de tier.
 
-### Sistema de Juicios — "Among Us medieval"
-Party puede juzgar a un jugador en la Plaza de los Juicios. Cómico, **sin pérdida real**.
-- Trigger: `/juicio @jugador`, limitado a 1/hora
-- Fases: acusación 30s → defensa 30s → votación 15s → veredicto
-- Castigos cosméticos: guillotina estilo Monty Python, cepo con tomates, alquitrán+plumas, **Piedra de la Vergüenza (cadena al cuello, -40% speed por 10 min)**, miniaturización, gorro vergüenza
-- Si inocente: lluvia de monedas falsas + título "Calumnia" al acusador
-- 10+ inocentes consecutivos → título "El Justo"
-- **Opt-out en settings**
+**Reglas especiales del tier III**:
+- **No hay caminos**: el jugador explora con brújula y memoria.
+- **Los descansos existen pero no son humanos**: un lago ciego con peces pálidos, un jardín protegido por una criatura pacífica que no se puede matar, una cabra rara que comparte su cueva.
+- **El loot cambia de sabor**: menos comercio humano, más scavenge. Los "items guardados" son los que llevás del 50.
+- **Mounts y carros no entran** a biomas interiores (cavernas, catacumbas). Sí a volcán externo, selva, ciudad.
 
----
+**Landmarks posibles**:
+- Una ciudad abandonada con fiestas visibles en las ventanas que se apagan al acercarse.
+- Una forja infernal donde todavía hay un golem trabajando, sin saber que no hay nadie.
+- Un pantano donde las ranas cantan en coro humano.
+- Un volcán con una criatura enorme dormida — nunca hay que despertarla.
 
-## 14. NPCs y mundo vivo (Prairie Living World — Piso 1)
+### Tier IV — Anomalía (Pisos 76–95)
 
-El Piso 1 debe sentirse **VIVO**, no una arena de combate. Es el piso más civilizado de la torre.
+**Filosofía**: La realidad se rompe. Las reglas del juego cambian sin avisar. La belleza se vuelve hostil. La extrañeza es el tono dominante.
 
-### Elementos clave
-- **Puesto de Guardia fortificado**: mini-campamento con muros, torre de vigía, guardias del perímetro, mercader, stash. **Radio de defensa 30m**.
-- **Carreta de mercader viajero**: NPC evento estrella con 5 estados (tranquilo, emboscada activa, rueda rota, ya emboscada, pidiendo material)
-- **Fauna pacífica** (grupo `wildlife`, separada de `enemies`): ciervos, conejos, pájaros, ardillas. No atacan, pueden ser cazados.
-- **NPCs civiles**: campesinos, peregrinos, pastores con rebaños, cazadores friendly
-- **~150-180 entidades vivas** en 600×600m (vs ~70 solo hostiles hoy)
-- **Eventos dinámicos** (2-3 activos a la vez): caravana bajo ataque, granja incendiada, niño perdido, gitanos comerciantes
+**Biomas del pool**: Jardín Corrompido, Templo del Reloj, Mundo Espejo, Dimensión Astral, Laboratorio Arcano, Playa de Ceniza, Abismo Abismal (borde).
 
-### Fauna ambiental (low-effort, high-impact, visual)
-- **Mariposas**: MultiMesh con path random en zonas con flores
-- **Pajaritos**: en copas de árboles, se espantan al acercarse
-- **Nidos**: estáticos en árboles grandes
-- **Ardillas**: cruzan caminos, trepan árboles
-- **Arañas**: en telarañas estáticas (cuevas, ruinas)
-- **Peces**: círculos en estanques
+**Reglas especiales del tier IV**:
+- Cada piso introduce **una regla rota**: gravedad invertida parcial, tiempo que se revierte, enemigos que reflejan daño, objetos que desaparecen al mirarlos directo.
+- Los combates son **menos frecuentes pero más tensos**.
+- Los descansos son **casi oníricos**: un jardín donde nada crece pero todo huele a flores, una playa de ceniza con música que solo uno del grupo puede oír.
+- Aquí vive la mayoría de las **anomalías puras** — pisos sin peligro pero imposibles de explicar.
 
-Post-50 (wilderness): **más** fauna, más densa, diferente por bioma.
+**Anomalías tipo**:
+- El piso del viento: solo hay viento, cabras y vista. No se pelea. No hay loot. Hay un logro oculto si nadie ataca nada.
+- El piso de la campana: una campana al centro. Tocarla invoca enemigos, pero también abre un cofre único.
+- El piso del reflejo: todo lo que el grupo hace se repite 10 segundos después en espejos. Los enemigos son los reflejos.
+- El piso de la fiesta: un pueblo preparado para una celebración. No hay nadie. La música sigue sonando.
+
+### Tier V — Mito (Pisos 96–100)
+
+**Filosofía**: Cierre. Callback al Piso 1. Descenso final. Cinco pisos **fijos**, escritos a mano, sin pool.
+
+| Piso | Nombre (working) | Función | Nota |
+|---|---|---|---|
+| **96** | **Pradera Marchita** | Callback | La pradera del Piso 1, corrompida. El puesto fortificado en ruinas, los NPCs ausentes, el diamante del techo apagado. La carreta del mercader está, quemada. |
+| **97** | **Abismo Abismal** | Transición | Caída visual, no literal. Descenso por capas de luz. Sin enemigos, solo silencio. |
+| **98** | **Umbral Inicial** | Descanso raro | Un hall vacío con sillas y velas. Nadie. Solo los jugadores. Una última conversación de party antes del final. |
+| **99** | **Archipiélago Celeste** | Exploración mágica | Islas flotantes conectadas por puentes de liana y raíces colgantes que se mecen. Cascadas cayendo al vacío bajo los pies. Luz dorada flotando en el aire, motas brillantes, viento suave. Magia pura visible — no hostil, bella. Combate ligero opcional con criaturas espirituales pacíficas a menos que se las provoque. **Atravesable solo por un jugador muy farmeado**. Navegación y verticalidad son el desafío, no el combate. |
+| **100** | **Santuario del Umbral** | Boss final | La pelea final. Arena épica. Callback visual a la Pradera pero invertido. Completable en solo con gear endgame; la cooperación facilita pero nunca es requisito. |
 
 ---
 
-## 15. Boss del Piso 1 — El Trono Viscoso
+## 7. Curva emocional del ascenso (la partitura)
 
-### Lore
-Fue un rey olvidado. Los slimes invadieron la sala del trono y **se lo tragaron** — a él, a la corte, al trono. El slime gigante tiene **la corona y el esqueleto del rey visibles dentro del gel**. Los mini-slimes son "recuerdos" del rey con fragmentos de la corte dentro.
+Esta es la "línea melódica" del juego. Sirve para saber qué emoción debería dominar cada tramo.
 
-### Arena: "El Salón del Trono Devorado"
-- Sala del trono 80×80m, mármol blanco, alfombra roja central
-- 6 pilares de mármol (cobertura para mecánicas) cubiertos de gel seco
-- 6 antorchas vivas con luz naranja cálida
-- Banderas verdes rotas colgando
-- Espejos grandes en las paredes laterales
-- Estrado elevado con el trono real semi-cubierto de slime
-- **Portal de salida FLOTA sobre el trono** — inactivo hasta matar al boss
-- Puertas gigantes detrás del jugador **se cierran al entrar** (no hay escape)
-- Esqueletos de guardias por el suelo como decoración lore
-- Contraste dramático: cálido de antorchas + frío azul del portal
+```
+Pisos 1–10     ▁▂▃▁▂▃     descubrimiento, primera sorpresa, primer amigo
+Pisos 11–25    ▃▄▅▃▄▆     aventura establecida, primeros descansos buenos, P25 alivio
+Pisos 26–40    ▅▄▃▄▅▄     mundo más raro, melancolía entra, ruinas
+Pisos 41–50    ▆▅▄▅▇     frontera, despedida emocional, P50 última luz
+Pisos 51–60    ▂▃▄▅      soledad, readaptación, wilderness
+Pisos 61–75    ▄▅▆▄▅     supervivencia establecida, belleza dura
+Pisos 76–85    ▃▆▂▇▃     anomalía entra, ritmo roto a propósito
+Pisos 86–95    ▆▃▇▂▆     belleza torcida, pisos memorables
+Pisos 96–100   ▁▂▇▁█    cierre, silencio, clímax, silencio final
+```
 
-### Visual del boss
-- 3m de alto, gel verde oscuro translúcido
-- **Corona dorada visible flotando dentro del gel**
-- Esqueleto coronado dentro del slime (el rey poseyéndolo)
-- Fase 4: la corona brilla como queriendo salir
-- Al morir: el gel se derrama, el esqueleto cae con la corona puesta, el portal se activa
-
-### Stats
-HP 600, DMG 10, DEF 8, XP 100. Duración objetivo ~3 minutos.
-
-### Mecánicas por fase
-
-**Fase 1 (100-75%) — Aprendizaje**
-- Rebote: salta y aterriza sobre el jugador (telegraph: sombra 1.5s)
-- Embestida: rueda hacia el jugador
-- Escupitajo: bola de slime (mira verde en el suelo 1s antes)
-
-**Fase 2 (75-50%) — División**
-- Todo lo anterior +
-- Invoca **3 mini slimes reales** con objetos distintivos dentro (casco, capa roja, cascabel, copa, pergamino)
-- Los mini slimes VIVOS pueden ser **reabsorbidos** al tocar al boss → le curan HP
-- Escupitajo mejorado: 3 bolas en abanico
-
-**Fase 3 (50-25%) — Tormenta de Gelatina**
-- Combo de 3 saltos seguidos más rápidos
-- Al aterrizar deja **charco ácido** (DoT 3/s por 5s, radio 2m)
-- Invoca 5 mini slimes cada 15s
-- Oleada pegajosa 360° baja al suelo (saltable)
-
-**Fase 4 (25-0%) — Desesperación**
-- Velocidad +50%, todos los ataques más rápidos
-- Explosión periódica cada 10s (AoE 5m — alejarse o usar pilares)
-- Al llegar a 5% HP se infla 3s y **explota** (AoE 8m, alto daño — último aliento)
-- No invoca más slimes en esta fase
-
-### Mini slimes reales (5 tipos, cosméticos distintivos)
-| Tipo | Item visible dentro |
-|------|---------------------|
-| Guardián | Casco pequeño |
-| Cortesano | Capa roja ondulante |
-| Bufón | Cascabel dorado (tintinea) |
-| Copero | Copa de oro |
-| Escriba | Pergamino enrollado |
-
-Coleccionar los 5 = logro secreto **"Corte Disuelta"**.
-
-### Drops del boss
-- **Corona del Rey Olvidado** (100%) — headgear épico, INT+5, MP+20
-- **Gelatina Real** (100%, x2-3) — material crafting raro
-- **Cetro del Trono Viscoso** (5%) — arma legendaria para mago
-- **Capa del Último Rey** (15%) — capa épica DEF+8
-- **Anillo del Monarca** (20%) — accesorio raro
-- **Diario del Rey** (30%) — quest item / lore
+**Interpretación**: los picos son momentos fuertes, los valles son respiros. Ningún tramo es constante. Un tramo 100% combate aburre; un tramo 100% calma se vuelve indistinto. La alternancia es el contenido.
 
 ---
 
-## 16. Intro del juego — kinetic typography con capas de profundidad
+## 8. Sistemas que definen el ADN del juego
 
-**Inspiración**: una guía con efecto visual donde el texto flowea estilo revista y un **dragón se mueve a través del texto** (efecto parallax, dragón pasa entre capas de letras).
+Estas no son features — son **los sistemas que hacen que Dungeon Party sea Dungeon Party y no otro dungeon crawler**. Tocarlos con mucho cuidado.
 
-**Técnica**:
-- Dos (o más) capas de texto en diferentes Z
-- Dragón (Sprite3D o MeshInstance) se mueve entre las capas
-- El ojo completa la ilusión de que el dragón pasa "por encima y por debajo"
+### 8.1 Contribución ponderada del loot (pilar mecánico)
+El sistema de rareza del loot en grupo usa **contribución ponderada** (daño × 1.0 + tankeado × 0.2 + curación × 0.15). Es el único ARPG mainstream que lo hace así. Premia a los 4 roles. Sin esto, los healers y tanks no tienen razón de existir en el juego, y el pilar "coordinación es poder" se cae.
 
-**Dónde usarlo**: intro con "Another Game of Dungeon" animado, dragón/slime pasando entre letras. También transiciones entre pisos.
+### 8.2 Celebración de enemigos al downed
+Cuando un jugador cae, **los enemigos del área celebran 15 segundos antes de seguir atacando**. Cada enemigo celebra distinto (slime bailando, lobo aullando, bandido con taunt obsceno). Esto:
+- Da ventana natural de revive.
+- Reduce frustración (no hay chain-kill).
+- Da personalidad a cada enemigo.
+- Es **único en el género**. Nadie lo hace.
+
+### 8.3 Carro cooperativo tirado por cabras
+4 jugadores en una carreta de cabras en zonas abiertas: 1 conduce, los demás pelean, curan o hacen escudos mágicos. Es la **"cinemática viviente"** del juego — contenido que nadie en el género coop tiene. Exclusivo de tramos abiertos (Tiers I–III externos).
+
+### 8.4 Plaza de los Juicios (Among Us medieval)
+Sistema de juicios cómicos entre jugadores. Castigos cosméticos (guillotina Monty Python, cepo con tomates, miniaturización, piedra de la vergüenza). Sin pérdida real. Opt-out en settings. Es **humor diegético**, no minijuego pegado con cinta.
+
+### 8.5 Cristal Cantor
+Boombox diegético medieval. Items mágicos que reproducen música grabada por bardos. Tipos: del Héroe, del Descanso, del Baile, Prohibido, del Amor. Cada uno con efecto ambiental distinto. Referencia: Lethal Company adaptado a fantasía.
+
+### 8.6 Stash per-account + inventario per-character
+Loop extracción: **Prepare → Risk → Return → Bank → Repeat**. El stash está en safe zones (Piso 1 outpost, 25, 50). El inventario muere con el personaje. Esto crea tensión real sin ser frustrante — siempre podés guardar antes del run.
+
+### 8.7 Fauna ambiental (mariposas, pájaros, ardillas, peces)
+No pelean, no dropean loot, no colliden. **Son decorativos pero obligatorios**. Sin esto, el mundo se siente muerto. Skyrim y BOTW enseñaron esta lección.
+
+### 8.8 Luz como recurso
+Antorchas, linternas, orbes arcanos, hongos bioluminiscentes. Tecla F para quick-swap. Biomas con zonas oscuras donde uno del grupo **tiene que llevar luz** mientras otro pelea. Coordinación que no es DPS.
+
+### 8.9 Pausa que no pausa
+El menú de pausa solo libera el mouse. **No congela el juego**, porque es coop online. Esto es canon y **no se discute** — fue validado por el diseño del juego entero.
+
+### 8.10 Los Retirados (spoiler vivo del futuro)
+En algunos pisos aparecen, muy ocasionalmente, **criaturas de tiers futuros en estado degradado** — viejos, heridos, olvidados, perdidos. Un demonio del Tier IV que vagabundea por un bosque del Tier I, cansado y sin voluntad de pelear. Un golem del Tier III durmiendo en una ruina del Tier II. Una criatura astral del Tier IV atrapada en un altar del Tier I, parpadeando como si no entendiera dónde está.
+
+**Reglas**:
+- Son **mucho más débiles** que sus versiones del tier original — pelean al nivel del piso donde aparecen, no al suyo.
+- Son **encuentros raros**, no frecuentes. Un jugador puede pasar 20 runs sin ver a uno.
+- Drop: un item cosmético único, un fragmento de lore, o simplemente una imagen memorable.
+- Algunos no atacan al jugador a menos que se los ataque primero — solo miran, se alejan, desaparecen.
+- Cada uno tiene un **nombre** y una **frase de diario** en el codex (worldbuilding).
+
+**Why**: Da un spoiler suave de lo que viene más arriba sin romper la sorpresa. Refuerza la idea de que la torre es **vieja**, que otras cosas pasaron antes del jugador, que el mundo no gira alrededor de él. Referencia: los demonios ancianos de Frieren.
+
+**How to apply**: Cada tier tiene 3–5 "Retirados" catalogados. Aparecen en pisos aleatorios del tier inferior con baja probabilidad. Cuando un jugador los encuentra, el codex los registra. Coleccionar los Retirados = logro + título.
+
+### 8.11 Sub-dungeons (mazmorras dentro de pisos)
+Un piso abierto (600×600m) puede contener la **entrada a una sub-dungeon**: una mazmorra más cerrada y corta, con sus propias reglas, un minijefe, y un tesoro especial. **Opcional siempre** — el jugador puede ignorarla y seguir al siguiente piso.
+
+**Ejemplos**:
+- **Piso de hielo**: entrada a una **cueva de cristal preciosa** con ecos que atraen enemigos, un minijefe guardián, y un cofre único con un item de aire frío.
+- **Piso de pradera (variante)**: una madriguera de bandidos con un líder local, prisioneros y un mapa parcial del piso.
+- **Piso de bosque**: árbol hueco con cámara secreta, telarañas gigantes, minijefe araña.
+- **Piso de ruinas**: cámara subterránea con trampas y un altar activo.
+
+**Reglas de diseño**:
+- Una sub-dungeon tiene **máximo 3–5 salas** y un boss menor. No son pisos completos — son "cápsulas" opcionales.
+- Su identidad mecánica debe ser **distinta** del piso que la contiene (si el piso es abierto, la sub-dungeon es cerrada; si el piso es de día, la sub-dungeon es oscura).
+- Siempre dan una **recompensa exclusiva**: item, lore, shortcut, o acceso a contenido que no existe en el piso abierto.
+- La entrada no está siempre visible — puede estar señalada por una tumba, una grieta, una antorcha extraña, un cadáver junto a una puerta.
+
+**Why**: Extiende la vida de cada piso sin inflar el tamaño del mapa. Premia la exploración real. Permite meter terror contenido o mecánicas específicas sin obligar a todo el piso a sostenerlas.
+
+### 8.14 Pool de bosses con narrativa compartida (post-MVP)
+Cada tier arranca con **un solo boss** para el MVP (Tier I = Trono Viscoso). Post-lanzamiento, cada tier expande su pool hasta tener **3 bosses alternativos** que el seed elige por run. Pero no son 3 bosses sueltos: son **variantes narrativamente conectadas** — el juego usa el pool para contar una historia de degradación del mundo.
+
+**Patrón**: cada trío de bosses del mismo tier representa **distintos momentos del mismo arco**. Una criatura con 3 cabezas en su plenitud → con 2 cabezas (herida) → con 1 cabeza (anciana y sola). O una familia real: rey → reina → príncipe. O un edificio entero: sano → saqueado → devorado.
+
+**Ejemplos concretos para el Tier I** (post-MVP):
+- **Trono Viscoso** (MVP canon) — rey tragado por slime, 1 corona visible, salón del trono devorado.
+- **La Corte Disuelta** (variante) — 3 mini-bosses simultáneos en el mismo salón: Guardián (tanque), Bufón (mobilidad) y Escriba (mago). Son los cortesanos del rey, los mismos que aparecen como mini slimes del boss MVP. Arena: el mismo salón del trono pero iluminado distinto.
+- **El Eco del Rey** (variante) — un boss puramente mágico: el slime ya no tiene rey adentro, solo un fantasma verde con forma de corona. Pelea a distancia, proyectiles de memoria, arena en una versión medio derruida del salón del trono. Es "el slime olvidó a su rey".
+
+**Why**: tres runs seguidas contra el Trono Viscoso cansan. Tres runs contra variantes narrativas de la misma historia **construyen worldbuilding**. El jugador entiende que "algo pasa" en el salón del trono, que la torre es vieja, que las cosas cambian entre runs. Refuerza el pilar de "mundo que respira".
+
+**How to apply**:
+- Para el MVP: **1 boss por tier** (Trono Viscoso para Tier I).
+- Primer content update post-lanzamiento: **+1 boss por tier** (total 2).
+- Segundo update: **+1 boss por tier** (total 3 por tier = 15 bosses totales entre los 5 tiers del juego).
+- Cada nuevo boss **debe estar narrativamente conectado** al anterior, no ser un boss random nuevo.
+- El trío del Tier V (P100 final) se diseña distinto — es un boss único escrito a mano, no un pool.
+
+### 8.13 Dirección MMORPG — diseño instance-safe
+El juego apunta eventualmente a **MMORPG**. Todo el diseño de contenido — pisos, NPCs, eventos, sub-dungeons, misiones emergentes — debe asumir que **habrá múltiples grupos en la torre al mismo tiempo**. Esto tiene consecuencias concretas:
+
+- **Ninguna feature asume un solo grupo**. Si un evento dinámico puede ejecutarse a la vez por 10 grupos distintos, el diseño debe soportar eso (instancing, cooldown por grupo, o contenido compartido con reglas claras).
+- **Las UI nunca pausan el juego con `get_tree().paused = true`**. Nunca. Es coop/MMO. Esta es una prohibición absoluta (ver §9 #14).
+- **Las safe zones 25 y 50 deben soportar docenas de jugadores al mismo tiempo** — son hub social. Los NPCs, mercaderes y Plaza de los Juicios deben escalar.
+- **Las sub-dungeons son instanced por grupo** (cada party entra a su propia copia) mientras que los pisos abiertos pueden ser shared o instanced según el diseño de cada uno.
+- **Los Retirados son únicos por grupo** (si dos grupos lo ven, cada uno lo ve en su instancia) — no es contenido compartido entre runs.
+- **Las misiones emergentes son por grupo** — el NPC herido no se comparte entre 5 parties distintas.
+
+**Why**: cambiar el modelo de "1 grupo" a "N grupos" después de tener el juego construido es mucho más caro que diseñar instance-safe desde el principio. Marcar deuda técnica con tag `MMO-DEBT` cuando algo no se pueda resolver instance-safe todavía.
+
+### 8.12 Misiones emergentes (NPCs heridos y rescates)
+Mientras el jugador explora un piso puede encontrarse con **NPCs en situaciones narrativas** que abren quests emergentes:
+
+**Arquetipos**:
+- **El herido en el camino**: un aventurero tirado contra un árbol. "Nos emboscaron. Se llevaron a mi hermana a una cueva al norte." → marca la sub-dungeon de rescate en el mapa.
+- **El buhonero desesperado**: "Me robaron la carreta los bandidos. Si la recuperás te doy lo que quieras." → escolta o rescate.
+- **El guardia que no vuelve**: el capitán del outpost pide que busquen a un guardia que salió de patrulla y no regresó → cadáver + item que lleva de vuelta al outpost → recompensa.
+- **El niño perdido**: un chico llorando en el camino dice que sus papás se metieron a una cueva hace horas → sub-dungeon de rescate, tiempo opcional.
+- **La vidente ciega**: una NPC que aparece en pisos raros, pide un item específico, da un rumor verdadero sobre un piso futuro.
+
+**Reglas**:
+- Son **emergentes**, no fijas. Aparecen por seed del piso, con probabilidad baja-media.
+- **Opcionales siempre**. El jugador puede ignorarlas sin consecuencia.
+- **Encadenan** con sub-dungeons, rescates, eventos o loot único.
+- **Nunca bloquean** el avance al siguiente piso.
+- Algunas tienen **consecuencias narrativas**: un NPC rescatado puede volver a aparecer en el outpost del Piso 1 con un item de agradecimiento.
+
+**Why**: Worldbuilding que respira. Cada run se siente distinta no solo por el layout sino por las historias pequeñas que el jugador elige vivir o ignorar. Referencia: las misiones de Skyrim y Breath of the Wild que aparecen sin marcadores ni cinemáticas, solo con un NPC hablando.
 
 ---
 
-## 17. MVP — Fase 1 prioritaria
+## 9. Prohibiciones de diseño (qué NO hacer)
 
-1. Movimiento first-person ✅
-2. 2-5 clases funcionales ✅ (Warrior, Mage, Archer, Necro, Cleric en prototipo)
-3. 2-3 tipos de enemigo con IA ✅ (slime, bandit_melee, bandit_archer, más)
-4. **1 piso completo** (Pradera) + **1 boss** (El Trono Viscoso)
-5. Sistema vida/muerte con pérdida de loot
-6. Loot básico + raridades ✅
-7. Taverna simple (lobby)
-8. Multiplayer 2 jugadores (Steam)
-9. Guardado de perfil local ✅
+Estas son líneas rojas. Si una idea las cruza, se rechaza sin debate.
 
-### Requisitos mínimos para salir de Early Access
-- Core loop funcionando (entrar → pelear → lootear → equipar → progresar)
-- 5-10 horas de contenido mínimo
-- Multiplayer coop básico
-- 1 piso completo con boss
-- Estabilidad 30+ min sin crashes
-- Settings menu (resolución, volumen, keybinds)
-
-### NO necesario para EA
-100 pisos, todas las clases, gráficos pulidos, todo el GDD. EA es para iterar con feedback.
+1. **No demonios cliché** (rojos con cuernos). Referencia Frieren: cada criatura es única, con ojos extraños y proporciones sutilmente mal.
+2. **No escalar dificultad por número de jugadores**. La dificultad es fija. La coordinación es la variable.
+3. **No pausa global**. Es coop online.
+4. **No doble castigo**. La durabilidad no rompe items permanentemente. La tensión viene de perder loot al morir, no de acumulación de castigos.
+5. **No minijuegos pegados con cinta**. Toda actividad social debe ser **diegética**: tiene NPC, lore, razón para existir en el mundo.
+6. **No hardcodear layouts de piso**. Todo usa seeds + POIs procedurales. Nunca asumir "el árbol está en x, y".
+7. **No loot igualitario random**. La contribución ponderada existe por una razón. Un Archer con 0 rareza no gana únicos sin importar cuánto pegue.
+8. **No raridad Épica**. Solo Común (blanco), Raro (azul), Mágico (amarillo), Único (rojo vino). Esto es canon.
+9. **No mundo muerto**. Cada piso debe tener al menos algo vivo visual aunque sea decorativo (mariposa, ave, pez, ardilla).
+10. **No grimdark gore**. Si hay terror, es terror de extrañeza y pérdida, nunca de sangre y tripas.
+11. **No romper el techo de caverna**. La torre es un interior gigantesco. El sol es un diamante. Esto es canon visual.
+12. **No trailer prematuro**. Hasta que el juego se vea pulido, no se arma trailer. El marketing espera.
+13. **No contenido bloqueado por composición de grupo**. El juego es cooperativo, no cooperativo-forzado. Un jugador dispuesto a farmear debe poder llegar al Piso 100 y cerrar la torre solo. La cooperación hace las cosas más fáciles, más memorables y más divertidas — **nunca posibles vs imposibles**. Puzzles, bosses y mecánicas de piso pueden premiar al grupo, pero nunca bloquear al solo.
+14. **Nada pausa el juego. Jamás.** Ninguna UI, ninguna ventana, ningún menú usa `get_tree().paused = true`. Es coop/MMORPG — pausar un jugador detendría a los demás. Las ventanas solo liberan el mouse. Esto es absoluto y no se discute.
 
 ---
 
-## 18. Filosofía de diseño (lo que le gusta y rechaza el usuario)
+## 10. Principios de diseño de mapas (los 12)
 
-### Le gusta / quiere
-- **Profundidad narrativa** en sistemas, no grinding
-- **Referencias de anime** (Frieren, Shield Hero, Made in Abyss, SAO, Danmachi, Kimetsu)
-- **Sistemas diegéticos**: minijuegos integrados en el mundo, no UI pegada
-- **Contenido único que nadie más tiene**: carro cooperativo, juicios medievales
-- **Vínculos emocionales**: pets > DPS, mount bonding, compañeros que evolucionan
-- **Belleza melancólica**: paleta pastel cálida, atmósferas nostálgicas
-- **Feedback de combate tangible**: knockback billar, slime jelly, squash muerte
-- **Mundo vivo**: NPCs, fauna pacífica, eventos dinámicos, mercaderes viajeros
+Cuando diseñes un piso, consultá esta lista. Si tu piso viola 3 o más, reescribilo.
 
-### Rechaza explícitamente
-- **Escalado por cantidad de jugadores** — la dificultad es fija, coordinación gana
-- **Doble castigo por muerte** — NO hay chance de romper al reparar (perder loot ya es suficiente)
-- **Pausa que congela el juego** — es coop online, pausa solo libera el mouse
-- **Demonios rojos con cuernos** — cliché, cada demonio único
-- **Fastidioso / frustration design** — el downed con enemigos celebrando evita chain-kills
-- **Arcade genérico pegado con cinta** — todo minijuego debe ser diegético
+1. **Cada piso debe poder resumirse en una frase.** Si no podés, no está diseñado.
+2. **Cada piso necesita una silueta mental** — un landmark que el jugador pueda dibujar después.
+3. **Una sola mecánica dominante nueva por piso.** No apilar reglas.
+4. **El piso debe prometer algo en los primeros 30–60 segundos.** Una imagen, una criatura, un sonido, una sospecha.
+5. **Los pisos de descanso son contenido real**, no relleno. Cada uno dice algo del mundo.
+6. **La rareza es especia, no base.** Máximo 1 anomalía cada 5–6 pisos en tiers I–III.
+7. **La melancolía vale tanto como el peligro.** Un piso silencioso bien hecho pega más que 3 combates.
+8. **Los pisos civilizados cuentan cómo vive la gente.** Los salvajes cuentan cómo sobrevive el mundo sin ella.
+9. **El loot empuja exploración**, no solo cae del combate. Cofres escondidos, drops de fauna, eventos dinámicos.
+10. **Los cambios de tier son cambios de civilización**, no de color. El tier II no es "el tier I pero gris".
+11. **La cooperación debe cambiar la lectura del espacio**, no solo subir DPS. Uno lleva luz, otro pelea; uno abre, otro vigila.
+12. **Un piso bueno no necesita ser enorme — necesita ser legible y deseable.** Piso 1 son 600×600m porque lo pide; un piso del tier V puede ser 100×100m si la intención lo pide.
 
-### Convenciones de trabajo
-- **Conceptos > código** — entender antes de tocar
-- **La IA es herramienta, el humano lidera**
-- **Fundaciones sólidas** (arquitectura antes que frameworks)
-- **Main = siempre bug-free**, trabajo significativo en branches
-- **Sin prisas, sin atajos** — real learning takes effort
+### Elementos inter-piso (continuidad vertical de la torre)
 
----
+La torre no es una colección de niveles sueltos — es un **lugar real con continuidad física**. Algunos elementos deben cruzar pisos para que el jugador sienta que está ascendiendo por un mismo edificio, no teletransportándose entre mundos desconectados.
 
-## 19. Publicación — Steam / Early Access
+**Ejemplos de elementos que pueden cruzar 2-3 pisos consecutivos:**
+- **Cascada**: nace en un piso alto y cae al siguiente. El jugador la ve caer en el P8, y cuando sube al P9 encuentra el nacimiento. Crea un hilo visual reconocible.
+- **Río subterráneo**: atraviesa 2-3 pisos con el mismo color de agua y la misma fauna acuática. Si pescaste en el P5, reconocés el mismo río en el P7.
+- **Raíces gigantes**: un árbol monumental del P3 tiene raíces que perforan el suelo y aparecen como estructura en el P2. El jugador conecta ambos pisos mentalmente.
+- **Veta de cristal emisivo**: una línea de cristales Vía Láctea que baja del techo y se ve en 3 pisos consecutivos con la misma curva. Da continuidad al "cielo interior" de la torre.
+- **Grieta tectónica**: una fisura enorme que parte un piso y continúa en el siguiente con un bioma distinto asomándose del otro lado — hint visual del piso que viene.
+- **Humo o niebla**: la niebla del pantano del P12 se cuela hacia el P11, creando un degradado ambiental. El jugador huele el pantano antes de llegar.
+- **Sonido**: el rugido de un boss lejano, el agua de la cascada, o la música del bardo se escuchan ANTES de llegar al piso — bleeding de audio entre pisos.
 
-- **Publisher**: dev solo en Chile
-- **Estrategia**: Early Access, no release directo
-- **Pricing**:
-  - Launch: USD $14.99
-  - Mid-EA (6 meses): USD $17.99
-  - Release 1.0: USD $19.99-24.99
-- **Payout**: Payoneer (US Virtual Bank) → cuenta chilena. Comisión total ~3%.
-- **Impuestos**: Chile tiene tratado con USA, retención federal 10% (W-8BEN).
-- **Nombre definitivo**: **Another Game of Dungeon**
-- **Trailer**: esperar hasta que el juego se vea pulido.
+**Reglas de diseño inter-piso:**
+1. No todos los pisos comparten elementos. ~30% de los pisos del pool tienen al menos 1 conexión con un piso adyacente.
+2. Las conexiones son **visuales y ambientales**, no mecánicas. El jugador no puede USAR la cascada para bajar al piso anterior (eso rompería el flujo de la torre). Solo la ve y la reconoce.
+3. Las safe zones (P25, P50) pueden tener vistas a los pisos adyacentes — ventanas, balcones, miradores — como recompensa panorámica.
+4. La conexión inter-piso más fuerte es la del **Tier V**: el P96 (Pradera Marchita) tiene elementos visuales rotos del P1 (Pradera Interior). Eso es un callback inter-tier, no solo inter-piso.
 
----
+**Impacto en el sistema procedural (seed):**
+Los elementos inter-piso son una **restricción de adyacencia** para el generador de seeds. Si el seed elige un template con cascada para el P8, entonces el P9 queda **obligado a elegir un template compatible** (uno que tenga la entrada de esa cascada). Esto se implementa así:
 
-## 20. Cómo puede ayudarte otro asistente con este documento
-
-Si le pasás este documento a otro Claude (o a cualquier asistente), pedile:
-
-### Preguntas de diseño
-- "¿Qué mecánica del Piso 2 encajaría con el bioma Bosque y el sistema de antorchas?"
-- "¿Qué enemigos únicos (no cliché Frieren-style) diseñarías para el Piso 3 Hielo?"
-- "¿Cómo balanceo los 5 tipos de mini slime del boss del Piso 1 para que ninguno sea estrictamente mejor?"
-- "¿Qué NPCs civiles agregarías al Puesto de Guardia para darle personalidad?"
-
-### Preguntas de contenido que le gusta a la gente
-- "¿Qué minijuegos diegéticos (tipo heist/chase/coop) encajarían con el bioma X?"
-- "¿Qué mecánicas del genero dungeon crawler coop están faltando en el mercado que podrían encajar acá?"
-- "¿Qué estructura de progresión de stash/loot mantiene a los jugadores enganchados long-term?"
-
-### Preguntas de ajuste/balance
-- "Dado el sistema de durabilidad y los multiplicadores por rareza, ¿cuánto oro debería dar el Piso 1 por hora para que el loop prepare → risk → return → bank sea sostenible?"
-- "¿Cómo balanceo los 6 resets máximo de un personaje para que se sienta significativo pero no frustrante?"
-
-### Preguntas creativas
-- "Inventame 5 items únicos (rojo vino) con mini-lore visual estilo Frieren — uno por clase."
-- "Diseñame una quest secundaria del Piso 1 que se sienta post-épica y melancólica."
-- "Inventame 10 títulos de personaje que un jugador puede desbloquear por comportamiento (no por stats)."
-
-### Lo que el asistente DEBE respetar
-- NO proponer escalado de dificultad por cantidad de jugadores
-- NO proponer chance de romper items al reparar
-- NO proponer pausa que congele el juego
-- NO sugerir demonios rojos cliché
-- Respetar la doble naturaleza "party RPG + party fiesta"
-- Respetar la filosofía pre-50 (civilización) vs post-50 (wilderness)
-- Mantener la estética melancólica/cálida de Frieren, no grimdark ni anime pop
+- Cada template del pool puede tener un tag `inter_floor_out` (ej: `cascada_sur`, `rio_este`, `raiz_central`) que indica qué elemento **sale** del piso hacia el siguiente.
+- Cada template puede tener un tag `inter_floor_in` (ej: `cascada_sur`, `rio_este`) que indica qué elemento **recibe** del piso anterior.
+- El generador, al armar la secuencia de pisos de un tier, primero elige los pisos sin restricción y después resuelve las conexiones: si el P8 tiene `out: cascada_sur`, el P9 debe ser un template con `in: cascada_sur` (o un template neutro sin tag `in`, que simplemente ignora la conexión).
+- **Regla de escape**: si no hay template compatible disponible en el pool, el generador puede elegir uno neutro (sin conexión). No se debe bloquear la generación por falta de match — la conexión inter-piso es un **bonus**, no un requisito absoluto.
+- Los templates con `inter_floor_in/out` deben ser ~30% del pool del tier. El 70% restante son neutros (sin conexiones) para dar libertad al seed.
 
 ---
 
-**Fin del documento.**
-Actualizado al 2026-04-10. Prototipo activo. Archivo maestro para compartir visión completa con colaboradores AI o humanos.
+## 11. Plantilla para diseñar un piso nuevo
+
+Cuando le pidas a Claude (o a quien sea) un piso nuevo, usá esta plantilla. Forzala — si la respuesta no la completa, pedila de nuevo.
+
+```yaml
+piso:
+  nombre_working: "El Lago Ciego"
+  tier: 3
+  bioma_base: "pantano_putrefacto"
+  familia: "descanso"             # combate | exploracion | descanso | evento | anomalia | umbral | boss
+  funcion: "Bajar tensión después de 3 pisos de combate en catacumbas"
+  emocion_dominante: "melancolía contemplativa"
+  landmark: "Un lago sin reflejo, con peces pálidos que nadan sin dirección"
+  lectura_espacial: "circular, alrededor del lago"
+  mecanica_distintiva: "No hay combate posible en 50m alrededor del lago — las armas se sienten pesadas"
+  recompensa:
+    - "Pescar con caña da materiales únicos del tier"
+    - "Un NPC ciego vende mapas parciales del tier"
+    - "Lore: diario en un bote"
+  peligro: "Ninguno en el lago; alrededor, un enemigo único silencioso"
+  rol_en_tier: "Contrapeso emocional entre dos tramos de combate duro"
+  vida_visual:
+    - "Peces pálidos (decorativos)"
+    - "Libélulas sobre el agua"
+    - "Un bote abandonado con lámpara encendida"
+  por_que_encaja: "El tier III es hostil — un descanso no-humano mantiene el aislamiento sin agotar al jugador"
+```
+
+Si un piso propuesto no tiene las 11 líneas completas, no está diseñado.
+
+---
+
+## 12. Cómo usar este brief con Claude (o cualquier IA)
+
+Los asistentes pierden tono rápido cuando se les dan pedidos abiertos. Las siguientes plantillas funcionan:
+
+### Pedir ideas de piso
+> "Usando `DESIGN_BRIEF.md` y `tower_biome_system.md` como canon, dame 5 ideas de piso para el **tier II (pisos 26–50)**, familia **descanso-triste**, emoción **melancolía respetuosa**. Cada idea debe completar la plantilla de 11 campos. Nada de relleno, nada de demonios genéricos. Referencia: Frieren."
+
+### Validar una idea
+> "Esta idea de piso: [idea]. ¿Viola alguna de las 12 prohibiciones? ¿Completa los 7 criterios de la gramática? ¿En qué tier encaja y por qué? Si no encaja, decime qué hay que cambiar."
+
+### Rescate de idea débil
+> "Este piso es bonito pero no juega. Dame 3 formas de darle una mecánica dominante sin traicionar su emoción ni violar los principios del brief."
+
+### Crítica dura
+> "Leé el DESIGN_BRIEF.md. Decime en qué está débil el diseño actual del juego y qué reforzaría la identidad sin agregar features nuevas."
+
+---
+
+## 13. Estado del MVP y prioridades inmediatas
+
+**Donde estamos**: vertical slice avanzado. Core loop funciona (entrar, explorar, combatir, lootear, equipar, persistir). Piso 1 jugable. 5 clases. Loot, inventario y equipamiento integrados y aplicando stats reales al combate.
+
+**Lo que falta para cerrar el MVP** (en orden de prioridad):
+1. **Testear en Godot** todo lo integrado de las últimas 3 sesiones (lighting, loot, equipment, combate con stats, persistencia post-wipe-bug).
+2. **Boss Trono Viscoso** jugable completo (diseño cerrado, implementación pendiente).
+3. **Sistema de muerte con pérdida de loot del run** (hoy solo respawna).
+4. **Stash persistente** implementado en el outpost del Piso 1.
+5. **Taverna simple como pre-lobby**.
+6. **Multiplayer Steam básico** (2 jugadores).
+7. **Options menu + settings persistentes** (en paralelo, branch `feature/options-menu`).
+8. **Polish del Round 2 de Judgment Day** (warnings menores).
+
+**Después del MVP** (expansión natural):
+- Pisos 2–25 (empezar a llenar el pool del Tier I).
+- NPCs civiles del puesto fortificado.
+- Carreta de mercader viajero con sus 5 estados.
+- Sistema de habilidades por clase (hoy solo click + mantener).
+- Safe zone Piso 25 con su contenido.
+- Pets y mounts (pre-carro coop).
+
+### Orden de diseño de contenido (canon)
+
+El diseño de contenido del juego sigue este orden **y no otro**. Saltearse un paso produce sistemas que no encajan:
+
+1. **Mapas primero**. Cada piso (o cada template del pool) se diseña con la plantilla de 11 campos del §11. Sin mapa diseñado, no se diseña nada más para ese piso.
+2. **Monstruos después del mapa**. Una vez que el mapa existe y tiene emoción, lectura espacial y mecánica dominante definida, los monstruos se diseñan **para ese contexto**. Un monstruo de hielo vive en un piso de hielo no porque sea "temático", sino porque el mapa lo necesita mecánicamente.
+3. **Retirados del piso**. Qué criaturas de tiers superiores pueden aparecer degradadas en ese piso.
+4. **Sub-dungeons**. Qué mazmorra opcional entra en el piso, con su propio minijefe y recompensa exclusiva.
+5. **Misiones emergentes**. Qué NPCs en situación pueden disparar quests en ese piso.
+6. **Eventos sociales**. Qué minijuegos, fiestas, eventos temáticos encajan con el tono del piso.
+7. **Habilidades de clase** que destaquen en ese tipo de piso (última capa — la jugabilidad de clase se ajusta al contenido, no al revés).
+
+**Why**: El orden inverso (habilidades → eventos → monstruos → mapa) produce juegos donde todo se siente pegado con cinta. El mapa es la gramática; todo lo demás es vocabulario.
+
+**Nunca antes del MVP**:
+- Pisos 26+, tiers II+.
+- Identificación de items.
+- Gemas + engarzado.
+- Ciclo día/noche.
+- Trials / Plaza de Juicios.
+- Minijuegos sociales completos.
+
+---
+
+## 14. Glosario rápido (términos internos del proyecto)
+
+- **Torre** — el edificio de 100 pisos. Interior gigante con techo de caverna y diamante emisivo.
+- **Tier** — tramo de 20–25 pisos con identidad emocional propia. Hay 5 tiers.
+- **Pool** — set de templates de piso dentro de un tier, del cual se seleccionan los pisos de cada run.
+- **Tutorial Zone** — Piso 1. Outpost con servicios básicos + pradera peligrosa al otro lado de la puerta. Aprendizaje vivo, no descanso.
+- **Safe Zone** — piso de descanso REAL con servicios completos y sin peligro adentro. Canon solo en 25 y 50.
+- **Trono Viscoso** — boss del Piso 1 (Rey Slime dentro del salón del trono devorado).
+- **Outpost** — el puesto fortificado en la pradera con guardias, NPCs, stash, comercio.
+- **Retirados** — criaturas de tiers futuros que aparecen degradadas/viejas en pisos inferiores como spoiler vivo.
+- **Sub-dungeon** — mazmorra opcional corta (3–5 salas + minijefe) escondida dentro de un piso abierto.
+- **Misión emergente** — quest opcional disparada por un NPC en situación (herido, robado, perdido). Encadena con sub-dungeons o rescates.
+- **Contribución ponderada** — el sistema de rareza de loot en grupo.
+- **Downed** — estado del jugador caído antes de morir. 30s. Los enemigos celebran.
+- **Celebración** — animación de los enemigos cuando alguien queda downed. 15s.
+- **Diegético** — que pertenece al mundo del juego, no pegado por encima. Los minijuegos tienen que serlo.
+- **Road/wilderness** — filosofía de diseño de tramos: 1–50 caminos, 51–100 sin caminos.
+- **Carro coop** — la carreta de cabras con 4 jugadores. Contenido único del género.
+- **Cristal Cantor** — el boombox diegético.
+- **Plaza de los Juicios** — el sistema de juicios entre jugadores, cómico, opt-out.
+- **The Lost / El Perdido** — clase degenerada por resetear 6 veces.
+- **Kinetic typography** — intro con texto + dragón entre capas de profundidad.
+
+---
+
+## 15. Notas finales
+
+Este brief es el **alma del juego en texto**. Si alguna vez tenés que reiniciar una sesión con una IA y solo podés pasar un archivo, pasá este.
+
+El GDD dice qué hace el juego. Este brief dice **por qué** lo hace, **a quién** le debe importar y **qué lo hace diferente** de los otros 300 dungeon crawlers de Steam.
+
+El juego tiene algo que casi ningún juego coop del género tiene: **alma melancólica**, **humor cálido** y **hermandad real**. Defenderlo de la generalización genérica es el trabajo más importante del diseño.
+
+Si en algún momento este brief choca con el instinto de "hagamos lo que hacen los otros", ganar el choque es el trabajo.
+
+---
+
+*Documento vivo. Actualizar cuando cambia la visión, no cuando cambian las features.*
