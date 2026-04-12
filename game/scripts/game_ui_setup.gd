@@ -32,13 +32,17 @@ static func setup_ui(parent: Node) -> void:
 	parent.add_child(inv_ui)
 
 
-## Da arma inicial + poción + antorcha si el inventario está vacío (personaje nuevo).
-## Se llama después de que el player corrió _setup_inventory().
+## Da arma inicial + poción + antorcha UNA SOLA VEZ por personaje.
+## Usa un flag "starter_granted" en el save para no repetir al respawnear/recargar.
 static func grant_starter_items(class_scene_path: String) -> void:
 	if GameManager.player_inventory == null:
 		return
-	if not GameManager.player_inventory.items.is_empty():
-		return
+	# Chequear si ya se dieron los starter items a este personaje (persiste en save)
+	var idx := GameManager.selected_character_index
+	if idx >= 0:
+		var char_data := SaveManager.get_character(idx)
+		if char_data.get("starter_granted", false):
+			return
 
 	var weapon: String = CLASS_STARTER_WEAPON.get(class_scene_path, "")
 	if weapon != "":
@@ -48,3 +52,7 @@ static func grant_starter_items(class_scene_path: String) -> void:
 
 	GameManager.player_inventory.auto_place_item("potion_hp_small", 2)
 	GameManager.player_inventory.auto_place_item("torch_wood", 3)
+
+	# Marcar como otorgado en el save — nunca más se repite
+	if idx >= 0:
+		SaveManager.update_character(idx, {"starter_granted": true})

@@ -19,12 +19,22 @@ var _player: Node = null  # Referencia al jugador vinculado a este HUD
 var _pickup_hint_panel: PanelContainer
 var _pickup_hint_label: Label
 
+# Target frame — panel estilo MMO para el enemigo apuntado con el crosshair
+var _target_panel: PanelContainer
+var _target_name_label: Label
+var _target_tier_label: Label
+var _target_hp_bar: ProgressBar
+var _target_hp_label: Label
+var _current_target: Node = null  # referencia al BaseEnemy apuntado
+var _target_hide_timer := 0.0     # se oculta 1.5s después de dejar de apuntar
+
 func _ready() -> void:
 	add_to_group("hud")
 	death_screen.visible = false
 	stat_indicator.visible = false
 	level_up_label.visible = false
 	_build_pickup_hint()
+	_build_target_frame()
 
 
 func _build_pickup_hint() -> void:
@@ -77,6 +87,167 @@ func set_pickup_hint_visible(available: bool, text: String = "") -> void:
 	if available and text != "":
 		_pickup_hint_label.text = text
 	_pickup_hint_panel.visible = available
+
+
+# ---------------------------------------------------------------------------
+# Target Frame — panel estilo MMO (Metin 2 / WoW) arriba-centro
+# ---------------------------------------------------------------------------
+func _build_target_frame() -> void:
+	_target_panel = PanelContainer.new()
+	_target_panel.name = "TargetFrame"
+	_target_panel.anchor_left = 0.5
+	_target_panel.anchor_right = 0.5
+	_target_panel.anchor_top = 0.0
+	_target_panel.anchor_bottom = 0.0
+	_target_panel.offset_left = -160
+	_target_panel.offset_right = 160
+	_target_panel.offset_top = 16
+	_target_panel.offset_bottom = 90
+	_target_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_target_panel.visible = false
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.05, 0.08, 0.85)
+	style.border_color = Color(0.6, 0.3, 0.3, 0.9)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	_target_panel.add_theme_stylebox_override("panel", style)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_target_panel.add_child(vbox)
+
+	# Fila 1: Nombre + Tier badge
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(header)
+
+	_target_name_label = Label.new()
+	_target_name_label.add_theme_font_size_override("font_size", 15)
+	_target_name_label.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
+	_target_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_target_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(_target_name_label)
+
+	_target_tier_label = Label.new()
+	_target_tier_label.add_theme_font_size_override("font_size", 12)
+	_target_tier_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.5))
+	_target_tier_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(_target_tier_label)
+
+	# Fila 2: HP bar con label
+	var hp_container := Control.new()
+	hp_container.custom_minimum_size = Vector2(0, 20)
+	hp_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(hp_container)
+
+	_target_hp_bar = ProgressBar.new()
+	_target_hp_bar.layout_mode = 1
+	_target_hp_bar.anchor_right = 1.0
+	_target_hp_bar.anchor_bottom = 1.0
+	_target_hp_bar.show_percentage = false
+	_target_hp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var hp_bg := StyleBoxFlat.new()
+	hp_bg.bg_color = Color(0.2, 0.05, 0.05, 0.8)
+	hp_bg.corner_radius_top_left = 3
+	hp_bg.corner_radius_top_right = 3
+	hp_bg.corner_radius_bottom_left = 3
+	hp_bg.corner_radius_bottom_right = 3
+	var hp_fill := StyleBoxFlat.new()
+	hp_fill.bg_color = Color(0.8, 0.15, 0.15, 1)
+	hp_fill.corner_radius_top_left = 3
+	hp_fill.corner_radius_top_right = 3
+	hp_fill.corner_radius_bottom_left = 3
+	hp_fill.corner_radius_bottom_right = 3
+	_target_hp_bar.add_theme_stylebox_override("background", hp_bg)
+	_target_hp_bar.add_theme_stylebox_override("fill", hp_fill)
+	hp_container.add_child(_target_hp_bar)
+
+	_target_hp_label = Label.new()
+	_target_hp_label.layout_mode = 1
+	_target_hp_label.anchor_right = 1.0
+	_target_hp_label.anchor_bottom = 1.0
+	_target_hp_label.add_theme_font_size_override("font_size", 11)
+	_target_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_target_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_target_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_container.add_child(_target_hp_label)
+
+	$HUDContainer.add_child(_target_panel)
+
+
+func _process(delta: float) -> void:
+	# Actualizar HP bar en vivo si hay un target
+	if _current_target != null:
+		if not is_instance_valid(_current_target) or _current_target.is_dead:
+			clear_target()
+			return
+		_target_hp_bar.value = _current_target.health
+		_target_hp_label.text = "%d/%d" % [int(_current_target.health), int(_current_target._max_health)]
+
+		# Color dinámico de la HP bar según porcentaje
+		var hp_ratio: float = _current_target.health / _current_target._max_health if _current_target._max_health > 0 else 0.0
+		var fill_style: StyleBoxFlat = _target_hp_bar.get_theme_stylebox("fill") as StyleBoxFlat
+		if fill_style:
+			if hp_ratio > 0.5:
+				fill_style.bg_color = Color(0.2, 0.8, 0.2, 1)  # verde
+			elif hp_ratio > 0.25:
+				fill_style.bg_color = Color(0.9, 0.8, 0.1, 1)  # amarillo
+			else:
+				fill_style.bg_color = Color(0.8, 0.15, 0.15, 1)  # rojo
+
+	# Timer de ocultamiento suave (1.5s después de dejar de apuntar)
+	if _target_panel.visible and _current_target == null:
+		_target_hide_timer -= delta
+		if _target_hide_timer <= 0:
+			_target_panel.visible = false
+
+
+## Llamado desde base_player cuando el crosshair raycast detecta un enemigo.
+func set_target(enemy: Node) -> void:
+	if _target_panel == null:
+		return
+	_current_target = enemy
+	_target_hide_timer = 1.5
+
+	_target_name_label.text = "%s  Lv.%d" % [enemy.get_display_name(), enemy.enemy_level]
+	_target_tier_label.text = enemy.get_tier_label()
+	_target_hp_bar.max_value = enemy._max_health
+	_target_hp_bar.value = enemy.health
+	_target_hp_label.text = "%d/%d" % [int(enemy.health), int(enemy._max_health)]
+	_target_panel.visible = true
+
+	# Border color según sub-tier
+	var panel_style: StyleBoxFlat = _target_panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if panel_style:
+		match enemy.sub_tier:
+			BaseEnemy.SubTier.A:
+				panel_style.border_color = Color(0.5, 0.5, 0.5, 0.9)    # gris
+			BaseEnemy.SubTier.B:
+				panel_style.border_color = Color(0.3, 0.5, 0.8, 0.9)    # azul
+			BaseEnemy.SubTier.C:
+				panel_style.border_color = Color(0.8, 0.6, 0.1, 0.9)    # amarillo
+			BaseEnemy.SubTier.BOSS:
+				panel_style.border_color = Color(0.8, 0.15, 0.15, 0.9)  # rojo
+
+
+## Llamado cuando el crosshair deja de apuntar a un enemigo.
+func clear_target() -> void:
+	_current_target = null
+	# No ocultar inmediatamente — dejar el timer de 1.5s
 
 
 ## Llamar desde main.gd después de instanciar al jugador.

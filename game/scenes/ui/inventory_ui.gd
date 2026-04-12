@@ -19,6 +19,9 @@ var _drag_cancelled := false   # set por _unhandled_key_input si se presiona Esc
 # Click-to-toggle — click agarra el item, click en otra celda lo suelta
 var _held_entry: Dictionary = {}
 
+# Preview de destino al arrastrar — muestra borde donde caería el item
+var _drag_preview_item_id: String = ""  # id del item siendo arrastrado (para saber su grid_size)
+
 # Referencia al jugador conectado a equipment_changed — para poder desconectar
 var _connected_player: Node = null
 
@@ -81,6 +84,8 @@ func _process(_delta: float) -> void:
 	var is_dragging := get_viewport().gui_is_dragging()
 	if _was_dragging and not is_dragging:
 		_handle_drag_end()
+		_drag_preview_item_id = ""
+		_grid_panel.queue_redraw()
 	_was_dragging = is_dragging
 
 
@@ -261,6 +266,24 @@ func _draw_grid() -> void:
 		var rect := Rect2(_hovered_pos.x * cell_size, _hovered_pos.y * cell_size, cell_size, cell_size)
 		_grid_panel.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.08))
 
+	# Preview de destino al arrastrar — borde verde (cabe) / rojo (no cabe)
+	if _drag_preview_item_id != "" and _hovered_pos.x >= 0:
+		var preview_data: Dictionary = ItemDatabase.get_item(_drag_preview_item_id)
+		if not preview_data.is_empty():
+			var psize: Vector2i = preview_data["grid_size"]
+			var preview_rect := Rect2(
+				_hovered_pos.x * cell_size,
+				_hovered_pos.y * cell_size,
+				psize.x * cell_size,
+				psize.y * cell_size
+			)
+			var fits := (_hovered_pos.x + psize.x <= grid_cols and _hovered_pos.y + psize.y <= grid_rows)
+			var border_col: Color = Color(0.2, 0.9, 0.3, 0.7) if fits else Color(0.9, 0.2, 0.2, 0.7)
+			_grid_panel.draw_rect(preview_rect, border_col, false, 2)
+			if fits:
+				var fill := Color(0.2, 0.9, 0.3, 0.08)
+				_grid_panel.draw_rect(preview_rect, fill)
+
 	# Items colocados
 	var drawn_ids: Array = []
 	for entry in inventory.items:
@@ -424,6 +447,8 @@ func _grid_get_drag_data(at_position: Vector2) -> Variant:
 	_tooltip.visible = false
 	# Si había un item "agarrado" por click, el drag lo anula
 	_held_entry = {}
+	# Guardar id para dibujar preview de destino en el grid
+	_drag_preview_item_id = entry["item_id"]
 
 	var drag_data := {
 		"source": "inventory_grid",

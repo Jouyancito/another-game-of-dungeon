@@ -28,6 +28,8 @@ knockback_resistance = 0.3
 
 display_name = "Bandido"
 enemy_level = 1
+enemy_tier = 1
+sub_tier = 1
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
