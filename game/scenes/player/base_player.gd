@@ -310,7 +310,7 @@ func _load_character_stats() -> void:
 			stat_points = data.get("stat_points", 0)
 			level = data.get("level", 1)
 			xp = data.get("xp", 0.0)
-			xp_to_next_level = 100.0 * pow(1.15, level - 1)
+			xp_to_next_level = Progression.xp_for_level(level)
 			return
 	# Sin personaje guardado: usar CLASS_DEFAULTS según la escena
 	var scene_path = GameManager.selected_class_scene
@@ -326,8 +326,8 @@ func recalculate_stats() -> void:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_vit: int = vit_stat + int(bonus.get("vit", 0))
 	var total_int: int = int_stat + int(bonus.get("int", 0))
-	max_health = base_health + (total_vit * 5)
-	max_mana = base_mana + (total_int * 3)
+	max_health = Progression.max_health(base_health, total_vit)
+	max_mana = Progression.max_mana(base_mana, total_int)
 
 func _get_equipment_bonuses() -> Dictionary:
 	if equipment:
@@ -350,23 +350,23 @@ func get_physical_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_str: int = str_stat + int(bonus.get("str", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return base_dmg + weapon_dmg + (total_str * 2)
+	return DamageFormula.physical(base_dmg, total_str, weapon_dmg)
 
 func get_magic_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_int: int = int_stat + int(bonus.get("int", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return base_dmg + weapon_dmg + (total_int * 2)
+	return DamageFormula.magic(base_dmg, total_int, weapon_dmg)
 
 func get_dex_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_dex: int = dex_stat + int(bonus.get("dex", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return base_dmg + weapon_dmg + (total_dex * 2)
+	return DamageFormula.dex(base_dmg, total_dex, weapon_dmg)
 
 func apply_physical_defense(raw_damage: float) -> float:
 	var total_def: int = get_effective_stat("def")
-	return maxf(raw_damage - total_def, 1.0)
+	return DamageFormula.apply_physical_defense(raw_damage, total_def)
 
 func apply_elemental_damage(raw_damage: float, element: String) -> float:
 	var res: float = 0.0
@@ -377,7 +377,7 @@ func apply_elemental_damage(raw_damage: float, element: String) -> float:
 		"poison": res = res_poison
 		"void": res = res_void
 		_: push_warning("apply_elemental_damage: unknown element '%s'" % element)
-	return raw_damage * (1.0 - clampf(res, 0.0, 0.75))
+	return DamageFormula.apply_elemental_resistance(raw_damage, res)
 
 func _unhandled_input(event: InputEvent) -> void:
 	# TEST: respawn con R (temporal para prototipo)
@@ -612,13 +612,13 @@ func _regenerate(delta: float) -> void:
 
 	# Maná: siempre regenera
 	if mana < max_mana:
-		var mp_regen = (1.0 + int_stat * 0.1) * delta
+		var mp_regen = Progression.mp_regen_rate(int_stat) * delta
 		mana = minf(mana + mp_regen, max_mana)
 		mana_changed.emit(mana, max_mana)
 
 	# Vida: solo fuera de combate
 	if time_since_last_hit >= hp_regen_delay and health < max_health:
-		var hp_regen = (0.5 + vit_stat * 0.15) * delta
+		var hp_regen = Progression.hp_regen_rate(vit_stat) * delta
 		health = minf(health + hp_regen, max_health)
 		health_changed.emit(health, max_health)
 
@@ -659,7 +659,7 @@ func gain_xp(amount: float) -> void:
 		xp -= xp_to_next_level
 		level += 1
 		stat_points += 3
-		xp_to_next_level = 100.0 * pow(1.15, level - 1)
+		xp_to_next_level = Progression.xp_for_level(level)
 		level_up.emit(level, stat_points)
 		if TitleTracker:
 			TitleTracker.on_level_up(level)
