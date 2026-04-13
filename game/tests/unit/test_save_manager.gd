@@ -20,15 +20,15 @@ func after_each() -> void:
 
 
 # ═══════════════════════════════════════════
-# CLASS_DEFAULTS
+# ClassBaseStats.DEFAULTS
 # ═══════════════════════════════════════════
 
 func test_defaults_has_five_classes() -> void:
-	assert_eq(manager.CLASS_DEFAULTS.size(), 5, "5 clases definidas")
+	assert_eq(ClassBaseStats.DEFAULTS.size(), 5, "5 clases definidas")
 
 
 func test_defaults_warrior() -> void:
-	var d = manager.CLASS_DEFAULTS["res://scenes/player/player.tscn"]
+	var d = ClassBaseStats.DEFAULTS["res://scenes/player/player.tscn"]
 	assert_eq(d["class_name"], "Guerrero")
 	assert_eq(d["str_stat"], 12)
 	assert_eq(d["def_stat"], 10)
@@ -36,28 +36,28 @@ func test_defaults_warrior() -> void:
 
 
 func test_defaults_mage() -> void:
-	var d = manager.CLASS_DEFAULTS["res://scenes/player/mage.tscn"]
+	var d = ClassBaseStats.DEFAULTS["res://scenes/player/mage.tscn"]
 	assert_eq(d["class_name"], "Mago")
 	assert_eq(d["int_stat"], 12)
 	assert_eq(d["vit_stat"], 5)
 
 
 func test_defaults_archer() -> void:
-	var d = manager.CLASS_DEFAULTS["res://scenes/player/archer.tscn"]
+	var d = ClassBaseStats.DEFAULTS["res://scenes/player/archer.tscn"]
 	assert_eq(d["class_name"], "Arquero")
 	assert_eq(d["dex_stat"], 12)
 	assert_eq(d["vit_stat"], 7)
 
 
 func test_defaults_necromancer() -> void:
-	var d = manager.CLASS_DEFAULTS["res://scenes/player/necromancer.tscn"]
+	var d = ClassBaseStats.DEFAULTS["res://scenes/player/necromancer.tscn"]
 	assert_eq(d["class_name"], "Nigromante")
 	assert_eq(d["int_stat"], 10)
 	assert_eq(d["def_stat"], 4)
 
 
 func test_defaults_cleric() -> void:
-	var d = manager.CLASS_DEFAULTS["res://scenes/player/cleric.tscn"]
+	var d = ClassBaseStats.DEFAULTS["res://scenes/player/cleric.tscn"]
 	assert_eq(d["class_name"], "Clérigo")
 	assert_eq(d["str_stat"], 8)
 	assert_eq(d["int_stat"], 6)
@@ -244,7 +244,7 @@ func test_all_five_classes_created() -> void:
 func test_defaults_match_base_player_stats() -> void:
 	# Verificar que los defaults del SaveManager coincidan con lo que
 	# cada clase setea en _on_class_ready()
-	var warrior = manager.CLASS_DEFAULTS["res://scenes/player/player.tscn"]
+	var warrior = ClassBaseStats.DEFAULTS["res://scenes/player/player.tscn"]
 	assert_eq(warrior["str_stat"], 12, "Warrior STR matches base_player")
 	assert_eq(warrior["int_stat"], 3, "Warrior INT matches base_player")
 	assert_eq(warrior["dex_stat"], 6, "Warrior DEX matches base_player")

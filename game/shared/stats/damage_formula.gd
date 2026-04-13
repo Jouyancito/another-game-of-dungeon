@@ -25,6 +25,6 @@ static func dex(base_dmg: float, total_dex: int, weapon_dmg: int = 0) -> float:
 static func apply_physical_defense(raw_damage: float, total_def: int) -> float:
 	return maxf(raw_damage - float(total_def), 1.0)
 
-## Reducción por resistencia elemental: daño × (1 - clamp(res, 0, 0.75))
+## Reducción por resistencia elemental: daño × (1 - clamp(res, 0, RESIST_CAP))
 static func apply_elemental_resistance(raw_damage: float, resistance: float) -> float:
-	return raw_damage * (1.0 - clampf(resistance, 0.0, 0.75))
+	return raw_damage * (1.0 - clampf(resistance, 0.0, GameConstants.RESIST_CAP))
