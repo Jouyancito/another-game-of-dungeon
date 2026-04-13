@@ -557,8 +557,7 @@ func _update_drop_labels() -> void:
 	if hud != null and hud.has_method("set_pickup_hint_visible"):
 		hud.set_pickup_hint_visible(hint_text != "", hint_text)
 
-const TARGET_FRAME_RANGE := 23.0  # distancia máxima para detectar enemigo apuntado
-const TARGET_FRAME_CONE := 0.97   # dot product mínimo (~14° de cono)
+# Target frame range y cone ahora viven en GameConstants (shared/constants.gd)
 
 func _update_target_frame() -> void:
 	var hud := get_tree().get_first_node_in_group("hud")
@@ -571,7 +570,7 @@ func _update_target_frame() -> void:
 	var cam_forward := -camera.global_basis.z
 
 	var best_enemy: Node = null
-	var best_dist := TARGET_FRAME_RANGE
+	var best_dist := GameConstants.TARGET_FRAME_RANGE
 
 	for enemy_node: Node in get_tree().get_nodes_in_group("enemies"):
 		if not enemy_node is BaseEnemy:
@@ -581,10 +580,10 @@ func _update_target_frame() -> void:
 			continue
 		var enemy_center := enemy.global_position + Vector3(0, 0.8, 0)  # aprox centro del body
 		var dist := cam_pos.distance_to(enemy_center)
-		if dist > TARGET_FRAME_RANGE:
+		if dist > GameConstants.TARGET_FRAME_RANGE:
 			continue
 		var to_enemy := (enemy_center - cam_pos).normalized()
-		if to_enemy.dot(cam_forward) < TARGET_FRAME_CONE:
+		if to_enemy.dot(cam_forward) < GameConstants.TARGET_FRAME_CONE:
 			continue
 		# Line of sight — chequear que no haya pared entre la cámara y el enemigo
 		var space := get_world_3d().direct_space_state
@@ -658,7 +657,7 @@ func gain_xp(amount: float) -> void:
 	while xp >= xp_to_next_level:
 		xp -= xp_to_next_level
 		level += 1
-		stat_points += 3
+		stat_points += Progression.STAT_POINTS_PER_LEVEL
 		xp_to_next_level = Progression.xp_for_level(level)
 		level_up.emit(level, stat_points)
 		if TitleTracker:
