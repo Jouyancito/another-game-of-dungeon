@@ -312,9 +312,9 @@ func _load_character_stats() -> void:
 			xp = data.get("xp", 0.0)
 			xp_to_next_level = Progression.xp_for_level(level)
 			return
-	# Sin personaje guardado: usar CLASS_DEFAULTS según la escena
+	# Sin personaje guardado: usar ClassBaseStats.DEFAULTS según la escena
 	var scene_path = GameManager.selected_class_scene
-	var defaults = SaveManager.CLASS_DEFAULTS.get(scene_path, {})
+	var defaults = ClassBaseStats.DEFAULTS.get(scene_path, {})
 	if not defaults.is_empty():
 		str_stat = defaults.get("str_stat", str_stat)
 		int_stat = defaults.get("int_stat", int_stat)
