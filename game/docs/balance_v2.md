@@ -27,8 +27,8 @@ Las fórmulas lineales anteriores (`base + STR*2`) quedan **OBSOLETAS** para sta
 |----------|-------|-------|
 | Nivel máximo jugador | **100** | Uno conceptual por piso, encaja con 100 pisos |
 | Pisos totales | 100 | Canon brief |
-| Resistencias cap | **75%** | Consistencia con damage_formula.gd actual |
-| Resistencia cap con Healer-Buffer en party | **80%** | +5% coop bonus, incentivo de grupo |
+| Resistencias cap base | **75%** | Consistencia con damage_formula.gd actual |
+| Resistencias cap con skill "Aura de Resguardo" | **80%** | Pasiva de rama Buffer del Healer, afecta aliados en radio 20m mientras el Buffer esté vivo. No aplica si el Buffer cae |
 | Especialización de clase | **Nivel 25** | Fin Tier I, momento narrativo en safe zone P25 |
 | XP | **Híbrido** kill+uso | Ver §6 |
 | Duración piso promedio | 30 min (primera pasada), 8-12 min (familiarizado) | Decisión usuario |
@@ -119,13 +119,20 @@ DEF pura ya no domina. Necesitás combinar con VIT y resistencias.
 
 ### 2.6 Resistencias elementales (mantener asintótica)
 
-Fórmula confirmada de stats_system.md con cap 75%, +5% si hay Healer-Buffer:
+Fórmula confirmada de stats_system.md con cap 75%, +5% si aliado tiene skill "Aura de Resguardo" activa:
 
 ```
-soft_cap = 75.0 (base) or 80.0 (with Healer-Buffer in party)
+# Aura de Resguardo: pasiva de Healer-Buffer (rama Sanador+Buffer)
+# Mientras el Buffer esté vivo, aliados en radio 20m reciben +5% al cap
+soft_cap = 75.0 (base)
+if ally_has_active_aura_de_resguardo_in_range:
+    soft_cap = 80.0
+
 res_efectiva = soft_cap * (1 - e^(-0.025 * raw))
 damage_final = raw_damage * (1 - res_efectiva / 100)
 ```
+
+**Nota**: el Buffer cae → el aura se desactiva → el cap baja a 75% instantáneamente. Esto crea tensión real en coop (proteger al Buffer es prioritario).
 
 ---
 
@@ -455,7 +462,7 @@ Orden sugerido de implementación:
 4. **Bestiario + Herbario + Codex** — UI del Journal expandido
 5. **Polimorfismo (Tensei Slime)** — Shards de Alma, umbrales por tier, transformaciones activas
 6. **Buffs por actividad** — tabla completa de minijuego → buff temporal
-7. **Ajuste Cleric-Buffer cap +5%** — cómo se detecta en party y se aplica
+7. ~~Ajuste Cleric-Buffer cap +5%~~ **RESUELTO**: skill pasiva "Aura de Resguardo" de rama Buffer del Healer, radio 20m, solo mientras el Buffer esté vivo
 8. **Ubicación definitiva de bosses** — fin de bioma + anclas de tier (reconciliar con tower_biome_system)
 
 ---
