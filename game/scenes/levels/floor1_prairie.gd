@@ -835,6 +835,39 @@ func _build_boss_arena(poi: POISystem.POI) -> void:
 			Vector3(_rng.randf_range(2.0, 4.0), 1.0, _rng.randf_range(1.5, 3.0)),
 			COLOR_BOSS_WALL, true)
 
+	# ── Boss spawn trigger ──────────────────────────────────────────
+	# Area3D en la entrada del gate oeste. Spawnea al Rey Slime una sola vez
+	# cuando el jugador cruza. El boss aparece en el centro de la arena.
+	var trigger := Area3D.new()
+	trigger.name = "BossSpawnTrigger"
+	trigger.monitoring = true
+	trigger.collision_mask = 1 << 1  # Layer 2 = Player
+	var trigger_shape := CollisionShape3D.new()
+	var trigger_box := BoxShape3D.new()
+	trigger_box.size = Vector3(wall_t * 3.0, wall_h, gate_w)
+	trigger_shape.shape = trigger_box
+	trigger.add_child(trigger_shape)
+	trigger.position = pos + Vector3(-hw + wall_t * 0.5, wall_h * 0.5, 0)
+	add_child(trigger)
+
+	var spawn_center: Vector3 = pos + Vector3(0, 1.5, 0)
+	var spawned := [false]  # Array wrapper para mutar desde lambda
+	trigger.body_entered.connect(func(body: Node) -> void:
+		if spawned[0]:
+			return
+		if not body.is_in_group("player"):
+			return
+		spawned[0] = true
+		var king_scene: PackedScene = load("res://scenes/enemy/king_slime.tscn")
+		if king_scene == null:
+			push_error("floor1_prairie: no se pudo cargar king_slime.tscn")
+			return
+		var king: Node3D = king_scene.instantiate()
+		king.global_position = spawn_center
+		add_child(king)
+		trigger.set_deferred("monitoring", false)
+	)
+
 func _build_camp(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
 	var sz: Vector2 = poi.size
