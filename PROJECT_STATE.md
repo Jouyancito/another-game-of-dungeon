@@ -126,8 +126,8 @@ GUT addon instalado (`addons/gut/`). Tests existentes:
 ### Fase 1 — Shared (data + lógica pura)
 - [x] **1a**: DamageFormula + Progression (DONE, commit 1a17853)
 - [x] **1b**: Mover `inventory.gd`, `equipment.gd`, `item_database.gd`, `loot_table.gd` → `shared/systems/` (DONE, merged desde `dept/gameplay/refactor-shared-systems`)
-- [ ] **1c**: Mover `CLASS_DEFAULTS` (en SaveManager) → `shared/classes/class_base_stats.gd`
-- [ ] **1d**: Extraer constantes mágicas (cap resistencia 75%, stat points per level 3, pickup range, target frame cone) → `shared/constants.gd`
+- [x] **1c**: Mover `CLASS_DEFAULTS` → `shared/classes/class_base_stats.gd` (DONE, commit 9a5fc5b)
+- [x] **1d**: Extraer `RESIST_CAP`, `TARGET_FRAME_RANGE`, `TARGET_FRAME_CONE` → `shared/constants.gd` (DONE, commit 58c02b8). Nota: `STAT_POINTS_PER_LEVEL` queda en `Progression` (lugar natural), `PICKUP_RANGE` queda `@export` (tuneable).
 
 ### Fase 2 — Server (autoridad)
 - [ ] **2a**: `combat_resolver.gd` — `resolve(attacker, target, damage_spec) -> DamageResult`
