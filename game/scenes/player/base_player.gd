@@ -571,6 +571,7 @@ func _update_target_frame() -> void:
 
 	var best_enemy: Node = null
 	var best_dist := GameConstants.TARGET_FRAME_RANGE
+	var current_target: Node = hud._current_target if "_current_target" in hud else null
 
 	for enemy_node: Node in get_tree().get_nodes_in_group("enemies"):
 		if not enemy_node is BaseEnemy:
@@ -578,7 +579,7 @@ func _update_target_frame() -> void:
 		var enemy: BaseEnemy = enemy_node as BaseEnemy
 		if enemy.is_dead:
 			continue
-		var enemy_center := enemy.global_position + Vector3(0, 0.8, 0)  # aprox centro del body
+		var enemy_center := enemy.global_position + enemy.target_frame_offset
 		var dist := cam_pos.distance_to(enemy_center)
 		if dist > GameConstants.TARGET_FRAME_RANGE:
 			continue
@@ -602,6 +603,15 @@ func _update_target_frame() -> void:
 		if hud.has_method("set_target"):
 			hud.set_target(best_enemy)
 	else:
+		# Sticky targeting: si el current target sigue vivo + en range (ignora cone),
+		# lo mantenemos. Útil para bosses grandes que quedan fuera del cono al acercarte.
+		if current_target != null and is_instance_valid(current_target) and current_target is BaseEnemy:
+			var be: BaseEnemy = current_target as BaseEnemy
+			if not be.is_dead:
+				var sticky_center := be.global_position + be.target_frame_offset
+				var sticky_dist := cam_pos.distance_to(sticky_center)
+				if sticky_dist <= GameConstants.TARGET_FRAME_RANGE:
+					return  # mantener, no limpiar
 		if hud.has_method("clear_target"):
 			hud.clear_target()
 

@@ -37,6 +37,10 @@ var is_provoked := false  # Para neutrales: se activa al recibir daño
 # Nameplate
 @export var display_name: String = ""
 @export var enemy_level: int = 1
+
+# Offset para target frame (altura del "centro visible").
+# Enemigos bajos (rat, slime): 0.8. Bosses grandes (king_slime): 3.0+.
+@export var target_frame_offset: Vector3 = Vector3(0, 0.8, 0)
 const NAMEPLATE_VISIBLE_RANGE := 15.0
 const NAMEPLATE_AIM_RANGE := 30.0
 

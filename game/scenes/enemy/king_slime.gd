@@ -20,6 +20,13 @@ var _last_attack: String = ""
 var _next_attack_cooldown: float = 0.0
 var _current_attack: String = ""
 
+# Contact damage / slow aura — slime "absorbe" si te toca.
+const CONTACT_TICK: float = 0.4      # cada 0.4s aplica daño
+const CONTACT_DAMAGE: float = 4.0    # daño por tick
+const CONTACT_SLOW: float = 0.2      # multiplicador de velocidad del player en contacto (0.2 = 80% slower)
+var _contact_timer: float = 0.0
+var _players_in_contact: Array = []
+
 
 func _on_enemy_ready() -> void:
 	# enemy_type se setea en .tscn — si quedó vacío, fallback
@@ -27,6 +34,62 @@ func _on_enemy_ready() -> void:
 		enemy_type = "king_slime"
 	sub_tier = SubTier.BOSS
 	add_to_group("enemies")
+	_setup_contact_aura()
+	call_deferred("_setup_player_passthrough")
+
+
+func _setup_player_passthrough() -> void:
+	# Ignora físicamente al player (no lo bloquea, no lo empuja) pero sigue
+	# existiendo en su layer para que raycasts de ataque lo detecten.
+	for p in get_tree().get_nodes_in_group("player"):
+		if p is PhysicsBody3D:
+			add_collision_exception_with(p)
+
+
+func _setup_contact_aura() -> void:
+	# Area3D envolviendo el cuerpo del boss. Detecta player en contacto
+	# para daño tick + slow. No usa CollisionShape física — solo sensor.
+	var aura := Area3D.new()
+	aura.name = "ContactAura"
+	aura.monitoring = true
+	aura.monitorable = false
+	aura.collision_mask = 1  # player está en layer 1 por default (ver CLAUDE.md vs tscn inconsistencia)
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 3.2
+	cap.height = 6.4
+	cs.transform.origin = Vector3(0, 3.0, 0)  # centrar a la altura del mesh
+	cs.shape = cap
+	aura.add_child(cs)
+	add_child(aura)
+	aura.body_entered.connect(_on_contact_aura_entered)
+	aura.body_exited.connect(_on_contact_aura_exited)
+
+
+func _on_contact_aura_entered(body: Node) -> void:
+	if body.is_in_group("player") and not _players_in_contact.has(body):
+		_players_in_contact.append(body)
+		# Guardar speed original y aplicar slow al stat directamente.
+		if "speed" in body and not body.has_meta("king_slime_orig_speed"):
+			body.set_meta("king_slime_orig_speed", body.speed)
+			body.speed = body.speed * CONTACT_SLOW
+
+
+func _on_contact_aura_exited(body: Node) -> void:
+	_players_in_contact.erase(body)
+	_restore_player_speed(body)
+
+
+func _restore_player_speed(body: Node) -> void:
+	if is_instance_valid(body) and body.has_meta("king_slime_orig_speed"):
+		body.speed = body.get_meta("king_slime_orig_speed")
+		body.remove_meta("king_slime_orig_speed")
+
+
+func _exit_tree() -> void:
+	# Safety: si el boss muere/despawnea, restaurar speed de todos los players.
+	for p in _players_in_contact:
+		_restore_player_speed(p)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -43,6 +106,7 @@ func _physics_process(delta: float) -> void:
 
 	_apply_gravity(delta)
 	_validate_target()
+	_contact_aura_tick(delta)
 
 	if target == null:
 		velocity.x = 0.0
@@ -114,10 +178,45 @@ func _update_phase() -> void:
 # Ataques — Sesión 1: rebote, embestida, escupitajo (Fase 1+).
 # Fases 2+ añaden más en sesiones futuras.
 # ──────────────────────────────────────────────────────────────────────
+func _contact_aura_tick(delta: float) -> void:
+	# Daño tick + slow mientras haya player en contacto.
+	if _players_in_contact.is_empty():
+		_contact_timer = 0.0
+		return
+	# Damage tick (slow se aplica vía speed stat en enter/exit, no acá)
+	_contact_timer += delta
+	if _contact_timer >= CONTACT_TICK:
+		_contact_timer = 0.0
+		for p in _players_in_contact:
+			if is_instance_valid(p) and p.has_method("take_damage"):
+				p.take_damage(CONTACT_DAMAGE)
+
+
+func _debug_perform(attack: String) -> void:
+	# DEBUG: forzar ataque desde input (tecla 1/2/3 en floor1_prairie).
+	if is_dead or not is_instance_valid(self):
+		return
+	if action_state != ActionState.IDLE and action_state != ActionState.PURSUE:
+		print("[KingSlime] ocupado (", action_state, ") — esperá a que termine")
+		return
+	_current_attack = attack
+	_last_attack = attack
+	action_state = ActionState.TELEGRAPH
+	print("[KingSlime] DEBUG FORCE=", attack)
+	match attack:
+		"rebote":
+			_attack_rebote()
+		"embestida":
+			_attack_embestida()
+		"escupitajo":
+			_attack_escupitajo()
+
+
 func _start_attack() -> void:
 	_current_attack = _pick_attack()
 	_last_attack = _current_attack
 	action_state = ActionState.TELEGRAPH
+	print("[KingSlime] ATTACK=", _current_attack, " phase=", current_phase, " dist=", global_position.distance_to(target.global_position) if is_instance_valid(target) else -1.0)
 	match _current_attack:
 		"rebote":
 			_attack_rebote()
@@ -128,19 +227,17 @@ func _start_attack() -> void:
 
 
 func _pick_attack() -> String:
-	var pool: Array = []
-	match current_phase:
-		Phase.ONE:
-			pool = ["rebote", "embestida", "escupitajo"]
-		Phase.TWO, Phase.THREE, Phase.FOUR:
-			# Sesiones futuras añaden ataques de fase superior.
-			# Hasta entonces, fases 2-4 usan el pool de Fase 1.
-			pool = ["rebote", "embestida", "escupitajo"]
-	# Evitar repetir el mismo ataque dos veces seguidas si hay alternativas
-	var filtered: Array = pool.filter(func(a: String) -> bool: return a != _last_attack)
-	if filtered.is_empty():
-		filtered = pool
-	return filtered.pick_random()
+	# Selección por distancia al target. Larga → escupitajo, media → rebote, corta → embestida.
+	# Evita que el boss haga embestida desde lejos o escupitajo pegado.
+	var dist: float = INF
+	if is_instance_valid(target):
+		dist = global_position.distance_to(target.global_position)
+	if dist > 12.0:
+		return "escupitajo"
+	elif dist > 5.0:
+		return "rebote"
+	else:
+		return "embestida"
 
 
 # Multiplier de cooldown por fase — spec: reducir 15% por fase.
@@ -160,12 +257,10 @@ func _attack_rebote() -> void:
 		return
 	action_state = ActionState.EXECUTE
 
-	# Salto arco hacia la posición actual del target — resolvemos aterrizaje
-	# en _finish_rebote tras un timer corto (simula el tiempo en el aire).
+	# Arco simétrico: apex ~0.45s, land ~0.9s. Jump calc para cubrir h=4m.
 	var land_pos: Vector3 = target.global_position if is_instance_valid(target) else global_position
-	var air_time: float = 0.6
-	velocity.y = 9.0
-	# Desplazamiento horizontal distribuido en el tiempo aéreo.
+	var air_time: float = 0.9
+	velocity.y = 0.5 * gravity * air_time  # ~4.4 con gravity 9.8
 	var dir: Vector3 = land_pos - global_position
 	dir.y = 0.0
 	if dir.length() > 0.1:
@@ -173,20 +268,41 @@ func _attack_rebote() -> void:
 		velocity.x = horiz.x
 		velocity.z = horiz.z
 
-	await get_tree().create_timer(air_time).timeout
+	# Esperar hasta que toque el suelo (o timeout por seguridad)
+	var max_wait: float = 2.5
+	var elapsed: float = 0.0
+	while elapsed < max_wait and not is_dead and is_instance_valid(self):
+		await get_tree().physics_frame
+		elapsed += get_physics_process_delta_time()
+		if is_on_floor() and elapsed > 0.2:  # skip primer frame
+			break
+
 	if is_dead or not is_instance_valid(self):
 		return
+	velocity.x = 0.0
+	velocity.z = 0.0
 	_finish_rebote()
 
 
 func _finish_rebote() -> void:
-	# AoE radio 3m alrededor del boss al aterrizar.
-	var aoe_radius: float = 3.0
+	# AoE radio 4m alrededor del punto de aterrizaje del boss.
+	var aoe_radius: float = 4.0
 	var aoe_damage: float = base_damage_for_attack() + 10.0
+	var knockback_up: float = 6.0
+	var knockback_out: float = 10.0
 	for p in get_tree().get_nodes_in_group("player"):
 		if p is Node3D and p.global_position.distance_to(global_position) <= aoe_radius:
 			if p.has_method("take_damage"):
 				p.take_damage(aoe_damage)
+			# Empujar al player hacia afuera + arriba — evita que boss se quede encima.
+			if p is CharacterBody3D:
+				var push: Vector3 = p.global_position - global_position
+				push.y = 0.0
+				if push.length() < 0.1:
+					push = Vector3(1, 0, 0)  # fallback si overlap exacto
+				push = push.normalized() * knockback_out
+				push.y = knockback_up
+				p.velocity = push
 	_schedule_next_attack(4.0)
 
 

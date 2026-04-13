@@ -841,7 +841,7 @@ func _build_boss_arena(poi: POISystem.POI) -> void:
 	var trigger := Area3D.new()
 	trigger.name = "BossSpawnTrigger"
 	trigger.monitoring = true
-	trigger.collision_mask = 1 << 1  # Layer 2 = Player
+	trigger.collision_mask = 1  # Player está en layer 1 por default (inconsistencia vs CLAUDE.md, doc dice layer 2 pero tscn no la setea)
 	var trigger_shape := CollisionShape3D.new()
 	var trigger_box := BoxShape3D.new()
 	trigger_box.size = Vector3(wall_t * 3.0, wall_h, gate_w)
@@ -1363,3 +1363,56 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = color
 	return mat
+
+
+# ── DEBUG: tecla K spawnea King Slime frente al player ──────────────
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_K:
+				_debug_spawn_king_slime()
+			KEY_1:
+				_debug_force_attack("rebote")
+			KEY_2:
+				_debug_force_attack("embestida")
+			KEY_3:
+				_debug_force_attack("escupitajo")
+
+
+func _debug_spawn_king_slime() -> void:
+	var existing: Array = get_tree().get_nodes_in_group("enemies").filter(
+		func(n: Node) -> bool: return n.name.begins_with("KingSlime") or (n.get_script() != null and str(n.get_script().resource_path).ends_with("king_slime.gd"))
+	)
+	if not existing.is_empty():
+		print("DEBUG: King Slime ya existe — usa 1/2/3 para forzar ataques")
+		return
+	var players: Array = get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		push_warning("DEBUG: no player found")
+		return
+	var player: Node3D = players[0]
+	var king_scene: PackedScene = load("res://scenes/enemy/king_slime.tscn")
+	if king_scene == null:
+		push_error("DEBUG: king_slime.tscn no carga")
+		return
+	var king: Node3D = king_scene.instantiate()
+	var fwd: Vector3 = -player.global_transform.basis.z
+	fwd.y = 0.0
+	king.global_position = player.global_position + fwd.normalized() * 6.0 + Vector3(0, 1.5, 0)
+	add_child(king)
+	print("DEBUG: King Slime spawned at ", king.global_position)
+
+
+func _debug_force_attack(attack: String) -> void:
+	var bosses: Array = get_tree().get_nodes_in_group("enemies").filter(
+		func(n: Node) -> bool: return n.get_script() != null and str(n.get_script().resource_path).ends_with("king_slime.gd")
+	)
+	if bosses.is_empty():
+		print("DEBUG: no hay King Slime — presiona K primero")
+		return
+	var boss: Node = bosses[0]
+	if not boss.has_method("_debug_perform"):
+		print("DEBUG: boss no expone _debug_perform — agregar al script")
+		return
+	boss._debug_perform(attack)
+	print("DEBUG: forzado ataque=", attack)
