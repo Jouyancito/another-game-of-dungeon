@@ -617,7 +617,11 @@ func _track_reabsorb(mini: Node) -> void:
 	if dist <= REABSORB_RADIUS:
 		health = minf(health + REABSORB_HEAL, _max_health)
 		print("[KingSlime] reabsorbió mini @ dist=", dist, " hp=", health)
-		mini.queue_free()
+		# Marcar is_dead antes del free para que el target_frame del player
+		# lo skipee en el mismo frame (evita race "assign invalid freed instance").
+		if "is_dead" in mini:
+			mini.is_dead = true
+		mini.call_deferred("queue_free")
 	_spawned_minis.erase(mini)
 	_update_shield_state()
 
