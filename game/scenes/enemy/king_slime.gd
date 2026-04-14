@@ -192,7 +192,9 @@ func _attack_baba_bombardero() -> void:
 		return
 	var impact_pos: Vector3 = target.global_position
 	impact_pos.y = global_position.y
-	print("[KingSlime] BOMBARDERO impact_pos=", impact_pos, " target_pos=", target.global_position)
+	# Baba que gotea bajo el boss al disparar — deja charquito pequeño
+	# temporal (penaliza al melee parado abajo).
+	_spawn_drool_puddle(global_position)
 	_spawn_ground_marker(impact_pos, BOMB_TELEGRAPH, BOMB_AOE_RADIUS)
 	_spawn_bomb_baba(impact_pos, BOMB_TELEGRAPH, false)
 	# Splatter: 5 sub-babas en patrón estrella alrededor del impacto,
@@ -710,16 +712,17 @@ func _attack_rebote() -> void:
 	_schedule_next_attack(4.0)
 
 
-# Combo rebote (Fase 3+): 3 saltos rápidos, telegraph corto en el primero.
+# Combo rebote (Fase 3+): 4 saltos frenéticos, telegraph corto.
+# User feedback: se podía tanquear — ahora más saltos + telegraphs cortos.
 func _attack_combo_rebote() -> void:
-	for i in 3:
+	for i in 4:
 		if is_dead or not is_instance_valid(self):
 			return
-		var tele: float = 1.0 if i == 0 else 0.3
-		await _do_single_rebote(tele, 0.7)
+		var tele: float = 0.7 if i == 0 else 0.2
+		await _do_single_rebote(tele, 0.6)
 	if is_dead or not is_instance_valid(self):
 		return
-	_schedule_next_attack(7.0)
+	_schedule_next_attack(6.5)
 
 
 # Un único rebote: telegraph → salto arco → land → AoE + charco (si fase ≥ 3).
@@ -757,27 +760,98 @@ func _do_single_rebote(telegraph: float, air_time: float) -> void:
 func _rebote_land_aoe() -> void:
 	var aoe_radius: float = 4.0
 	var aoe_damage: float = base_damage_for_attack() + 10.0
-	var knockback_up: float = 6.0
-	var knockback_out: float = 10.0
 	for p in get_tree().get_nodes_in_group("player"):
 		if p is Node3D and p.global_position.distance_to(global_position) <= aoe_radius:
 			if p.has_method("take_damage"):
 				p.take_damage(aoe_damage)
-			if p is CharacterBody3D:
-				var push: Vector3 = p.global_position - global_position
-				push.y = 0.0
-				if push.length() < 0.1:
-					push = Vector3(1, 0, 0)
-				push = push.normalized() * knockback_out
-				push.y = knockback_up
-				p.velocity = push
+			# Sin knockback — user feedback: frustra, rompe combate.
+			# En su lugar: slow breve al recibir la onda.
+			_apply_slow(p, 0.75, 0.6)
+	# Onda de choque visual — ring que se expande en el suelo
+	_spawn_shockwave_ring(global_position, aoe_radius)
 	# Fase 3+: charco ácido en el punto de aterrizaje.
 	if current_phase >= Phase.THREE:
 		_spawn_acid_pool(global_position)
 
 
+# Ring de onda de choque — puramente visual. Aparece al aterrizar un rebote
+# y se expande hasta el radio del AoE en 0.4s, luego desvanece.
+func _spawn_shockwave_ring(pos: Vector3, max_radius: float) -> void:
+	var ring: MeshInstance3D = MeshInstance3D.new()
+	ring.name = "ShockwaveRing"
+	var torus := TorusMesh.new()
+	torus.inner_radius = max_radius * 0.95
+	torus.outer_radius = max_radius
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.95, 0.85, 0.2)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.9, 0.3)
+	mat.emission_energy_multiplier = 2.0
+	torus.material = mat
+	ring.mesh = torus
+	get_tree().current_scene.add_child(ring)
+	ring.global_position = Vector3(pos.x, pos.y + 0.15, pos.z)
+	ring.scale = Vector3(0.2, 1.0, 0.2)
+	var tw: Tween = create_tween()
+	tw.tween_property(ring, "scale", Vector3(1.0, 1.0, 1.0), 0.4)
+	tw.parallel().tween_property(ring, "scale:y", 0.2, 0.4)
+	tw.tween_callback(func():
+		if is_instance_valid(ring):
+			ring.queue_free()
+	)
+
+
 # ── Charco ácido (Fase 3+) ────────────────────────────────────────────
 # Area3D inline: cilindro verde + DoT. Radio 2m, 3 dmg/s, dura 5s.
+# Charquito pequeño que gotea del boss mientras bombardea — versión lite
+# del acid pool: radio menor, duración corta, DoT menor, sin slow.
+func _spawn_drool_puddle(pos: Vector3) -> void:
+	var pool: Area3D = Area3D.new()
+	pool.name = "DroolPuddle"
+	pool.monitoring = true
+	pool.monitorable = false
+	pool.collision_mask = 1
+	var cs := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 2.5
+	cyl.height = 0.4
+	cs.shape = cyl
+	pool.add_child(cs)
+	var mv := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 2.5
+	cm.bottom_radius = 2.5
+	cm.height = 0.1
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.4, 0.85, 0.3)
+	mat.emission_enabled = true
+	mat.emission = Color(0.2, 0.6, 0.15)
+	mat.emission_energy_multiplier = 0.5
+	cm.material = mat
+	mv.mesh = cm
+	pool.add_child(mv)
+	get_tree().current_scene.add_child(pool)
+	pool.global_position = Vector3(pos.x, pos.y + 0.03, pos.z)
+	_drive_drool_puddle(pool)
+
+
+func _drive_drool_puddle(pool: Area3D) -> void:
+	const TICK: float = 0.5
+	const LIFETIME: float = 3.0
+	const DOT_DROOL: float = 3.0
+	var elapsed: float = 0.0
+	while elapsed < LIFETIME and is_instance_valid(pool):
+		await get_tree().create_timer(TICK).timeout
+		if not is_instance_valid(pool):
+			return
+		elapsed += TICK
+		for body in pool.get_overlapping_bodies():
+			if body.is_in_group("player") and body.has_method("take_damage"):
+				body.take_damage(DOT_DROOL * TICK)
+	if is_instance_valid(pool):
+		pool.queue_free()
+
+
 func _spawn_acid_pool(pos: Vector3) -> void:
 	var pool: Area3D = Area3D.new()
 	pool.name = "AcidPool"
