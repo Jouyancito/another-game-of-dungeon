@@ -48,10 +48,10 @@ const BOMB_AOE_RADIUS: float = 2.0
 const BOMB_DAMAGE: float = 10.0
 
 # Acid pool (charco) — radio más grande para forzar al melee a salirse.
-const ACID_POOL_RADIUS: float = 3.5
-const ACID_POOL_DOT: float = 4.0
-const ACID_POOL_LIFETIME: float = 5.0
-const ACID_POOL_SLOW_MULT: float = 0.65  # speed * 0.65 mientras estás dentro
+const ACID_POOL_RADIUS: float = 5.5       # grande — el melee NO puede ignorarlo
+const ACID_POOL_DOT: float = 7.0          # DPS serio: 7/s
+const ACID_POOL_LIFETIME: float = 6.0
+const ACID_POOL_SLOW_MULT: float = 0.5    # 50% slow — te cuesta salirte
 
 # Slow aplicado por escupitajos y bombardero — 30% ralentización breve.
 const PROJECTILE_SLOW_MULT: float = 0.7
