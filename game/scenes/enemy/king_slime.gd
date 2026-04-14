@@ -27,6 +27,14 @@ const CONTACT_SLOW: float = 0.2      # multiplicador de velocidad del player en 
 var _contact_timer: float = 0.0
 var _players_in_contact: Array = []
 
+# Modo furia (Fase 4) — se activa una vez al entrar a fase 4.
+var _fury_active: bool = false
+const FURY_SPEED_MULT: float = 1.5
+
+# Último aliento — se dispara una sola vez cuando hp <= 5%.
+var _last_breath_triggered: bool = false
+const LAST_BREATH_HP_PCT: float = 0.05
+
 # Mini-slimes invocados activos — para reabsorción.
 var _spawned_minis: Array = []
 
@@ -168,6 +176,9 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if is_dead:
 		return
 	_update_phase()
+	# Último aliento — una sola vez cuando bajamos de 5% HP.
+	if not _last_breath_triggered and _max_health > 0.0 and (health / _max_health) <= LAST_BREATH_HP_PCT:
+		_trigger_last_breath()
 
 
 func _update_phase() -> void:
@@ -203,6 +214,25 @@ func _on_phase_changed(_phase: int) -> void:
 			summon_timer.start()
 		Phase.FOUR:
 			summon_timer.stop()
+			_enter_fury()
+
+
+# ── Modo furia (entrada Fase 4) ───────────────────────────────────────
+func _enter_fury() -> void:
+	if _fury_active:
+		return
+	_fury_active = true
+	speed *= FURY_SPEED_MULT
+	# Emisión roja pulsante en el mesh del slime.
+	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	if mi and mi.mesh is SphereMesh:
+		var sphere_mesh: SphereMesh = mi.mesh
+		if sphere_mesh.material is StandardMaterial3D:
+			var m: StandardMaterial3D = (sphere_mesh.material as StandardMaterial3D).duplicate()
+			m.emission = Color(0.95, 0.15, 0.1)
+			m.emission_energy_multiplier = 1.4
+			sphere_mesh.material = m
+	print("[KingSlime] MODO FURIA — speed=", speed)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -450,9 +480,77 @@ func _spawn_acid_pool(pos: Vector3) -> void:
 	_drive_acid_pool(pool)
 
 
+# ── Onda de choque (Fase 4) ───────────────────────────────────────────
+# Infla 0.6s, libera AoE 5m con knockback. Daño 8 + base.
 func _attack_onda_choque() -> void:
-	# Stub — Fase 4 real en commit siguiente.
+	var telegraph: float = 0.6
+	action_state = ActionState.TELEGRAPH
+	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	var orig_scale: Vector3 = mi.scale if mi else Vector3.ONE
+	if mi:
+		var tw: Tween = create_tween()
+		tw.tween_property(mi, "scale", orig_scale * 1.25, telegraph)
+	await get_tree().create_timer(telegraph).timeout
+	if is_dead or not is_instance_valid(self):
+		return
+	if mi:
+		mi.scale = orig_scale
+	action_state = ActionState.EXECUTE
+
+	var aoe_radius: float = 5.0
+	var aoe_damage: float = base_damage_for_attack() + 8.0
+	for p in get_tree().get_nodes_in_group("player"):
+		if p is Node3D and p.global_position.distance_to(global_position) <= aoe_radius:
+			if p.has_method("take_damage"):
+				p.take_damage(aoe_damage)
+			if p is CharacterBody3D:
+				var push: Vector3 = p.global_position - global_position
+				push.y = 0.0
+				if push.length() < 0.1:
+					push = Vector3(1, 0, 0)
+				push = push.normalized() * 14.0
+				push.y = 8.0
+				p.velocity = push
 	_schedule_next_attack(10.0)
+
+
+# ── Último aliento (Fase 4, hp ≤ 5%) ──────────────────────────────────
+# Pausa IA, infla 3s como telegraph masivo, explota AoE 8m 20 dmg y muere.
+func _trigger_last_breath() -> void:
+	if _last_breath_triggered or is_dead:
+		return
+	_last_breath_triggered = true
+	action_state = ActionState.TELEGRAPH
+	_next_attack_cooldown = 999.0  # bloquear cualquier otro ataque
+	velocity = Vector3.ZERO
+	print("[KingSlime] ÚLTIMO ALIENTO — 3s para explotar")
+
+	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	var orig_scale: Vector3 = mi.scale if mi else Vector3.ONE
+	if mi:
+		var tw: Tween = create_tween()
+		tw.tween_property(mi, "scale", orig_scale * 1.8, 3.0)
+
+	await get_tree().create_timer(3.0).timeout
+	if not is_instance_valid(self):
+		return
+
+	var aoe_radius: float = 8.0
+	var aoe_damage: float = base_damage_for_attack() + 20.0
+	for p in get_tree().get_nodes_in_group("player"):
+		if p is Node3D and p.global_position.distance_to(global_position) <= aoe_radius:
+			if p.has_method("take_damage"):
+				p.take_damage(aoe_damage)
+			if p is CharacterBody3D:
+				var push: Vector3 = p.global_position - global_position
+				push.y = 0.0
+				if push.length() < 0.1:
+					push = Vector3(1, 0, 0)
+				push = push.normalized() * 18.0
+				push.y = 10.0
+				p.velocity = push
+	# Morir — usar take_damage masivo para disparar la cadena de muerte de BaseEnemy.
+	take_damage(health + 9999.0)
 
 
 func _drive_acid_pool(pool: Area3D) -> void:
