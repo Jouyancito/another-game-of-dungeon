@@ -143,19 +143,12 @@ func _enter_shield() -> void:
 	_bomb_timer = BOMB_INTERVAL * 0.5
 	velocity.x = 0.0
 	velocity.z = 0.0
-	# Animación "caída de resguardo":
-	# 1) Squash rápido y fuerte hacia abajo (0.18s) — gesto de "me agacho"
-	# 2) Pulso sutil continuo mientras dura el shield (respira recogido)
+	# Animación "caída de resguardo" — single tween, sin loops.
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	if mi:
 		var tw: Tween = create_tween()
 		tw.tween_property(mi, "scale", Vector3(1.35, 0.55, 1.35), 0.18)\
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		# Pulso sutil loop
-		var pulse: Tween = create_tween().set_loops()
-		pulse.tween_property(mi, "scale", Vector3(1.32, 0.58, 1.32), 0.6)
-		pulse.tween_property(mi, "scale", Vector3(1.35, 0.55, 1.35), 0.6)
-		mi.set_meta("shield_pulse_tween", pulse)
 	print("[KingSlime] === SHIELD POSE === esperando minis (", _spawned_minis.size(), " vivos)")
 
 
@@ -165,16 +158,8 @@ func _exit_shield() -> void:
 		action_state = ActionState.PURSUE
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	if mi:
-		# Cortar pulso y hacer rebote de vuelta a tamaño normal.
-		if mi.has_meta("shield_pulse_tween"):
-			var pulse: Tween = mi.get_meta("shield_pulse_tween")
-			if pulse and pulse.is_valid():
-				pulse.kill()
-			mi.remove_meta("shield_pulse_tween")
 		var tw: Tween = create_tween()
-		tw.tween_property(mi, "scale", Vector3(1.0, 1.1, 1.0), 0.15)\
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(mi, "scale", Vector3.ONE, 0.12)
+		tw.tween_property(mi, "scale", Vector3.ONE, 0.2)
 	print("[KingSlime] === SHIELD BREAK === vuelve al combate")
 
 
@@ -201,8 +186,8 @@ func _attack_baba_bombardero() -> void:
 	_spawn_bomb_baba(impact_pos, BOMB_TELEGRAPH, false)
 	# Splatter: 5 sub-babas en patrón estrella alrededor del impacto,
 	# escalonadas 0.15s. Cubre 4m radio alrededor del impacto principal.
-	var splatter_count: int = 5
-	var splatter_spread: float = 3.5
+	var splatter_count: int = 3
+	var splatter_spread: float = 3.0
 	for i in splatter_count:
 		var ang: float = (TAU / splatter_count) * i + randf_range(-0.2, 0.2)
 		var dist: float = splatter_spread * randf_range(0.6, 1.0)
@@ -220,11 +205,11 @@ func _spawn_ground_marker(pos: Vector3, lifetime: float, radius: float = BOMB_AO
 	disc.bottom_radius = radius
 	disc.height = 0.08
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.25, 0.15, 0.5)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Opaco + emissive — transparencia en Godot es cara, la evitamos.
+	mat.albedo_color = Color(0.9, 0.15, 0.1)
 	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.3, 0.2)
-	mat.emission_energy_multiplier = 0.9
+	mat.emission = Color(1.0, 0.3, 0.15)
+	mat.emission_energy_multiplier = 1.5
 	disc.material = mat
 	marker.mesh = disc
 	get_tree().current_scene.add_child(marker)
