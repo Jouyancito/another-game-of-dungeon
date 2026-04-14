@@ -292,20 +292,25 @@ func _drive_bomb_baba(baba: Area3D, start: Vector3, impact: Vector3, duration: f
 	var aoe: float = 1.3 if is_splat else BOMB_AOE_RADIUS
 	var dmg: float = (BOMB_DAMAGE * 0.5) if is_splat else BOMB_DAMAGE
 	for p in get_tree().get_nodes_in_group("player"):
-		if p is Node3D and p.global_position.distance_to(impact) <= aoe:
+		if not is_instance_valid(p) or not p is Node3D:
+			continue
+		if p.global_position.distance_to(impact) <= aoe:
 			if p.has_method("take_damage"):
 				p.take_damage(base_damage_for_attack() + dmg)
-			_apply_slow(p, PROJECTILE_SLOW_MULT, BOMB_SLOW_DURATION)
-	baba.queue_free()
+			if is_instance_valid(p):
+				_apply_slow(p, PROJECTILE_SLOW_MULT, BOMB_SLOW_DURATION)
+	if is_instance_valid(baba):
+		baba.queue_free()
 
 
 # ── Helper: slow con restore vía timer ────────────────────────────────
 # Aplica speed * mult por duration segundos. Meta clave única para no
 # pisar el slow del ContactAura (que usa "king_slime_orig_speed").
 func _apply_slow(body: Node, mult: float, duration: float) -> void:
-	if not is_instance_valid(body) or not "speed" in body:
+	if not is_instance_valid(body):
 		return
-	# Si ya tiene un slow activo de este helper, refrescar la duración.
+	if not "speed" in body:
+		return
 	var meta_key: String = "king_slime_proj_slow"
 	if body.has_meta(meta_key):
 		body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
@@ -318,20 +323,26 @@ func _apply_slow(body: Node, mult: float, duration: float) -> void:
 
 
 func _slow_restore_watcher(body: Node, meta_key: String) -> void:
-	# Poll cada 0.1s hasta vencer el timestamp — permite "refrescar" el slow.
-	while is_instance_valid(body) and body.has_meta(meta_key):
+	while true:
+		if not is_instance_valid(body):
+			return
+		if not body.has_meta(meta_key):
+			return
 		await get_tree().create_timer(0.1).timeout
 		if not is_instance_valid(body):
 			return
+		if not body.has_meta(meta_key):
+			return
 		var until: int = body.get_meta(meta_key + "_until", 0)
 		if Time.get_ticks_msec() >= until:
-			var orig: float = body.get_meta(meta_key, body.speed)
-			# No restaurar si el ContactAura todavía tiene al player adentro
-			# (ese slow se maneja en _on_contact_aura_exited).
-			if not body.has_meta("king_slime_orig_speed"):
+			if not is_instance_valid(body):
+				return
+			var orig: float = body.get_meta(meta_key, body.speed if "speed" in body else 0.0)
+			if "speed" in body and not body.has_meta("king_slime_orig_speed"):
 				body.speed = orig
-			body.remove_meta(meta_key)
-			body.remove_meta(meta_key + "_until")
+			if is_instance_valid(body):
+				body.remove_meta(meta_key)
+				body.remove_meta(meta_key + "_until")
 			return
 
 
@@ -851,6 +862,8 @@ func _drive_drool_puddle(pool: Area3D) -> void:
 			return
 		elapsed += TICK
 		for body in pool.get_overlapping_bodies():
+			if not is_instance_valid(body):
+				continue
 			if body.is_in_group("player") and body.has_method("take_damage"):
 				body.take_damage(DOT_DROOL * TICK)
 	if is_instance_valid(pool):
@@ -975,11 +988,13 @@ func _drive_acid_pool(pool: Area3D) -> void:
 			return
 		elapsed += TICK
 		for body in pool.get_overlapping_bodies():
+			if not is_instance_valid(body):
+				continue
 			if body.is_in_group("player"):
 				if body.has_method("take_damage"):
 					body.take_damage(ACID_POOL_DOT * TICK)
-				# Slow breve refrescado cada tick mientras sigue adentro.
-				_apply_slow(body, ACID_POOL_SLOW_MULT, 0.8)
+				if is_instance_valid(body):
+					_apply_slow(body, ACID_POOL_SLOW_MULT, 0.8)
 	if is_instance_valid(pool):
 		pool.queue_free()
 
@@ -1100,10 +1115,14 @@ func _spawn_spit_projectile(angle_offset_deg: float = 0.0) -> void:
 	proj.set_meta("lifetime", lifetime)
 
 	proj.body_entered.connect(func(body: Node) -> void:
+		if not is_instance_valid(body):
+			return
 		if body.is_in_group("player") and body.has_method("take_damage"):
 			body.take_damage(damage)
-			_apply_slow(body, PROJECTILE_SLOW_MULT, PROJECTILE_SLOW_DURATION)
-			proj.queue_free()
+			if is_instance_valid(body):
+				_apply_slow(body, PROJECTILE_SLOW_MULT, PROJECTILE_SLOW_DURATION)
+			if is_instance_valid(proj):
+				proj.queue_free()
 	)
 
 	# Movimiento y despawn por lifetime via callable attached al arbol
