@@ -547,10 +547,9 @@ func _enter_fury() -> void:
 			m.emission = Color(0.95, 0.15, 0.1)
 			m.emission_energy_multiplier = 1.4
 			sphere_mesh.material = m
-		# Tween pulsante para que vibre visualmente
-		var tw: Tween = create_tween().set_loops()
-		tw.tween_property(mi, "scale", mi.scale * 1.08, 0.35)
-		tw.tween_property(mi, "scale", mi.scale, 0.35)
+		# NO loop tween acá — provocaba stacking con otros tweens de scale
+		# (shield squash, onda_choque inflate) y hang del motor.
+		# Feedback visual de furia es solo la emisión roja.
 	print("[KingSlime] ============================")
 	print("[KingSlime] MODO FURIA ACTIVADO")
 	print("[KingSlime] speed: ", old_speed, " → ", speed)
@@ -727,6 +726,8 @@ func _attack_combo_rebote() -> void:
 
 # Un único rebote: telegraph → salto arco → land → AoE + charco (si fase ≥ 3).
 func _do_single_rebote(telegraph: float, air_time: float) -> void:
+	# Reset velocity al inicio para no acarrear state de ataques previos.
+	velocity = Vector3.ZERO
 	action_state = ActionState.TELEGRAPH
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
@@ -737,6 +738,10 @@ func _do_single_rebote(telegraph: float, air_time: float) -> void:
 	velocity.y = 0.5 * gravity * air_time
 	var dir: Vector3 = land_pos - global_position
 	dir.y = 0.0
+	# Cap horizontal: máx 8m de distancia por salto — evita "teleport".
+	const MAX_JUMP_DIST: float = 8.0
+	if dir.length() > MAX_JUMP_DIST:
+		dir = dir.normalized() * MAX_JUMP_DIST
 	if dir.length() > 0.1:
 		var horiz: Vector3 = dir / air_time
 		velocity.x = horiz.x
@@ -981,6 +986,7 @@ func _drive_acid_pool(pool: Area3D) -> void:
 
 # ── Embestida ─────────────────────────────────────────────────────────
 func _attack_embestida() -> void:
+	velocity = Vector3.ZERO
 	var telegraph: float = 1.0
 	# Pequeña "compresión" visual: encoger mesh 15% durante telegraph.
 	if mesh:
