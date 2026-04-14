@@ -9,7 +9,7 @@ signal phase_changed(phase: int)
 
 enum Phase { ONE, TWO, THREE, FOUR }
 
-enum ActionState { IDLE, PURSUE, TELEGRAPH, EXECUTE, RECOVER }
+enum ActionState { IDLE, PURSUE, TELEGRAPH, EXECUTE, RECOVER, SHIELDING }
 
 # Hook para sesiones futuras — sin uso Sesión 1, se deja seteable en Inspector.
 @export var mini_slime_scene: PackedScene
@@ -36,6 +36,18 @@ const FURY_DAMAGE_MULT: float = 1.35  # +35% daño — observable en los número
 # Último aliento — se dispara una sola vez cuando hp <= 5%.
 var _last_breath_triggered: bool = false
 const LAST_BREATH_HP_PCT: float = 0.05
+
+# Shield pose — mientras hay minis vivos, boss se agazapa y reduce daño.
+# Break cuando los minis caen a menos del threshold.
+const SHIELD_MIN_MINIS: int = 2
+const SHIELD_DAMAGE_MULT: float = 0.4      # recibe 40% del daño
+const SHIELD_MINI_SPEED: float = 1.2       # minis forzados a esta speed (spec: "mucho más lentos")
+const BOMB_INTERVAL: float = 2.0           # cada cuánto lanza baba bombardero durante shield
+const BOMB_TELEGRAPH: float = 1.2          # tiempo entre marca en el suelo y impacto
+const BOMB_AOE_RADIUS: float = 2.0
+const BOMB_DAMAGE: float = 10.0
+var _shielding: bool = false
+var _bomb_timer: float = 0.0
 
 # Mini-slimes invocados activos — para reabsorción.
 var _spawned_minis: Array = []
@@ -103,6 +115,159 @@ func _on_contact_aura_exited(body: Node) -> void:
 	_players_in_contact.erase(body)
 	_restore_player_speed(body)
 	_detach_gelatin_overlay(body)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Shield pose — boss se agazapa mientras minis vivos. Reduce daño +
+# bombardea babas con marca en el suelo.
+# ──────────────────────────────────────────────────────────────────────
+func _update_shield_state() -> void:
+	if is_dead:
+		return
+	# Contar minis vivos
+	var alive: int = 0
+	for m in _spawned_minis:
+		if is_instance_valid(m):
+			alive += 1
+	var should_shield: bool = alive >= SHIELD_MIN_MINIS
+	if should_shield and not _shielding:
+		_enter_shield()
+	elif not should_shield and _shielding:
+		_exit_shield()
+
+
+func _enter_shield() -> void:
+	_shielding = true
+	# Solo cambiar estado si no está ocupado con un ataque en curso.
+	if action_state == ActionState.IDLE or action_state == ActionState.PURSUE:
+		action_state = ActionState.SHIELDING
+	_bomb_timer = BOMB_INTERVAL * 0.5  # primer bomb más pronto
+	velocity.x = 0.0
+	velocity.z = 0.0
+	# Visual: aplastar verticalmente 20% + color un poco más oscuro.
+	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	if mi:
+		var tw: Tween = create_tween()
+		tw.tween_property(mi, "scale", Vector3(1.1, 0.7, 1.1), 0.3)
+	print("[KingSlime] === SHIELD POSE === esperando minis (", _spawned_minis.size(), " vivos)")
+
+
+func _exit_shield() -> void:
+	_shielding = false
+	if action_state == ActionState.SHIELDING:
+		action_state = ActionState.PURSUE
+	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	if mi:
+		var tw: Tween = create_tween()
+		tw.tween_property(mi, "scale", Vector3.ONE, 0.3)
+	print("[KingSlime] === SHIELD BREAK === vuelve al combate")
+
+
+func _shield_tick(delta: float) -> void:
+	# No avanza, no melee. Solo bombardea.
+	velocity.x = 0.0
+	velocity.z = 0.0
+	_look_at_target()
+	_bomb_timer -= delta
+	if _bomb_timer <= 0.0:
+		_bomb_timer = BOMB_INTERVAL
+		_attack_baba_bombardero()
+
+
+# ── Baba bombardero (durante shield) ──────────────────────────────────
+# Telegraph: marca en el suelo donde va a caer. Impacto: AoE 2m.
+func _attack_baba_bombardero() -> void:
+	if not is_instance_valid(target):
+		return
+	var impact_pos: Vector3 = target.global_position
+	impact_pos.y = global_position.y  # proyectar a altura del boss (aprox ground)
+	_spawn_ground_marker(impact_pos, BOMB_TELEGRAPH)
+	_spawn_bomb_baba(impact_pos, BOMB_TELEGRAPH)
+
+
+func _spawn_ground_marker(pos: Vector3, lifetime: float) -> void:
+	# Disco rojo semi-transparente en el suelo — cruz visual tipo artillería.
+	var marker: MeshInstance3D = MeshInstance3D.new()
+	marker.name = "BombMarker"
+	var disc := CylinderMesh.new()
+	disc.top_radius = BOMB_AOE_RADIUS
+	disc.bottom_radius = BOMB_AOE_RADIUS
+	disc.height = 0.08
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.25, 0.15, 0.5)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.3, 0.2)
+	mat.emission_energy_multiplier = 0.9
+	disc.material = mat
+	marker.mesh = disc
+	get_tree().current_scene.add_child(marker)
+	marker.global_position = Vector3(pos.x, pos.y + 0.05, pos.z)
+	# Pulso: escala crece hasta 1.0 durante el telegraph (feedback de "ya llega").
+	marker.scale = Vector3(0.3, 1.0, 0.3)
+	var tw: Tween = create_tween()
+	tw.tween_property(marker, "scale", Vector3(1.1, 1.0, 1.1), lifetime)
+	tw.tween_callback(func():
+		if is_instance_valid(marker):
+			marker.queue_free()
+	)
+
+
+func _spawn_bomb_baba(impact_pos: Vector3, delay: float) -> void:
+	# Proyectil en arco — arranca alto sobre el boss, cae al impact_pos.
+	var baba: Area3D = Area3D.new()
+	baba.name = "BabaBomba"
+	baba.monitoring = true
+	baba.monitorable = false
+	baba.collision_mask = 1
+
+	var cs := CollisionShape3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 0.5
+	cs.shape = sph
+	baba.add_child(cs)
+
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.3, 0.9, 0.2)
+	mat.emission_enabled = true
+	mat.emission = Color(0.15, 0.7, 0.1)
+	mat.emission_energy_multiplier = 0.9
+	sm.material = mat
+	mi.mesh = sm
+	baba.add_child(mi)
+
+	get_tree().current_scene.add_child(baba)
+	var start: Vector3 = global_position + Vector3(0, 8.0, 0)
+	baba.global_position = start
+	_drive_bomb_baba(baba, start, impact_pos, delay)
+
+
+func _drive_bomb_baba(baba: Area3D, start: Vector3, impact: Vector3, duration: float) -> void:
+	var elapsed: float = 0.0
+	var apex: Vector3 = (start + impact) * 0.5 + Vector3(0, 4.0, 0)
+	while elapsed < duration and is_instance_valid(baba):
+		await get_tree().physics_frame
+		if not is_instance_valid(baba):
+			return
+		var dt: float = get_physics_process_delta_time()
+		elapsed += dt
+		var t: float = clamp(elapsed / duration, 0.0, 1.0)
+		# Bezier cuadrático start → apex → impact (arco).
+		var a: Vector3 = start.lerp(apex, t)
+		var b: Vector3 = apex.lerp(impact, t)
+		baba.global_position = a.lerp(b, t)
+	if not is_instance_valid(baba):
+		return
+	# Impacto: AoE
+	for p in get_tree().get_nodes_in_group("player"):
+		if p is Node3D and p.global_position.distance_to(impact) <= BOMB_AOE_RADIUS:
+			if p.has_method("take_damage"):
+				p.take_damage(base_damage_for_attack() + BOMB_DAMAGE)
+	baba.queue_free()
 
 
 # ── Overlay verde "dentro del slime" ──────────────────────────────────
@@ -191,6 +356,8 @@ func _physics_process(delta: float) -> void:
 	match action_state:
 		ActionState.IDLE, ActionState.PURSUE:
 			_pursue_tick(delta)
+		ActionState.SHIELDING:
+			_shield_tick(delta)
 		ActionState.TELEGRAPH, ActionState.EXECUTE, ActionState.RECOVER:
 			# Durante telegraph/execute/recover el boss no persigue
 			# (cada ataque controla su propio movimiento si lo necesita).
@@ -226,10 +393,14 @@ func _pursue_tick(delta: float) -> void:
 # Phase transitions
 # ──────────────────────────────────────────────────────────────────────
 func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
-	super(amount, hit_direction, knockback_force, attacker_str)
+	var final_amount: float = amount
+	if _shielding:
+		final_amount = amount * SHIELD_DAMAGE_MULT
+	super(final_amount, hit_direction, knockback_force, attacker_str)
 	if is_dead:
 		return
 	_update_phase()
+	_update_shield_state()
 	# Último aliento — una sola vez cuando bajamos de 5% HP.
 	if not _last_breath_triggered and _max_health > 0.0 and (health / _max_health) <= LAST_BREATH_HP_PCT:
 		_trigger_last_breath()
@@ -337,6 +508,8 @@ func _summon_mini_slimes(count: int) -> void:
 		push_warning("[KingSlime] mini_slime_scene NO seteada en Inspector — invocación skipeada")
 		return
 	print("[KingSlime] invocando ", count, " mini-slimes (fase ", int(current_phase) + 1, ")")
+	# Limpiar entradas muertas antes de contar
+	_spawned_minis = _spawned_minis.filter(func(m): return is_instance_valid(m))
 	var scene_root: Node = get_tree().current_scene
 	if not is_instance_valid(scene_root):
 		return
@@ -347,8 +520,13 @@ func _summon_mini_slimes(count: int) -> void:
 			var angle: float = (TAU / count) * i
 			var offset: Vector3 = Vector3(cos(angle) * 3.0, 1.5, sin(angle) * 3.0)
 			(mini as Node3D).global_position = global_position + offset
+		# Spec: "mucho más lentos" — cruza el cuerpo como gelatina, no como bicho ágil.
+		if "speed" in mini:
+			mini.speed = SHIELD_MINI_SPEED
 		_spawned_minis.append(mini)
 		_track_reabsorb(mini)
+	# Activar shield después de invocar
+	_update_shield_state()
 
 
 func _track_reabsorb(mini: Node) -> void:
@@ -366,6 +544,7 @@ func _track_reabsorb(mini: Node) -> void:
 		print("[KingSlime] reabsorbió mini @ dist=", dist, " hp=", health)
 		mini.queue_free()
 	_spawned_minis.erase(mini)
+	_update_shield_state()
 
 
 # ──────────────────────────────────────────────────────────────────────
