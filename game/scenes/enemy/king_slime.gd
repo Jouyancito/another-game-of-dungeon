@@ -27,6 +27,14 @@ const CONTACT_SLOW: float = 0.2      # multiplicador de velocidad del player en 
 var _contact_timer: float = 0.0
 var _players_in_contact: Array = []
 
+# Mini-slimes invocados activos — para reabsorción.
+var _spawned_minis: Array = []
+
+# Reabsorción mini-slime: distancia máxima al boss para tragárselo + cura.
+const REABSORB_RADIUS: float = 4.0
+const REABSORB_DELAY: float = 10.0
+const REABSORB_HEAL: float = 30.0
+
 
 func _on_enemy_ready() -> void:
 	# enemy_type se setea en .tscn — si quedó vacío, fallback
@@ -36,6 +44,10 @@ func _on_enemy_ready() -> void:
 	add_to_group("enemies")
 	_setup_contact_aura()
 	call_deferred("_setup_player_passthrough")
+	phase_changed.connect(_on_phase_changed)
+	var summon_timer: Timer = get_node_or_null("SummonTimer")
+	if summon_timer:
+		summon_timer.timeout.connect(_on_summon_timer_timeout)
 
 
 func _setup_player_passthrough() -> void:
@@ -171,7 +183,71 @@ func _update_phase() -> void:
 		new_phase = Phase.ONE
 	if new_phase != current_phase:
 		current_phase = new_phase
+		print("[KingSlime] entró fase ", current_phase, " (hp_pct=", hp_pct, ")")
 		phase_changed.emit(int(current_phase))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase transition handler — arranca/detiene timers, modo furia, etc.
+# ──────────────────────────────────────────────────────────────────────
+func _on_phase_changed(_phase: int) -> void:
+	var summon_timer: Timer = get_node_or_null("SummonTimer")
+	if summon_timer == null:
+		return
+	match current_phase:
+		Phase.TWO:
+			summon_timer.wait_time = 20.0
+			summon_timer.start()
+		Phase.THREE:
+			summon_timer.wait_time = 15.0
+			summon_timer.start()
+		Phase.FOUR:
+			summon_timer.stop()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Invocación mini-slimes + reabsorción
+# ──────────────────────────────────────────────────────────────────────
+func _on_summon_timer_timeout() -> void:
+	if is_dead or current_phase == Phase.FOUR:
+		return
+	var count: int = 5 if current_phase == Phase.THREE else 3
+	_summon_mini_slimes(count)
+
+
+func _summon_mini_slimes(count: int) -> void:
+	if mini_slime_scene == null:
+		push_warning("[KingSlime] mini_slime_scene NO seteada en Inspector — invocación skipeada")
+		return
+	var scene_root: Node = get_tree().current_scene
+	if not is_instance_valid(scene_root):
+		return
+	for i in count:
+		var mini: Node = mini_slime_scene.instantiate()
+		scene_root.add_child(mini)
+		if mini is Node3D:
+			var angle: float = (TAU / count) * i
+			var offset: Vector3 = Vector3(cos(angle) * 3.0, 1.5, sin(angle) * 3.0)
+			(mini as Node3D).global_position = global_position + offset
+		_spawned_minis.append(mini)
+		_track_reabsorb(mini)
+
+
+func _track_reabsorb(mini: Node) -> void:
+	await get_tree().create_timer(REABSORB_DELAY).timeout
+	if not is_instance_valid(self) or is_dead:
+		return
+	if not is_instance_valid(mini):
+		_spawned_minis.erase(mini)
+		return
+	var dist: float = INF
+	if mini is Node3D:
+		dist = (mini as Node3D).global_position.distance_to(global_position)
+	if dist <= REABSORB_RADIUS:
+		health = minf(health + REABSORB_HEAL, _max_health)
+		print("[KingSlime] reabsorbió mini @ dist=", dist, " hp=", health)
+		mini.queue_free()
+	_spawned_minis.erase(mini)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -224,16 +300,20 @@ func _start_attack() -> void:
 			_attack_embestida()
 		"escupitajo":
 			_attack_escupitajo()
+		"escupitajo_abanico":
+			_attack_escupitajo_abanico()
 
 
 func _pick_attack() -> String:
-	# Selección por distancia al target. Larga → escupitajo, media → rebote, corta → embestida.
-	# Evita que el boss haga embestida desde lejos o escupitajo pegado.
+	# Selección por distancia al target + escalado por fase.
+	# Fase 2+: escupitajo → escupitajo_abanico (3 proyectiles).
+	# Fase 4: cerca, 40% chance de onda_choque vs embestida.
 	var dist: float = INF
 	if is_instance_valid(target):
 		dist = global_position.distance_to(target.global_position)
+	var spit: String = "escupitajo_abanico" if current_phase >= Phase.TWO else "escupitajo"
 	if dist > 12.0:
-		return "escupitajo"
+		return spit
 	elif dist > 5.0:
 		return "rebote"
 	else:
@@ -362,12 +442,28 @@ func _attack_escupitajo() -> void:
 	_schedule_next_attack(3.0)
 
 
-func _spawn_spit_projectile() -> void:
+# ── Escupitajo abanico (Fase 2+) ──────────────────────────────────────
+func _attack_escupitajo_abanico() -> void:
+	var telegraph: float = 0.8
+	await get_tree().create_timer(telegraph).timeout
+	if is_dead or not is_instance_valid(self):
+		return
+	action_state = ActionState.EXECUTE
+	# 3 proyectiles abanico ±15°
+	_spawn_spit_projectile(-15.0)
+	_spawn_spit_projectile(0.0)
+	_spawn_spit_projectile(15.0)
+	_schedule_next_attack(3.5)
+
+
+func _spawn_spit_projectile(angle_offset_deg: float = 0.0) -> void:
 	if not is_instance_valid(target):
 		return
 	var origin: Vector3 = global_position + Vector3(0, 1.5, 0)
 	var dir: Vector3 = (target.global_position + Vector3(0, 1.0, 0)) - origin
 	dir = dir.normalized()
+	if angle_offset_deg != 0.0:
+		dir = dir.rotated(Vector3.UP, deg_to_rad(angle_offset_deg))
 
 	var proj: Area3D = Area3D.new()
 	proj.name = "SpitProjectile"

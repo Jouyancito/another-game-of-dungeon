@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scenes/enemy/king_slime.gd" id="1_king"]
+[ext_resource type="PackedScene" path="res://scenes/enemy/mini_slime.tscn" id="2_mini"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_001"]
 radius = 3.0
@@ -45,6 +46,7 @@ knockback_resistance = 0.95
 display_name = "Rey Slime"
 enemy_level = 5
 target_frame_offset = Vector3(0, 3.0, 0)
+mini_slime_scene = ExtResource("2_mini")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
