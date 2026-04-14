@@ -40,7 +40,7 @@ const LAST_BREATH_HP_PCT: float = 0.05
 # Shield pose — mientras hay minis vivos, boss se agazapa y reduce daño.
 # Break cuando los minis caen a menos del threshold.
 const SHIELD_MIN_MINIS: int = 2
-const SHIELD_DAMAGE_MULT: float = 0.4      # recibe 40% del daño
+const SHIELD_DAMAGE_MULT: float = 0.2      # recibe 20% del daño — shield DURO
 const SHIELD_MINI_SPEED: float = 1.2       # minis forzados a esta speed (spec: "mucho más lentos")
 const BOMB_INTERVAL: float = 2.0           # cada cuánto lanza baba bombardero durante shield
 const BOMB_TELEGRAPH: float = 1.2          # tiempo entre marca en el suelo y impacto
@@ -141,14 +141,15 @@ func _enter_shield() -> void:
 	# Solo cambiar estado si no está ocupado con un ataque en curso.
 	if action_state == ActionState.IDLE or action_state == ActionState.PURSUE:
 		action_state = ActionState.SHIELDING
-	_bomb_timer = BOMB_INTERVAL * 0.5  # primer bomb más pronto
+	_bomb_timer = BOMB_INTERVAL * 0.5
 	velocity.x = 0.0
 	velocity.z = 0.0
-	# Visual: aplastar verticalmente 20% + color un poco más oscuro.
+	# Aplastar fuerte verticalmente (60% de altura) — pose agazapada obvia.
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	if mi:
 		var tw: Tween = create_tween()
-		tw.tween_property(mi, "scale", Vector3(1.1, 0.7, 1.1), 0.3)
+		tw.tween_property(mi, "scale", Vector3(1.25, 0.6, 1.25), 0.3)
+	_spawn_shield_dome()
 	print("[KingSlime] === SHIELD POSE === esperando minis (", _spawned_minis.size(), " vivos)")
 
 
@@ -160,7 +161,33 @@ func _exit_shield() -> void:
 	if mi:
 		var tw: Tween = create_tween()
 		tw.tween_property(mi, "scale", Vector3.ONE, 0.3)
+	var dome: Node = get_node_or_null("ShieldDome")
+	if dome:
+		dome.queue_free()
 	print("[KingSlime] === SHIELD BREAK === vuelve al combate")
+
+
+func _spawn_shield_dome() -> void:
+	# Domo translúcido verde-dorado alrededor del boss — feedback inmediato
+	# de que ahora es tanky. Child del boss para que siga la posición.
+	if has_node("ShieldDome"):
+		return
+	var dome: MeshInstance3D = MeshInstance3D.new()
+	dome.name = "ShieldDome"
+	var sph := SphereMesh.new()
+	sph.radius = 4.0
+	sph.height = 8.0
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.9, 0.85, 0.2, 0.25)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = Color(0.95, 0.85, 0.2)
+	mat.emission_energy_multiplier = 0.6
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # ver desde dentro también
+	sph.material = mat
+	dome.mesh = sph
+	dome.position = Vector3(0, 3.0, 0)
+	add_child(dome)
 
 
 func _shield_tick(delta: float) -> void:
@@ -180,18 +207,29 @@ func _attack_baba_bombardero() -> void:
 	if not is_instance_valid(target):
 		return
 	var impact_pos: Vector3 = target.global_position
-	impact_pos.y = global_position.y  # proyectar a altura del boss (aprox ground)
-	_spawn_ground_marker(impact_pos, BOMB_TELEGRAPH)
-	_spawn_bomb_baba(impact_pos, BOMB_TELEGRAPH)
+	impact_pos.y = global_position.y
+	# Baba principal — marca + proyectil arco.
+	_spawn_ground_marker(impact_pos, BOMB_TELEGRAPH, BOMB_AOE_RADIUS)
+	_spawn_bomb_baba(impact_pos, BOMB_TELEGRAPH, false)
+	# Splatter: 5 sub-babas en patrón estrella alrededor del impacto,
+	# escalonadas 0.15s. Cubre 4m radio alrededor del impacto principal.
+	var splatter_count: int = 5
+	var splatter_spread: float = 3.5
+	for i in splatter_count:
+		var ang: float = (TAU / splatter_count) * i + randf_range(-0.2, 0.2)
+		var dist: float = splatter_spread * randf_range(0.6, 1.0)
+		var sub_pos: Vector3 = impact_pos + Vector3(cos(ang) * dist, 0, sin(ang) * dist)
+		var sub_delay: float = BOMB_TELEGRAPH + 0.3 + i * 0.15
+		_spawn_ground_marker(sub_pos, sub_delay, 1.3)
+		_spawn_bomb_baba(sub_pos, sub_delay, true)
 
 
-func _spawn_ground_marker(pos: Vector3, lifetime: float) -> void:
-	# Disco rojo semi-transparente en el suelo — cruz visual tipo artillería.
+func _spawn_ground_marker(pos: Vector3, lifetime: float, radius: float = BOMB_AOE_RADIUS) -> void:
 	var marker: MeshInstance3D = MeshInstance3D.new()
 	marker.name = "BombMarker"
 	var disc := CylinderMesh.new()
-	disc.top_radius = BOMB_AOE_RADIUS
-	disc.bottom_radius = BOMB_AOE_RADIUS
+	disc.top_radius = radius
+	disc.bottom_radius = radius
 	disc.height = 0.08
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 0.25, 0.15, 0.5)
@@ -213,24 +251,25 @@ func _spawn_ground_marker(pos: Vector3, lifetime: float) -> void:
 	)
 
 
-func _spawn_bomb_baba(impact_pos: Vector3, delay: float) -> void:
-	# Proyectil en arco — arranca alto sobre el boss, cae al impact_pos.
+func _spawn_bomb_baba(impact_pos: Vector3, delay: float, is_splatter: bool = false) -> void:
 	var baba: Area3D = Area3D.new()
 	baba.name = "BabaBomba"
 	baba.monitoring = true
 	baba.monitorable = false
 	baba.collision_mask = 1
+	baba.set_meta("is_splatter", is_splatter)
 
+	var r: float = 0.35 if is_splatter else 0.5
 	var cs := CollisionShape3D.new()
 	var sph := SphereShape3D.new()
-	sph.radius = 0.5
+	sph.radius = r
 	cs.shape = sph
 	baba.add_child(cs)
 
 	var mi := MeshInstance3D.new()
 	var sm := SphereMesh.new()
-	sm.radius = 0.5
-	sm.height = 1.0
+	sm.radius = r
+	sm.height = r * 2.0
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.3, 0.9, 0.2)
 	mat.emission_enabled = true
@@ -262,11 +301,14 @@ func _drive_bomb_baba(baba: Area3D, start: Vector3, impact: Vector3, duration: f
 		baba.global_position = a.lerp(b, t)
 	if not is_instance_valid(baba):
 		return
-	# Impacto: AoE
+	# Impacto: AoE. Splatters hacen menos daño y radio menor.
+	var is_splat: bool = baba.get_meta("is_splatter", false)
+	var aoe: float = 1.3 if is_splat else BOMB_AOE_RADIUS
+	var dmg: float = (BOMB_DAMAGE * 0.5) if is_splat else BOMB_DAMAGE
 	for p in get_tree().get_nodes_in_group("player"):
-		if p is Node3D and p.global_position.distance_to(impact) <= BOMB_AOE_RADIUS:
+		if p is Node3D and p.global_position.distance_to(impact) <= aoe:
 			if p.has_method("take_damage"):
-				p.take_damage(base_damage_for_attack() + BOMB_DAMAGE)
+				p.take_damage(base_damage_for_attack() + dmg)
 	baba.queue_free()
 
 
@@ -991,5 +1033,6 @@ func base_damage_for_attack() -> float:
 
 func _schedule_next_attack(base_cooldown: float) -> void:
 	_next_attack_cooldown = base_cooldown * _cooldown_mult()
-	action_state = ActionState.PURSUE
+	# Si entramos a shield mientras estábamos atacando, volver al SHIELDING al terminar.
+	action_state = ActionState.SHIELDING if _shielding else ActionState.PURSUE
 	_current_attack = ""
