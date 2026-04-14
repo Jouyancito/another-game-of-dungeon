@@ -31,6 +31,7 @@ var _players_in_contact: Array = []
 # Modo furia (Fase 4) — se activa una vez al entrar a fase 4.
 var _fury_active: bool = false
 const FURY_SPEED_MULT: float = 1.5
+const FURY_DAMAGE_MULT: float = 1.35  # +35% daño — observable en los números de golpe
 
 # Último aliento — se dispara una sola vez cuando hp <= 5%.
 var _last_breath_triggered: bool = false
@@ -246,7 +247,7 @@ func _update_phase() -> void:
 		new_phase = Phase.ONE
 	if new_phase != current_phase:
 		current_phase = new_phase
-		print("[KingSlime] entró fase ", current_phase, " (hp_pct=", hp_pct, ")")
+		print("[KingSlime] >>> FASE ", int(current_phase) + 1, " <<< hp=", health, "/", _max_health, " (", int(hp_pct * 100), "%)")
 		phase_changed.emit(int(current_phase))
 
 
@@ -288,7 +289,10 @@ func _enter_fury() -> void:
 	if _fury_active:
 		return
 	_fury_active = true
+	var old_speed: float = speed
+	var old_dmg: float = damage
 	speed *= FURY_SPEED_MULT
+	damage *= FURY_DAMAGE_MULT
 	# Emisión roja pulsante en el mesh del slime.
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	if mi and mi.mesh is SphereMesh:
@@ -298,7 +302,15 @@ func _enter_fury() -> void:
 			m.emission = Color(0.95, 0.15, 0.1)
 			m.emission_energy_multiplier = 1.4
 			sphere_mesh.material = m
-	print("[KingSlime] MODO FURIA — speed=", speed)
+		# Tween pulsante para que vibre visualmente
+		var tw: Tween = create_tween().set_loops()
+		tw.tween_property(mi, "scale", mi.scale * 1.08, 0.35)
+		tw.tween_property(mi, "scale", mi.scale, 0.35)
+	print("[KingSlime] ============================")
+	print("[KingSlime] MODO FURIA ACTIVADO")
+	print("[KingSlime] speed: ", old_speed, " → ", speed)
+	print("[KingSlime] damage: ", old_dmg, " → ", damage)
+	print("[KingSlime] ============================")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -315,6 +327,7 @@ func _summon_mini_slimes(count: int) -> void:
 	if mini_slime_scene == null:
 		push_warning("[KingSlime] mini_slime_scene NO seteada en Inspector — invocación skipeada")
 		return
+	print("[KingSlime] invocando ", count, " mini-slimes (fase ", int(current_phase) + 1, ")")
 	var scene_root: Node = get_tree().current_scene
 	if not is_instance_valid(scene_root):
 		return
