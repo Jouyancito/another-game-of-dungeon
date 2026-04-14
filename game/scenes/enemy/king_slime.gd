@@ -47,6 +47,7 @@ const REABSORB_HEAL: float = 30.0
 
 
 func _on_enemy_ready() -> void:
+	print("[KingSlime] >>> READY <<< script v=S2 | hp=", health, " damage=", damage)
 	# enemy_type se setea en .tscn — si quedó vacío, fallback
 	if enemy_type == "" or enemy_type == "enemy_basic":
 		enemy_type = "king_slime"
@@ -275,8 +276,10 @@ func _on_phase_changed(_phase: int) -> void:
 			summon_timer.wait_time = 15.0
 			summon_timer.start()
 			_summon_mini_slimes(5)
-			# Forzar un rebote inmediato → garantiza charco ácido visible
-			# aunque el player pegue melee y nunca entre al pool de combo_rebote.
+			# Charco de entrada — si el overkill mata al boss antes de rebotar,
+			# igual queda un charco visible como marca de que entró a fase 3.
+			_spawn_acid_pool(global_position)
+			# Forzar un rebote inmediato → charco adicional al aterrizar.
 			_force_combo_rebote_soon()
 		Phase.FOUR:
 			summon_timer.stop()
