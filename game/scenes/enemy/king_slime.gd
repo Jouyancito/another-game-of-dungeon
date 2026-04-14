@@ -236,17 +236,23 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 
 func _update_phase() -> void:
 	var hp_pct: float = health / _max_health if _max_health > 0.0 else 0.0
-	var new_phase: Phase = current_phase
+	var target_phase: Phase = Phase.ONE
 	if hp_pct <= 0.25:
-		new_phase = Phase.FOUR
+		target_phase = Phase.FOUR
 	elif hp_pct <= 0.50:
-		new_phase = Phase.THREE
+		target_phase = Phase.THREE
 	elif hp_pct <= 0.75:
-		new_phase = Phase.TWO
-	else:
-		new_phase = Phase.ONE
-	if new_phase != current_phase:
-		current_phase = new_phase
+		target_phase = Phase.TWO
+	# Avanzar fase por fase — si el player tira 800 dmg en un golpe
+	# queremos que igual se disparen _on_phase_changed de fase 2 Y 3 antes
+	# de la 4 (spawns minis, charco, etc). Si no, se ven sólo los efectos
+	# de la fase final.
+	while int(current_phase) < int(target_phase):
+		var next_int: int = int(current_phase) + 1
+		match next_int:
+			1: current_phase = Phase.TWO
+			2: current_phase = Phase.THREE
+			3: current_phase = Phase.FOUR
 		print("[KingSlime] >>> FASE ", int(current_phase) + 1, " <<< hp=", health, "/", _max_health, " (", int(hp_pct * 100), "%)")
 		phase_changed.emit(int(current_phase))
 
