@@ -103,11 +103,29 @@ Formato: `[id] nombre — descripción — prioridad (P0/P1/P2) — ruta destino
 - **P1** = necesario para "piso terminado" (lista completa del GDD).
 - **P2** = nice-to-have, puede esperar a post-MVP.
 
+### Mapeo IDs → filenames (skill `kenney-quaternius-sourcer` canon)
+
+Los IDs (T/V/N/H/S/E/D/FX/U) son **referencia interna del doc**. Los **filenames reales** siguen patrón `{prefix}_{descripcion_snake_case}.glb`:
+
+| Categoría doc | Prefix filename | Ejemplo |
+|----|----|----|
+| T (terrain) | `env_` | `env_ground_grass.glb` |
+| V (vegetation) | `env_` | `env_tree_oak_01.glb`, `env_grass_tuft_01.glb` |
+| N (props naturales) | `env_` (rocas, cristales, dome) o `prop_` (cofres, etc.) | `env_rock_small_01.glb`, `prop_giant_diamond.glb` |
+| H (props humanos) | `prop_` | `prop_chest_common.glb`, `prop_palisade_section.glb` |
+| S (skybox) | `env_` | `env_cave_ceiling_dome.glb` |
+| E (enemigos) | `enemy_` | `enemy_slime_green.glb`, `enemy_bandit_leader.glb` |
+| D (deco fauna) | `enemy_` (subcarpeta `deco/`) | `enemy_butterfly_01.glb` |
+| FX | `fx_` | `fx_god_rays_volumetric.tres` |
+| U (UI diegético) | `prop_` | `prop_portal_entrance.glb` |
+
+**Variantes**: usar sufijo numérico `_01/_02/_03` (canon skill), NO `_a/_b/_c`.
+
 ### 5.1 Terreno / tiles
 
 | id | asset | desc | prio | destino |
 |----|-------|------|------|---------|
-| T01 | `ground_grass` | Tile hierba verde pastel, 2×2m, tileable | P0 | `game/assets/art/p1/terrain/` |
+| T01 | `ground_grass` | Tile hierba verde pastel, 2×2m, tileable | P0 | `game/assets/art/piso1_pradera/terrain/` |
 | T02 | `ground_dirt_path` | Tile camino tierra, 2×2m, tileable | P1 | `terrain/` |
 | T03 | `ground_stone` | Tile piedra ruinas, 2×2m | P1 | `terrain/` |
 | T04 | `ground_rocky` | Tile zona rocosa/árida | P1 | `terrain/` |
@@ -257,7 +275,7 @@ Los GDs/stats viven en `biome_prairie.md` y `enemy_tier_system.md`. Acá solo li
 ## 7. Definition of Done — asset P1
 
 Un asset está "listo" cuando:
-1. ✅ Archivo en `game/assets/art/p1/<categoria>/` con naming `snake_case`.
+1. ✅ Archivo en `game/assets/art/piso1_pradera/<categoria>/` con naming `snake_case`.
 2. ✅ Formato Godot: `.glb` (meshes) o `.png` (texturas/atlas).
 3. ✅ Escala correcta (1 unidad Godot = 1m).
 4. ✅ Pivot en base del objeto (al piso) para props verticales.

@@ -250,7 +250,7 @@ Todo lo demás = **Kenney/Quaternius directo** con ajuste de material para match
 3. Ajustar escala a 1u = 1m.
 4. Pivot a base.
 5. Simplificar material a vertex color / unlit si trae PBR pesado.
-6. Export `.glb` a `game/assets/art/p1/<categoria>/`.
+6. Export `.glb` a `game/assets/art/piso1_pradera/<categoria>/`.
 7. Import en Godot, verificar lighting canon.
 
 ### Ruta AI + cleanup
