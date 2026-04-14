@@ -30,7 +30,7 @@ material = SubResource("StandardMaterial3D_Crown")
 
 [node name="KingSlime" type="CharacterBody3D" groups=["enemies"]]
 script = ExtResource("1_king")
-speed = 1.8
+speed = 1.26
 health = 1000.0
 damage = 12.0
 defense = 14.0
