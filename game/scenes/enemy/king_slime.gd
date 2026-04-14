@@ -780,16 +780,27 @@ func _do_single_rebote(telegraph: float, air_time: float) -> void:
 func _rebote_land_aoe() -> void:
 	var aoe_radius: float = 4.0
 	var aoe_damage: float = base_damage_for_attack() + 10.0
+	var kb_out: float = 7.0   # moderado — no manda al espacio
+	var kb_up: float = 5.0
 	for p in get_tree().get_nodes_in_group("player"):
-		if p is Node3D and p.global_position.distance_to(global_position) <= aoe_radius:
+		if not is_instance_valid(p) or not p is Node3D:
+			continue
+		if p.global_position.distance_to(global_position) <= aoe_radius:
 			if p.has_method("take_damage"):
 				p.take_damage(aoe_damage)
-			# Sin knockback — user feedback: frustra, rompe combate.
-			# En su lugar: slow breve al recibir la onda.
-			_apply_slow(p, 0.75, 0.6)
-	# Onda de choque visual — ring que se expande en el suelo
-	_spawn_shockwave_ring(global_position, aoe_radius)
-	# Fase 3+: charco ácido en el punto de aterrizaje.
+			if is_instance_valid(p):
+				_apply_slow(p, 0.75, 0.6)
+			if is_instance_valid(p) and p is CharacterBody3D:
+				var push: Vector3 = p.global_position - global_position
+				push.y = 0.0
+				if push.length() < 0.1:
+					push = Vector3(1, 0, 0)
+				push = push.normalized() * kb_out
+				push.y = kb_up
+				p.velocity = push
+	# Ring visual expandiendo a 10m — mucho más grande que el AoE de daño (4m)
+	# para que se vea imponente aunque el daño sea más cercano.
+	_spawn_shockwave_ring(global_position, 10.0)
 	if current_phase >= Phase.THREE:
 		_spawn_acid_pool(global_position)
 
