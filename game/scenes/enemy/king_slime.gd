@@ -138,18 +138,24 @@ func _update_shield_state() -> void:
 
 func _enter_shield() -> void:
 	_shielding = true
-	# Solo cambiar estado si no está ocupado con un ataque en curso.
 	if action_state == ActionState.IDLE or action_state == ActionState.PURSUE:
 		action_state = ActionState.SHIELDING
 	_bomb_timer = BOMB_INTERVAL * 0.5
 	velocity.x = 0.0
 	velocity.z = 0.0
-	# Aplastar fuerte verticalmente (60% de altura) — pose agazapada obvia.
+	# Animación "caída de resguardo":
+	# 1) Squash rápido y fuerte hacia abajo (0.18s) — gesto de "me agacho"
+	# 2) Pulso sutil continuo mientras dura el shield (respira recogido)
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	if mi:
 		var tw: Tween = create_tween()
-		tw.tween_property(mi, "scale", Vector3(1.25, 0.6, 1.25), 0.3)
-	_spawn_shield_dome()
+		tw.tween_property(mi, "scale", Vector3(1.35, 0.55, 1.35), 0.18)\
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		# Pulso sutil loop
+		var pulse: Tween = create_tween().set_loops()
+		pulse.tween_property(mi, "scale", Vector3(1.32, 0.58, 1.32), 0.6)
+		pulse.tween_property(mi, "scale", Vector3(1.35, 0.55, 1.35), 0.6)
+		mi.set_meta("shield_pulse_tween", pulse)
 	print("[KingSlime] === SHIELD POSE === esperando minis (", _spawned_minis.size(), " vivos)")
 
 
@@ -159,35 +165,17 @@ func _exit_shield() -> void:
 		action_state = ActionState.PURSUE
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	if mi:
+		# Cortar pulso y hacer rebote de vuelta a tamaño normal.
+		if mi.has_meta("shield_pulse_tween"):
+			var pulse: Tween = mi.get_meta("shield_pulse_tween")
+			if pulse and pulse.is_valid():
+				pulse.kill()
+			mi.remove_meta("shield_pulse_tween")
 		var tw: Tween = create_tween()
-		tw.tween_property(mi, "scale", Vector3.ONE, 0.3)
-	var dome: Node = get_node_or_null("ShieldDome")
-	if dome:
-		dome.queue_free()
+		tw.tween_property(mi, "scale", Vector3(1.0, 1.1, 1.0), 0.15)\
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(mi, "scale", Vector3.ONE, 0.12)
 	print("[KingSlime] === SHIELD BREAK === vuelve al combate")
-
-
-func _spawn_shield_dome() -> void:
-	# Domo translúcido verde-dorado alrededor del boss — feedback inmediato
-	# de que ahora es tanky. Child del boss para que siga la posición.
-	if has_node("ShieldDome"):
-		return
-	var dome: MeshInstance3D = MeshInstance3D.new()
-	dome.name = "ShieldDome"
-	var sph := SphereMesh.new()
-	sph.radius = 4.0
-	sph.height = 8.0
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.9, 0.85, 0.2, 0.25)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(0.95, 0.85, 0.2)
-	mat.emission_energy_multiplier = 0.6
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED  # ver desde dentro también
-	sph.material = mat
-	dome.mesh = sph
-	dome.position = Vector3(0, 3.0, 0)
-	add_child(dome)
 
 
 func _shield_tick(delta: float) -> void:
