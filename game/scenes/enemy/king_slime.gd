@@ -46,6 +46,17 @@ const BOMB_INTERVAL: float = 2.0           # cada cuánto lanza baba bombardero 
 const BOMB_TELEGRAPH: float = 1.2          # tiempo entre marca en el suelo y impacto
 const BOMB_AOE_RADIUS: float = 2.0
 const BOMB_DAMAGE: float = 10.0
+
+# Acid pool (charco) — radio más grande para forzar al melee a salirse.
+const ACID_POOL_RADIUS: float = 3.5
+const ACID_POOL_DOT: float = 4.0
+const ACID_POOL_LIFETIME: float = 5.0
+const ACID_POOL_SLOW_MULT: float = 0.65  # speed * 0.65 mientras estás dentro
+
+# Slow aplicado por escupitajos y bombardero — 30% ralentización breve.
+const PROJECTILE_SLOW_MULT: float = 0.7
+const PROJECTILE_SLOW_DURATION: float = 2.0
+const BOMB_SLOW_DURATION: float = 1.5
 var _shielding: bool = false
 var _bomb_timer: float = 0.0
 
@@ -181,7 +192,7 @@ func _attack_baba_bombardero() -> void:
 		return
 	var impact_pos: Vector3 = target.global_position
 	impact_pos.y = global_position.y
-	# Baba principal — marca + proyectil arco.
+	print("[KingSlime] BOMBARDERO impact_pos=", impact_pos, " target_pos=", target.global_position)
 	_spawn_ground_marker(impact_pos, BOMB_TELEGRAPH, BOMB_AOE_RADIUS)
 	_spawn_bomb_baba(impact_pos, BOMB_TELEGRAPH, false)
 	# Splatter: 5 sub-babas en patrón estrella alrededor del impacto,
@@ -274,7 +285,7 @@ func _drive_bomb_baba(baba: Area3D, start: Vector3, impact: Vector3, duration: f
 		baba.global_position = a.lerp(b, t)
 	if not is_instance_valid(baba):
 		return
-	# Impacto: AoE. Splatters hacen menos daño y radio menor.
+	# Impacto: AoE + slow. Splatters hacen menos daño y radio menor.
 	var is_splat: bool = baba.get_meta("is_splatter", false)
 	var aoe: float = 1.3 if is_splat else BOMB_AOE_RADIUS
 	var dmg: float = (BOMB_DAMAGE * 0.5) if is_splat else BOMB_DAMAGE
@@ -282,7 +293,44 @@ func _drive_bomb_baba(baba: Area3D, start: Vector3, impact: Vector3, duration: f
 		if p is Node3D and p.global_position.distance_to(impact) <= aoe:
 			if p.has_method("take_damage"):
 				p.take_damage(base_damage_for_attack() + dmg)
+			_apply_slow(p, PROJECTILE_SLOW_MULT, BOMB_SLOW_DURATION)
 	baba.queue_free()
+
+
+# ── Helper: slow con restore vía timer ────────────────────────────────
+# Aplica speed * mult por duration segundos. Meta clave única para no
+# pisar el slow del ContactAura (que usa "king_slime_orig_speed").
+func _apply_slow(body: Node, mult: float, duration: float) -> void:
+	if not is_instance_valid(body) or not "speed" in body:
+		return
+	# Si ya tiene un slow activo de este helper, refrescar la duración.
+	var meta_key: String = "king_slime_proj_slow"
+	if body.has_meta(meta_key):
+		body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
+		return
+	var orig: float = body.speed
+	body.set_meta(meta_key, orig)
+	body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
+	body.speed = orig * mult
+	_slow_restore_watcher(body, meta_key)
+
+
+func _slow_restore_watcher(body: Node, meta_key: String) -> void:
+	# Poll cada 0.1s hasta vencer el timestamp — permite "refrescar" el slow.
+	while is_instance_valid(body) and body.has_meta(meta_key):
+		await get_tree().create_timer(0.1).timeout
+		if not is_instance_valid(body):
+			return
+		var until: int = body.get_meta(meta_key + "_until", 0)
+		if Time.get_ticks_msec() >= until:
+			var orig: float = body.get_meta(meta_key, body.speed)
+			# No restaurar si el ContactAura todavía tiene al player adentro
+			# (ese slow se maneja en _on_contact_aura_exited).
+			if not body.has_meta("king_slime_orig_speed"):
+				body.speed = orig
+			body.remove_meta(meta_key)
+			body.remove_meta(meta_key + "_until")
+			return
 
 
 # ── Overlay verde "dentro del slime" ──────────────────────────────────
@@ -739,15 +787,15 @@ func _spawn_acid_pool(pos: Vector3) -> void:
 
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
-	cyl.radius = 2.0
+	cyl.radius = ACID_POOL_RADIUS
 	cyl.height = 0.5
 	cs.shape = cyl
 	pool.add_child(cs)
 
 	var mesh_vis := MeshInstance3D.new()
 	var cmesh := CylinderMesh.new()
-	cmesh.top_radius = 2.0
-	cmesh.bottom_radius = 2.0
+	cmesh.top_radius = ACID_POOL_RADIUS
+	cmesh.bottom_radius = ACID_POOL_RADIUS
 	cmesh.height = 0.15
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.35, 0.95, 0.15, 0.7)
@@ -840,18 +888,19 @@ func _trigger_last_breath() -> void:
 
 
 func _drive_acid_pool(pool: Area3D) -> void:
-	const DOT: float = 3.0
-	const TICK: float = 1.0
-	const LIFETIME: float = 5.0
+	const TICK: float = 0.5
 	var elapsed: float = 0.0
-	while elapsed < LIFETIME and is_instance_valid(pool):
+	while elapsed < ACID_POOL_LIFETIME and is_instance_valid(pool):
 		await get_tree().create_timer(TICK).timeout
 		if not is_instance_valid(pool):
 			return
 		elapsed += TICK
 		for body in pool.get_overlapping_bodies():
-			if body.is_in_group("player") and body.has_method("take_damage"):
-				body.take_damage(DOT)
+			if body.is_in_group("player"):
+				if body.has_method("take_damage"):
+					body.take_damage(ACID_POOL_DOT * TICK)
+				# Slow breve refrescado cada tick mientras sigue adentro.
+				_apply_slow(body, ACID_POOL_SLOW_MULT, 0.8)
 	if is_instance_valid(pool):
 		pool.queue_free()
 
@@ -973,6 +1022,7 @@ func _spawn_spit_projectile(angle_offset_deg: float = 0.0) -> void:
 	proj.body_entered.connect(func(body: Node) -> void:
 		if body.is_in_group("player") and body.has_method("take_damage"):
 			body.take_damage(damage)
+			_apply_slow(body, PROJECTILE_SLOW_MULT, PROJECTILE_SLOW_DURATION)
 			proj.queue_free()
 	)
 
