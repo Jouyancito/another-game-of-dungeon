@@ -19,6 +19,7 @@ var action_state: ActionState = ActionState.IDLE
 var _last_attack: String = ""
 var _next_attack_cooldown: float = 0.0
 var _current_attack: String = ""
+var _forced_next_attack: String = ""
 
 # Contact damage / slow aura — slime "absorbe" si te toca.
 const CONTACT_TICK: float = 0.4      # cada 0.4s aplica daño
@@ -93,11 +94,61 @@ func _on_contact_aura_entered(body: Node) -> void:
 		if "speed" in body and not body.has_meta("king_slime_orig_speed"):
 			body.set_meta("king_slime_orig_speed", body.speed)
 			body.speed = body.speed * CONTACT_SLOW
+		_attach_gelatin_overlay(body)
 
 
 func _on_contact_aura_exited(body: Node) -> void:
 	_players_in_contact.erase(body)
 	_restore_player_speed(body)
+	_detach_gelatin_overlay(body)
+
+
+# ── Overlay verde "dentro del slime" ──────────────────────────────────
+# ColorRect fullscreen hijo del player. Feel: estás metido en gelatina.
+func _attach_gelatin_overlay(body: Node) -> void:
+	if not is_instance_valid(body):
+		return
+	if body.has_node("KingSlimeGelatinOverlay"):
+		return
+	var layer: CanvasLayer = CanvasLayer.new()
+	layer.name = "KingSlimeGelatinOverlay"
+	layer.layer = 50
+	var rect: ColorRect = ColorRect.new()
+	rect.name = "Tint"
+	rect.color = Color(0.2, 0.85, 0.25, 0.4)
+	rect.anchor_right = 1.0
+	rect.anchor_bottom = 1.0
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(rect)
+	# Borde más oscuro (vignette simple): segundo ColorRect con gradient via shader simple.
+	var edge: ColorRect = ColorRect.new()
+	edge.name = "Edge"
+	edge.anchor_right = 1.0
+	edge.anchor_bottom = 1.0
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """
+shader_type canvas_item;
+void fragment() {
+	vec2 uv = UV - vec2(0.5);
+	float d = length(uv) * 1.4;
+	float a = smoothstep(0.35, 0.9, d) * 0.55;
+	COLOR = vec4(0.05, 0.35, 0.1, a);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	edge.material = mat
+	layer.add_child(edge)
+	body.add_child(layer)
+
+
+func _detach_gelatin_overlay(body: Node) -> void:
+	if not is_instance_valid(body):
+		return
+	var layer: Node = body.get_node_or_null("KingSlimeGelatinOverlay")
+	if layer:
+		layer.queue_free()
 
 
 func _restore_player_speed(body: Node) -> void:
@@ -107,9 +158,10 @@ func _restore_player_speed(body: Node) -> void:
 
 
 func _exit_tree() -> void:
-	# Safety: si el boss muere/despawnea, restaurar speed de todos los players.
+	# Safety: si el boss muere/despawnea, restaurar speed y overlay de players.
 	for p in _players_in_contact:
 		_restore_player_speed(p)
+		_detach_gelatin_overlay(p)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -209,12 +261,26 @@ func _on_phase_changed(_phase: int) -> void:
 		Phase.TWO:
 			summon_timer.wait_time = 20.0
 			summon_timer.start()
+			# Spawn inmediato para que se note la transición aunque el player
+			# mate rápido y no alcance el primer tick del timer.
+			_summon_mini_slimes(3)
 		Phase.THREE:
 			summon_timer.wait_time = 15.0
 			summon_timer.start()
+			_summon_mini_slimes(5)
+			# Forzar un rebote inmediato → garantiza charco ácido visible
+			# aunque el player pegue melee y nunca entre al pool de combo_rebote.
+			_force_combo_rebote_soon()
 		Phase.FOUR:
 			summon_timer.stop()
 			_enter_fury()
+
+
+# Al entrar fase 3, encolar combo rebote como próximo ataque (override).
+func _force_combo_rebote_soon() -> void:
+	_next_attack_cooldown = 0.5
+	# Sobrescribir _pick_attack via flag one-shot
+	_forced_next_attack = "combo_rebote"
 
 
 # ── Modo furia (entrada Fase 4) ───────────────────────────────────────
@@ -319,7 +385,11 @@ func _debug_perform(attack: String) -> void:
 
 
 func _start_attack() -> void:
-	_current_attack = _pick_attack()
+	if _forced_next_attack != "":
+		_current_attack = _forced_next_attack
+		_forced_next_attack = ""
+	else:
+		_current_attack = _pick_attack()
 	_last_attack = _current_attack
 	action_state = ActionState.TELEGRAPH
 	print("[KingSlime] ATTACK=", _current_attack, " phase=", current_phase, " dist=", global_position.distance_to(target.global_position) if is_instance_valid(target) else -1.0)
