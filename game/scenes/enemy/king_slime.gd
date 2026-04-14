@@ -302,21 +302,30 @@ func _start_attack() -> void:
 			_attack_escupitajo()
 		"escupitajo_abanico":
 			_attack_escupitajo_abanico()
+		"combo_rebote":
+			_attack_combo_rebote()
+		"onda_choque":
+			_attack_onda_choque()
 
 
 func _pick_attack() -> String:
-	# Selección por distancia al target + escalado por fase.
-	# Fase 2+: escupitajo → escupitajo_abanico (3 proyectiles).
-	# Fase 4: cerca, 40% chance de onda_choque vs embestida.
+	# Híbrido: distancia decide base, fase decide variantes/intensidad.
+	# - Fase 1: rebote simple, escupitajo simple.
+	# - Fase 2: escupitajo → abanico.
+	# - Fase 3: rebote → combo_rebote (y deja charco ácido on-land).
+	# - Fase 4: cerca, 40% onda_choque en vez de embestida.
 	var dist: float = INF
 	if is_instance_valid(target):
 		dist = global_position.distance_to(target.global_position)
 	var spit: String = "escupitajo_abanico" if current_phase >= Phase.TWO else "escupitajo"
+	var bounce: String = "combo_rebote" if current_phase >= Phase.THREE else "rebote"
 	if dist > 12.0:
 		return spit
 	elif dist > 5.0:
-		return "rebote"
+		return bounce
 	else:
+		if current_phase == Phase.FOUR and randf() < 0.4:
+			return "onda_choque"
 		return "embestida"
 
 
@@ -331,16 +340,34 @@ func _cooldown_mult() -> float:
 
 # ── Rebote ────────────────────────────────────────────────────────────
 func _attack_rebote() -> void:
-	var telegraph: float = 1.5
+	await _do_single_rebote(1.5, 0.9)
+	if is_dead or not is_instance_valid(self):
+		return
+	_schedule_next_attack(4.0)
+
+
+# Combo rebote (Fase 3+): 3 saltos rápidos, telegraph corto en el primero.
+func _attack_combo_rebote() -> void:
+	for i in 3:
+		if is_dead or not is_instance_valid(self):
+			return
+		var tele: float = 1.0 if i == 0 else 0.3
+		await _do_single_rebote(tele, 0.7)
+	if is_dead or not is_instance_valid(self):
+		return
+	_schedule_next_attack(7.0)
+
+
+# Un único rebote: telegraph → salto arco → land → AoE + charco (si fase ≥ 3).
+func _do_single_rebote(telegraph: float, air_time: float) -> void:
+	action_state = ActionState.TELEGRAPH
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return
 	action_state = ActionState.EXECUTE
 
-	# Arco simétrico: apex ~0.45s, land ~0.9s. Jump calc para cubrir h=4m.
 	var land_pos: Vector3 = target.global_position if is_instance_valid(target) else global_position
-	var air_time: float = 0.9
-	velocity.y = 0.5 * gravity * air_time  # ~4.4 con gravity 9.8
+	velocity.y = 0.5 * gravity * air_time
 	var dir: Vector3 = land_pos - global_position
 	dir.y = 0.0
 	if dir.length() > 0.1:
@@ -348,24 +375,22 @@ func _attack_rebote() -> void:
 		velocity.x = horiz.x
 		velocity.z = horiz.z
 
-	# Esperar hasta que toque el suelo (o timeout por seguridad)
 	var max_wait: float = 2.5
 	var elapsed: float = 0.0
 	while elapsed < max_wait and not is_dead and is_instance_valid(self):
 		await get_tree().physics_frame
 		elapsed += get_physics_process_delta_time()
-		if is_on_floor() and elapsed > 0.2:  # skip primer frame
+		if is_on_floor() and elapsed > 0.2:
 			break
 
 	if is_dead or not is_instance_valid(self):
 		return
 	velocity.x = 0.0
 	velocity.z = 0.0
-	_finish_rebote()
+	_rebote_land_aoe()
 
 
-func _finish_rebote() -> void:
-	# AoE radio 4m alrededor del punto de aterrizaje del boss.
+func _rebote_land_aoe() -> void:
 	var aoe_radius: float = 4.0
 	var aoe_damage: float = base_damage_for_attack() + 10.0
 	var knockback_up: float = 6.0
@@ -374,16 +399,77 @@ func _finish_rebote() -> void:
 		if p is Node3D and p.global_position.distance_to(global_position) <= aoe_radius:
 			if p.has_method("take_damage"):
 				p.take_damage(aoe_damage)
-			# Empujar al player hacia afuera + arriba — evita que boss se quede encima.
 			if p is CharacterBody3D:
 				var push: Vector3 = p.global_position - global_position
 				push.y = 0.0
 				if push.length() < 0.1:
-					push = Vector3(1, 0, 0)  # fallback si overlap exacto
+					push = Vector3(1, 0, 0)
 				push = push.normalized() * knockback_out
 				push.y = knockback_up
 				p.velocity = push
-	_schedule_next_attack(4.0)
+	# Fase 3+: charco ácido en el punto de aterrizaje.
+	if current_phase >= Phase.THREE:
+		_spawn_acid_pool(global_position)
+
+
+# ── Charco ácido (Fase 3+) ────────────────────────────────────────────
+# Area3D inline: cilindro verde + DoT. Radio 2m, 3 dmg/s, dura 5s.
+func _spawn_acid_pool(pos: Vector3) -> void:
+	var pool: Area3D = Area3D.new()
+	pool.name = "AcidPool"
+	pool.monitoring = true
+	pool.monitorable = false
+	pool.collision_mask = 1
+
+	var cs := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 2.0
+	cyl.height = 0.5
+	cs.shape = cyl
+	pool.add_child(cs)
+
+	var mesh_vis := MeshInstance3D.new()
+	var cmesh := CylinderMesh.new()
+	cmesh.top_radius = 2.0
+	cmesh.bottom_radius = 2.0
+	cmesh.height = 0.15
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.35, 0.95, 0.15, 0.7)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = Color(0.2, 0.8, 0.1)
+	mat.emission_energy_multiplier = 0.6
+	cmesh.material = mat
+	mesh_vis.mesh = cmesh
+	mesh_vis.position = Vector3(0, 0.08, 0)
+	pool.add_child(mesh_vis)
+
+	get_tree().current_scene.add_child(pool)
+	pool.global_position = Vector3(pos.x, pos.y + 0.05, pos.z)
+
+	_drive_acid_pool(pool)
+
+
+func _attack_onda_choque() -> void:
+	# Stub — Fase 4 real en commit siguiente.
+	_schedule_next_attack(10.0)
+
+
+func _drive_acid_pool(pool: Area3D) -> void:
+	const DOT: float = 3.0
+	const TICK: float = 1.0
+	const LIFETIME: float = 5.0
+	var elapsed: float = 0.0
+	while elapsed < LIFETIME and is_instance_valid(pool):
+		await get_tree().create_timer(TICK).timeout
+		if not is_instance_valid(pool):
+			return
+		elapsed += TICK
+		for body in pool.get_overlapping_bodies():
+			if body.is_in_group("player") and body.has_method("take_damage"):
+				body.take_damage(DOT)
+	if is_instance_valid(pool):
+		pool.queue_free()
 
 
 # ── Embestida ─────────────────────────────────────────────────────────
