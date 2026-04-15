@@ -37,12 +37,25 @@ Derivado de `balance_v2.md` §3.1 con `piso = 1`. Valores redondeados:
 
 ### Pack composition (coordinar con B)
 
-| Tipo de encuentro | Frecuencia por arena | Composición |
-|-------------------|----------------------|-------------|
+Distribución de rolls por **spawn point** de la arena (cada arena tiene ~8-12 spawn points procedurales).
+
+**Combate (75%)**:
+
+| Tipo de encuentro | Frecuencia | Composición |
+|-------------------|------------|-------------|
 | Pack estándar | 60% | 1 sub-B + 3-4 sub-A |
-| Mob suelto | 25% | 1-2 sub-A |
 | Pack élite | 10% | 1 sub-C + 2 sub-A |
 | Encuentro especial | 5% | Veterano (si aplica seed) o mini-boss |
+
+**Variedad / no-combate (25%)** — rompen el ritmo de kill-loot:
+
+| Tipo | Frecuencia | Contenido |
+|------|------------|-----------|
+| **Arena vacía** | 10% | Spawn point vacío. Respiro visual + exploración. Puede contener chest pequeño (ver §5) o POI pasivo. |
+| **Evento pacífico** | 8% | Fauna pacífica (mariposas, libélulas), NPC itinerante (bardo P5, Cazador Perdido), interactable lore (altar, diario). NO da XP por kill — da XP flat por descubrir POI (§3 bonos). |
+| **Ambush** | 7% | Mob oculto (slime en charco, bandit tras árbol, nido wasp). Se revela al entrar zona. Castiga con daño sorpresa. Drops con **+10% roll quality** (ver `p1_loot_table.md §5`). |
+
+**Nota**: el 25% de variedad es crítico para la tesis P1 "presentar variedad del juego" (`tier_1_pool P1 §premisa`). Una arena 100% combate es mecánicamente correcta pero temáticamente pobre para el piso tutorial.
 
 **Expected P1 run (1 piso, ~25 min)**:
 - ~20 sub-A + ~5 sub-B + ~1 sub-C

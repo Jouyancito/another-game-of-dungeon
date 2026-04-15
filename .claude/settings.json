@@ -1,20 +1,6 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/worktree-statusline.ps1\""
-  },
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "shell": "powershell",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/stop-merge-reminder.ps1\""
-          }
-        ]
-      }
-    ]
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:/Users/the_j/Desktop/DungeonParty-D/.claude/worktree-statusline.ps1\""
   }
 }
