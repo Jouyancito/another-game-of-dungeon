@@ -197,12 +197,12 @@ func _cell_key(pos: Vector3) -> Vector2i:
 
 
 func _snap_ground(pos: Vector3, query_node: Node) -> Vector3:
-	var space := query_node.get_world_3d().direct_space_state
+	var space: PhysicsDirectSpaceState3D = query_node.get_world_3d().direct_space_state
 	var from := pos + Vector3(0, 2.0, 0)
 	var to := pos + Vector3(0, -5.0, 0)
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.collision_mask = 1
-	var hit := space.intersect_ray(q)
+	var hit: Dictionary = space.intersect_ray(q)
 	if not hit.is_empty():
 		return Vector3(pos.x, hit.position.y + 0.05, pos.z)
 	return pos
