@@ -5,6 +5,7 @@ extends Area3D
 ## Ownership, expiración y bind_on_drop se agregan en commits posteriores.
 
 signal despawned(item: GroundItem, reason: String)
+signal vfx_despawn_requested(item: GroundItem, reason: String, color: Color)
 
 @export var despawn_time := 120.0
 
@@ -70,10 +71,45 @@ func despawn_now(reason: String = "expired") -> void:
 	if is_despawning:
 		return
 	is_despawning = true
+	hide_label()
+
+	var rarity: String = item_data.get("rarity", "common")
+	var color: Color = ItemDatabase.get_rarity_color(rarity)
+
 	despawned.emit(self, reason)
+	vfx_despawn_requested.emit(self, reason, color)
+
+	_play_despawn_vfx(color)
+
+
+func _play_despawn_vfx(color: Color) -> void:
+	# Pulse rapido del aura + expansion del mesh + fade a transparente.
+	# Hook para FX externos (particulas reales) via signal vfx_despawn_requested.
 	var tween := create_tween()
-	tween.tween_property(self, "scale", Vector3(0.01, 0.01, 0.01), 0.4)
-	tween.tween_callback(queue_free)
+	tween.set_parallel(true)
+
+	# Aura: pulse energetico luego fade
+	if aura_light:
+		aura_light.light_color = color
+		tween.tween_property(aura_light, "light_energy", 3.0, 0.15)
+		tween.chain().tween_property(aura_light, "light_energy", 0.0, 0.4)
+		tween.parallel().tween_property(aura_light, "omni_range", 3.0, 0.4)
+
+	# Mesh: expand + fade via material transparency
+	if mesh:
+		var mat: StandardMaterial3D = mesh.get_surface_override_material(0) as StandardMaterial3D
+		if mat:
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.emission_enabled = true
+			mat.emission = color
+			mat.emission_energy_multiplier = 2.5
+			tween.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.55)
+			tween.parallel().tween_property(mat, "emission_energy_multiplier", 0.0, 0.55)
+		tween.parallel().tween_property(mesh, "scale", Vector3(2.0, 2.0, 2.0), 0.55)
+
+	# Root node: scale down final + queue_free
+	tween.chain().tween_property(self, "scale", Vector3(0.01, 0.01, 0.01), 0.15)
+	tween.chain().tween_callback(queue_free)
 
 
 func show_label() -> void:
