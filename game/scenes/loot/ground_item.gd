@@ -192,24 +192,25 @@ func _refresh_label() -> void:
 	label_3d.text = name_txt
 	label_3d.modulate = color
 	# Estilo Metin2: label en world-space — escala natural con distancia.
-	# fixed_size=false hace que label + background quad scaleen juntos.
 	label_3d.fixed_size = false
-	label_3d.pixel_size = 0.0045
-	label_3d.font_size = 22
+	label_3d.pixel_size = 0.0038
+	label_3d.font_size = 20
 	label_3d.outline_size = 3
 	label_3d.no_depth_test = false           # OCLUIBLE por paredes (brief)
 	label_3d.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	label_3d.width = 400.0
 	label_3d.render_priority = 1
 
+	# Adaptar el tamano del bg al numero de lineas del texto
+	_resize_label_bg(name_txt.count("\n") + 1)
+
 
 func _build_label_bg() -> void:
 	var bg := MeshInstance3D.new()
 	bg.name = "LabelBackground"
 	var quad := QuadMesh.new()
-	# Sync aproximado con label en world-space: pixel_size 0.0045 × font_size 22
-	# ≈ 0.10m alto. Ancho cubre ~20 chars. Ambos scalean igual con la distancia.
-	quad.size = Vector2(0.55, 0.13)
+	# Tamano inicial — se re-ajusta en _resize_label_bg segun lineas reales.
+	quad.size = Vector2(0.5, 0.1)
 	bg.mesh = quad
 	var bg_mat := StandardMaterial3D.new()
 	bg_mat.albedo_color = Color(0.05, 0.05, 0.1, 0.75)
@@ -223,6 +224,22 @@ func _build_label_bg() -> void:
 	add_child(bg)
 	bg.visible = false
 	_label_bg = bg
+
+
+## Ajusta el QuadMesh de fondo para encajar con font_size * pixel_size * lineas
+## + padding. Mantiene el texto centrado sin tocar bordes.
+func _resize_label_bg(lines: int) -> void:
+	if _label_bg == null or label_3d == null:
+		return
+	var quad := _label_bg.mesh as QuadMesh
+	if quad == null:
+		return
+	var line_height: float = float(label_3d.font_size) * label_3d.pixel_size
+	var pad_y := 0.035
+	var pad_x := 0.08
+	# Ancho proporcional al label.width en pixeles, pero cap razonable
+	var text_w_approx: float = min(float(label_3d.width), 240.0) * label_3d.pixel_size
+	quad.size = Vector2(maxf(0.45, text_w_approx + pad_x), line_height * lines + pad_y)
 
 
 func _get_type_color(t: String) -> Color:
