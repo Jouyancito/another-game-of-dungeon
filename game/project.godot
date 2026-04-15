@@ -25,6 +25,7 @@ SaveManager="*res://scripts/save_manager.gd"
 ItemDatabase="*res://shared/systems/item_database.gd"
 LootTable="*res://shared/systems/loot_table.gd"
 DropController="*res://shared/loot/drop_controller.gd"
+LootStyle="*res://shared/loot/loot_style.gd"
 Journal="*res://scripts/journal.gd"
 TitleTracker="*res://scripts/title_tracker.gd"
 

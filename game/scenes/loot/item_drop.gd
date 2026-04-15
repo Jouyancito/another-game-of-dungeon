@@ -54,25 +54,15 @@ func _apply_visuals() -> void:
 	var rarity: String = item_data.get("rarity", "common")
 	var color: Color = ItemDatabase.get_rarity_color(rarity)
 
-	# Nombre del item + quién lo soltó — estilo Metin 2: chico, siempre visible dentro del rango
+	# Nombre del item + quién lo soltó — via LootStyle (sync con GroundItem)
 	var display_name: String = item_data.get("name", "???")
 	if item_quantity > 1:
 		display_name += " x%d" % item_quantity
 	if dropped_by != "":
 		display_name += "\n[%s]" % dropped_by
-	label_3d.text = display_name
-	label_3d.modulate = color
-	label_3d.fixed_size = true
-	label_3d.pixel_size = 0.00055  # ajuste final — legible sin saturar
-	label_3d.font_size = 24
-	label_3d.outline_size = 3
-	label_3d.no_depth_test = true
-	label_3d.width = 500.0
-	label_3d.render_priority = 1  # por delante del fondo
-	label_3d.visible = false  # lo activa el player cuando entra en rango
-
-	# Cuadradito de fondo detrás del label — se ve más amigable y no se pierde en el vacío
-	_build_label_background()
+	LootStyle.style_world_label(label_3d, display_name, color)
+	label_3d.visible = false
+	LootStyle.build_label_bg(self, label_3d, display_name.count("\n") + 1, LootStyle.BG_ITEM_DARK)
 
 	# Color del mesh según tipo + emisión por rareza
 	var mat := StandardMaterial3D.new()
@@ -95,43 +85,12 @@ func _physics_process(_delta: float) -> void:
 	pass
 
 
-func _build_label_background() -> void:
-	# QuadMesh semi-transparente billboard detrás del Label3D — le da una "cajita"
-	# que lo hace legible sobre cualquier fondo del mundo.
-	var bg_mesh := MeshInstance3D.new()
-	bg_mesh.name = "LabelBackground"
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.85, 0.22)
-	bg_mesh.mesh = quad
-
-	var bg_mat := StandardMaterial3D.new()
-	bg_mat.albedo_color = Color(0.05, 0.05, 0.1, 0.75)
-	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bg_mat.no_depth_test = true
-	bg_mat.render_priority = 0  # detrás del label (render_priority 1)
-	bg_mesh.material_override = bg_mat
-
-	bg_mesh.position = label_3d.position
-	add_child(bg_mesh)
-	# El background se muestra/oculta junto con el label
-	bg_mesh.visible = false
-	label_3d.set_meta("background_node", bg_mesh)
-
-
 func show_label() -> void:
-	label_3d.visible = true
-	var bg: Node = label_3d.get_meta("background_node", null)
-	if bg != null and bg is MeshInstance3D:
-		(bg as MeshInstance3D).visible = true
+	LootStyle.show_label_with_bg(label_3d)
 
 
 func hide_label() -> void:
-	label_3d.visible = false
-	var bg: Node = label_3d.get_meta("background_node", null)
-	if bg != null and bg is MeshInstance3D:
-		(bg as MeshInstance3D).visible = false
+	LootStyle.hide_label_with_bg(label_3d)
 
 
 func pickup() -> Dictionary:

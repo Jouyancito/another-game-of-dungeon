@@ -133,17 +133,11 @@ func _play_despawn_vfx(color: Color) -> void:
 
 
 func show_label() -> void:
-	if label_3d:
-		label_3d.visible = true
-	if _label_bg:
-		_label_bg.visible = true
+	LootStyle.show_label_with_bg(label_3d)
 
 
 func hide_label() -> void:
-	if label_3d:
-		label_3d.visible = false
-	if _label_bg:
-		_label_bg.visible = false
+	LootStyle.hide_label_with_bg(label_3d)
 
 
 func _apply_visuals() -> void:
@@ -189,57 +183,13 @@ func _refresh_label() -> void:
 		name_txt += " x%d" % item_quantity
 	if owner_id != 0 and owner_name != "":
 		name_txt += "\n[owner: %s]" % owner_name
-	label_3d.text = name_txt
-	label_3d.modulate = color
-	# Estilo Metin2: label en world-space — escala natural con distancia.
-	label_3d.fixed_size = false
-	label_3d.pixel_size = 0.0038
-	label_3d.font_size = 20
-	label_3d.outline_size = 3
-	label_3d.no_depth_test = false           # OCLUIBLE por paredes (brief)
-	label_3d.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	label_3d.width = 400.0
-	label_3d.render_priority = 1
-
-	# Adaptar el tamano del bg al numero de lineas del texto
-	_resize_label_bg(name_txt.count("\n") + 1)
+	LootStyle.style_world_label(label_3d, name_txt, color)
+	LootStyle.resize_label_bg(_label_bg, label_3d, name_txt.count("\n") + 1)
 
 
 func _build_label_bg() -> void:
-	var bg := MeshInstance3D.new()
-	bg.name = "LabelBackground"
-	var quad := QuadMesh.new()
-	# Tamano inicial — se re-ajusta en _resize_label_bg segun lineas reales.
-	quad.size = Vector2(0.5, 0.1)
-	bg.mesh = quad
-	var bg_mat := StandardMaterial3D.new()
-	bg_mat.albedo_color = Color(0.05, 0.05, 0.1, 0.75)
-	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
-	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bg_mat.no_depth_test = false              # ocluido por geometry
-	bg_mat.render_priority = 0
-	bg.material_override = bg_mat
-	bg.position = label_3d.position
-	add_child(bg)
-	bg.visible = false
-	_label_bg = bg
-
-
-## Ajusta el QuadMesh de fondo para encajar con font_size * pixel_size * lineas
-## + padding. Mantiene el texto centrado sin tocar bordes.
-func _resize_label_bg(lines: int) -> void:
-	if _label_bg == null or label_3d == null:
-		return
-	var quad := _label_bg.mesh as QuadMesh
-	if quad == null:
-		return
-	var line_height: float = float(label_3d.font_size) * label_3d.pixel_size
-	var pad_y := 0.035
-	var pad_x := 0.08
-	# Ancho proporcional al label.width en pixeles, pero cap razonable
-	var text_w_approx: float = min(float(label_3d.width), 240.0) * label_3d.pixel_size
-	quad.size = Vector2(maxf(0.45, text_w_approx + pad_x), line_height * lines + pad_y)
+	var bg_color: Color = LootStyle.BG_QUEST_DARK if bind_on_drop else LootStyle.BG_ITEM_DARK
+	_label_bg = LootStyle.build_label_bg(self, label_3d, 1, bg_color)
 
 
 func _get_type_color(t: String) -> Color:

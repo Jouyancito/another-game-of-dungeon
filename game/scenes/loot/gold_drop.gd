@@ -26,17 +26,10 @@ func _ready() -> void:
 		cyl.bottom_radius = 0.05
 		cyl.height = 0.015
 
-	# Label — tamaño legible, constante en pantalla
-	label_3d.text = "%d oro" % amount
-	label_3d.fixed_size = true
-	label_3d.pixel_size = 0.00055  # ajuste final — consistente con enemy + item drops
-	label_3d.font_size = 24
-	label_3d.outline_size = 3
-	label_3d.no_depth_test = true
-	label_3d.render_priority = 1
+	# Label — via LootStyle (sync con items drops). Tinte dorado del texto.
+	LootStyle.style_world_label(label_3d, "%d oro" % amount, Color(1.0, 0.85, 0.2))
 	label_3d.visible = false
-
-	_build_label_background()
+	LootStyle.build_label_bg(self, label_3d, 1, LootStyle.BG_GOLD_DARK)
 
 	# Intentar fusionar con oro cercano
 	call_deferred("_try_merge_nearby")
@@ -117,36 +110,8 @@ func _do_pickup(player: Node3D) -> void:
 
 
 func show_label() -> void:
-	label_3d.visible = true
-	var bg: Node = label_3d.get_meta("background_node", null)
-	if bg != null and bg is MeshInstance3D:
-		(bg as MeshInstance3D).visible = true
+	LootStyle.show_label_with_bg(label_3d)
 
 
 func hide_label() -> void:
-	label_3d.visible = false
-	var bg: Node = label_3d.get_meta("background_node", null)
-	if bg != null and bg is MeshInstance3D:
-		(bg as MeshInstance3D).visible = false
-
-
-func _build_label_background() -> void:
-	var bg_mesh := MeshInstance3D.new()
-	bg_mesh.name = "LabelBackground"
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.85, 0.22)
-	bg_mesh.mesh = quad
-
-	var bg_mat := StandardMaterial3D.new()
-	bg_mat.albedo_color = Color(0.1, 0.08, 0.02, 0.75)  # tono dorado oscuro, distintivo del oro
-	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bg_mat.no_depth_test = true
-	bg_mat.render_priority = 0
-	bg_mesh.material_override = bg_mat
-
-	bg_mesh.position = label_3d.position
-	add_child(bg_mesh)
-	bg_mesh.visible = false
-	label_3d.set_meta("background_node", bg_mesh)
+	LootStyle.hide_label_with_bg(label_3d)
