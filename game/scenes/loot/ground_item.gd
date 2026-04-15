@@ -46,6 +46,20 @@ func setup(id: String, quantity: int = 1, owner_player: Node = null) -> void:
 			owner_name = String(owner_player.name)
 
 
+## Animacion de spawn estilo Metin2: arco pequeno desde el mob hacia la posicion final.
+func arc_to(target: Vector3) -> void:
+	var start := global_position
+	var peak := start.lerp(target, 0.5)
+	peak.y = maxf(start.y, target.y) + 0.7
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(self, "global_position", peak, 0.18).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "global_position", target, 0.20).set_ease(Tween.EASE_IN)
+	# Pequeno "rebote" al aterrizar
+	tween.tween_property(self, "scale", Vector3(1.15, 0.85, 1.15), 0.06)
+	tween.tween_property(self, "scale", Vector3(1.0, 1.0, 1.0), 0.10)
+
+
 func can_pickup_by(player: Node) -> bool:
 	if is_despawning:
 		return false

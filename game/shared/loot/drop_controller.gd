@@ -11,8 +11,8 @@ const GOLD_SCENE := preload("res://scenes/loot/gold_drop.tscn")
 
 const RING_INNER := 1.0
 const RING_OUTER := 2.0
-const CELL_SIZE := 0.5
-const MAX_SPAWN_ATTEMPTS := 20
+const CELL_SIZE := 0.7              # gap visual claro entre items (mesh ~0.25m)
+const MAX_SPAWN_ATTEMPTS := 30
 const OWNER_WINDOW_SEC := 120.0
 const KILLER_MAJORITY_THRESHOLD := 0.60   # >=60% daño solo → ownership directa
 const CONTRIB_MIN_SHARE := 0.10           # <10% del daño total = no cuenta para round-robin
@@ -39,8 +39,10 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 	if loot.get("gold", 0) > 0:
 		var gold = GOLD_SCENE.instantiate()
 		gold.setup(loot["gold"])
-		gold.global_position = _pick_radial_position(enemy_position, occupied_cells, query_node)
+		var gold_target := _pick_radial_position(enemy_position, occupied_cells, query_node)
+		gold.global_position = enemy_position + Vector3(0, 0.4, 0)
 		scene_root.call_deferred("add_child", gold)
+		gold.call_deferred("set", "global_position", gold_target)
 
 	var items: Array = loot.get("items", [])
 	if items.is_empty():
@@ -51,8 +53,11 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 	for entry in items:
 		var drop: GroundItem = GROUND_ITEM_SCENE.instantiate()
 		drop.setup(entry["item_id"], entry["quantity"], owner_player)
-		drop.global_position = _pick_radial_position(enemy_position, occupied_cells, query_node)
+		var target_pos := _pick_radial_position(enemy_position, occupied_cells, query_node)
+		# Arranca en el mob + arco Metin2 hacia la posicion final
+		drop.global_position = enemy_position + Vector3(0, 0.4, 0)
 		scene_root.call_deferred("add_child", drop)
+		drop.call_deferred("arc_to", target_pos)
 		_register_drop(drop, owner_player)
 		drop_spawned.emit(drop)
 
