@@ -70,10 +70,10 @@ func _move_toward_target(_delta: float) -> void:
 
 
 ## Override take_damage: si duerme, despertar antes de recibir daño
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dormant:
 		_awaken()
-	super.take_damage(amount, hit_direction, knockback_force, attacker_str)
+	super.take_damage(amount, hit_direction, knockback_force, attacker_str, attacker)
 
 
 ## Cicla entre 3 ataques: Puñetazo → Pisotón AoE → Lanzar roca

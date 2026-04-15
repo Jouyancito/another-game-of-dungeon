@@ -150,7 +150,7 @@ func _attack_charged_heavy() -> void:
 
 
 ## Override take_damage — 30% chance de bloquear (reduce daño 50%)
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dead:
 		return
 
@@ -158,4 +158,4 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if can_block and randf() < block_chance:
 		final_amount *= (1.0 - block_damage_reduction)
 
-	super.take_damage(final_amount, hit_direction, knockback_force, attacker_str)
+	super.take_damage(final_amount, hit_direction, knockback_force, attacker_str, attacker)

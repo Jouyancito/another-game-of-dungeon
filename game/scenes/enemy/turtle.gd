@@ -72,7 +72,7 @@ func _idle_behavior(delta: float) -> void:
 # ─── Shell mechanic ─────────────────────────────────────────────────────────
 
 ## Override take_damage: cualquier golpe dispara la retracción
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dead:
 		return
 
@@ -82,6 +82,12 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	# Provocar si es neutral
 	if aggression == AggressionType.NEUTRAL and not is_provoked:
 		is_provoked = true
+
+	# Log de daño para ownership del drop (mismo patrón que base_enemy)
+	if attacker != null and is_instance_valid(attacker):
+		var aid := attacker.get_instance_id()
+		_damage_log[aid] = _damage_log.get(aid, 0.0) + effective_amount
+		_attackers[aid] = attacker
 
 	# Pasar el daño ya reducido — evitar doble reducción en la base
 	# Llamamos directamente sin el hook de DEF (que base_enemy no tiene por defecto)
