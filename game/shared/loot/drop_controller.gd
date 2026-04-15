@@ -21,6 +21,10 @@ const CONTRIB_MIN_SHARE := 0.10           # <10% del daño total = no cuenta par
 # para que la próxima vez con daño compartido entre los mismos, rote.
 var _round_robin_queue: Array[int] = []
 
+# Registros activos para expiración y owner-left handling.
+# drop_instance_id → {drop: GroundItem, owner_id: int}
+var _active_drops: Dictionary = {}
+
 
 ## Entry point — base_enemy.die() llama esto.
 ## loot: {"gold": int, "items": [{"item_id", "quantity"}]}
@@ -49,7 +53,73 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 		drop.setup(entry["item_id"], entry["quantity"], owner_player)
 		drop.global_position = _pick_radial_position(enemy_position, occupied_cells, query_node)
 		scene_root.call_deferred("add_child", drop)
+		_register_drop(drop, owner_player)
 		drop_spawned.emit(drop)
+
+
+## Registra el drop, arranca timer 120s, cablea owner-left hook.
+func _register_drop(drop: GroundItem, owner_player: Node) -> void:
+	var drop_id := drop.get_instance_id()
+	_active_drops[drop_id] = {
+		"drop": drop,
+		"owner_id": owner_player.get_instance_id() if owner_player != null else 0,
+	}
+	# Cleanup si el drop se libera por cualquier motivo
+	drop.tree_exited.connect(func(): _active_drops.erase(drop_id))
+
+	# Owner-left: si el owner sale de la escena antes del expire, libera o despawn
+	if owner_player != null:
+		owner_player.tree_exited.connect(
+			func(): _on_owner_left(drop_id),
+			CONNECT_ONE_SHOT
+		)
+
+	# Solo arrancar timer si hay owner (drops libres no necesitan expirar)
+	if owner_player != null:
+		_schedule_expire(drop_id)
+
+
+func _schedule_expire(drop_id: int) -> void:
+	var timer := get_tree().create_timer(OWNER_WINDOW_SEC)
+	timer.timeout.connect(func(): _expire_drop(drop_id))
+
+
+func _expire_drop(drop_id: int) -> void:
+	var rec: Dictionary = _active_drops.get(drop_id, {})
+	if rec.is_empty():
+		return
+	var drop: GroundItem = rec["drop"]
+	if not is_instance_valid(drop):
+		_active_drops.erase(drop_id)
+		return
+	if drop.is_despawning:
+		return
+	if drop.bind_on_drop:
+		# Quest/boss item — despawn con FX (VFX hook en commit 4)
+		drop.despawn_now("bind_expired")
+		drop_expired.emit(drop, "bind_expired")
+	else:
+		# Transferible — free for all
+		drop.mark_free()
+		drop_expired.emit(drop, "free_for_all")
+	_active_drops.erase(drop_id)
+
+
+func _on_owner_left(drop_id: int) -> void:
+	var rec: Dictionary = _active_drops.get(drop_id, {})
+	if rec.is_empty():
+		return
+	var drop: GroundItem = rec["drop"]
+	if not is_instance_valid(drop) or drop.is_despawning:
+		return
+	if drop.bind_on_drop:
+		drop.despawn_now("owner_left_bind")
+		drop_expired.emit(drop, "owner_left_bind")
+		_active_drops.erase(drop_id)
+	else:
+		# Transferible: libera inmediato (brief: "Owner abandona sesión → libera inmediato")
+		drop.mark_free()
+		drop_expired.emit(drop, "owner_left_free")
 
 
 ## Owner resolution:
