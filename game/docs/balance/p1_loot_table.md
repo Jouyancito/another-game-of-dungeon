@@ -4,6 +4,8 @@
 
 **Fase**: 1 — design doc, NO implementación. Flag cualquier drift a A antes de aplicar.
 
+**Ownership & bind**: reglas globales en `_drop_ownership_canon.md`. Columna `bind_on_drop` en las tablas abajo indica items que ignoran round-robin y se asignan al jugador trigger específico (ver canon §3).
+
 ---
 
 ## 0. Reglas generales
@@ -13,7 +15,7 @@
 3. **Drop de material + equip**: sub-B y sub-C dropean material **garantizado** además del roll de equip (ver tablas abajo).
 4. **Drop de oro**: independiente del roll principal, se tira aparte según `p1_economy.md §6`.
 5. **Veterano**: override total — drop garantizado único, sin tabla.
-6. **Coop**: el drop es **instanced por jugador** (cada uno tira su roll). Evita peleas por loot en hora 1.
+6. **Coop ownership**: ver `_drop_ownership_canon.md`. Resumen: round-robin por % damage dealt, timer locked 120s, luego Free. Items `bind_on_drop=TRUE` van al jugador trigger específico (no round-robin).
 
 ---
 
@@ -126,7 +128,7 @@ Probabilidades base de `p1_economy.md §4 sub-C`:
 ### bandit_archer
 | Drop | Detalle |
 |------|---------|
-| Material identidad (100%) | `emblema_bandido` ×1 — quest item, entregable en outpost |
+| Material identidad (100%) | `emblema_bandido` ×1 — quest item, entregable en outpost **[BIND]** |
 | Material raro (40%) | `cuerda_arco_bandido` ×1, `flecha_barbada` ×3 (50/50) |
 | Common item (25%) | `arco_corto_bandido` (+3 DMG arco), `carcaj_cuero` slot |
 | Rare item (25%) | `arco_cazador_bandido` (+5 DMG, +1 DEX) |
@@ -136,11 +138,11 @@ Probabilidades base de `p1_economy.md §4 sub-C`:
 ### bandit_melee
 | Drop | Detalle |
 |------|---------|
-| Material identidad (100%) | `emblema_bandido` ×1-2 (líder dropea más) |
+| Material identidad (100%) | `emblema_bandido` ×1-2 (líder dropea más) **[BIND]** |
 | Material raro (40%) | `hebilla_bandolera` ×1 — material gear identity |
 | Common item (25%) | `hacha_bandido` (+3 DMG hacha), `coraza_cuero_tachonada` (+3 DEF) |
 | Rare item (25%) | `espada_corta_lider` (+5 DMG, +1 STR), `escudo_madera_reforzado` (+4 DEF, block +10%) |
-| Epic item (10%) | **`Corona Oxidada (menor)`** — cosmético + (+2 STR, +5% XP local) — flagged en `tier_1_pool P1 §peligro` |
+| Epic item (10%) | **`Corona Oxidada (menor)`** — cosmético + (+2 STR, +5% XP local) — flagged en `tier_1_pool P1 §peligro` **[BIND]** |
 | Oro | 8-15 (100%) |
 
 **Nota Corona Oxidada**: `tier_1_pool.md` la menciona como drop del bandit leader (versión menor de la del boss Tier I). Epic drop P1 más icónico — 10% del 10% = 1% efectivo (muy raro), momento de celebración grupal.
@@ -157,7 +159,7 @@ Sub-A/B/C que escapó con <30% HP y volvió. Regla canon `balance_v2 §3.3`.
 | Veterano sub-B (ej. "Lyra la Tuerta" wolf alfa) | 1 Rare garantizado + 30% upgrade a Epic + entrada codex |
 | Veterano sub-C (ej. "Gorok Cicatrizado" bandit) | 1 Epic garantizado + nombre propio flag + entrada codex |
 
-**Item único nombrado**: cada Veterano dropea con sufijo "del Cicatrizado" / "del Tuerto" (nombre propio persiste en seed del bioma). No hay stack — si ya lo tenés del mismo Veterano, convierte a XP bonus +50 o oro.
+**Item único nombrado**: cada Veterano dropea con sufijo "del Cicatrizado" / "del Tuerto" (nombre propio persiste en seed del bioma). No hay stack — si ya lo tenés del mismo Veterano, convierte a XP bonus +50 o oro. **[BIND]** — va al jugador que dio el last hit al Veterano, no round-robin (regla canon `_drop_ownership_canon.md §3.2`).
 
 ---
 
@@ -179,15 +181,17 @@ Ver §6 de `p1_economy.md` actualizado. Los enemigos en ambush dropean con **+10
 
 ## 6. Eventos — loot especial
 
-Ver §6 de `p1_economy.md` actualizado. Drops NO provienen de kills — provienen del trigger del evento:
+Ver §6 de `p1_economy.md` actualizado. Drops NO provienen de kills — provienen del trigger del evento. **TODOS los drops de evento son `bind_on_drop = TRUE`** (regla canon `_drop_ownership_canon.md §3.2`): *"Suerte de run = suerte tuya."*
 
-| Tipo evento | Loot típico |
-|-------------|-------------|
-| POI pacífico (altar, árbol grande) | Ver `tier_1_pool P1 §encuentros_hilo`: "Asta Antigua" cosmético pet (trigger específico) |
-| NPC itinerante (Cazador Perdido, mapache) | Quest start, recompensa en siguientes pisos |
-| Fauna pacífica (mariposas, libélulas) | 5% chance material común pradera al interactuar |
+| Tipo evento | Loot típico | Bind |
+|-------------|-------------|------|
+| POI pacífico (altar, árbol grande) | `Asta Antigua` cosmético pet (trigger específico, ver `tier_1_pool P1 §encuentros_hilo`) | **[BIND]** al trigger player |
+| NPC itinerante (Cazador Perdido, mapache) | Quest start, recompensa en siguientes pisos | **[BIND]** al que aceptó quest |
+| Fauna pacífica (mariposas, libélulas) | 5% chance material común pradera al interactuar | **[BIND]** al que interactuó |
+| Altar principal P3 (referencia cross-piso) | `Bendición de la Hermana` buff temporal | **[BIND]** al invocador |
+| Ruinas / diarios lore | Páginas de codex, entradas de bestiario | **[BIND]** al descubridor (persiste cuenta) |
 
-**Los eventos NO cuentan como drop del sub-tier** — son contenido narrativo.
+**Los eventos NO cuentan como drop del sub-tier** — son contenido narrativo. Bind-on-drop protege el momento ritual: el jugador que encuentra el altar no pierde el buff porque otro pasó caminando.
 
 ---
 
@@ -206,10 +210,29 @@ Sumando chests (§5 economy): run completa entrega ~15-20 items + ~18 materiales
 
 ---
 
+## 7. Bind-on-drop — índice P1
+
+Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_canon.md §3.2`):
+
+| Item | Fuente | Trigger del bind |
+|------|--------|------------------|
+| `emblema_bandido` | bandit_archer / bandit_melee drop garantizado | Top damage del kill |
+| `Corona Oxidada (menor)` | bandit_melee Epic roll (10%) | Top damage del kill |
+| Items Veterano (sufijo "del Cicatrizado" / "del Tuerto") | Veterano sub-A/B/C | Last hit al Veterano |
+| `Asta Antigua` | Altar POI + trigger específico | Jugador que triggereó |
+| Drops de quests NPC | Cazador Perdido, mapache, bardo P5 | Jugador que aceptó quest |
+| Material evento fauna pacífica | Mariposas/libélulas al interactuar | Jugador interactor |
+| `Bendición de la Hermana` (referencia) | Altar principal P3 | Invocador |
+| Páginas codex / entradas lore | Ruinas, diarios | Descubridor (persiste cuenta) |
+
+**Todo lo demás = round-robin damage split estándar** (regla default, no necesita flag).
+
+---
+
 ## 8. Flags a A
 
-1. **Corona Oxidada P1**: `tier_1_pool` la lista. 1% efectivo OK? ¿Subir a 2% para garantizar que ~1 de cada 2 runs un jugador de party lo vea? Decisión ritual.
-2. **Drop instanced por jugador**: propuesto arriba §0.6. Alternativa = shared con pickup tras timer. Propuesta primera hora: instanced. Review con B si afecta spawner.
+1. **Corona Oxidada P1**: `tier_1_pool` la lista. 1% efectivo OK? ¿Subir a 2% para garantizar que ~1 de cada 2 runs un jugador de party lo vea? Decisión ritual. **Resuelta**: sigue 1% (decisión A 2026-04-15, bind-on-drop compensa rareza).
+2. ~~**Drop instanced por jugador**~~ → **RESUELTO 2026-04-15**: canon adoptado = ownership timer 2min tipo Metin2 + round-robin damage + bind-on-drop para items evento/ritual. Ver `_drop_ownership_canon.md`.
 3. **mini_slime anti-farm**: bajé drops a 20% total. Si afecta el feel de la fight boss P24, ajustar.
 4. **XP +5% fox boost**: compensa por NEUTRAL. Revisar si conflicta con Diseño ecosistema "no matar todo".
 
