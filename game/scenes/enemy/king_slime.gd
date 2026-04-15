@@ -312,13 +312,16 @@ func _apply_slow(body: Node, mult: float, duration: float) -> void:
 	if not "speed" in body:
 		return
 	var meta_key: String = "king_slime_proj_slow"
+	# TRUE orig: si ContactAura ya guardo el speed original, usar ese.
+	# Evita guardar un speed ya reducido por la aura como "orig".
+	var true_orig: float = body.get_meta("king_slime_orig_speed", body.speed)
 	if body.has_meta(meta_key):
+		# Slow ya activo — solo extender duracion, NO re-aplicar
 		body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
 		return
-	var orig: float = body.speed
-	body.set_meta(meta_key, orig)
+	body.set_meta(meta_key, true_orig)
 	body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
-	body.speed = orig * mult
+	body.speed = true_orig * mult
 	_slow_restore_watcher(body, meta_key)
 
 
@@ -337,12 +340,18 @@ func _slow_restore_watcher(body: Node, meta_key: String) -> void:
 		if Time.get_ticks_msec() >= until:
 			if not is_instance_valid(body):
 				return
-			var orig: float = body.get_meta(meta_key, body.speed if "speed" in body else 0.0)
-			if "speed" in body and not body.has_meta("king_slime_orig_speed"):
-				body.speed = orig
+			var true_orig: float = body.get_meta(meta_key, body.speed if "speed" in body else 0.0)
+			# Si la ContactAura sigue activa, restaurar al slow de la aura.
+			# Si no, restaurar al speed verdadero original.
+			if "speed" in body:
+				if body.has_meta("king_slime_orig_speed"):
+					body.speed = true_orig * CONTACT_SLOW
+				else:
+					body.speed = true_orig
 			if is_instance_valid(body):
 				body.remove_meta(meta_key)
 				body.remove_meta(meta_key + "_until")
+			return
 			return
 
 
@@ -405,6 +414,17 @@ func _exit_tree() -> void:
 	for p in _players_in_contact:
 		_restore_player_speed(p)
 		_detach_gelatin_overlay(p)
+	# Barrido global: cualquier player con slow de pool/proyectil colgante
+	# tras la muerte del boss — restaurar true orig + limpiar metas.
+	for p in get_tree().get_nodes_in_group("player"):
+		if not is_instance_valid(p):
+			continue
+		if p.has_meta("king_slime_proj_slow"):
+			var true_orig: float = p.get_meta("king_slime_proj_slow")
+			if "speed" in p:
+				p.speed = true_orig
+			p.remove_meta("king_slime_proj_slow")
+			p.remove_meta("king_slime_proj_slow_until")
 
 
 # ──────────────────────────────────────────────────────────────────────
