@@ -6,6 +6,7 @@ extends Area3D
 
 var direction := Vector3.FORWARD
 var distance_traveled := 0.0
+var shooter: Node = null
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
@@ -22,6 +23,6 @@ func _on_body_entered(body: Node3D) -> void:
 	if not is_instance_valid(self):
 		return
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
-		body.take_damage(damage)
+		body.take_damage(damage, Vector3.ZERO, 0.0, 0, shooter)
 	# Desaparecer al impactar cualquier cosa (enemigo o pared)
 	queue_free()

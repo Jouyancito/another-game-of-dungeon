@@ -58,6 +58,11 @@ var _hp_bar_fill: MeshInstance3D
 var _max_health: float
 var _sighted_once := false  # flag para Journal.sight — evitar spam cada frame
 
+# Damage tracking para ownership del drop.
+# Key: attacker.get_instance_id() (int). Value: daño acumulado (float).
+var _damage_log: Dictionary = {}
+var _attackers: Dictionary = {}  # instance_id → Node (último ref conocido)
+
 
 func _ready() -> void:
 	await get_tree().process_frame
@@ -319,13 +324,19 @@ func perform_attack() -> void:
 		can_attack = true
 
 
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dead:
 		return
 
 	# Provocar si es neutral
 	if aggression == AggressionType.NEUTRAL and not is_provoked:
 		is_provoked = true
+
+	# Log de daño para ownership del drop (si attacker provisto)
+	if attacker != null and is_instance_valid(attacker):
+		var aid := attacker.get_instance_id()
+		_damage_log[aid] = _damage_log.get(aid, 0.0) + amount
+		_attackers[aid] = attacker
 
 	health -= amount
 	_flash_damage()
@@ -377,8 +388,8 @@ func die() -> void:
 
 func _spawn_loot() -> void:
 	var loot: Dictionary = LootTable.roll(enemy_type)
-	# DropController maneja spawn radial (anillo 1-2m, grid 0.5m dedup) + ground snap.
-	DropController.spawn_drops(global_position, loot, self)
+	# DropController: spawn radial + owner resolution (killing blow o round-robin FIFO).
+	DropController.spawn_drops(global_position, loot, self, _damage_log, _attackers)
 
 
 ## Raycast hacia abajo desde pos para encontrar el suelo — evita que los drops floten.

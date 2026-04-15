@@ -42,9 +42,12 @@ func setup(id: String, quantity: int = 1, owner_player: Node = null) -> void:
 		owner_name = str(n) if n != null and str(n) != "" else owner_player.name
 
 
-func can_pickup_by(_player: Node) -> bool:
-	# Commit 1: free-for-all. Ownership se wirea en commit 2.
-	return not is_despawning
+func can_pickup_by(player: Node) -> bool:
+	if is_despawning:
+		return false
+	if is_free or owner_id == 0:
+		return true
+	return player.get_instance_id() == owner_id
 
 
 func mark_free() -> void:
