@@ -161,9 +161,16 @@ func _apply_visuals() -> void:
 		mat.emission_energy_multiplier = 1.5
 	mesh.set_surface_override_material(0, mat)
 
-	aura_light.light_color = color
-	var energy_by_rarity := {"common": 0.3, "magic": 0.6, "rare": 1.0, "unique": 1.5}
-	aura_light.light_energy = energy_by_rarity.get(rarity, 0.3)
+	# Light solo para rareza >= rare — evita saturar el forward renderer
+	# con N OmniLights dinamicas cuando hay muchos commons en el piso.
+	if aura_light:
+		if rarity == "rare" or rarity == "unique" or rarity == "magic":
+			aura_light.light_color = color
+			aura_light.light_energy = 0.8 if rarity == "magic" else (1.2 if rarity == "rare" else 1.8)
+			aura_light.omni_range = 1.2
+		else:
+			aura_light.visible = false
+			aura_light.light_energy = 0.0
 
 	_build_label_bg()
 	_refresh_label()
