@@ -40,7 +40,10 @@ func setup(id: String, quantity: int = 1, owner_player: Node = null) -> void:
 	if owner_player != null:
 		owner_id = owner_player.get_instance_id()
 		var n: Variant = owner_player.get("display_name")
-		owner_name = str(n) if n != null and str(n) != "" else owner_player.name
+		if n != null and str(n) != "":
+			owner_name = str(n)
+		else:
+			owner_name = String(owner_player.name)
 
 
 func can_pickup_by(player: Node) -> bool:
