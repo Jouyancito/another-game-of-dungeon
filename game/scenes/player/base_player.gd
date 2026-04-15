@@ -158,7 +158,10 @@ func add_gold(amount: int) -> void:
 	gold_changed.emit(gold)
 	_save_inventory()
 
-func pickup_item(drop: ItemDrop) -> bool:
+func pickup_item(drop: Node) -> bool:
+	# Acepta ItemDrop (legacy) y GroundItem (DropController).
+	if drop.has_method("can_pickup_by") and not drop.can_pickup_by(self):
+		return false
 	if inventory.auto_place_item(drop.item_id, drop.item_quantity):
 		item_picked_up.emit(drop.item_id, drop.item_quantity)
 		drop.pickup()
@@ -167,21 +170,14 @@ func pickup_item(drop: ItemDrop) -> bool:
 	return false
 
 func _try_pickup_nearby() -> void:
-	var space_state = get_world_3d().direct_space_state
-	var from = camera.global_position
-	var to = from + (-camera.global_basis.z) * pickup_range
-	var query = PhysicsRayQueryParameters3D.create(from, to)
-	query.exclude = [get_rid()]
-	query.collision_mask = 0  # No queremos raycast de física
-	# Buscar drops cerca del crosshair usando distancia directa
 	var drops: Array[Node] = get_tree().get_nodes_in_group("drops")
-	var closest_drop: ItemDrop = null
+	var closest_drop: Node3D = null
 	var closest_dist := pickup_range
 
 	for drop_node: Node in drops:
-		if not drop_node is ItemDrop:
+		var item_drop: Node3D = drop_node as Node3D
+		if item_drop == null or not (drop_node is ItemDrop or drop_node is GroundItem):
 			continue
-		var item_drop: ItemDrop = drop_node as ItemDrop
 		var dist := global_position.distance_to(item_drop.global_position)
 		if dist <= pickup_range:
 			var to_drop: Vector3 = (item_drop.global_position - camera.global_position).normalized()
@@ -530,7 +526,7 @@ func _update_drop_labels() -> void:
 
 		# Hint de pickup: solo item drops (el oro es auto-pickup).
 		# Debe estar dentro del pickup_range real + apuntado con el crosshair.
-		if hint_text == "" and drop_node is ItemDrop and dist <= pickup_range:
+		if hint_text == "" and (drop_node is ItemDrop or drop_node is GroundItem) and dist <= pickup_range:
 			var to_drop: Vector3 = (drop_node3d.global_position - camera.global_position).normalized()
 			if to_drop.dot(forward) > 0.5:
 				hint_text = "Presioná [E] para recoger"

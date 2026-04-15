@@ -377,26 +377,8 @@ func die() -> void:
 
 func _spawn_loot() -> void:
 	var loot: Dictionary = LootTable.roll(enemy_type)
-	var base_drop_pos: Vector3 = _ground_drop_position(global_position)
-	var scene_root: Node = get_tree().current_scene
-
-	# Oro
-	if loot["gold"] > 0:
-		var gold_scene := preload("res://scenes/loot/gold_drop.tscn")
-		var gold := gold_scene.instantiate() as GoldDrop
-		gold.setup(loot["gold"])
-		var offset := Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
-		gold.global_position = _ground_drop_position(base_drop_pos + offset)
-		scene_root.call_deferred("add_child", gold)
-
-	# Items
-	for item_entry in loot["items"]:
-		var item_scene := preload("res://scenes/loot/item_drop.tscn")
-		var drop := item_scene.instantiate() as ItemDrop
-		drop.setup(item_entry["item_id"], item_entry["quantity"])
-		var offset := Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
-		drop.global_position = _ground_drop_position(base_drop_pos + offset)
-		scene_root.call_deferred("add_child", drop)
+	# DropController maneja spawn radial (anillo 1-2m, grid 0.5m dedup) + ground snap.
+	DropController.spawn_drops(global_position, loot, self)
 
 
 ## Raycast hacia abajo desde pos para encontrar el suelo — evita que los drops floten.
