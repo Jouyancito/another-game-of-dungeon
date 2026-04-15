@@ -27,6 +27,9 @@ var _label_bg: MeshInstance3D
 
 func _ready() -> void:
 	add_to_group("drops")
+	# Stagger vertical del label para que drops cercanos no se apilen en pantalla
+	if label_3d:
+		label_3d.position.y = randf_range(0.45, 1.05)
 	if item_id != "":
 		_apply_visuals()
 
@@ -181,13 +184,15 @@ func _refresh_label() -> void:
 		name_txt += "\n[owner: %s]" % owner_name
 	label_3d.text = name_txt
 	label_3d.modulate = color
-	label_3d.fixed_size = true
-	label_3d.pixel_size = 0.00055
-	label_3d.font_size = 24
+	# Estilo Metin2: label en world-space — escala natural con distancia.
+	# fixed_size=false hace que label + background quad scaleen juntos.
+	label_3d.fixed_size = false
+	label_3d.pixel_size = 0.0045
+	label_3d.font_size = 22
 	label_3d.outline_size = 3
 	label_3d.no_depth_test = false           # OCLUIBLE por paredes (brief)
 	label_3d.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	label_3d.width = 500.0
+	label_3d.width = 400.0
 	label_3d.render_priority = 1
 
 
@@ -195,7 +200,9 @@ func _build_label_bg() -> void:
 	var bg := MeshInstance3D.new()
 	bg.name = "LabelBackground"
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.85, 0.26)
+	# Sync aproximado con label en world-space: pixel_size 0.0045 × font_size 22
+	# ≈ 0.10m alto. Ancho cubre ~20 chars. Ambos scalean igual con la distancia.
+	quad.size = Vector2(0.55, 0.13)
 	bg.mesh = quad
 	var bg_mat := StandardMaterial3D.new()
 	bg_mat.albedo_color = Color(0.05, 0.05, 0.1, 0.75)
