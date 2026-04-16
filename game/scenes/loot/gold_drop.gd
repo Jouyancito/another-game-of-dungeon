@@ -1,10 +1,13 @@
 extends Area3D
 class_name GoldDrop
 
-## Monedas en el suelo. Se recogen automáticamente al acercarse (distance-based).
+## Monedas en el suelo — canon drop-ownership v2.
+## Sin owner, sin auto-pickup: el jugador presiona [E] para recoger.
+## Al pickup, si hay party activa → split entre miembros vivos (si no, todo al picker).
 
-@export var pickup_radius := 2.0  # Radio de auto-pickup (distance-based)
-@export var despawn_time := 300.0  # 5 minutos
+@export var despawn_time := 300.0  # Canon v2: 5 minutos total
+
+const MERGE_RADIUS := 2.0  # Radio para fusionar monedas cercanas
 
 var amount: int = 1
 var _picked := false
@@ -13,30 +16,21 @@ var _picked := false
 @onready var label_3d: Label3D = $Label3D
 
 
-const MERGE_RADIUS := 2.0  # Radio para fusionar monedas cercanas
-
 func _ready() -> void:
 	add_to_group("drops")
 	add_to_group("gold_drops")
 
-	# Mesh más chica — proporciones moneda de verdad (no tamaño cabeza)
+	# Mesh mas chica — proporciones moneda de verdad (no tamano cabeza)
 	var cyl := mesh.mesh as CylinderMesh
 	if cyl != null:
 		cyl.top_radius = 0.05
 		cyl.bottom_radius = 0.05
 		cyl.height = 0.015
 
-	# Label — tamaño legible, constante en pantalla
-	label_3d.text = "%d oro" % amount
-	label_3d.fixed_size = true
-	label_3d.pixel_size = 0.00055  # ajuste final — consistente con enemy + item drops
-	label_3d.font_size = 24
-	label_3d.outline_size = 3
-	label_3d.no_depth_test = true
-	label_3d.render_priority = 1
+	# Label — via LootStyle. Tinte dorado.
+	LootStyle.style_world_label(label_3d, "%d oro" % amount, Color(1.0, 0.85, 0.2))
 	label_3d.visible = false
-
-	_build_label_background()
+	LootStyle.build_label_bg(self, label_3d, 1, LootStyle.BG_GOLD_DARK)
 
 	# Intentar fusionar con oro cercano
 	call_deferred("_try_merge_nearby")
@@ -57,9 +51,8 @@ func _try_merge_nearby() -> void:
 			continue
 		var dist: float = global_position.distance_to(other.global_position)
 		if dist <= MERGE_RADIUS:
-			# Absorber el oro del otro
 			amount += other.amount
-			label_3d.text = "%d oro" % amount
+			LootStyle.style_world_label(label_3d, "%d oro" % amount, Color(1.0, 0.85, 0.2))
 			other._picked = true
 			other.queue_free()
 			break
@@ -73,7 +66,7 @@ func _start_despawn_timer() -> void:
 			return
 		var blink_timer := 0.0
 		while blink_timer < 30.0:
-			if not is_instance_valid(self):
+			if not is_instance_valid(self) or _picked:
 				return
 			visible = not visible
 			await get_tree().create_timer(0.5).timeout
@@ -89,64 +82,65 @@ func setup(gold_amount: int) -> void:
 	amount = gold_amount
 
 
-func _physics_process(_delta: float) -> void:
-	if _picked:
-		return
-	# Monedas FIJAS en el suelo (no bob, no rotation — los nombres no se mueven).
-	# Pickup distance-based: bypassa Area3D body_entered que a veces no re-trigger.
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
-	if players.is_empty():
-		return
-	var player: Node3D = players[0] as Node3D
-	if player == null:
-		return
-	if global_position.distance_to(player.global_position) <= pickup_radius:
-		_do_pickup(player)
+## Gold no tiene owner (canon v2) — cualquiera puede levantar.
+func can_pickup_by(_player: Node) -> bool:
+	return not _picked
 
 
-func _do_pickup(player: Node3D) -> void:
+## Pickup manual via [E]. Canon v2 party split entre vivos al pickup.
+## Retorna Dictionary vacio (compat con pickup_item loop en base_player).
+func pickup() -> Dictionary:
 	if _picked:
-		return
+		return {}
 	_picked = true
-	if player.has_method("add_gold"):
-		player.add_gold(amount)
+
+	_distribute_gold()
+
 	var tween := create_tween()
 	tween.tween_property(self, "global_position:y", global_position.y + 1.0, 0.2)
 	tween.parallel().tween_property(self, "scale", Vector3(0.01, 0.01, 0.01), 0.2)
 	tween.tween_callback(queue_free)
+	return {}
+
+
+# Split entre miembros party vivos. Singleplayer (sin party) → todo al picker.
+# "picker" se deduce via grupo "player" + distance minima (pickup_range ya filtro).
+func _distribute_gold() -> void:
+	var alive_members: Array[Node] = _find_alive_party_members()
+	if alive_members.is_empty():
+		return
+
+	var per_member: int = amount / alive_members.size()
+	var remainder: int = amount % alive_members.size()
+
+	for i in alive_members.size():
+		var m: Node = alive_members[i]
+		var share: int = per_member
+		if i < remainder:
+			share += 1
+		if share > 0 and m.has_method("add_gold"):
+			m.call("add_gold", share)
+
+
+# Devuelve players vivos de la party activa. Sin party → retorna los players vivos de la escena
+# (singleplayer: el unico player local).
+func _find_alive_party_members() -> Array[Node]:
+	var alive: Array[Node] = []
+	var party: Array[String] = Party.current_party
+	for p in get_tree().get_nodes_in_group("player"):
+		if p.has_method("get") and p.get("is_dead"):
+			continue
+		if party.is_empty():
+			alive.append(p)  # singleplayer: todos los players locales
+			continue
+		if p.has_method("get_profile_id") and str(p.call("get_profile_id")) in party:
+			alive.append(p)
+	return alive
 
 
 func show_label() -> void:
-	label_3d.visible = true
-	var bg: Node = label_3d.get_meta("background_node", null)
-	if bg != null and bg is MeshInstance3D:
-		(bg as MeshInstance3D).visible = true
+	LootStyle.show_label_with_bg(label_3d)
 
 
 func hide_label() -> void:
-	label_3d.visible = false
-	var bg: Node = label_3d.get_meta("background_node", null)
-	if bg != null and bg is MeshInstance3D:
-		(bg as MeshInstance3D).visible = false
-
-
-func _build_label_background() -> void:
-	var bg_mesh := MeshInstance3D.new()
-	bg_mesh.name = "LabelBackground"
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.85, 0.22)
-	bg_mesh.mesh = quad
-
-	var bg_mat := StandardMaterial3D.new()
-	bg_mat.albedo_color = Color(0.1, 0.08, 0.02, 0.75)  # tono dorado oscuro, distintivo del oro
-	bg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	bg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bg_mat.no_depth_test = true
-	bg_mat.render_priority = 0
-	bg_mesh.material_override = bg_mat
-
-	bg_mesh.position = label_3d.position
-	add_child(bg_mesh)
-	bg_mesh.visible = false
-	label_3d.set_meta("background_node", bg_mesh)
+	LootStyle.hide_label_with_bg(label_3d)

@@ -72,7 +72,7 @@ func _idle_behavior(delta: float) -> void:
 # ─── Shell mechanic ─────────────────────────────────────────────────────────
 
 ## Override take_damage: cualquier golpe dispara la retracción
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dead:
 		return
 
@@ -91,7 +91,10 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if knockback_force > 0.0 and hit_direction != Vector3.ZERO:
 		apply_knockback(hit_direction, knockback_force, attacker_str)
 
+	# Killing blow tracking — canon drop-ownership v2.
 	if health <= 0:
+		if attacker != null and is_instance_valid(attacker) and attacker.has_method("get_profile_id"):
+			_killer_profile_id = str(attacker.call("get_profile_id"))
 		die()
 		return
 

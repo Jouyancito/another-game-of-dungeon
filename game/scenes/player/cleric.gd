@@ -82,7 +82,7 @@ func _do_mace_hit() -> void:
 	query.exclude = [get_rid()]
 	var result = space_state.intersect_ray(query)
 	if result and result.collider.is_in_group("enemies") and result.collider.has_method("take_damage"):
-		result.collider.take_damage(get_physical_damage(base_heavy_damage))
+		result.collider.take_damage(get_physical_damage(base_heavy_damage), Vector3.ZERO, 0.0, 0, self)
 
 func _do_smite() -> void:
 	use_mana(smite_mana_cost)
@@ -95,7 +95,7 @@ func _do_smite() -> void:
 	var result = space_state.intersect_ray(query)
 
 	if result and result.collider.is_in_group("enemies") and result.collider.has_method("take_damage"):
-		result.collider.take_damage(get_magic_damage(base_smite_damage))
+		result.collider.take_damage(get_magic_damage(base_smite_damage), Vector3.ZERO, 0.0, 0, self)
 		_spawn_light_pillar(result.position)
 
 func _spawn_light_pillar(pos: Vector3) -> void:

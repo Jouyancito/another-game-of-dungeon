@@ -43,7 +43,7 @@ const SHIELD_MIN_MINIS: int = 2
 const SHIELD_DAMAGE_MULT: float = 0.2      # recibe 20% del daño — shield DURO
 const SHIELD_MINI_SPEED: float = 1.2       # minis forzados a esta speed (spec: "mucho más lentos")
 const BOMB_INTERVAL: float = 2.0           # cada cuánto lanza baba bombardero durante shield
-const BOMB_TELEGRAPH: float = 1.2          # tiempo entre marca en el suelo y impacto
+const BOMB_TELEGRAPH: float = 1.8          # tiempo entre marca en el suelo y impacto
 const BOMB_AOE_RADIUS: float = 2.0
 const BOMB_DAMAGE: float = 10.0
 
@@ -115,10 +115,12 @@ func _setup_contact_aura() -> void:
 func _on_contact_aura_entered(body: Node) -> void:
 	if body.is_in_group("player") and not _players_in_contact.has(body):
 		_players_in_contact.append(body)
-		# Guardar speed original y aplicar slow al stat directamente.
+		# TRUE orig: si un proj_slow ya esta activo, la aura NO debe
+		# guardar el speed ya reducido — lee el true orig desde meta proj.
 		if "speed" in body and not body.has_meta("king_slime_orig_speed"):
-			body.set_meta("king_slime_orig_speed", body.speed)
-			body.speed = body.speed * CONTACT_SLOW
+			var true_orig: float = body.get_meta("king_slime_proj_slow", body.speed)
+			body.set_meta("king_slime_orig_speed", true_orig)
+			body.speed = true_orig * CONTACT_SLOW
 		_attach_gelatin_overlay(body)
 
 
@@ -312,13 +314,16 @@ func _apply_slow(body: Node, mult: float, duration: float) -> void:
 	if not "speed" in body:
 		return
 	var meta_key: String = "king_slime_proj_slow"
+	# TRUE orig: si ContactAura ya guardo el speed original, usar ese.
+	# Evita guardar un speed ya reducido por la aura como "orig".
+	var true_orig: float = body.get_meta("king_slime_orig_speed", body.speed)
 	if body.has_meta(meta_key):
+		# Slow ya activo — solo extender duracion, NO re-aplicar
 		body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
 		return
-	var orig: float = body.speed
-	body.set_meta(meta_key, orig)
+	body.set_meta(meta_key, true_orig)
 	body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
-	body.speed = orig * mult
+	body.speed = true_orig * mult
 	_slow_restore_watcher(body, meta_key)
 
 
@@ -337,12 +342,18 @@ func _slow_restore_watcher(body: Node, meta_key: String) -> void:
 		if Time.get_ticks_msec() >= until:
 			if not is_instance_valid(body):
 				return
-			var orig: float = body.get_meta(meta_key, body.speed if "speed" in body else 0.0)
-			if "speed" in body and not body.has_meta("king_slime_orig_speed"):
-				body.speed = orig
+			var true_orig: float = body.get_meta(meta_key, body.speed if "speed" in body else 0.0)
+			# Si la ContactAura sigue activa, restaurar al slow de la aura.
+			# Si no, restaurar al speed verdadero original.
+			if "speed" in body:
+				if body.has_meta("king_slime_orig_speed"):
+					body.speed = true_orig * CONTACT_SLOW
+				else:
+					body.speed = true_orig
 			if is_instance_valid(body):
 				body.remove_meta(meta_key)
 				body.remove_meta(meta_key + "_until")
+			return
 			return
 
 
@@ -405,6 +416,17 @@ func _exit_tree() -> void:
 	for p in _players_in_contact:
 		_restore_player_speed(p)
 		_detach_gelatin_overlay(p)
+	# Barrido global: cualquier player con slow de pool/proyectil colgante
+	# tras la muerte del boss — restaurar true orig + limpiar metas.
+	for p in get_tree().get_nodes_in_group("player"):
+		if not is_instance_valid(p):
+			continue
+		if p.has_meta("king_slime_proj_slow"):
+			var true_orig: float = p.get_meta("king_slime_proj_slow")
+			if "speed" in p:
+				p.speed = true_orig
+			p.remove_meta("king_slime_proj_slow")
+			p.remove_meta("king_slime_proj_slow_until")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -468,11 +490,11 @@ func _pursue_tick(delta: float) -> void:
 # ──────────────────────────────────────────────────────────────────────
 # Phase transitions
 # ──────────────────────────────────────────────────────────────────────
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	var final_amount: float = amount
 	if _shielding:
 		final_amount = amount * SHIELD_DAMAGE_MULT
-	super(final_amount, hit_direction, knockback_force, attacker_str)
+	super(final_amount, hit_direction, knockback_force, attacker_str, attacker)
 	if is_dead:
 		return
 	_update_phase()
@@ -732,8 +754,10 @@ func _attack_combo_rebote() -> void:
 	for i in 4:
 		if is_dead or not is_instance_valid(self):
 			return
-		var tele: float = 0.7 if i == 0 else 0.2
-		await _do_single_rebote(tele, 0.6)
+		# Telegraphs mas largos: primer salto avisa claro, siguientes
+		# siguen legibles sin matar el pacing del combo.
+		var tele: float = 1.0 if i == 0 else 0.35
+		await _do_single_rebote(tele, 0.7)
 	if is_dead or not is_instance_valid(self):
 		return
 	_schedule_next_attack(6.5)
@@ -922,9 +946,9 @@ func _spawn_acid_pool(pos: Vector3) -> void:
 
 
 # ── Onda de choque (Fase 4) ───────────────────────────────────────────
-# Infla 0.6s, libera AoE 5m con knockback. Daño 8 + base.
+# Infla 1.0s, libera AoE 5m con knockback. Daño 8 + base.
 func _attack_onda_choque() -> void:
-	var telegraph: float = 0.6
+	var telegraph: float = 1.0
 	action_state = ActionState.TELEGRAPH
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	var orig_scale: Vector3 = mi.scale if mi else Vector3.ONE
@@ -1017,20 +1041,24 @@ func _drive_acid_pool(pool: Area3D) -> void:
 # ── Embestida ─────────────────────────────────────────────────────────
 func _attack_embestida() -> void:
 	velocity = Vector3.ZERO
-	var telegraph: float = 1.0
-	# Pequeña "compresión" visual: encoger mesh 15% durante telegraph.
+	# Telegraph mas largo + compresion mas marcada → tiempo de reaccion
+	var telegraph: float = 1.3
+	# Compresion visual (30% en vez de 15%) con un leve bob vertical al final
+	# para telegrafiar "voy a saltar hacia vos".
 	if mesh:
 		var tween: Tween = create_tween()
-		tween.tween_property(mesh, "scale", mesh.scale * 0.85, telegraph * 0.5)
-		tween.tween_property(mesh, "scale", mesh.scale, telegraph * 0.5)
+		tween.tween_property(mesh, "scale", mesh.scale * 0.7, telegraph * 0.55)
+		tween.tween_property(mesh, "scale", mesh.scale * 1.05, telegraph * 0.25)
+		tween.tween_property(mesh, "scale", mesh.scale, telegraph * 0.20)
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return
 	action_state = ActionState.EXECUTE
 
-	# Dash rápido hacia target durante 0.6s
-	var dash_time: float = 0.6
-	var dash_speed: float = 12.0
+	# Dash — mas lento (9 m/s vs 12) y duracion 0.55s. Con sprint (8 m/s)
+	# el player puede sacarle distancia si reacciona al telegraph.
+	var dash_time: float = 0.55
+	var dash_speed: float = 9.0
 	if is_instance_valid(target):
 		var dir: Vector3 = target.global_position - global_position
 		dir.y = 0.0
@@ -1038,7 +1066,8 @@ func _attack_embestida() -> void:
 		velocity.x = dir.x * dash_speed
 		velocity.z = dir.z * dash_speed
 
-	# Chequeo de colisión con target durante el dash
+	# Hit radius 1.8m (antes 2.5m) — strafe lateral ahora evita el hit.
+	# Damage base + 6 (antes +12) — sigue siendo golpe fuerte pero no one-shot.
 	var hit_registered: bool = false
 	var elapsed: float = 0.0
 	while elapsed < dash_time and not is_dead and is_instance_valid(self):
@@ -1046,10 +1075,12 @@ func _attack_embestida() -> void:
 		elapsed += get_physics_process_delta_time()
 		if hit_registered or not is_instance_valid(target):
 			continue
-		if global_position.distance_to(target.global_position) <= 2.5:
+		if global_position.distance_to(target.global_position) <= 1.8:
 			if target.has_method("take_damage"):
-				target.take_damage(base_damage_for_attack() + 12.0)
+				target.take_damage(base_damage_for_attack() + 6.0)
 			hit_registered = true
+			# Cortar dash al registrar hit — mas feedback, menos atropello continuado
+			break
 
 	if is_dead or not is_instance_valid(self):
 		return
@@ -1060,7 +1091,7 @@ func _attack_embestida() -> void:
 
 # ── Escupitajo ────────────────────────────────────────────────────────
 func _attack_escupitajo() -> void:
-	var telegraph: float = 0.8
+	var telegraph: float = 1.2
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return
@@ -1073,7 +1104,7 @@ func _attack_escupitajo() -> void:
 
 # ── Escupitajo abanico (Fase 2+) ──────────────────────────────────────
 func _attack_escupitajo_abanico() -> void:
-	var telegraph: float = 0.8
+	var telegraph: float = 1.2
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return

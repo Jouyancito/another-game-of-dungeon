@@ -98,7 +98,7 @@ func _idle_behavior(delta: float) -> void:
 
 # ─── Dodge (esquive melee 20%) ────────────────────────────────────────────────
 
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dead:
 		return
 
@@ -107,7 +107,7 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 		_play_sidestep(hit_direction)
 		return
 
-	super.take_damage(amount, hit_direction, knockback_force, attacker_str)
+	super.take_damage(amount, hit_direction, knockback_force, attacker_str, attacker)
 
 
 func _play_sidestep(hit_direction: Vector3) -> void:

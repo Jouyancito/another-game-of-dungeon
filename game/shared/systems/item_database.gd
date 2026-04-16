@@ -337,6 +337,7 @@ func _register_items() -> void:
 		"grid_size": Vector2i(2, 1), "rarity": "unique",
 		"stats": {"vit": 1}, "level_req": 1, "item_level": 5,
 		"stackable": false, "max_stack": 1, "value": 100,
+		"bind_on_drop": true,  # Quest item — despawn si owner no recoge en 120s
 	})
 	_add({
 		"id": "boss_royal_gel",
@@ -346,6 +347,7 @@ func _register_items() -> void:
 		"grid_size": Vector2i(1, 1), "rarity": "rare",
 		"stats": {}, "level_req": 1, "item_level": 5,
 		"stackable": true, "max_stack": 10, "value": 25,
+		"bind_on_drop": true,  # Material boss — despawn si owner no recoge en 120s
 	})
 
 	# --- Equipamiento rare/magic/unique de Piso 1 (drops) ---

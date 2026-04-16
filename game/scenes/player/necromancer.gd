@@ -55,6 +55,7 @@ func _attack_orb() -> void:
 	var spawn_pos = camera.global_position + (-camera.global_basis.z) * 0.8
 	orb.global_position = spawn_pos
 	orb.direction = -camera.global_basis.z
+	orb.shooter = self
 	get_tree().current_scene.add_child(orb)
 
 	await get_tree().create_timer(heavy_cooldown).timeout
@@ -125,7 +126,7 @@ func _channel_drain() -> void:
 			end_point = result.position
 			if result.collider.is_in_group("enemies") and result.collider.has_method("take_damage"):
 				var dmg = get_magic_damage(base_drain_damage)
-				result.collider.take_damage(dmg)
+				result.collider.take_damage(dmg, Vector3.ZERO, 0.0, 0, self)
 				# Curar al necromante un 25% del daño aplicado
 				heal(dmg * drain_heal_percent)
 

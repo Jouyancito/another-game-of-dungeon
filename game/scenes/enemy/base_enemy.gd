@@ -58,6 +58,10 @@ var _hp_bar_fill: MeshInstance3D
 var _max_health: float
 var _sighted_once := false  # flag para Journal.sight — evitar spam cada frame
 
+# Killing blow — canon drop-ownership v2.
+# profile_id del ultimo attacker que puso el HP a 0. "" = kill por ambiente.
+var _killer_profile_id: String = ""
+
 
 func _ready() -> void:
 	await get_tree().process_frame
@@ -319,7 +323,7 @@ func perform_attack() -> void:
 		can_attack = true
 
 
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
 	if is_dead:
 		return
 
@@ -333,7 +337,10 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if knockback_force > 0.0 and hit_direction != Vector3.ZERO:
 		apply_knockback(hit_direction, knockback_force, attacker_str)
 
+	# Killing blow tracking — solo el ultimo attacker cuenta (canon v2 party-auto).
 	if health <= 0:
+		if attacker != null and is_instance_valid(attacker) and attacker.has_method("get_profile_id"):
+			_killer_profile_id = str(attacker.call("get_profile_id"))
 		die()
 
 
@@ -377,26 +384,8 @@ func die() -> void:
 
 func _spawn_loot() -> void:
 	var loot: Dictionary = LootTable.roll(enemy_type)
-	var base_drop_pos: Vector3 = _ground_drop_position(global_position)
-	var scene_root: Node = get_tree().current_scene
-
-	# Oro
-	if loot["gold"] > 0:
-		var gold_scene := preload("res://scenes/loot/gold_drop.tscn")
-		var gold := gold_scene.instantiate() as GoldDrop
-		gold.setup(loot["gold"])
-		var offset := Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
-		gold.global_position = _ground_drop_position(base_drop_pos + offset)
-		scene_root.call_deferred("add_child", gold)
-
-	# Items
-	for item_entry in loot["items"]:
-		var item_scene := preload("res://scenes/loot/item_drop.tscn")
-		var drop := item_scene.instantiate() as ItemDrop
-		drop.setup(item_entry["item_id"], item_entry["quantity"])
-		var offset := Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
-		drop.global_position = _ground_drop_position(base_drop_pos + offset)
-		scene_root.call_deferred("add_child", drop)
+	# Canon v2: party-auto. Killer profile_id drive ownership; kill por ambiente → "".
+	DropController.spawn_drops(global_position, loot, self, _killer_profile_id)
 
 
 ## Raycast hacia abajo desde pos para encontrar el suelo — evita que los drops floten.

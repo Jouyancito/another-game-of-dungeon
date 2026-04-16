@@ -105,4 +105,5 @@ func _fire_arrow(dmg: float) -> void:
 	var spawn_pos = camera.global_position + (-camera.global_basis.z) * 0.8
 	arrow.global_position = spawn_pos
 	arrow.direction = -camera.global_basis.z
+	arrow.shooter = self
 	get_tree().current_scene.add_child(arrow)

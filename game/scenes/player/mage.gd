@@ -55,6 +55,7 @@ func _attack_heavy() -> void:
 	var spawn_pos = camera.global_position + (-camera.global_basis.z) * 0.8
 	projectile.global_position = spawn_pos
 	projectile.direction = -camera.global_basis.z
+	projectile.shooter = self
 	get_tree().current_scene.add_child(projectile)
 
 	await get_tree().create_timer(heavy_cooldown).timeout
@@ -117,7 +118,7 @@ func _channel_beam() -> void:
 		if result:
 			end_point = result.position
 			if result.collider.is_in_group("enemies") and result.collider.has_method("take_damage"):
-				result.collider.take_damage(get_magic_damage(base_beam_damage))
+				result.collider.take_damage(get_magic_damage(base_beam_damage), Vector3.ZERO, 0.0, 0, self)
 
 		# Dibujar el rayo visual
 		if is_instance_valid(beam_line) and beam_line.mesh is ImmediateMesh:

@@ -56,7 +56,7 @@ func place_item(item_id: String, pos: Vector2i, quantity: int = 1) -> bool:
 	if item_data.is_empty():
 		return false
 
-	var max_stack: int = item_data.get("max_stack", 1)
+	var stack_cap: int = item_data.get("max_stack", 1)
 
 	# Intentar apilar en entry existente al mismo anchor (stackeables).
 	# IMPORTANTE: este check va ANTES de can_place_item porque can_place_item
@@ -64,7 +64,7 @@ func place_item(item_id: String, pos: Vector2i, quantity: int = 1) -> bool:
 	if item_data.get("stackable", false):
 		for entry in items:
 			if entry["item_id"] == item_id and entry["grid_pos"] == pos:
-				if entry["quantity"] + quantity > max_stack:
+				if entry["quantity"] + quantity > stack_cap:
 					return false  # Desbordaría el stack — el caller debe gestionar el sobrante
 				entry["quantity"] += quantity
 				return true
@@ -73,8 +73,8 @@ func place_item(item_id: String, pos: Vector2i, quantity: int = 1) -> bool:
 	if not can_place_item(item_id, pos):
 		return false
 
-	if quantity > max_stack:
-		return false  # Cantidad excede max_stack en slot nuevo — caller debe chunkear
+	if quantity > stack_cap:
+		return false  # Cantidad excede stack_cap en slot nuevo — caller debe chunkear
 
 	var size: Vector2i = item_data["grid_size"]
 	for row in range(size.y):
@@ -132,20 +132,19 @@ func auto_place_item(item_id: String, quantity: int = 1) -> bool:
 	# Si es stackeable, intentar apilar en entries existentes
 	if item_data.get("stackable", false):
 		var remaining := quantity
+		var stack_cap: int = item_data.get("max_stack", 1)
 		for entry in items:
 			if entry["item_id"] == item_id and remaining > 0:
-				var max_stack: int = item_data.get("max_stack", 1)
-				var space: int = max_stack - entry["quantity"]
+				var space: int = stack_cap - entry["quantity"]
 				if space > 0:
 					var to_add: int = mini(remaining, space)
 					entry["quantity"] += to_add
 					remaining -= to_add
 		if remaining == 0:
 			return true
-		# Hay sobrante — chunkear en múltiples slots de max_stack
-		var max_stack: int = item_data.get("max_stack", 1)
+		# Hay sobrante — chunkear en múltiples slots de stack_cap
 		while remaining > 0:
-			var chunk: int = mini(remaining, max_stack)
+			var chunk: int = mini(remaining, stack_cap)
 			var placed := false
 			for row in range(GRID_ROWS):
 				for col in range(GRID_COLS):
