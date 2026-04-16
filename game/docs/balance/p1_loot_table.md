@@ -4,7 +4,7 @@
 
 **Fase**: 1 — design doc, NO implementación. Flag cualquier drift a A antes de aplicar.
 
-**Ownership & bind**: reglas globales en `_drop_ownership_canon.md`. Columna `bind_on_drop` en las tablas abajo indica items que ignoran round-robin y se asignan al jugador trigger específico (ver canon §3).
+**Ownership & bind**: reglas globales en `_drop_ownership_canon.md`. Columna `bind_on_drop` en las tablas abajo indica items que ignoran el reparto floor+random y se asignan al jugador trigger específico (ver canon §5).
 
 ---
 
@@ -15,7 +15,7 @@
 3. **Drop de material + equip**: sub-B y sub-C dropean material **garantizado** además del roll de equip (ver tablas abajo).
 4. **Drop de oro**: independiente del roll principal, se tira aparte según `p1_economy.md §6`.
 5. **Veterano**: override total — drop garantizado único, sin tabla.
-6. **Coop ownership**: ver `_drop_ownership_canon.md`. Resumen: round-robin por % damage dealt, timer locked 120s, luego Free. Items `bind_on_drop=TRUE` van al jugador trigger específico (no round-robin).
+6. **Coop ownership**: ver `_drop_ownership_canon.md`. Resumen: party-auto pool (sin damage gate), reparto floor+random, timer owner-lock 180s → free-for-all 120s → despawn 300s total. Items `bind_on_drop=TRUE` van al jugador trigger específico (no floor+random), timer 300s owner-only sin free phase.
 
 ---
 
@@ -159,7 +159,7 @@ Sub-A/B/C que escapó con <30% HP y volvió. Regla canon `balance_v2 §3.3`.
 | Veterano sub-B (ej. "Lyra la Tuerta" wolf alfa) | 1 Rare garantizado + 30% upgrade a Epic + entrada codex |
 | Veterano sub-C (ej. "Gorok Cicatrizado" bandit) | 1 Epic garantizado + nombre propio flag + entrada codex |
 
-**Item único nombrado**: cada Veterano dropea con sufijo "del Cicatrizado" / "del Tuerto" (nombre propio persiste en seed del bioma). No hay stack — si ya lo tenés del mismo Veterano, convierte a XP bonus +50 o oro. **[BIND]** — va al jugador que dio el last hit al Veterano, no round-robin (regla canon `_drop_ownership_canon.md §3.2`).
+**Item único nombrado**: cada Veterano dropea con sufijo "del Cicatrizado" / "del Tuerto" (nombre propio persiste en seed del bioma). No hay stack — si ya lo tenés del mismo Veterano, convierte a XP bonus +50 o oro. **[BIND]** — va al jugador que dio el killing blow al Veterano, sin entrar al reparto floor+random (regla canon `_drop_ownership_canon.md §5.2`).
 
 ---
 
@@ -216,8 +216,8 @@ Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_cano
 
 | Item | Fuente | Trigger del bind |
 |------|--------|------------------|
-| `emblema_bandido` | bandit_archer / bandit_melee drop garantizado | Top damage del kill |
-| `Corona Oxidada (menor)` | bandit_melee Epic roll (10%) | Top damage del kill |
+| `emblema_bandido` | bandit_archer / bandit_melee drop garantizado | Kill ambient + owner asignado canon v2 (killing blow del player, ver `_drop_ownership_canon.md §5.2`) |
+| `Corona Oxidada (menor)` | bandit_melee Epic roll (10%) | Kill ambient + owner asignado canon v2 (killing blow del player, ver `_drop_ownership_canon.md §5.2`) |
 | Items Veterano (sufijo "del Cicatrizado" / "del Tuerto") | Veterano sub-A/B/C | Last hit al Veterano |
 | `Asta Antigua` | Altar POI + trigger específico | Jugador que triggereó |
 | Drops de quests NPC | Cazador Perdido, mapache, bardo P5 | Jugador que aceptó quest |
@@ -225,7 +225,7 @@ Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_cano
 | `Bendición de la Hermana` (referencia) | Altar principal P3 | Invocador |
 | Páginas codex / entradas lore | Ruinas, diarios | Descubridor (persiste cuenta) |
 
-**Todo lo demás = round-robin damage split estándar** (regla default, no necesita flag).
+**Todo lo demás = reparto floor+random sobre pool de la party** (regla default canon v2, sin damage gate, ver `_drop_ownership_canon.md §2`).
 
 ---
 

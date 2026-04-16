@@ -327,6 +327,29 @@ func _register_items() -> void:
 		"stackable": true, "max_stack": 99, "value": 2,
 	})
 
+	# --- Bind items sub-C P1 (bandit_archer / bandit_melee) ---
+
+	_add({
+		"id": "emblema_bandido",
+		"name": "Emblema del Bandido",
+		"description": "Insignia de rango de los bandidos de la pradera. Un outpost pagaría bien por esto.",
+		"type": "material", "subtype": "quest", "slot": "",
+		"grid_size": Vector2i(1, 1), "rarity": "rare",
+		"stats": {}, "level_req": 1, "item_level": 3,
+		"stackable": true, "max_stack": 5, "value": 15,
+		"bind_on_drop": true,  # Quest item — owner-only 300s, sin free phase
+	})
+	_add({
+		"id": "corona_oxidada_menor",
+		"name": "Corona Oxidada (menor)",
+		"description": "Corona de hojalata torcida del líder de bandidos. (+2 STR, +5% XP local). Epic drop del jefe de las praderas.",
+		"type": "accessory", "subtype": "head", "slot": "head",
+		"grid_size": Vector2i(2, 1), "rarity": "rare",
+		"stats": {"str": 2}, "level_req": 3, "item_level": 4,
+		"stackable": false, "max_stack": 1, "value": 80,
+		"bind_on_drop": true,  # Epic ritual drop — owner-only 300s, sin free phase
+	})
+
 	# --- Boss drops (Rey Slime) ---
 
 	_add({
@@ -337,7 +360,7 @@ func _register_items() -> void:
 		"grid_size": Vector2i(2, 1), "rarity": "unique",
 		"stats": {"vit": 1}, "level_req": 1, "item_level": 5,
 		"stackable": false, "max_stack": 1, "value": 100,
-		"bind_on_drop": true,  # Quest item — despawn si owner no recoge en 120s
+		"bind_on_drop": true,  # Quest item — despawn si owner no recoge en 300s
 	})
 	_add({
 		"id": "boss_royal_gel",
@@ -347,7 +370,7 @@ func _register_items() -> void:
 		"grid_size": Vector2i(1, 1), "rarity": "rare",
 		"stats": {}, "level_req": 1, "item_level": 5,
 		"stackable": true, "max_stack": 10, "value": 25,
-		"bind_on_drop": true,  # Material boss — despawn si owner no recoge en 120s
+		"bind_on_drop": true,  # Material boss — despawn si owner no recoge en 300s
 	})
 
 	# --- Equipamiento rare/magic/unique de Piso 1 (drops) ---

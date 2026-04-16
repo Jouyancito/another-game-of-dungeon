@@ -89,12 +89,13 @@ func can_pickup_by(_player: Node) -> bool:
 
 ## Pickup manual via [E]. Canon v2 party split entre vivos al pickup.
 ## Retorna Dictionary vacio (compat con pickup_item loop en base_player).
-func pickup() -> Dictionary:
+## picker_node: el Node del jugador que hizo pickup (pasado desde base_player).
+func pickup(picker_node: Node = null) -> Dictionary:
 	if _picked:
 		return {}
 	_picked = true
 
-	_distribute_gold()
+	_distribute_gold(picker_node)
 
 	var tween := create_tween()
 	tween.tween_property(self, "global_position:y", global_position.y + 1.0, 0.2)
@@ -103,10 +104,23 @@ func pickup() -> Dictionary:
 	return {}
 
 
-# Split entre miembros party vivos. Singleplayer (sin party) → todo al picker.
-# "picker" se deduce via grupo "player" + distance minima (pickup_range ya filtro).
-func _distribute_gold() -> void:
-	var alive_members: Array[Node] = _find_alive_party_members()
+## Animacion arc al aterrizar (copia ground_item.gd:56-67).
+func arc_to(target: Vector3) -> void:
+	var start := global_position
+	var peak := start.lerp(target, 0.5)
+	peak.y = maxf(start.y, target.y) + 0.7
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(self, "global_position", peak, 0.18).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "global_position", target, 0.20).set_ease(Tween.EASE_IN)
+	tween.tween_property(self, "scale", Vector3(1.15, 0.85, 1.15), 0.06)
+	tween.tween_property(self, "scale", Vector3(1.0, 1.0, 1.0), 0.10)
+
+
+# Split entre miembros party vivos. Singleplayer → solo el picker.
+# picker_node: el jugador que hizo el pickup manual.
+func _distribute_gold(picker_node: Node) -> void:
+	var alive_members: Array[Node] = _find_alive_party_members(picker_node)
 	if alive_members.is_empty():
 		return
 
@@ -122,16 +136,24 @@ func _distribute_gold() -> void:
 			m.call("add_gold", share)
 
 
-# Devuelve players vivos de la party activa. Sin party → retorna los players vivos de la escena
-# (singleplayer: el unico player local).
-func _find_alive_party_members() -> Array[Node]:
+# Devuelve players vivos de la party activa del picker.
+# Sin party → retorna solo el picker (singleplayer canon v2: el que recoge, recibe todo).
+func _find_alive_party_members(picker_node: Node) -> Array[Node]:
 	var alive: Array[Node] = []
-	var party: Array[String] = Party.current_party
+	var picker_pid: String = ""
+	if picker_node != null and picker_node.has_method("get_profile_id"):
+		picker_pid = str(picker_node.call("get_profile_id"))
+
+	var party: Array[String] = Party.get_party_of(picker_pid) if picker_pid != "" else []
+
+	if party.is_empty():
+		# Singleplayer: solo el picker recibe el oro
+		if picker_node != null and (not picker_node.has_method("get") or not picker_node.get("is_dead")):
+			alive.append(picker_node)
+		return alive
+
 	for p in get_tree().get_nodes_in_group("player"):
 		if p.has_method("get") and p.get("is_dead"):
-			continue
-		if party.is_empty():
-			alive.append(p)  # singleplayer: todos los players locales
 			continue
 		if p.has_method("get_profile_id") and str(p.call("get_profile_id")) in party:
 			alive.append(p)

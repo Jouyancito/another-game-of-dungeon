@@ -87,6 +87,8 @@ func mark_free() -> void:
 
 func pickup() -> Dictionary:
 	is_despawning = true
+	# Canon VFX §5.1: emitir despawned con reason "picked_up". Art filtra per §5.3 (no VFX puff).
+	despawned.emit(self, "picked_up")
 	var result := {"item_id": item_id, "quantity": item_quantity, "data": item_data}
 	var tween := create_tween()
 	tween.tween_property(self, "scale", Vector3(0.01, 0.01, 0.01), 0.15)

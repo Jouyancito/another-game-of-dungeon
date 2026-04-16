@@ -41,7 +41,7 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 		var gold_target := _pick_radial_position(enemy_position, occupied_cells, query_node)
 		gold.global_position = enemy_position + Vector3(0, 0.4, 0)
 		scene_root.call_deferred("add_child", gold)
-		gold.call_deferred("set", "global_position", gold_target)
+		gold.call_deferred("arc_to", gold_target)
 
 	var items: Array = loot.get("items", [])
 	if items.is_empty():
@@ -50,8 +50,13 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 	# Pool de owners segun canon v2
 	var pool: Array[String] = _resolve_pool(killer_profile_id, query_node)
 
+	# Canon §2.2: RNG seeded por kill para reproducibilidad debug.
+	var rng := RandomNumberGenerator.new()
+	var seed_base: int = killer_profile_id.hash() if killer_profile_id != "" else 0
+	rng.seed = seed_base ^ Time.get_ticks_msec()
+
 	# Reparto floor+random sobre items
-	var assignments: Array[String] = _floor_random_split(items.size(), pool)
+	var assignments: Array[String] = _floor_random_split(items.size(), pool, rng)
 
 	for i in items.size():
 		var entry: Dictionary = items[i]
@@ -78,12 +83,22 @@ func spawn_chest_drops(chest_position: Vector3, loot: Dictionary, query_node: No
 ## Resuelve pool segun canon v2:
 ## - killer_profile_id == "" → pool vacio → drops free-for-all.
 ## - Con killer → Party.get_party_of(killer) + supporters que healed/buffed ultimos 10s.
+## - Canon §1.1: miembros muertos al momento del kill quedan fuera del reparto.
 func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]:
 	if killer_profile_id == "":
 		return []
 	var party: Array[String] = Party.get_party_of(killer_profile_id)
 	if party.is_empty():
 		party = [killer_profile_id]
+
+	# Canon §1.1: filtrar miembros muertos — no participan en el reparto.
+	var alive_party: Array[String] = []
+	for pid in party:
+		var node: Node = _find_player_by_profile(pid, query_node)
+		if node != null and node.get("is_dead") == true:
+			continue
+		alive_party.append(pid)
+	party = alive_party
 
 	# Support participants: supporters que estan EN party y aplicaron heal/buff ultimos 10s.
 	var now := Time.get_unix_time_from_system()
@@ -102,9 +117,19 @@ func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]
 			if supporter_pid in party and supporter_pid not in supporters:
 				supporters.append(supporter_pid)
 
-	# Merge: party + supporters (dedup)
+	# Filtrar supporters muertos/offline antes de agregar al pool.
+	var alive_supporters: Array[String] = []
+	for sup_pid in supporters:
+		var sup_node: Node = _find_player_by_profile(sup_pid, query_node)
+		if sup_node == null:
+			continue
+		if sup_node.get("is_dead") == true:
+			continue
+		alive_supporters.append(sup_pid)
+
+	# Merge: party viva + supporters vivos (dedup)
 	var pool: Array[String] = party.duplicate()
-	for s in supporters:
+	for s in alive_supporters:
 		if s not in pool:
 			pool.append(s)
 	return pool
@@ -113,7 +138,8 @@ func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]
 ## floor+random: N drops, M miembros.
 ## floor(N/M) drops garantizados c/u + N mod M drops sorteados random.
 ## Retorna array de tamano N con profile_id por indice de drop.
-func _floor_random_split(drop_count: int, pool: Array[String]) -> Array[String]:
+## rng: RandomNumberGenerator seeded por el caller (canon §2.2 — reproducible en debug).
+func _floor_random_split(drop_count: int, pool: Array[String], rng: RandomNumberGenerator) -> Array[String]:
 	var out: Array[String] = []
 	if drop_count <= 0:
 		return out
@@ -133,13 +159,21 @@ func _floor_random_split(drop_count: int, pool: Array[String]) -> Array[String]:
 		for _j in guaranteed:
 			out.append(pid)
 
-	# leftover: sortear sin reemplazo entre members
-	members.shuffle()
+	# leftover: sortear sin reemplazo usando rng seeded (Fisher-Yates parcial)
+	for i in range(members.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: String = members[i]
+		members[i] = members[j]
+		members[j] = tmp
 	for k in leftover:
 		out.append(members[k])
 
-	# Shuffle final para que el ORDEN de drops no delate el reparto
-	out.shuffle()
+	# Shuffle final para que el ORDEN de drops no delate el reparto (usando rng seeded)
+	for i in range(out.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: String = out[i]
+		out[i] = out[j]
+		out[j] = tmp
 	return out
 
 
@@ -164,6 +198,10 @@ func _register_drop(drop: GroundItem, owner_profile_id: String) -> void:
 
 	# Free-for-all desde spawn (kill ambiente o pool vacio) → solo timer total 300s.
 	if owner_profile_id == "":
+		# Canon §7: bind items requieren trigger player identificado; sin killer, fallback a
+		# expired (300s sin owner lock). Log para diagnostico — no hay owner posible.
+		if drop.bind_on_drop:
+			push_warning("Bind item %s desde kill ambient sin trigger player — tratando como expired" % drop.item_id)
 		_schedule_final_despawn(drop_id, DESPAWN_TOTAL_SEC)
 		return
 
@@ -183,7 +221,7 @@ func _schedule_owner_lock_expire(drop_id: int) -> void:
 
 func _schedule_final_despawn(drop_id: int, delay: float) -> void:
 	var timer := get_tree().create_timer(delay)
-	timer.timeout.connect(func(): _force_despawn(drop_id, "despawn_timeout"))
+	timer.timeout.connect(func(): _force_despawn(drop_id, "expired"))
 
 
 func _schedule_bind_despawn(drop_id: int) -> void:

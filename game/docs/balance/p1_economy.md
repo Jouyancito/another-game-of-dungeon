@@ -97,12 +97,12 @@ Los bonos son **multiplicativos entre sí** salvo los flat (suman al final).
 
 Detalle completo en `_drop_ownership_canon.md`. Resumen canon P1:
 
-- **Ownership tipo Metin2**: al morir el mob, los drops se asignan por **round-robin ponderado por % damage dealt**. El damage log decide dueños, no el last hit.
-- **Timer locked 2 minutos (120s)**: solo el owner asignado puede lootear. Pasado el timer → fase **Free**, cualquiera puede tomarlo. Warning visual parpadeo al seg 90.
-- **Despawn 10 minutos** (600s) desde spawn. Clutter control en arenas procedurales.
+- **Ownership party-auto (canon v2)**: al morir el mob, los drops se reparten con floor+random entre **todos los miembros vivos de la party del killer**, sin damage gate. Ver `_drop_ownership_canon.md §1-2`.
+- **Timer owner-lock 180s**: solo el owner puede lootear. A los 180s → fase **Free** (cualquiera puede tomarlo). Despawn total 300s. Ver `_drop_ownership_canon.md §3`.
+- **Despawn 300s** desde spawn. Clutter control en arenas procedurales.
 - **Dispersión radial 1-2m**: cada item cae en círculo horizontal 1-2m alrededor del centro del mob, con arc parabólico breve (0.5s airtime, peak +0.6m). Evita "pila invisible" y da feeling de explosión de loot.
-- **Round-robin reset por kill**: no persiste anti-pity entre mobs.
-- **Support participant (healer/buffer sin damage directo)**: entra al round-robin con soft-pity si aplicó heal/buff en los últimos 10s antes del kill.
+- **Reparto instantáneo por kill**: sin queue ni anti-pity cross-mob. Cada kill es independiente.
+- **Support participant (healer/buffer sin damage directo)**: entra al reparto floor+random si está en party del killer y aplicó heal/buff en los últimos 10s antes del kill. Ver `_drop_ownership_canon.md §4`.
 
 ### 4.0.1 Bind-on-drop — items de evento/ritual
 
@@ -110,7 +110,7 @@ Regla general canon:
 
 > **"Items de evento/ritual = bind-on-drop. Suerte de run = suerte tuya."**
 
-Los drops con flag `bind_on_drop = TRUE` ignoran round-robin y van al jugador trigger específico. No tienen timer Free — persisten hasta pickup o despawn natural. Lista P1 completa en `p1_loot_table.md §7`.
+Los drops con flag `bind_on_drop = TRUE` ignoran el reparto floor+random y van al jugador trigger específico. No tienen timer Free — persisten 300s owner-only hasta pickup o despawn. Lista P1 completa en `p1_loot_table.md §7`. Reglas completas en `_drop_ownership_canon.md §5`.
 
 Aplica a:
 - Items de evento (Asta Antigua, quest NPC drops, fauna pacífica interactions).
