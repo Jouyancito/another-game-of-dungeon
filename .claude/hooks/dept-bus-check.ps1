@@ -1,10 +1,11 @@
-# Dept Bus — detecta inbox (B/C/D) u outbox (A) nuevos y los muestra al agente.
-# Invocado por SessionStart + UserPromptSubmit hooks.
+# Dept Bus — detecta inbox (B/C/D) u outbox (A) nuevos.
+# Invocado por SessionStart + UserPromptSubmit + Stop hooks.
 # Bus dir: C:/Users/the_j/Desktop/_dept-bus (fuera de worktrees, sin git).
 #
-# Protocolo:
-#   A escribe a {bus}/inbox-{b,c,d}.md  -> B/C/D ven en su hook
-#   B/C/D escriben a {bus}/outbox-{b,c,d}.md -> A ve en su hook
+# Comportamiento por evento:
+#   SessionStart / UserPromptSubmit -> output systemMessage (info, no fuerza accion).
+#   Stop                            -> output decision:block (fuerza al agente a continuar
+#                                      con el contenido del inbox/outbox como nuevo input).
 #
 # Marker files {bus}/.seen-* evitan re-mostrar el mismo mensaje.
 
@@ -16,14 +17,16 @@ if (-not (Test-Path $bus)) {
     exit 0
 }
 
-# Detectar worktree desde stdin (Claude hook JSON) o cwd fallback.
+# Parse Claude hook JSON desde stdin: cwd + hook_event_name.
 $cwd = ''
+$event = ''
 try {
     $input_json = [Console]::In.ReadToEnd()
     if ($input_json) {
         $hook = $input_json | ConvertFrom-Json
         if ($hook.cwd) { $cwd = $hook.cwd }
         elseif ($hook.workspace -and $hook.workspace.current_dir) { $cwd = $hook.workspace.current_dir }
+        if ($hook.hook_event_name) { $event = $hook.hook_event_name }
     }
 } catch {}
 if (-not $cwd) { $cwd = (Get-Location).Path }
@@ -31,6 +34,10 @@ if (-not $cwd) { $cwd = (Get-Location).Path }
 $letter = '?'
 if ($cwd -match 'DungeonParty-([ABCD])') { $letter = $Matches[1] }
 if ($letter -eq '?') { exit 0 }
+
+# Stop hook con stop_hook_active=true significa que ya forzamos block antes
+# y el agente esta re-procesando -> NO re-bloquear (loop infinito).
+if ($event -eq 'Stop' -and $hook.stop_hook_active -eq $true) { exit 0 }
 
 function Check-BusFile {
     param($path, $markerPath, $label)
@@ -59,8 +66,17 @@ if ($letter -eq 'A') {
 }
 
 if ($parts.Count -gt 0) {
-    $intro = "[DEPT-BUS] Mensajes nuevos detectados. Leelos y actua:`n`n"
-    $body = $intro + ($parts -join "`n`n---`n`n")
-    $out = @{ systemMessage = $body } | ConvertTo-Json -Compress
+    $body = ($parts -join "`n`n---`n`n")
+
+    if ($event -eq 'Stop') {
+        # Forzar continuacion: el agente recibe esto como instruccion nueva
+        # en lugar de terminar el turn.
+        $reason = "[DEPT-BUS auto-resume] Mensaje nuevo detectado al cierre del turn. Procesa este contenido como tarea/handoff:`n`n" + $body
+        $out = @{ decision = "block"; reason = $reason } | ConvertTo-Json -Compress
+    } else {
+        # Solo notificar (SessionStart / UserPromptSubmit).
+        $intro = "[DEPT-BUS] Mensajes nuevos detectados. Leelos y actua:`n`n"
+        $out = @{ systemMessage = ($intro + $body) } | ConvertTo-Json -Compress
+    }
     Write-Output $out
 }

@@ -12,6 +12,11 @@
             "type": "command",
             "shell": "powershell",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/stop-merge-reminder.ps1\""
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/dept-bus-check.ps1\""
           }
         ]
       }
