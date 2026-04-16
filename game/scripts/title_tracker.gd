@@ -33,6 +33,10 @@ const TITLES := {
 		"name": "Veterano",
 		"desc": "Alcanzá nivel 10",
 	},
+	"frieren_luck": {
+		"name": "La Suerte de Frieren",
+		"desc": "Tu primer mímico. Frieren estaría orgullosa.",
+	},
 }
 
 
@@ -55,12 +59,15 @@ func on_enemy_killed(enemy_type: String) -> void:
 		_grant("exterminator")
 
 
-## Mímico matado — stub, canon formato achievement "Frieren" lo define C (dept/design).
+## Mímico matado — canon _mimic.md §5. Trigger achievement "La Suerte de Frieren"
+## en el primer kill (mimics_killed == 1).
 func notify_mimic_killed() -> void:
 	var stats := _get_stats()
 	stats["mimics_killed"] = stats.get("mimics_killed", 0) + 1
 	_save_stats(stats)
 	print("[TitleTracker] Mímico matado (total: %d)" % stats["mimics_killed"])
+	if stats["mimics_killed"] == 1:
+		_grant("frieren_luck")
 
 
 func on_player_death() -> void:

@@ -106,6 +106,32 @@ func _register_tables() -> void:
 		],
 	})
 
+	# --- Mímico (issue #60) — trampa sub-B con drops ≥ Rare ---
+	# Canon _mimic.md §4. pool_pick = roll único weighted (no independientes por drop).
+	_add("mimic", {
+		"gold_min": 20,
+		"gold_max": 50,  # 2× chest pequeño P1 (p1_economy §5)
+		"pool_pick": [
+			# Canon §4.3: 60% Rare / 35% Epic / 5% Legendary→Epic en P1.
+			# TODO swap al canon cuando C implemente pool sub-B exacto
+			# (armadura_quitina, garra_alfa, reina_avispa_ambra, colmillo_alfa_eterno).
+			# Placeholder: pool Rare sub-B existente en item_database.
+			{"item_id": "sword_bandit", "weight": 12},         # Rare 60% / 5 items ≈ 12% c/u
+			{"item_id": "bow_hunter", "weight": 12},
+			{"item_id": "armor_reinforced_vest", "weight": 12},
+			{"item_id": "shield_iron", "weight": 12},
+			{"item_id": "cape_hunter", "weight": 12},
+			# Pool Epic sub-B P1 — corona_oxidada_menor (único Epic existente).
+			# En P1 Legendary sustituido por Epic (regla p1_economy §5).
+			{"item_id": "corona_oxidada_menor", "weight": 40}, # Epic 35% + Leg→Epic 5% = 40%
+			# TODO issue #55 downed state — slot reservado Pergamino Auto-Revive ~2-3%.
+			# {"item_id": "pergamino_auto_revive", "weight": 2},
+		],
+		"guaranteed": [
+			{"item_id": "dentellada_mimica", "qty_min": 1, "qty_max": 1},
+		],
+	})
+
 	_add("bandit_melee", {
 		"gold_min": 8,
 		"gold_max": 15,
@@ -316,6 +342,27 @@ func roll(enemy_type: String) -> Dictionary:
 				"item_id": drop["item_id"],
 				"quantity": qty,
 			})
+
+	# Weighted pool pick — un roll único que elige 1 item ponderado del pool.
+	# Usado cuando canon exige "100% 1 item del pool con skew de rareza"
+	# (ej. mímico canon _mimic.md §4.3: 60% Rare / 35% Epic / 5% Leg→Epic).
+	var pool: Array = table.get("pool_pick", [])
+	if not pool.is_empty():
+		var total_weight: int = 0
+		for entry in pool:
+			total_weight += int(entry.get("weight", 0))
+		if total_weight > 0:
+			var r: int = randi() % total_weight
+			var accum: int = 0
+			for entry in pool:
+				accum += int(entry.get("weight", 0))
+				if r < accum:
+					var qty: int = int(entry.get("qty_min", 1))
+					result["items"].append({
+						"item_id": entry["item_id"],
+						"quantity": qty,
+					})
+					break
 
 	# Items garantizados
 	for drop in table.get("guaranteed", []):

@@ -1,7 +1,9 @@
 [gd_scene format=3 uid="uid://mimicchest01"]
 
+[ext_resource type="Script" path="res://scenes/enemy/mimic.gd" id="1_mimic"]
+
 ; ========================================================================
-; MimicChest — escena art-only (sin script).
+; MimicChest — escena art + script gameplay wireado (post-merge integration).
 ; B agrega script gameplay (mimic.gd) + signals (`disguise_revealed`,
 ; `mimic_died`, `reveal_animation_finished`) extendiendo BaseEnemy o similar.
 ;
@@ -299,6 +301,7 @@ _data = {
 ; ========================================================================
 
 [node name="MimicChest" type="CharacterBody3D" groups=["enemies", "interactables"]]
+script = ExtResource("1_mimic")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
