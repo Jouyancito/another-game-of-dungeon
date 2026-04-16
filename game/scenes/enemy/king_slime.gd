@@ -1039,20 +1039,24 @@ func _drive_acid_pool(pool: Area3D) -> void:
 # ── Embestida ─────────────────────────────────────────────────────────
 func _attack_embestida() -> void:
 	velocity = Vector3.ZERO
-	var telegraph: float = 1.0
-	# Pequeña "compresión" visual: encoger mesh 15% durante telegraph.
+	# Telegraph mas largo + compresion mas marcada → tiempo de reaccion
+	var telegraph: float = 1.3
+	# Compresion visual (30% en vez de 15%) con un leve bob vertical al final
+	# para telegrafiar "voy a saltar hacia vos".
 	if mesh:
 		var tween: Tween = create_tween()
-		tween.tween_property(mesh, "scale", mesh.scale * 0.85, telegraph * 0.5)
-		tween.tween_property(mesh, "scale", mesh.scale, telegraph * 0.5)
+		tween.tween_property(mesh, "scale", mesh.scale * 0.7, telegraph * 0.55)
+		tween.tween_property(mesh, "scale", mesh.scale * 1.05, telegraph * 0.25)
+		tween.tween_property(mesh, "scale", mesh.scale, telegraph * 0.20)
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return
 	action_state = ActionState.EXECUTE
 
-	# Dash rápido hacia target durante 0.6s
-	var dash_time: float = 0.6
-	var dash_speed: float = 12.0
+	# Dash — mas lento (9 m/s vs 12) y duracion 0.55s. Con sprint (8 m/s)
+	# el player puede sacarle distancia si reacciona al telegraph.
+	var dash_time: float = 0.55
+	var dash_speed: float = 9.0
 	if is_instance_valid(target):
 		var dir: Vector3 = target.global_position - global_position
 		dir.y = 0.0
@@ -1060,7 +1064,8 @@ func _attack_embestida() -> void:
 		velocity.x = dir.x * dash_speed
 		velocity.z = dir.z * dash_speed
 
-	# Chequeo de colisión con target durante el dash
+	# Hit radius 1.8m (antes 2.5m) — strafe lateral ahora evita el hit.
+	# Damage base + 6 (antes +12) — sigue siendo golpe fuerte pero no one-shot.
 	var hit_registered: bool = false
 	var elapsed: float = 0.0
 	while elapsed < dash_time and not is_dead and is_instance_valid(self):
@@ -1068,10 +1073,12 @@ func _attack_embestida() -> void:
 		elapsed += get_physics_process_delta_time()
 		if hit_registered or not is_instance_valid(target):
 			continue
-		if global_position.distance_to(target.global_position) <= 2.5:
+		if global_position.distance_to(target.global_position) <= 1.8:
 			if target.has_method("take_damage"):
-				target.take_damage(base_damage_for_attack() + 12.0)
+				target.take_damage(base_damage_for_attack() + 6.0)
 			hit_registered = true
+			# Cortar dash al registrar hit — mas feedback, menos atropello continuado
+			break
 
 	if is_dead or not is_instance_valid(self):
 		return
