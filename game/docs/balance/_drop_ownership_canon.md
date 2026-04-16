@@ -1,188 +1,291 @@
 # Drop Ownership — Canon
 
-**Versión**: 1.0
-**Fecha**: 2026-04-15
-**Estado**: Canon. Regla global cross-bioma/cross-tier.
-**Depende**: —
-**Referencian**: `p1_economy.md §4`, `p1_loot_table.md §0`, futuros docs de loot por piso.
-**Audiencia**: dept Gameplay (implementación spawner/pickup), dept UI (indicadores ownership), dept Design (futuras tablas de loot).
+**Versión**: 2.0
+**Fecha**: 2026-04-16
+**Estado**: Canon. Regla global cross-bioma/cross-tier. Reemplaza v1 (2026-04-15) post Judgment Day 2026-04-16.
+**Depende**: `_system.md` (party futuro), `p1_economy.md §6`, `p1_loot_table.md §7` (bind items P1).
+**Referencian**: `p1_economy.md`, `p1_loot_table.md`, `game/docs/art/drop_vfx.md`, futuras tablas boss.
+**Audiencia**: dept Gameplay (implementación `drop_controller.gd`, `party.gd`, `ground_item.gd`), dept UI (indicadores), dept Art (VFX), dept Design (futuras tablas loot).
 
 ---
 
 ## 0. Filosofía
 
-Modelo inspirado en **Metin2**: el drop pertenece al que **contribuyó al kill**, por una ventana de tiempo limitada. Pasado el timer, se libera para cualquiera.
+Modelo **Party-first con fallback Metin2-strict singleplayer**.
 
-Objetivo: evitar loot-grief sin romper la tesis coop. Un jugador que farmea solo en una arena multiplayer no pierde su loot por randoms que pasan cerca. Un jugador que participa de un kill colectivo tiene derecho a intentar rolar por el drop.
+- Si el killer está en party → TODA la party comparte el drop (party-auto, sin damage gate, AFK incluido).
+- Si el killer está solo → solo el killer es owner (Metin2 clásico).
 
-**Frase-ley**: *"Suerte de run = suerte tuya. Items de evento/ritual = bind-on-drop."*
+Objetivo: coop tesis primero, anti-grief segundo. La party decide antes de pelear; dentro de la pelea nadie pelea por loot. Solo-play queda cubierto sin ambigüedad.
 
----
-
-## 1. Regla de ownership
-
-### 1.1 Quién es owner
-
-Al morir un enemigo, el sistema calcula **participantes válidos del kill**:
-
-- Contribuidor ≥ 10% del HP máximo del mob (damage dealt threshold).
-- O healer/buffer que aplicó support activo al grupo durante la pelea (ver §4 edge cases).
-- Todos los participantes válidos entran a la pool de owners.
-
-### 1.2 Round-robin damage split
-
-Cuando hay múltiples owners, los drops se reparten **round-robin ponderado por % damage dealt**:
-
-1. Ordenar participantes por % damage (descendente).
-2. Item 1 → primer jugador (top damage).
-3. Item 2 → segundo (next damage).
-4. Si un mob dropea N items y hay M jugadores con N > M → vuelve al inicio ponderando por % damage restante.
-
-**Ejemplo**: 3 jugadores, mob dropea 2 items. J1 (60% dmg), J2 (30%), J3 (10%).
-- Item 1 → J1.
-- Item 2 → J2.
-- J3 queda sin drop este kill. Round-robin se resetea por kill, NO persiste.
-
-**Excepción support**: si hay un healer/buffer flagged como "participante activo support", se le asigna el item de menor valor (Common antes que Rare) solo si quedó fuera del round-robin damage. Soft-pity — evita que el Cleric farmee 0 drops en 3 horas.
-
-### 1.3 Timer de ownership
-
-Cada drop nace con **timer 2 minutos (120s)**.
-
-| Fase | Duración | Quién puede lootear |
-|------|----------|---------------------|
-| **Locked** | 0-120s | Solo el owner asignado por round-robin |
-| **Free** | 120s+ | Cualquier jugador. Visual: el drop empieza a parpadear al seg 90 (warning 30s). |
-
-Durante locked, otros jugadores ven el drop pero con **indicador visual "owned"** (ej. outline del color del owner). No pueden interactuar.
-
-### 1.4 Despawn
-
-Drop despawnea a los **10 minutos** desde spawn. Después del fase Free (120s-600s) el item es libre para cualquiera; pasados los 600s, desaparece del mundo.
-
-**Excepción chest**: contenido de chest NO tiene timer — se asigna al momento de apertura via round-robin (el que abre el chest es el "top damage" del evento de apertura).
+**Frase-ley**: *"Tu party, tu botín. Solo, tu kill, tu botín. Eventos/rituales, tu suerte."*
 
 ---
 
-## 2. Dispersión radial al dropear
+## 1. Pool de owners
 
-Al morir el mob y resolverse el drop:
+### 1.1 Entrada al pool
 
-- **Posición base**: centro de masa del mob (collision shape center).
-- **Dispersión**: cada item se desplaza aleatoriamente **1-2m** en un círculo horizontal alrededor del centro.
-- **Altura**: arc parabólico breve (0.5s airtime, peak +0.6m) antes de caer al suelo.
+| Contexto | Pool owners |
+|----------|-------------|
+| Killer en party | **Todos** los miembros vivos + AFK de la party del killer |
+| Killer solo (sin party) | Solo el killer |
+| Kill por ambiente (lava, trap, caída) | Vacío — drop pasa directo a free-for-all |
 
-**Razón**:
-1. Evita "pila invisible" de 5 items en el mismo pixel — distinguir cada uno visualmente.
-2. Feeling de "explosión de loot" — satisfacción visceral al kill.
-3. Permite pickup selectivo con cursor (agacharse con Ctrl + E sobre el item que querés).
+**Reglas pool**:
+- **Sin damage gate**. No hay threshold mínimo de daño. Entrar a la party = entrar al pool.
+- **AFK cuenta**. Miembro conectado pero sin inputs recientes sigue en el pool.
+- **Muerto no cuenta**. Miembro party muerto al momento del kill queda fuera del reparto (no fantasma).
+- **Support participant** (Cleric/Buffer sin damage): ver §4.
 
-**Colisión**: los drops usan physics layer separada para no empujarse entre sí ni colisionar con el player. Caen al suelo (layer World) y quedan.
+### 1.2 Party system
 
----
-
-## 3. Bind-on-drop
-
-Algunos items ignoran round-robin y se asignan **directamente a un jugador específico**.
-
-### 3.1 Reglas bind-on-drop
-
-Un item con flag `bind_on_drop = TRUE`:
-
-1. Se asigna al **único jugador que cumplió la condición trigger** (no al top damage).
-2. **Solo ese jugador lo ve** — otros ven un shimmer visual pero no pueden interactuar nunca.
-3. **No tiene timer libre** — persiste hasta que el owner lo levanta o haga despawn natural (600s).
-4. **No es tradeable** en esa run. Post-run en taverna puede convertirse en tradeable según el item específico.
-
-### 3.2 Cuándo aplica bind-on-drop
-
-- **Items de evento/ritual**: Corona Oxidada (bandit leader kill épico), Asta Antigua (primera interacción con el pet del altar), Pluma del Grifo.
-- **Quest items**: Pergamino Sellado del Cazador, Diario del Peregrino, notas lore únicas.
-- **Drops únicos de Veteranos**: items con nombre propio ("del Cicatrizado") van al jugador que dio el último hit al Veterano (no round-robin).
-- **First-kill rewards**: primera vez que un jugador mata un tipo de mob en su cuenta, drop flag personal (cosmético pequeño).
-
-**Frase-ley**: *"Suerte de run = suerte tuya."* Si rolaste mal esta run, rolás mejor la próxima — pero el item-evento que solo sale cuando matás al bandit leader épicamente es tuyo, nadie te lo roba.
+- `game/shared/systems/party.gd` (autoload, stub 30 líneas) resuelve `get_party(player) -> Array[Player]`.
+- Singleplayer: party vacía → pool = [killer].
+- Multiplayer (Steam futuro): party formada pre-run en taverna; stub compatible sin refactor.
 
 ---
 
-## 4. Edge cases
+## 2. Reparto — floor + random
 
-### 4.1 Jugador desconecta mid-kill
-- Si el jugador iba a ser owner del drop pero se desconectó antes del death event: el drop va al **siguiente en round-robin**.
-- Si reconecta <60s: el drop NO se le reasigna (ya se resolvió). Su turno vuelve al próximo kill.
+Al resolverse un kill, dado `N` drops y `M` miembros en el pool:
 
-### 4.2 Mob muere por DoT sin atacante cercano
-- DoT aplicado por jugador X cuenta como su damage aunque esté lejos. Owner correcto.
-- Si el DoT fue de una skill de otro jugador (ej. Necromancer curse que causó bleed) → el caster del DoT es el damage dealer.
+1. **Garantizado**: cada miembro recibe `floor(N / M)` drops.
+2. **Random**: los `N mod M` drops restantes se sortean aleatoriamente entre los M miembros (sin repetir hasta agotar, luego reset).
+3. **Bind items** (ver §5) **NO entran al reparto floor+random**. Se resuelven aparte según su regla de trigger.
 
-### 4.3 Kill por ambiente (caer a lava, trap)
-- No hay owner válido por damage → drop pasa inmediatamente a fase **Free** (no hay locked window).
-- Excepción bind-on-drop sigue aplicando (ej. trap triggereado por jugador X → X owner).
+### 2.1 Ejemplo numérico
 
-### 4.4 Healer/buffer sin damage
-- Si aplicó ≥1 heal o buff al grupo en los últimos 10s antes del kill → se agrega a round-robin como "support participant".
-- Recibe soft-pity: drop de menor valor si quedó fuera del reparto damage.
+Mob suelta **5 drops**, party **3 miembros** (A, B, C):
 
-### 4.5 Kill simultáneo (mob muere por 2+ hits en <100ms)
-- Todos los hits cuentan normal. Round-robin por % damage total del combate, no por "last hit".
-- Last hit no tiene weight especial (anti-kill-steal).
+- `floor(5/3) = 1` → A, B, C reciben 1 drop cada uno (garantizado).
+- `5 mod 3 = 2` → 2 drops sorteados random entre A/B/C. Puede salir AA, AB, BC, CC, etc.
+- Resultado posible: A=2, B=2, C=1 (u otras combinaciones).
 
-### 4.6 Mob split (King Slime → mini_slimes)
-- Cada mini_slime es un kill independiente. Damage dealt se trackea desde el momento del split.
-- No hay "inherit damage del padre" — si solo atacaste al King Slime pero no a los mini, no sos owner de sus drops.
+### 2.2 Reglas del reparto
 
-### 4.7 Owner al máximo de inventario
-- Drop sigue spawneado en el mundo (dispersión normal), flagged para owner.
-- Si al owner no le cabe, al pasar el timer 120s cualquiera lo puede tomar (fase Free estándar).
-- Sin queue de "loot auto" — el jugador debe gestionar su inventario.
-
-### 4.8 PvP futuro (fuera scope P1)
-- Si se habilita PvP en taverna/arenas especiales: damage del PvP NO cuenta para ownership de mobs.
-- Detalle diferido a doc PvP.
+- **Instantáneo**. Resolución al momento del kill. Sin queue cross-mob.
+- **Sin orden por damage**. Damage dealt es **irrelevante** (eliminado canon v1).
+- **Sin soft-pity cross-kill**. Cada kill es independiente.
+- **Determinismo**: `RandomNumberGenerator` seed por kill (debug reproducible).
 
 ---
 
-## 5. Feedback visual y audio
+## 3. Timers
 
-| Estado | Visual | Audio |
-|--------|--------|-------|
-| Drop spawneado locked | Outline color del owner, nombre flotante sutil | "pop" leve al caer |
-| Drop locked visto por no-owner | Outline gris, tooltip "propiedad de {owner}" al hover | (silencio) |
-| Transición a Free (seg 90-120) | Outline empieza a parpadear | Tick suave cada 5s últimos 30s |
-| Drop Free | Sin outline, interactuable por todos | — |
-| Bind-on-drop visto por no-owner | Shimmer dorado translúcido, sin tooltip | (silencio) |
-| Pickup exitoso | Flash del color raridad | "chime" según raridad |
+### 3.1 Tabla canónica
+
+| Tipo drop | Owner-lock | Free-for-all | Despawn total |
+|-----------|-----------|--------------|---------------|
+| **Drop normal** | 180s (0-180s) | 120s (180-300s) | 300s |
+| **Bind item** | 300s (0-300s) | — (nunca libera) | 300s |
+
+- **Drop normal**: tras owner-lock, pasa a free. Cualquier jugador puede lootear. A los 300s desaparece.
+- **Bind item**: owner-only durante toda su vida. Nunca se libera. Si el owner no lo levanta en 300s, se pierde.
+
+### 3.2 Downed extension (futuro)
+
+Cuando exista downed state (ver backlog global):
+- Si al expirar owner-lock el owner está downed → **+120s** extra antes de free-for-all.
+- Solo aplica a drops normales. Bind items no extienden (ya son 300s).
+
+Este bloque queda documentado pero **no implementar en P1**.
+
+### 3.3 Visual de timers
+
+Reenviar a `game/docs/art/drop_vfx.md` (dept Art). Resumen:
+- Glow color-rareza durante owner-lock.
+- Shock ring a los 180s (drop normal) marca transición a free.
+- Bind items mantienen glow intensificado hasta despawn.
 
 ---
 
-## 6. Implementación — notas para dept Gameplay
+## 4. Support participant
 
-No es código, solo pointers. El apply lo hace B cuando corresponda.
+Clerics y Buffers sin damage entran al pool **solo** bajo todas estas condiciones:
 
-- `DropSpawner.spawn_drops(mob, damage_log)` — recibe damage log (dict `{player_id: dmg_dealt}`).
-- Ownership se resuelve en este call. Cada `Drop` node se crea con `owner_id` y `locked_until` timestamps.
-- `Drop._can_interact(player)` → chequea `bind_on_drop`, `owner_id`, `locked_until`.
-- Indicador visual = shader outline con uniform `owner_color` (material shared entre drops).
-- UI HUD: icono pequeño "pending drops" arriba-derecha con count + timer restante.
+| Condición | Regla |
+|-----------|-------|
+| Party | Debe estar **en la party del killer**. Sin party → no cuenta. |
+| Heal / buff aplicado | Debe haber aplicado al menos un heal o buff a **un miembro de la party** en los **últimos 10s** antes del kill. |
+| Timestamp válido | El timestamp del heal/buff debe registrarse en el evento (sin log → no cuenta). |
+
+**Sin heal ni buff en los 10s previos** → queda fuera aunque esté en party.
+
+No hay "soft-pity support". Si cumple condiciones, entra al reparto floor+random como cualquier otro miembro.
 
 ---
 
-## 7. Decisiones tomadas (registro)
+## 5. Bind items P1
+
+Items con flag `bind_on_drop = TRUE`. Ignoran reparto floor+random y se asignan directo al jugador trigger.
+
+### 5.1 Reglas bind
+
+1. Asignado al **jugador que cumplió el trigger específico** (no random, no top damage).
+2. **Solo el owner lo ve interactuable**. Resto ve shimmer translúcido.
+3. **Timer 300s owner-only**. Nunca pasa a free-for-all.
+4. **No tradeable** durante el run. Post-run en taverna según item.
+
+### 5.2 Lista canon P1
+
+Derivada de `p1_loot_table.md §7`:
+
+| Item | Fuente | Trigger del bind |
+|------|--------|------------------|
+| `emblema_bandido` | bandit_archer / bandit_melee (drop garantizado) | Jugador que dio el killing blow |
+| `Corona Oxidada (menor)` | bandit_melee Epic roll (1% efectivo) | Jugador que dio el killing blow |
+| Items Veterano (sufijo "del Cicatrizado" / "del Tuerto") | Veteranos sub-A/B/C | Jugador que dio el killing blow al Veterano |
+| `Asta Antigua` | Altar POI + interacción | Jugador que triggereó la interacción |
+| `Pluma del Grifo` | Evento Grifo (ver `p1_economy.md §6`) | Jugador trigger del evento |
+| Quest items (`Pergamino Sellado del Cazador`, `Diario del Peregrino`, notas lore únicas) | Quest spawn | Jugador que completó el quest paso |
+| Drops de evento (todos) | Eventos biome | Jugador trigger del evento |
+| **`Royal Gel`** | Boss King Slime P24 (fuera scope P1, incluido para canon futuro) | Jugador trigger del último hit al boss |
+
+**Nota Royal Gel**: schema final se define cuando B cree tabla boss P24. Por ahora listado como bind-on-drop canon para que B implemente el flag desde el inicio.
+
+### 5.3 Regla de colisión bind + normal
+
+Un mob puede soltar bind items **y** drops normales en el mismo kill. Ejemplo bandit_melee:
+- Drops normales (gear, oro) → floor+random party.
+- `emblema_bandido` garantizado → al killing blow (bind).
+- `Corona Oxidada` Epic roll → al killing blow (bind).
+
+Los dos sistemas coexisten sin conflicto.
+
+---
+
+## 6. Gold
+
+Drop especial. Reglas propias:
+
+| Regla | Detalle |
+|-------|---------|
+| Owner | **Ninguno**. Drop global desde spawn. |
+| Auto-pickup | **OFF**. Manual pickup por cualquier jugador (en party o no). |
+| Split party | Al pickup, si el jugador está en party → split automático **entre miembros vivos de la party**. |
+| Pickup Range | Reserva de schema para stat futura MMO "Pickup Range +N". No implementar en P1. |
+
+**Ejemplo**: jugador A (party de 3, uno muerto) levanta 90 oro → 45 oro para A, 45 oro para B (vivo), C muerto no recibe.
+
+---
+
+## 7. Kill por ambiente
+
+Mob muere por daño no-player (lava, trap ambiental, caída).
+
+- **Pool vacío**. Sin killer → sin owners.
+- Drop pasa **directo a free-for-all desde spawn**. Sin owner-lock.
+- Despawn estándar **300s**.
+- **Excepción bind**: si un bind item cae por trap triggereado por jugador X, X es owner del bind (trigger válido). Drops normales siguen siendo free-for-all.
+
+---
+
+## 8. Respawn y persistencia
+
+- Ownership se trackea por **`save_profile_id`** (persistente cross-sesión), **NO** por `instance_id` del player.
+- Consecuencia: player muere + reload + R respawn → conserva ownership de drops que siguen en timer.
+- Si el player se desconecta (no respawn, sale del run) → ownership queda bloqueado hasta el timer. No se reasigna.
+
+---
+
+## 9. Eliminado de v1 (registro de cambios)
+
+| Regla v1 | Estado v2 | Razón |
+|----------|-----------|-------|
+| Threshold 10% damage para owner | **ELIMINADO** | Party-first hace irrelevante el damage gate |
+| Threshold 60% killer-majority | **ELIMINADO** | Nunca existió formalmente; flagged en Judgment Day |
+| Round-robin ponderado por % damage | **ELIMINADO** | Reparto floor+random no requiere orden |
+| Round-robin reset por kill | **ELIMINADO** | No hay round-robin — reparto instantáneo |
+| Sort por damage dealt | **ELIMINADO** | Floor+random ignora damage completamente |
+| Round-robin persist cross-mob | **ELIMINADO** | Sin queue entre kills |
+| Soft-pity support (menor valor) | **ELIMINADO** | Support entra al floor+random estándar si cumple §4 |
+| Timer 120s lock + 480s free | **REEMPLAZADO** | Ahora 180s lock + 120s free + 300s total |
+| Last hit con peso especial | **ELIMINADO (drops normales)** | Mantenido solo para bind items (ver §5.2) |
+
+**Razón global**: Judgment Day 2026-04-16 Round 1 encontró 5 CRITICAL + 3 WARNING. User decidió simplificar canon vs mantener complejidad v1. Metin2-strict-ish con extensiones party-link y support-party-only.
+
+---
+
+## 10. Edge cases
+
+### 10.1 Party se arma mid-kill
+- Pool se resuelve **al momento del death event**. Joinear party post-kill no retroactiva.
+
+### 10.2 Party se disuelve mid-kill
+- Snapshot del pool se toma al death event. Leavear post-kill no revoca ownership ya asignado.
+
+### 10.3 Mob split (King Slime → mini_slimes)
+- Cada mini_slime es kill independiente. Party del killer del mini define su pool.
+- No inherit del padre.
+
+### 10.4 Owner con inventario lleno
+- Drop permanece spawneado con ownership normal durante el lock.
+- Pasado el timer, drop normal → free-for-all; bind → despawnea perdido a los 300s.
+
+### 10.5 Kill simultáneo (hits <100ms)
+- Killer = jugador cuyo damage cerró el HP. Determinístico por timestamp.
+- Su party define el pool.
+
+### 10.6 DoT killer ausente
+- Jugador que aplicó el DoT cuenta como killer aunque esté lejos.
+- Su party define el pool.
+
+### 10.7 Killer abandonó party después del tick DoT
+- Killer al momento del death event es quien aplicó el hit final (DoT incluido).
+- Su party **en ese momento** define el pool.
+
+### 10.8 PvP (fuera scope P1)
+- Damage PvP no afecta ownership de mobs. Diferido a doc PvP futuro.
+
+---
+
+## 11. Implementación — pointers dept Gameplay
+
+No es código, pointers. B aplica.
+
+- `DropController.resolve_drops(mob, killer, drops)` — input: killer player + array de drops. Resuelve pool via `party.gd`, reparte floor+random, marca bind.
+- `party.gd` autoload — stub: `get_party(player) -> Array`. Singleplayer devuelve `[]`. Multiplayer Steam futuro hookea acá.
+- `ground_item.gd` — `owner_save_id` + `locked_until_ts` + `is_bind_on_drop` + `can_pickup(player)`.
+- Gold split en pickup handler de `ground_item.gd` (no en spawn).
+- Timers configurables `@export` para tuning.
+
+---
+
+## 12. Futuro — fuera scope P1
+
+Reservado. No implementar. Documentado para evitar refactors.
+
+- **Downed extension** (§3.2): +120s lock si owner downed al expirar.
+- **Pickup Range stat**: slot de stat MMO para auto-pickup a distancia.
+- **Party trading post-run**: unbind de items bind al llegar a taverna (decisión por item).
+- **Mercado Ámbar / peer-to-peer trading**: reglas propias, sin canon aún.
+- **PvP ownership**: damage PvP no cuenta; diferido.
+
+---
+
+## 13. Decisiones registradas
 
 | Decisión | Fecha | Razón |
 |----------|-------|-------|
-| Timer 120s (2 min) para locked phase | 2026-04-15 | Match Metin2 sensation. Suficiente para player terminar pelea + caminar a loot. |
-| Threshold 10% damage para owner válido | 2026-04-15 | Filtra a "contributor real". 5% era muy laxo, 20% castigaba classes support. |
-| Despawn 10 min total | 2026-04-15 | Evita clutter en arenas procedurales. Forzar decisión "ahora o nunca" post-kill. |
-| Round-robin reset por kill | 2026-04-15 | No persistir un "anti-pity" entre mobs distintos — complejidad sin feel. |
-| Dispersión 1-2m | 2026-04-15 | Suficiente para distinguir drops, no tanto que pierdas uno bajo una textura. |
-| Bind-on-drop como flag del item, no del mob | 2026-04-15 | Un mob puede dropear items bind y items round-robin en el mismo kill (ej. bandit leader dropea Corona bind + gear normal). |
+| Party-first + Metin2-strict fallback singleplayer | 2026-04-16 | Judgment Day decidió simplificar vs v1 |
+| Sin damage gate (pool = party completa) | 2026-04-16 | Tesis coop: confianza pre-run, no pelea por loot |
+| Floor+random (sin round-robin ni sort damage) | 2026-04-16 | Reparto instantáneo sin complejidad cross-mob |
+| Timer 180s lock + 120s free + 300s total | 2026-04-16 | Ventana más amplia vs v1 (120s) — menos fricción coop |
+| Bind items 300s owner-only sin free | 2026-04-16 | "Suerte de run = suerte tuya" aplicado estricto |
+| AFK incluido en pool | 2026-04-16 | Party pre-run es contrato; no castigar desconexión breve |
+| Support solo si en party + heal/buff 10s | 2026-04-16 | Evita free-ride de randoms; requiere contribución verificable |
+| Gold sin owner, split party al pickup | 2026-04-16 | Feel MMO clásico; simplicidad de implementación |
+| Kill ambiente → free-for-all directo | 2026-04-16 | Sin killer player, sin owner válido |
+| Ownership por `save_profile_id` (persistente) | 2026-04-16 | Respawn/reload no pierde ownership |
 
 ---
 
-## 8. Pendientes
+## 14. Pendientes
 
-- Definir `bind_on_drop` en el schema de `item_definition` cuando B cree el script.
-- Tradeable state post-run (items bind-on-drop en taverna): decidir si se unbindea al llegar a taverna o queda bind forever.
-- PvP ownership (diferido).
-- Behavior en Mercado Ámbar / trading peer-to-peer (fuera scope P1).
+- Schema `bind_on_drop` + `royal_gel` en tabla boss P24 (dept B, cuando armen boss).
+- `game/shared/systems/party.gd` autoload stub (dept B, P1).
+- Reescritura `game/docs/art/drop_vfx.md` con timers v2 180/120/300 (dept D, en curso).
+- Integración `drop_controller.gd` con `party.gd` (dept B).
+- Tradeable state post-run para items bind (decidir por item).
+- Documentar regla Pickup Range cuando se cierre canon stats MMO futuro.
