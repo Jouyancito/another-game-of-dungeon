@@ -1,0 +1,394 @@
+[gd_scene format=3 uid="uid://mimicchest01"]
+
+; ========================================================================
+; MimicChest — escena art-only (sin script).
+; B agrega script gameplay (mimic.gd) + signals (`disguise_revealed`,
+; `mimic_died`, `reveal_animation_finished`) extendiendo BaseEnemy o similar.
+;
+; Visual disguised: idéntico a loot_chest.tscn (BoxMesh body 1.0×0.6×0.7,
+; lid 1.0×0.15×0.7, color #73502666 madera). Sub-meshes revealed
+; (Teeth/Eyes/Tongue) están `visible = false` por default — la animación
+; "reveal" los activa.
+;
+; AnimationPlayer expone:
+;   - "RESET"   → estado disguised (default, autoplay)
+;   - "reveal"  → 0.6s anim que abre la tapa, muestra dientes/ojos/lengua
+; B escucha `AnimationPlayer.animation_finished` con anim_name == "reveal"
+; para emitir su signal `reveal_animation_finished` y transicionar a
+; AGGRESSIVE.
+; ========================================================================
+
+; ---------- Materiales ----------
+
+[sub_resource type="StandardMaterial3D" id="Material_wood"]
+albedo_color = Color(0.45, 0.3, 0.15, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Material_tooth"]
+albedo_color = Color(0.96, 0.96, 0.92, 1)
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Material_eye"]
+albedo_color = Color(1.0, 0.84, 0.0, 1)
+emission_enabled = true
+emission = Color(1.0, 0.84, 0.0, 1)
+emission_energy_multiplier = 2.5
+roughness = 0.2
+
+[sub_resource type="StandardMaterial3D" id="Material_tongue"]
+albedo_color = Color(0.85, 0.35, 0.45, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Material_mouth_inner"]
+albedo_color = Color(0.15, 0.05, 0.05, 1)
+roughness = 1.0
+
+; ---------- Geometría ----------
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(1.0, 0.6, 0.7)
+
+[sub_resource type="BoxMesh" id="Mesh_body"]
+size = Vector3(1.0, 0.6, 0.7)
+material = SubResource("Material_wood")
+
+[sub_resource type="BoxMesh" id="Mesh_lid"]
+size = Vector3(1.0, 0.15, 0.7)
+material = SubResource("Material_wood")
+
+[sub_resource type="BoxMesh" id="Mesh_mouth_inner"]
+; Plano interior visible cuando la tapa abre — evita ver hueco vacío
+size = Vector3(0.95, 0.02, 0.65)
+material = SubResource("Material_mouth_inner")
+
+[sub_resource type="PrismMesh" id="Mesh_tooth"]
+; Diente: prisma triangular pequeño, altura 0.18
+size = Vector3(0.1, 0.18, 0.08)
+material = SubResource("Material_tooth")
+
+[sub_resource type="SphereMesh" id="Mesh_eye"]
+radius = 0.07
+height = 0.14
+material = SubResource("Material_eye")
+
+[sub_resource type="BoxMesh" id="Mesh_tongue"]
+size = Vector3(0.35, 0.04, 0.32)
+material = SubResource("Material_tongue")
+
+; ---------- Animaciones ----------
+
+[sub_resource type="Animation" id="Anim_RESET"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("LidPivot:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector3(0, 0, 0)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("ChestBody:scale")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector3(1, 1, 1)]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("EyeLeft:visible")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("EyeRight:visible")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("TeethLower:visible")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/5/type = "value"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("LidPivot/TeethUpper:visible")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/6/type = "value"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Tongue:visible")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/7/type = "value"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("MouthInner:visible")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+
+[sub_resource type="Animation" id="Anim_reveal"]
+length = 0.6
+step = 0.05
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("EyeLeft:visible")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("EyeRight:visible")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("MouthInner:visible")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.18),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("LidPivot:rotation")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [Vector3(0, 0, 0), Vector3(-0.1, 0, 0), Vector3(-0.785, 0, 0)]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("LidPivot/TeethUpper:visible")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 0.25),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+tracks/5/type = "value"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("TeethLower:visible")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+tracks/6/type = "value"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Tongue:visible")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(0, 0.3),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+tracks/7/type = "value"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("Tongue:scale")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(0.3, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector3(0.3, 1, 0.3), Vector3(1, 1, 1)]
+}
+tracks/8/type = "value"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath("ChestBody:scale")
+tracks/8/interp = 2
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(0, 0.5, 0.55, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [Vector3(1, 1, 1), Vector3(1, 1, 1), Vector3(1.12, 0.88, 1.12), Vector3(1, 1, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimLibrary"]
+_data = {
+"RESET": SubResource("Anim_RESET"),
+"reveal": SubResource("Anim_reveal")
+}
+
+; ========================================================================
+; SCENE TREE
+; ========================================================================
+
+[node name="MimicChest" type="CharacterBody3D" groups=["enemies", "interactables"]]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("Shape_body")
+
+; Cuerpo del cofre — idéntico a loot_chest.tscn (mesh + transform + material)
+[node name="ChestBody" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+mesh = SubResource("Mesh_body")
+
+; Plano oscuro interior — sólo visible cuando la tapa abre, evita ver hueco
+[node name="MouthInner" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.602, 0)
+mesh = SubResource("Mesh_mouth_inner")
+visible = false
+
+; Pivot de la tapa: ubicado en el borde TRASERO-SUPERIOR del cuerpo (z = -0.35, y = 0.6).
+; Rotar este nodo en X abre la tapa hacia atrás. La LidMesh está offset
+; hacia adelante para que su geometría reproduzca la posición original
+; del lid de loot_chest (centro mesh: y=0.675, z=-0.275).
+[node name="LidPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -0.35)
+
+[node name="LidMesh" type="MeshInstance3D" parent="LidPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0.075)
+mesh = SubResource("Mesh_lid")
+
+; Dientes superiores (cuelgan del lid, rotan con él)
+[node name="TeethUpper" type="Node3D" parent="LidPivot"]
+visible = false
+
+[node name="ToothU1" type="MeshInstance3D" parent="LidPivot/TeethUpper"]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.30, 0.0, 0.30)
+mesh = SubResource("Mesh_tooth")
+
+[node name="ToothU2" type="MeshInstance3D" parent="LidPivot/TeethUpper"]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.0, 0.0, 0.30)
+mesh = SubResource("Mesh_tooth")
+
+[node name="ToothU3" type="MeshInstance3D" parent="LidPivot/TeethUpper"]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.30, 0.0, 0.30)
+mesh = SubResource("Mesh_tooth")
+
+; Dientes inferiores (sobre el borde superior del cuerpo)
+[node name="TeethLower" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+visible = false
+
+[node name="ToothL1" type="MeshInstance3D" parent="TeethLower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.30, 0.0, 0.30)
+mesh = SubResource("Mesh_tooth")
+
+[node name="ToothL2" type="MeshInstance3D" parent="TeethLower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.0, 0.30)
+mesh = SubResource("Mesh_tooth")
+
+[node name="ToothL3" type="MeshInstance3D" parent="TeethLower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.30, 0.0, 0.30)
+mesh = SubResource("Mesh_tooth")
+
+; Lengua — sale del centro de la boca
+[node name="Tongue" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.625, 0.05)
+mesh = SubResource("Mesh_tongue")
+visible = false
+
+; Ojos — sobre la cara frontal del cuerpo (z = +0.35)
+[node name="EyeLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22, 0.45, 0.36)
+mesh = SubResource("Mesh_eye")
+visible = false
+
+[node name="EyeRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.45, 0.36)
+mesh = SubResource("Mesh_eye")
+visible = false
+
+; AnimationPlayer
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimLibrary")
+}
+autoplay = "RESET"
+
+; Label "Cofre [E]" — idéntico a loot_chest hasta el reveal.
+; B oculta este label (`visible = false`) cuando dispara `reveal_animation_finished`.
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+billboard = 1
+font_size = 28
+outline_size = 6
+text = "Cofre [E]"
+visible = false

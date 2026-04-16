@@ -1,0 +1,113 @@
+[gd_scene load_steps=8 format=3 uid="uid://mimic_reveal_vfx"]
+
+; Mimic reveal VFX — burst púrpura/morado al gatillarse `disguise_revealed`.
+; Color trickster, distinguible de drops loot (que usan rareza canónica).
+; Lifetime 0.4s, self-free via timer.
+;
+; Spawn pattern desde mimic.gd (B):
+;   var vfx = preload("res://scenes/enemy/vfx/mimic_reveal_vfx.tscn").instantiate()
+;   get_tree().current_scene.add_child(vfx)
+;   vfx.global_position = global_position + Vector3(0, 0.5, 0)  ; centro de la boca
+;   # opcional: vfx.set_color(Color(...)) si querés tunear desde código
+;
+; Camera shake: NO está wireado acá. B conecta `disguise_revealed` directamente
+; al método de shake de la cámara del player. Esto evita que el VFX scene
+; tenga referencias hard-coded a la cámara.
+
+[sub_resource type="GDScript" id="script_vfx"]
+script/source = "extends Node3D
+
+@export var lifetime: float = 0.5
+
+func _ready() -> void:
+	$Burst.emitting = true
+	$Flash.emitting = true
+	get_tree().create_timer(lifetime).timeout.connect(queue_free)
+
+func set_color(c: Color) -> void:
+	if $Burst.process_material is ParticleProcessMaterial:
+		($Burst.process_material as ParticleProcessMaterial).color = c
+	if $Flash.process_material is ParticleProcessMaterial:
+		($Flash.process_material as ParticleProcessMaterial).color = c
+"
+
+; ---------- Curva escala (grande al inicio, fade out) ----------
+
+[sub_resource type="Curve" id="curve_scale"]
+_data = [Vector2(0, 0.3), 0.0, 6.0, 0, 0, Vector2(0.4, 1.0), 0.0, 0.0, 0, 0, Vector2(1, 0.0), -2.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="curvetex_scale"]
+curve = SubResource("curve_scale")
+
+; ---------- Material partículas ----------
+
+[sub_resource type="StandardMaterial3D" id="mat_particle"]
+transparency = 1
+shading_mode = 0
+billboard_mode = 1
+albedo_color = Color(0.69, 0.25, 0.9, 1)
+emission_enabled = true
+emission = Color(0.69, 0.25, 0.9, 1)
+emission_energy_multiplier = 3.5
+
+[sub_resource type="QuadMesh" id="quad_particle"]
+size = Vector2(0.14, 0.14)
+material = SubResource("mat_particle")
+
+; ---------- ProcessMaterial: burst radial 30 partículas ----------
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_burst"]
+emission_shape = 1
+emission_sphere_radius = 0.18
+direction = Vector3(0, 1, 0)
+spread = 180.0
+flatness = 0.0
+initial_velocity_min = 2.5
+initial_velocity_max = 4.0
+gravity = Vector3(0, -1.5, 0)
+scale_min = 0.7
+scale_max = 1.2
+scale_curve = SubResource("curvetex_scale")
+color = Color(0.69, 0.25, 0.9, 1)
+
+; ---------- ProcessMaterial: flash central (anillo plano XZ) ----------
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_flash"]
+emission_shape = 2
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_radius = 0.05
+emission_ring_inner_radius = 0.0
+emission_ring_height = 0.02
+direction = Vector3(1, 0, 0)
+flatness = 1.0
+spread = 180.0
+initial_velocity_min = 0.6
+initial_velocity_max = 1.2
+scale_min = 0.5
+scale_max = 0.9
+scale_curve = SubResource("curvetex_scale")
+color = Color(1, 0.8, 1, 1)
+
+; ========================================================================
+
+[node name="MimicRevealVFX" type="Node3D"]
+script = SubResource("script_vfx")
+
+[node name="Burst" type="GPUParticles3D" parent="."]
+amount = 30
+lifetime = 0.4
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ppm_burst")
+draw_pass_1 = SubResource("quad_particle")
+emitting = false
+
+[node name="Flash" type="GPUParticles3D" parent="."]
+amount = 16
+lifetime = 0.25
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ppm_flash")
+draw_pass_1 = SubResource("quad_particle")
+emitting = false
