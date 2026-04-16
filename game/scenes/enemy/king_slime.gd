@@ -43,7 +43,7 @@ const SHIELD_MIN_MINIS: int = 2
 const SHIELD_DAMAGE_MULT: float = 0.2      # recibe 20% del daño — shield DURO
 const SHIELD_MINI_SPEED: float = 1.2       # minis forzados a esta speed (spec: "mucho más lentos")
 const BOMB_INTERVAL: float = 2.0           # cada cuánto lanza baba bombardero durante shield
-const BOMB_TELEGRAPH: float = 1.2          # tiempo entre marca en el suelo y impacto
+const BOMB_TELEGRAPH: float = 1.8          # tiempo entre marca en el suelo y impacto
 const BOMB_AOE_RADIUS: float = 2.0
 const BOMB_DAMAGE: float = 10.0
 
@@ -754,8 +754,10 @@ func _attack_combo_rebote() -> void:
 	for i in 4:
 		if is_dead or not is_instance_valid(self):
 			return
-		var tele: float = 0.7 if i == 0 else 0.2
-		await _do_single_rebote(tele, 0.6)
+		# Telegraphs mas largos: primer salto avisa claro, siguientes
+		# siguen legibles sin matar el pacing del combo.
+		var tele: float = 1.0 if i == 0 else 0.35
+		await _do_single_rebote(tele, 0.7)
 	if is_dead or not is_instance_valid(self):
 		return
 	_schedule_next_attack(6.5)
@@ -944,9 +946,9 @@ func _spawn_acid_pool(pos: Vector3) -> void:
 
 
 # ── Onda de choque (Fase 4) ───────────────────────────────────────────
-# Infla 0.6s, libera AoE 5m con knockback. Daño 8 + base.
+# Infla 1.0s, libera AoE 5m con knockback. Daño 8 + base.
 func _attack_onda_choque() -> void:
-	var telegraph: float = 0.6
+	var telegraph: float = 1.0
 	action_state = ActionState.TELEGRAPH
 	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
 	var orig_scale: Vector3 = mi.scale if mi else Vector3.ONE
@@ -1089,7 +1091,7 @@ func _attack_embestida() -> void:
 
 # ── Escupitajo ────────────────────────────────────────────────────────
 func _attack_escupitajo() -> void:
-	var telegraph: float = 0.8
+	var telegraph: float = 1.2
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return
@@ -1102,7 +1104,7 @@ func _attack_escupitajo() -> void:
 
 # ── Escupitajo abanico (Fase 2+) ──────────────────────────────────────
 func _attack_escupitajo_abanico() -> void:
-	var telegraph: float = 0.8
+	var telegraph: float = 1.2
 	await get_tree().create_timer(telegraph).timeout
 	if is_dead or not is_instance_valid(self):
 		return
