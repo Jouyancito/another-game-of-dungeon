@@ -1,0 +1,99 @@
+[gd_scene load_steps=8 format=3 uid="uid://bind_expire_vfx"]
+
+; Bind-on-drop expire VFX — ejecutar cuando expira ventana de bind.
+; Lifecycle: instancia, await 1.0s (dissolve+ascend), self-free.
+; Use por dept B desde ground_item.gd al recibir signal on_expire_bound.
+;
+; Spawn pattern:
+;   var vfx = preload("res://scenes/loot/vfx/bind_expire_vfx.tscn").instantiate()
+;   vfx.position = ground_item.global_position
+;   vfx.set_color(rarity_color)
+;   get_tree().current_scene.add_child(vfx)
+
+[sub_resource type="GDScript" id="script_vfx"]
+script/source = "extends Node3D
+
+@export var lifetime: float = 1.2
+
+func _ready() -> void:
+	$Particles.emitting = true
+	$RimFlash.emitting = true
+	get_tree().create_timer(lifetime).timeout.connect(queue_free)
+
+func set_color(c: Color) -> void:
+	if $Particles.process_material is ParticleProcessMaterial:
+		var mat: ParticleProcessMaterial = $Particles.process_material
+		mat.color = c
+	if $RimFlash.process_material is ParticleProcessMaterial:
+		var mat2: ParticleProcessMaterial = $RimFlash.process_material
+		mat2.color = c
+"
+
+[sub_resource type="Curve" id="curve_alpha"]
+_data = [Vector2(0, 0.0), 0.0, 4.0, 0, 0, Vector2(0.2, 1.0), 0.0, 0.0, 0, 0, Vector2(1, 0.0), -2.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="curvetex_alpha"]
+curve = SubResource("curve_alpha")
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_ascend"]
+emission_shape = 1
+emission_sphere_radius = 0.18
+direction = Vector3(0, 1, 0)
+spread = 12.0
+initial_velocity_min = 0.6
+initial_velocity_max = 1.4
+gravity = Vector3(0, 0.4, 0)
+scale_min = 0.05
+scale_max = 0.12
+alpha_curve = SubResource("curvetex_alpha")
+color = Color(1, 1, 1, 1)
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_rim"]
+emission_shape = 2
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_radius = 0.4
+emission_ring_inner_radius = 0.35
+emission_ring_height = 0.05
+direction = Vector3(0, 1, 0)
+spread = 5.0
+initial_velocity_min = 0.2
+initial_velocity_max = 0.5
+scale_min = 0.04
+scale_max = 0.08
+alpha_curve = SubResource("curvetex_alpha")
+color = Color(1, 1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="mat_particle"]
+transparency = 1
+shading_mode = 0
+billboard_mode = 1
+albedo_color = Color(1, 1, 1, 1)
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 2.5
+
+[sub_resource type="QuadMesh" id="quad_particle"]
+size = Vector2(0.15, 0.15)
+material = SubResource("mat_particle")
+
+[node name="BindExpireVFX" type="Node3D"]
+script = SubResource("script_vfx")
+
+[node name="Particles" type="GPUParticles3D" parent="."]
+amount = 24
+lifetime = 1.2
+one_shot = true
+explosiveness = 0.4
+process_material = SubResource("ppm_ascend")
+draw_pass_1 = SubResource("quad_particle")
+emitting = false
+
+[node name="RimFlash" type="GPUParticles3D" parent="."]
+amount = 16
+lifetime = 0.6
+one_shot = true
+explosiveness = 0.9
+process_material = SubResource("ppm_rim")
+draw_pass_1 = SubResource("quad_particle")
+emitting = false

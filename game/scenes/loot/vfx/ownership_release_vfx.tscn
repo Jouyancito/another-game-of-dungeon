@@ -1,0 +1,74 @@
+[gd_scene load_steps=6 format=3 uid="uid://ownership_release_vfx"]
+
+; Ownership transfer VFX (t=120s) — pulse breve + ring expansivo.
+; Item NO desaparece — solo cambia ownership a "free for all".
+; Lifetime 0.5s, self-free.
+;
+; Spawn pattern desde ground_item.gd (B):
+;   var vfx = preload("res://scenes/loot/vfx/ownership_release_vfx.tscn").instantiate()
+;   add_child(vfx)  # como child — sigue al item si se mueve
+;   vfx.set_color(rarity_color)
+; Después: actualizar Label3D color a genérico (gris) + remover [owner_name]
+
+[sub_resource type="GDScript" id="script_vfx"]
+script/source = "extends Node3D
+
+@export var lifetime: float = 0.6
+
+func _ready() -> void:
+	$ShockRing.emitting = true
+	get_tree().create_timer(lifetime).timeout.connect(queue_free)
+
+func set_color(c: Color) -> void:
+	if $ShockRing.process_material is ParticleProcessMaterial:
+		var mat: ParticleProcessMaterial = $ShockRing.process_material
+		mat.color = c
+"
+
+[sub_resource type="Curve" id="curve_scale"]
+_data = [Vector2(0, 0.2), 0.0, 4.0, 0, 0, Vector2(1, 1.5), 2.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="curvetex_scale"]
+curve = SubResource("curve_scale")
+
+[sub_resource type="ParticleProcessMaterial" id="ppm_shock"]
+emission_shape = 2
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_radius = 0.25
+emission_ring_inner_radius = 0.2
+emission_ring_height = 0.02
+direction = Vector3(1, 0, 0)
+flatness = 1.0
+spread = 180.0
+initial_velocity_min = 1.5
+initial_velocity_max = 2.5
+scale_min = 0.08
+scale_max = 0.15
+scale_curve = SubResource("curvetex_scale")
+color = Color(0.7, 0.7, 0.75, 1)
+
+[sub_resource type="StandardMaterial3D" id="mat_shock"]
+transparency = 1
+shading_mode = 0
+billboard_mode = 1
+albedo_color = Color(1, 1, 1, 1)
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 3.0
+
+[sub_resource type="QuadMesh" id="quad_shock"]
+size = Vector2(0.18, 0.18)
+material = SubResource("mat_shock")
+
+[node name="OwnershipReleaseVFX" type="Node3D"]
+script = SubResource("script_vfx")
+
+[node name="ShockRing" type="GPUParticles3D" parent="."]
+amount = 32
+lifetime = 0.5
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ppm_shock")
+draw_pass_1 = SubResource("quad_shock")
+emitting = false
