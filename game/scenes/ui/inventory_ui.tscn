@@ -75,6 +75,7 @@ theme_override_font_sizes/font_size = 13
 
 [node name="Tooltip" type="PanelContainer" parent="."]
 visible = false
+custom_minimum_size = Vector2(280, 0)
 theme_override_styles/panel = SubResource("StyleBoxFlat_tooltip")
 z_index = 100
 
@@ -85,10 +86,15 @@ theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 6
 
-[node name="TooltipLabel" type="Label" parent="Tooltip/MarginContainer"]
+[node name="TooltipLabel" type="RichTextLabel" parent="Tooltip/MarginContainer"]
 layout_mode = 2
-text = ""
-theme_override_font_sizes/font_size = 12
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(264, 0)
+bbcode_enabled = true
+fit_content = true
 autowrap_mode = 3
+theme_override_font_sizes/normal_font_size = 12
+theme_override_font_sizes/bold_font_size = 12
+text = ""
 
 [node name="ContextMenu" type="PopupMenu" parent="."]
