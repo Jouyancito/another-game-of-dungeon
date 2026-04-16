@@ -1,11 +1,12 @@
 # Drop VFX — Ownership system visual layer
 
-**Estado**: Draft v2 — 2026-04-16 (post Judgment Day, alineado a canon drop-ownership v2)
+**Estado**: Draft v2.1 — 2026-04-16 (alineado a implementación real de B post Judgment Day)
 **Dept**: Art (worktree D — `dept/art/drop-vfx`)
 **Base canon**:
 - `game/docs/balance/_drop_ownership_canon.md` — reglas ownership v2 (C owner)
-- `game/scenes/loot/item_drop.gd` — script actual del drop (B owner). **Canon v2 pide rename → `ground_item.gd`**, pendiente en B.
-- `game/scenes/loot/item_drop.tscn` — escena con MeshInstance3D + AuraLight + Label3D
+- `game/scenes/loot/ground_item.gd` — script real del drop (B owner, rama `dept/gameplay/drop-ownership`). Contrato: 3 signals + `mark_free()`
+- `game/scenes/loot/ground_item.tscn` — escena con MeshInstance3D + AuraLight + Label3D
+- `game/shared/loot/drop_controller.gd` — autoload que maneja timers canon v2 (180 / 300) y llama `mark_free()`
 - `game/shared/systems/item_database.gd` — `get_rarity_color(rarity)` provee colores
 
 > Capa visual del sistema de drops con owner-lock + free-for-all + bind-on-drop. Define qué ve el jugador en cada estado del item en el mundo, alineado a los timers del canon v2.
@@ -122,7 +123,7 @@ Aplica al **mismo** MeshInstance3D, swap del glow shader cuando arranca el despa
 
 ### 4.3 `ownership_release_vfx.tscn`
 
-GPUParticles3D one-shot, **0.6s**. Spawn en t=180s (solo drop normal — bind items NO lo disparan).
+GPUParticles3D one-shot, **0.6s**. Spawn en handler de `became_free` (solo drop normal — bind items nunca emiten esta signal).
 
 - **ShockRing** (32 part.): emisión radial flat XZ, vel 1.5-2.5, scale curve creciente, color rareza.
 
@@ -130,7 +131,7 @@ Llamar `vfx.set_color(rarity_color)` antes de `add_child`. Self-frees a los 0.6s
 
 ### 4.4 `bind_expire_vfx.tscn`
 
-GPUParticles3D one-shot, **1.2s**. Spawn en t=300s (ambos ciclos). Dos emisores:
+GPUParticles3D one-shot, **1.2s**. Spawn en handler de `vfx_despawn_requested` con `reason ∈ {"expired", "bind_expired"}` (ambos ciclos, mismo VFX). Dos emisores:
 
 - **Particles** (24 part., ascend): esfera radio 0.18m, vel 0.6-1.4 hacia +Y, gravity +Y suave.
 - **RimFlash** (16 part., ring): anillo radio 0.4m base, flash breve al inicio.
@@ -139,133 +140,123 @@ Llamar `vfx.set_color(rarity_color)` antes de `add_child`. Self-frees a los 1.2s
 
 ---
 
-## 5. Signal contract con dept B (canon v2)
+## 5. Signal contract con dept B (implementación real)
 
-**B agrega a `ground_item.gd`** (post-rename desde `item_drop.gd`) las señales y timers canon v2. Art entrega assets, B integra.
+**Base real**: `game/scenes/loot/ground_item.gd` (commit B, rama `dept/gameplay/drop-ownership`). Los timers viven en `DropController` (autoload), no en `GroundItem`. `GroundItem` expone API de estado + emite signals; el controller las dispara.
 
-### 5.1 Señales canon
+### 5.1 API real de GroundItem
 
 ```gdscript
-# En ground_item.gd (ex item_drop.gd)
+class_name GroundItem
+extends Area3D
 
-signal owner_lock_expired       # t=180s (drop normal) — emitido antes de pasar a FFA
-signal free_for_all_started     # t=180s (drop normal) — emitido al entrar FFA. Art engancha aquí el ring shock
-signal despawning               # t=300s (drop normal) — emitido al empezar dissolve
-signal bind_expired             # t=300s (bind items) — emitido al empezar dissolve. Sin free-for-all previo
+# --- Signals (3 totales) ---
+signal despawned(item: GroundItem, reason: String)
+    # Emitido al arrancar despawn. reason ∈ {"expired", "bind_expired", "picked_up"}
+    # - "expired"      → drop normal llegó al final del FFA (t=300s)
+    # - "bind_expired" → bind item llegó al final del lock directo (t=300s)
+    # - "picked_up"    → recogido por un player (no es dissolve VFX — es scale-down de pickup)
 
-const OWNER_LOCK_DURATION := 180.0      # Canon v2: era 120s en v1
-const FREE_FOR_ALL_DURATION := 120.0    # 180→300
-const TOTAL_DESPAWN_TIME := 300.0       # Canon v2: era 180s en v1
-const DISSOLVE_DURATION := 0.8
+signal vfx_despawn_requested(item: GroundItem, reason: String, color: Color)
+    # Hook VFX externo. Emitido junto con `despawned`.
+    # color = ItemDatabase.get_rarity_color(rarity) ya resuelto.
+    # Art escucha esta para spawn de dissolve shader + particle puff.
 
-const OWNERSHIP_RELEASE_VFX := preload("res://scenes/loot/vfx/ownership_release_vfx.tscn")
-const BIND_EXPIRE_VFX := preload("res://scenes/loot/vfx/bind_expire_vfx.tscn")
-const GLOW_SHADER := preload("res://assets/art/shaders/ground_item_glow.gdshader")
-const DISSOLVE_SHADER := preload("res://assets/art/shaders/ground_item_dissolve.gdshader")
+signal became_free(item: GroundItem)
+    # Emitido cuando DropController llama `mark_free()` en t=180s (solo drop normal).
+    # Art escucha esta para: baja glow a ×1.0, clear label [owner_name], spawn ring shock.
+
+# --- Método driven por DropController ---
+func mark_free() -> void:
+    # Flipea el GroundItem a free-for-all.
+    # is_free = true, owner_profile_id = "", owner_name = ""
+    # Refresca label (saca [owner: name]) y emite `became_free`.
+
+# --- Estado ---
+var is_free: bool             # false mientras locked, true post mark_free() o si spawnó sin owner
+var is_despawning: bool       # true a partir de despawn_now() — bloquea pickups
+var bind_on_drop: bool        # leído de item_data; true = sin FFA phase
+var owner_profile_id: String  # persistente (canon v2 #7), "" si libre/sin owner
+var owner_name: String        # string legible para label
 ```
 
-> **Owner-lock vs free-for-all**: dos signals separadas en t=180s porque pueden tener listeners distintos:
-> - `owner_lock_expired` — gameplay listeners (DropController, pickup permission check)
-> - `free_for_all_started` — VFX / HUD listeners (ring shock, label update)
->
-> Si B prefiere una sola signal (ej. solo `free_for_all_started`), confirmar con A.
+> **Resumen del refactor de v1→v2**: las 4 signals que el doc v1 proponía (`owner_lock_expired`, `free_for_all_started`, `despawning`, `bind_expired`) **colapsaron en 2** (`became_free` + `despawned` con `reason`). B eligió este contrato por simpleza: un solo emisor de "algo terminó" con `reason` como discriminador, en vez de cuatro signals cuasi-equivalentes. Art se adapta.
 
-### 5.2 Flujo drop normal
+### 5.2 Mapeo estado visual → hook real
+
+| Estado | Rango | Cómo escuchamos | Acción VFX |
+|--------|-------|-----------------|-----------|
+| **Owner-locked (arranque)** | 0s, ambos ciclos | En `_apply_visuals()` (run en `_ready()` después de `setup()`) | Swap mesh material → `ground_item_glow.gdshader`, `bind_locked = 1.0`, label con `[owner: name]` (ya lo hace `_refresh_label()`) |
+| **FFA start** (solo normal) | t=180s | Connect `became_free` | `bind_locked = 0.0` (glow pulse baja a ×1.0), spawn `ownership_release_vfx.tscn`. Label ya se refrescó solo vía `mark_free()` |
+| **Despawn** (ambos) | t=300s | Connect `vfx_despawn_requested` | Swap mesh material → `ground_item_dissolve.gdshader`, tween 0→1 en 0.8s, spawn `bind_expire_vfx.tscn` |
+
+**Bind items**: NO emiten `became_free` — DropController nunca llama `mark_free()` en ellos. Por eso el glow `bind_locked=1.0` queda hasta el despawn. No hay que chequear bind en el listener de `became_free`: si se disparó, es normal.
+
+**reason discriminator en despawn**:
+- `"expired"` y `"bind_expired"` → mismo VFX (dissolve + particle puff). Diferencia solo semántica/telemetría.
+- `"picked_up"` → **NO** gatillar dissolve shader. El pickup ya tiene su propio tween scale-down en `pickup()`. Art ignora este reason.
+
+### 5.3 Snippet de integración (Art-side)
+
+Si Art quiere pluggear el glow + dissolve sin tocar `ground_item.gd`, la vía recomendada es un listener autoload o un helper instanciado desde `_apply_visuals()`. Ejemplo conceptual:
 
 ```gdscript
-func _ready() -> void:
-    # ... existente ...
-    _setup_glow_material()
-    if _is_bind_item():
-        _start_bind_timer()         # directo 300s → dissolve
-    else:
-        _start_owner_lock_timer()   # 180s → FFA → dissolve
+# Llamado desde GroundItem._apply_visuals() después del StandardMaterial3D actual
+# (o dentro de un "ArtLayer" opcional que B habilite si quiere el shader)
 
-func _is_bind_item() -> bool:
-    return item_data.get("bind_on_drop", false)
-
-func _setup_glow_material() -> void:
-    _glow_mat = ShaderMaterial.new()
-    _glow_mat.shader = GLOW_SHADER
+func _attach_art_layer() -> void:
     var rarity: String = item_data.get("rarity", "common")
     var rarity_color: Color = ItemDatabase.get_rarity_color(rarity)
     var type_color: Color = _get_type_color(item_data.get("type", "material"))
     var pulse_by_rarity := {"common": 1.0, "magic": 1.5, "rare": 2.0, "unique": 2.5}
-    _glow_mat.set_shader_parameter("base_albedo", type_color)
-    _glow_mat.set_shader_parameter("rarity_color", rarity_color)
-    _glow_mat.set_shader_parameter("pulse_speed", pulse_by_rarity.get(rarity, 1.0))
-    _glow_mat.set_shader_parameter("bind_locked", 1.0)  # arranca siempre locked
-    mesh.set_surface_override_material(0, _glow_mat)
 
-func _start_owner_lock_timer() -> void:
-    await get_tree().create_timer(OWNER_LOCK_DURATION).timeout
-    if not is_instance_valid(self) or _picked_up:
-        return
-    _enter_free_for_all()
-    await get_tree().create_timer(FREE_FOR_ALL_DURATION).timeout
-    if not is_instance_valid(self) or _picked_up:
-        return
-    _despawn_normal()
+    var glow := ShaderMaterial.new()
+    glow.shader = preload("res://assets/art/shaders/ground_item_glow.gdshader")
+    glow.set_shader_parameter("base_albedo", type_color)
+    glow.set_shader_parameter("rarity_color", rarity_color)
+    glow.set_shader_parameter("pulse_speed", pulse_by_rarity.get(rarity, 1.0))
+    glow.set_shader_parameter("bind_locked", 1.0)
+    mesh.set_surface_override_material(0, glow)
 
-func _enter_free_for_all() -> void:
-    owner_lock_expired.emit()
-    _glow_mat.set_shader_parameter("bind_locked", 0.0)  # pulse baja a ×1.0
-    var vfx := OWNERSHIP_RELEASE_VFX.instantiate()
-    add_child(vfx)
-    var rarity_color: Color = ItemDatabase.get_rarity_color(item_data.get("rarity", "common"))
-    vfx.set_color(rarity_color)
-    # Label: remove [owner_name]
-    var display_name: String = item_data.get("name", "???")
-    if item_quantity > 1:
-        display_name += " x%d" % item_quantity
-    label_3d.text = display_name
-    dropped_by = ""
-    free_for_all_started.emit()
+    became_free.connect(func(_it: GroundItem):
+        glow.set_shader_parameter("bind_locked", 0.0)
+        var ring := preload("res://scenes/loot/vfx/ownership_release_vfx.tscn").instantiate()
+        add_child(ring)
+        ring.set_color(rarity_color)
+    )
 
-func _despawn_normal() -> void:
-    despawning.emit()
-    _trigger_dissolve()
-
-func _start_bind_timer() -> void:
-    await get_tree().create_timer(TOTAL_DESPAWN_TIME).timeout
-    if not is_instance_valid(self) or _picked_up:
-        return
-    bind_expired.emit()
-    _trigger_dissolve()
-
-func _trigger_dissolve() -> void:
-    # Swap glow → dissolve shader
-    var rarity_color: Color = ItemDatabase.get_rarity_color(item_data.get("rarity", "common"))
-    var dissolve_mat := ShaderMaterial.new()
-    dissolve_mat.shader = DISSOLVE_SHADER
-    dissolve_mat.set_shader_parameter("base_albedo", _get_type_color(item_data.get("type", "material")))
-    dissolve_mat.set_shader_parameter("edge_color", rarity_color)
-    mesh.set_surface_override_material(0, dissolve_mat)
-    # Puff particles acompañando el fade
-    var vfx := BIND_EXPIRE_VFX.instantiate()
-    vfx.position = global_position
-    get_tree().current_scene.add_child(vfx)
-    vfx.set_color(rarity_color)
-    # Tween dissolve 0→1 en 0.8s, luego free
-    var tw := create_tween()
-    tw.tween_method(_set_dissolve.bind(dissolve_mat), 0.0, 1.0, DISSOLVE_DURATION)
-    tw.tween_callback(queue_free)
-
-func _set_dissolve(v: float, mat: ShaderMaterial) -> void:
-    mat.set_shader_parameter("dissolve_amount", v)
+    vfx_despawn_requested.connect(func(_it: GroundItem, reason: String, color: Color):
+        if reason == "picked_up":
+            return
+        # Swap a dissolve
+        var dissolve := ShaderMaterial.new()
+        dissolve.shader = preload("res://assets/art/shaders/ground_item_dissolve.gdshader")
+        dissolve.set_shader_parameter("base_albedo", type_color)
+        dissolve.set_shader_parameter("edge_color", color)
+        mesh.set_surface_override_material(0, dissolve)
+        var tw := create_tween()
+        tw.tween_method(func(v: float):
+            dissolve.set_shader_parameter("dissolve_amount", v), 0.0, 1.0, 0.8)
+        # Puff particles en paralelo
+        var puff := preload("res://scenes/loot/vfx/bind_expire_vfx.tscn").instantiate()
+        puff.position = global_position
+        get_tree().current_scene.add_child(puff)
+        puff.set_color(color)
+    )
 ```
 
-### 5.3 Migración desde código actual
+> **Nota**: el `_play_despawn_vfx()` actual en `ground_item.gd` (aura pulse + mesh scale + albedo fade) es un fallback funcional sin shader. El listener de `vfx_despawn_requested` **suma** encima — ambos pueden correr en paralelo sin conflicto (el fallback maneja root scale + queue_free, el listener maneja mesh material swap + particles). Si Art integra shader, el fallback `_play_despawn_vfx` puede simplificarse o quedarse como está.
 
-Cambios en `item_drop.gd` actual para llegar al contrato:
+### 5.4 Estado actual del código vs esta capa
 
-| Actual (`item_drop.gd`) | Canon v2 (`ground_item.gd`) |
-|--------------------------|------------------------------|
-| `@export var despawn_time := 180.0` | `const TOTAL_DESPAWN_TIME := 300.0` |
-| `_start_despawn_timer()` con blink 30s | Eliminar blink. Reemplazar por `_start_owner_lock_timer()` o `_start_bind_timer()` según flag |
-| `_apply_visuals()` usa `StandardMaterial3D` | Swap a `_setup_glow_material()` con `ShaderMaterial` |
-| Sin signals | 4 signals nuevas: `owner_lock_expired`, `free_for_all_started`, `despawning`, `bind_expired` |
-| `dropped_by: String` (nombre) | **Canon v2**: ownership por `save_profile_id` persistente. Refactor pendiente B — el nombre en label puede seguir, pero la lógica de permission usa ID |
+- [x] Signals implementadas (`despawned`, `vfx_despawn_requested`, `became_free`)
+- [x] `mark_free()` implementado
+- [x] `bind_on_drop` leído de `item_data`
+- [x] `owner_profile_id` persistente (canon v2 #7)
+- [x] Label `[owner: name]` gestionado por `_refresh_label()`
+- [ ] Glow shader wire-in — B no lo plugueó todavía, usa `StandardMaterial3D` + `aura_light`
+- [ ] Dissolve shader wire-in — B tiene fallback tween en `_play_despawn_vfx()`, no swap a shader
+- [ ] Particle scenes wire-in — NO se instancian todavía desde `ground_item.gd`
 
 ---
 
@@ -291,15 +282,16 @@ Cambios en `item_drop.gd` actual para llegar al contrato:
 
 ## 8. Coordinación pendiente
 
-### 8.1 Con B (Gameplay) — **BLOQUEANTE**
+### 8.1 Con B (Gameplay) — no bloqueante (contrato ya establecido)
 
-- [ ] Rename `item_drop.gd` → `ground_item.gd` + `item_drop.tscn` → `ground_item.tscn` (canon v2 usa ese nombre)
-- [ ] Agregar 4 signals canon: `owner_lock_expired`, `free_for_all_started`, `despawning`, `bind_expired`
-- [ ] Reemplazar `despawn_time = 180.0` por constantes canon v2 (180 / 120 / 300)
-- [ ] Branch según `item_data.bind_on_drop`: normal (3 estados) vs bind (2 estados)
-- [ ] Eliminar blink 30s (dissolve final basta de communication)
-- [ ] Refactor `dropped_by` (nombre) → `owner_save_profile_id` (persistente, canon v2 regla #7)
-- [ ] Confirmar nombres signal: `owner_lock_expired` + `free_for_all_started` son dos signals separadas o una sola. Si preferís una sola, avisar.
+Canon v2 en código: **done por B**. Lo que queda es opcional/wire-in de la capa shader:
+
+- [x] `GroundItem` + 3 signals + `mark_free()` implementados
+- [x] Timers 180/120/300 en `DropController`
+- [x] `bind_on_drop` + `owner_profile_id` persistente
+- [ ] **Opcional**: plug glow shader en `_apply_visuals()` (reemplaza StandardMaterial3D) — puede hacerlo D vía Art layer listener, sin tocar ground_item.gd
+- [ ] **Opcional**: plug dissolve shader + particle scenes en listener de `vfx_despawn_requested`
+- [ ] Decisión: ¿el glow `bind_locked = 1.0` ×1.6 va en commons también? B dejó `aura_light.visible = false` para commons (forward renderer cost). Art puede seguir misma regla: solo glow con `pulse_speed > 1.0` en rareza ≥ magic.
 
 ### 8.2 Con C (Design) — no bloqueante
 
