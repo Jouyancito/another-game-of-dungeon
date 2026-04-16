@@ -181,7 +181,7 @@ Ver §6 de `p1_economy.md` actualizado. Los enemigos en ambush dropean con **+10
 
 ## 6. Eventos — loot especial
 
-Ver §6 de `p1_economy.md` actualizado. Drops NO provienen de kills — provienen del trigger del evento. **TODOS los drops de evento son `bind_on_drop = TRUE`** (regla canon `_drop_ownership_canon.md §3.2`): *"Suerte de run = suerte tuya."*
+Ver §6 de `p1_economy.md` actualizado. Drops NO provienen de kills — provienen del trigger del evento. **TODOS los drops de evento son `bind_on_drop = TRUE`** (regla canon `_drop_ownership_canon.md §5`): *"Suerte de run = suerte tuya."*
 
 | Tipo evento | Loot típico | Bind |
 |-------------|-------------|------|
@@ -212,7 +212,7 @@ Sumando chests (§5 economy): run completa entrega ~15-20 items + ~18 materiales
 
 ## 7. Bind-on-drop — índice P1
 
-Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_canon.md §3.2`):
+Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_canon.md §5`):
 
 | Item | Fuente | Trigger del bind |
 |------|--------|------------------|
@@ -232,7 +232,7 @@ Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_cano
 ## 8. Flags a A
 
 1. **Corona Oxidada P1**: `tier_1_pool` la lista. 1% efectivo OK? ¿Subir a 2% para garantizar que ~1 de cada 2 runs un jugador de party lo vea? Decisión ritual. **Resuelta**: sigue 1% (decisión A 2026-04-15, bind-on-drop compensa rareza).
-2. ~~**Drop instanced por jugador**~~ → **RESUELTO 2026-04-15**: canon adoptado = ownership timer 2min tipo Metin2 + round-robin damage + bind-on-drop para items evento/ritual. Ver `_drop_ownership_canon.md`.
+2. ~~**Drop instanced por jugador**~~ → **RESUELTO 2026-04-16**: canon v2 = party-auto pool + floor+random + timers 180/120/300s + bind-on-drop items evento/ritual. Ver `_drop_ownership_canon.md`.
 3. **mini_slime anti-farm**: bajé drops a 20% total. Si afecta el feel de la fight boss P24, ajustar.
 4. **XP +5% fox boost**: compensa por NEUTRAL. Revisar si conflicta con Diseño ecosistema "no matar todo".
 

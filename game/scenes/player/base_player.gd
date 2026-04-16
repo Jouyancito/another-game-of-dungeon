@@ -173,7 +173,7 @@ func pickup_item(drop: Node) -> bool:
 		return false
 	# Gold no pasa por inventario — pickup() distribuye entre party.
 	if drop is GoldDrop:
-		drop.pickup()
+		drop.pickup(self)
 		return true
 	if inventory.auto_place_item(drop.item_id, drop.item_quantity):
 		item_picked_up.emit(drop.item_id, drop.item_quantity)

@@ -24,6 +24,9 @@ const SUPPORT_WINDOW_SEC := 10.0    # cleric/buffer window para entrar al pool
 # Registros activos: drop_instance_id → {drop: GroundItem, owner_profile_id: String}
 var _active_drops: Dictionary = {}
 
+# Canon §2.2 seed entropy: incrementado en cada spawn_drops para evitar colisiones same-frame.
+static var _kill_counter: int = 0
+
 
 ## Entry point — base_enemy.die() o kill por ambiente.
 ## loot: {"gold": int, "items": [{"item_id", "quantity"}]}
@@ -53,14 +56,39 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 	# Canon §2.2: RNG seeded por kill para reproducibilidad debug.
 	var rng := RandomNumberGenerator.new()
 	var seed_base: int = killer_profile_id.hash() if killer_profile_id != "" else 0
-	rng.seed = seed_base ^ Time.get_ticks_msec()
+	# Canon §2.2 + seed entropy fix: XOR con ticks y kill counter para evitar colisiones.
+	_kill_counter += 1
+	if killer_profile_id == "":
+		rng.randomize()
+	else:
+		rng.seed = seed_base ^ Time.get_ticks_msec() ^ _kill_counter
 
-	# Reparto floor+random sobre items
-	var assignments: Array[String] = _floor_random_split(items.size(), pool, rng)
+	# Canon §5.1: bind items ignorar reparto floor+random — asignar directo al killer.
+	var bind_items: Array = []
+	var normal_items: Array = []
+	for entry in items:
+		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
+		if item_data.get("bind_on_drop", false):
+			bind_items.append(entry)
+		else:
+			normal_items.append(entry)
 
-	for i in items.size():
-		var entry: Dictionary = items[i]
-		var owner_pid: String = assignments[i] if i < assignments.size() else ""
+	# Reparto floor+random sobre items normales
+	var assignments: Array[String] = _floor_random_split(normal_items.size(), pool, rng)
+
+	# Combinar: bind items primero (asignados al killer), luego normales
+	var all_entries: Array = []
+	var all_owners: Array[String] = []
+	for bind_entry in bind_items:
+		all_entries.append(bind_entry)
+		all_owners.append(killer_profile_id)  # directo al killer (o "" si ambient — fallback en _register_drop)
+	for i in normal_items.size():
+		all_entries.append(normal_items[i])
+		all_owners.append(assignments[i] if i < assignments.size() else "")
+
+	for i in all_entries.size():
+		var entry: Dictionary = all_entries[i]
+		var owner_pid: String = all_owners[i]
 		var owner_node: Node = _find_player_by_profile(owner_pid, query_node) if owner_pid != "" else null
 
 		var drop: GroundItem = GROUND_ITEM_SCENE.instantiate()
@@ -95,7 +123,7 @@ func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]
 	var alive_party: Array[String] = []
 	for pid in party:
 		var node: Node = _find_player_by_profile(pid, query_node)
-		if node != null and node.get("is_dead") == true:
+		if node == null or node.get("is_dead") == true:
 			continue
 		alive_party.append(pid)
 	party = alive_party
@@ -121,9 +149,7 @@ func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]
 	var alive_supporters: Array[String] = []
 	for sup_pid in supporters:
 		var sup_node: Node = _find_player_by_profile(sup_pid, query_node)
-		if sup_node == null:
-			continue
-		if sup_node.get("is_dead") == true:
+		if sup_node == null or sup_node.get("is_dead") == true:
 			continue
 		alive_supporters.append(sup_pid)
 

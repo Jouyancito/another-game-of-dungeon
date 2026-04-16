@@ -58,7 +58,7 @@ t=0 ─────────────────────────�
 
 ## 3. Colores por rareza (canon)
 
-Reusar `ItemDatabase.get_rarity_color(rarity)` — NO duplicar paleta en shaders. Rarezas existentes en `ground_item.gd:155`:
+Reusar `ItemDatabase.get_rarity_color(rarity)` — NO duplicar paleta en shaders. Rarezas definidas en `item_database.gd:5-9` (dict `RARITY_COLORS`), función helper en `item_database.gd:853-854`:
 
 | Rareza canon | Hint color (referencia visual) | Fuente real |
 |--------------|--------------------------------|-------------|
@@ -87,7 +87,7 @@ game/scenes/loot/vfx/
 
 ### 4.1 `ground_item_glow.gdshader`
 
-Aplica al `MeshInstance3D` del drop. Reemplaza el `StandardMaterial3D` actual (`ground_item.gd:157-163`).
+Aplica al `MeshInstance3D` del drop. Reemplaza el `StandardMaterial3D` actual (`ground_item.gd:159-165`, dentro de `_apply_visuals()` en línea 152).
 
 **Uniforms confirmados**:
 
