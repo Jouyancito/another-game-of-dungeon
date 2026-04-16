@@ -6,6 +6,7 @@ const RARITY_COLORS := {
 	"common": Color(1.0, 1.0, 1.0, 1.0),
 	"rare":   Color(0.3, 0.5, 1.0, 1.0),
 	"magic":  Color(1.0, 0.85, 0.0, 1.0),
+	"epic":   Color(0.6, 0.2, 0.8, 1.0),
 	"unique": Color(0.6, 0.1, 0.1, 1.0),
 }
 
@@ -344,7 +345,7 @@ func _register_items() -> void:
 		"name": "Corona Oxidada (menor)",
 		"description": "Corona de hojalata torcida del líder de bandidos. (+2 STR, +5% XP local). Epic drop del jefe de las praderas.",
 		"type": "accessory", "subtype": "head", "slot": "head",
-		"grid_size": Vector2i(2, 1), "rarity": "rare",
+		"grid_size": Vector2i(2, 1), "rarity": "epic",
 		"stats": {"str": 2}, "level_req": 3, "item_level": 4,
 		"stackable": false, "max_stack": 1, "value": 80,
 		"bind_on_drop": true,  # Epic ritual drop — owner-only 300s, sin free phase

@@ -31,8 +31,10 @@ static var _kill_counter: int = 0
 ## Entry point — base_enemy.die() o kill por ambiente.
 ## loot: {"gold": int, "items": [{"item_id", "quantity"}]}
 ## killer_profile_id: "" → free-for-all desde spawn (kill por ambiente)
+## trigger_player_id: jugador que activó un trap/evento ambient. Si killer_profile_id == ""
+##   pero trigger_player_id != "", los bind items se asignan a trigger_player_id (canon §7).
 func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
-		killer_profile_id: String = "") -> void:
+		killer_profile_id: String = "", trigger_player_id: String = "") -> void:
 	var scene_root: Node = query_node.get_tree().current_scene
 	var occupied_cells: Dictionary = {}
 
@@ -64,6 +66,11 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 		rng.seed = seed_base ^ Time.get_ticks_msec() ^ _kill_counter
 
 	# Canon §5.1: bind items ignorar reparto floor+random — asignar directo al killer.
+	# Canon §7: si killer_profile_id == "" pero trigger_player_id != "", bind items van al trigger.
+	var bind_owner: String = killer_profile_id
+	if bind_owner == "" and trigger_player_id != "":
+		bind_owner = trigger_player_id
+
 	var bind_items: Array = []
 	var normal_items: Array = []
 	for entry in items:
@@ -76,12 +83,12 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 	# Reparto floor+random sobre items normales
 	var assignments: Array[String] = _floor_random_split(normal_items.size(), pool, rng)
 
-	# Combinar: bind items primero (asignados al killer), luego normales
+	# Combinar: bind items primero (asignados al bind_owner), luego normales
 	var all_entries: Array = []
 	var all_owners: Array[String] = []
 	for bind_entry in bind_items:
 		all_entries.append(bind_entry)
-		all_owners.append(killer_profile_id)  # directo al killer (o "" si ambient — fallback en _register_drop)
+		all_owners.append(bind_owner)  # directo al killer/trigger (o "" si ambient — fallback en _register_drop)
 	for i in normal_items.size():
 		all_entries.append(normal_items[i])
 		all_owners.append(assignments[i] if i < assignments.size() else "")

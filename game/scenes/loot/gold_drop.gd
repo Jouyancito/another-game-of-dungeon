@@ -148,7 +148,7 @@ func _find_alive_party_members(picker_node: Node) -> Array[Node]:
 
 	if party.is_empty():
 		# Singleplayer: solo el picker recibe el oro
-		if picker_node != null and (not picker_node.has_method("get") or not picker_node.get("is_dead")):
+		if picker_node != null and not picker_node.get("is_dead"):
 			alive.append(picker_node)
 		return alive
 

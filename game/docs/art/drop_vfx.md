@@ -6,7 +6,7 @@
 - `game/docs/balance/_drop_ownership_canon.md` — reglas ownership v2 (C owner)
 - `game/scenes/loot/ground_item.gd` — script real del drop (B owner, rama `dept/gameplay/drop-ownership`). Contrato: 3 signals + `mark_free()`
 - `game/scenes/loot/ground_item.tscn` — escena con MeshInstance3D + AuraLight + Label3D
-- `game/shared/loot/drop_controller.gd` — autoload que maneja timers canon v2 (180 / 300) y llama `mark_free()`
+- `game/shared/loot/drop_controller.gd` — autoload que maneja timers canon v2 (180 / 120 / 300) y llama `mark_free()`
 - `game/shared/systems/item_database.gd` — `get_rarity_color(rarity)` provee colores
 
 > Capa visual del sistema de drops con owner-lock + free-for-all + bind-on-drop. Define qué ve el jugador en cada estado del item en el mundo, alineado a los timers del canon v2.
@@ -62,10 +62,11 @@ Reusar `ItemDatabase.get_rarity_color(rarity)` — NO duplicar paleta en shaders
 
 | Rareza canon | Hint color (referencia visual) | Fuente real |
 |--------------|--------------------------------|-------------|
-| `common` | Gris claro `#A0A0A0` | `ItemDatabase.get_rarity_color("common")` |
-| `magic` | Azul `#4A90E2` | `ItemDatabase.get_rarity_color("magic")` |
-| `rare` | Azul-violeta `#7B5BFF` | `ItemDatabase.get_rarity_color("rare")` |
-| `unique` | Naranja-dorado `#E89B3C` | `ItemDatabase.get_rarity_color("unique")` |
+| `common` | Blanco `#FFFFFF` | `ItemDatabase.get_rarity_color("common")` |
+| `magic` | Dorado `#FFD900` | `ItemDatabase.get_rarity_color("magic")` |
+| `rare` | Azul `#4D80FF` | `ItemDatabase.get_rarity_color("rare")` |
+| `epic` | Violeta oscuro `#9933CC` | `ItemDatabase.get_rarity_color("epic")` |
+| `unique` | Rojo oscuro `#991A1A` | `ItemDatabase.get_rarity_color("unique")` |
 
 > **Nota P1 economy**: canon v2 no introduce Legendary en P1 (reservado Tier II+). La paleta existente cubre todo P1.
 

@@ -101,6 +101,22 @@ func _register_tables() -> void:
 			{"item_id": "potion_hp_small", "chance": 0.08, "qty_min": 1, "qty_max": 1},
 			{"item_id": "material_leather", "chance": 0.10, "qty_min": 1, "qty_max": 1},
 		],
+		"guaranteed": [
+			{"item_id": "emblema_bandido", "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	_add("bandit_melee", {
+		"gold_min": 8,
+		"gold_max": 15,
+		"drops": [
+			{"item_id": "potion_hp_small", "chance": 0.10, "qty_min": 1, "qty_max": 1},
+			{"item_id": "material_iron", "chance": 0.12, "qty_min": 1, "qty_max": 2},
+			{"item_id": "corona_oxidada_menor", "chance": 0.10, "qty_min": 1, "qty_max": 1},
+		],
+		"guaranteed": [
+			{"item_id": "emblema_bandido", "qty_min": 1, "qty_max": 2},
+		],
 	})
 
 	_add("bird", {

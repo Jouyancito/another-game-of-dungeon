@@ -210,7 +210,7 @@ Sumando chests (§5 economy): run completa entrega ~15-20 items + ~18 materiales
 
 ---
 
-## 7. Bind-on-drop — índice P1
+## 8. Bind-on-drop — índice P1
 
 Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_canon.md §5`):
 
@@ -229,7 +229,7 @@ Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_cano
 
 ---
 
-## 8. Flags a A
+## 9. Flags a A
 
 1. **Corona Oxidada P1**: `tier_1_pool` la lista. 1% efectivo OK? ¿Subir a 2% para garantizar que ~1 de cada 2 runs un jugador de party lo vea? Decisión ritual. **Resuelta**: sigue 1% (decisión A 2026-04-15, bind-on-drop compensa rareza).
 2. ~~**Drop instanced por jugador**~~ → **RESUELTO 2026-04-16**: canon v2 = party-auto pool + floor+random + timers 180/120/300s + bind-on-drop items evento/ritual. Ver `_drop_ownership_canon.md`.
@@ -238,7 +238,7 @@ Lista compacta de items `bind_on_drop = TRUE` en P1 (canon `_drop_ownership_cano
 
 ---
 
-## 9. Pendientes (Fase 2+)
+## 10. Pendientes (Fase 2+)
 
 - `p1_materials.md` — catalogar los 15+ materiales referenciados (nombre, stack, vendor price, uso crafting).
 - Pool completo items Common/Rare P1 — `p1_items.md` con stats concretos.
