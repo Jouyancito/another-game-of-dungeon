@@ -25,16 +25,17 @@ if ($cwd -match 'DungeonParty-([ABCD])') {
     $letter = $Matches[1]
 }
 
-# Colores ANSI por worktree
+# Colores ANSI por worktree (usar [char]27 para compatibilidad con PS 5.1)
+$ESC = [char]27
 $colorMap = @{
-    'A' = "`e[91m"  # rojo brillante
-    'B' = "`e[92m"  # verde brillante
-    'C' = "`e[94m"  # azul brillante
-    'D' = "`e[93m"  # amarillo brillante
-    '?' = "`e[90m"  # gris
+    'A' = "$ESC[91m"  # rojo brillante
+    'B' = "$ESC[92m"  # verde brillante
+    'C' = "$ESC[94m"  # azul brillante
+    'D' = "$ESC[93m"  # amarillo brillante
+    '?' = "$ESC[90m"  # gris
 }
-$reset = "`e[0m"
-$dim = "`e[90m"
+$reset = "$ESC[0m"
+$dim = "$ESC[90m"
 $color = $colorMap[$letter]
 
 # Branch actual

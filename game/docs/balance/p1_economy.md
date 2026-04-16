@@ -1,0 +1,245 @@
+# P1 Pradera — Economía XP y Loot
+
+**Scope**: Diseño de economía del Piso 1 (Pradera). Tier I, primer contacto del jugador con el loop.
+
+**Depende de**: `balance_v2.md` §3 (HP/DMG/DEF/XP canon) y §5 (curva XP piecewise).
+**Coordina con**: Dept B (HP por enemigo, pack composition).
+
+---
+
+## 1. Target de pacing
+
+| Hito | Tiempo real | Pisos recorridos | Nivel esperado |
+|------|-------------|------------------|----------------|
+| Primera muerte de mob | ~2 min | P1 arranque | L1 |
+| Primer chest abierto | ~5 min | P1 | L1 |
+| Subida a L2 | ~25-35 min | fin P1 / inicio P2 | L2 |
+| Subida a L3 | ~90-120 min | fin P2 / inicio P3 | L3 |
+
+**Premisa**: jugador nuevo, sin coop optimizado, incluye deaths y exploración. Un grupo veterano puede llegar a L3 en ~60 min; está OK.
+
+---
+
+## 2. XP por enemigo (P1)
+
+Derivado de `balance_v2.md` §3.1 con `piso = 1`. Valores redondeados:
+
+| Sub-tier | Nombre ejemplo P1 | HP | DMG | XP | TTK target (solo L1) |
+|----------|-------------------|----|----|----|----------------------|
+| A (fodder) | Mini-slime / lobezno | 54 | 5 | **11** | 1-2 hits |
+| B (líder pack) | Slime grande / lobo adulto | 86 | 8 | **22** | 4-6 hits |
+| C (alfa/élite) | Alfa de pack / Bandit leader | 130 | 12 | **39** | 8-12 hits |
+| Veterano | Nombre propio persistente | 155 | 14 | **44 + drop único** | 10-15 hits |
+| Mini-boss | Campamento bandit (P4 pool) | 216 | 10 | **55** | 20-30 hits |
+| Boss tier (P24) | Rey Slime | 270 | 10 | **165** | Fuera de scope P1 |
+
+**Nota**: XP canon = `10 * (1 + piso * 0.08)` → P1 base 10.8 ≈ 11. Multiplicadores sub-tier de §3.2 aplicados.
+
+### Pack composition (coordinar con B)
+
+Distribución de rolls por **spawn point** de la arena (cada arena tiene ~8-12 spawn points procedurales).
+
+**Combate (75%)**:
+
+| Tipo de encuentro | Frecuencia | Composición |
+|-------------------|------------|-------------|
+| Pack estándar | 60% | 1 sub-B + 3-4 sub-A |
+| Pack élite | 10% | 1 sub-C + 2 sub-A |
+| Encuentro especial | 5% | Veterano (si aplica seed) o mini-boss |
+
+**Variedad / no-combate (25%)** — rompen el ritmo de kill-loot:
+
+| Tipo | Frecuencia | Contenido |
+|------|------------|-----------|
+| **Arena vacía** | 10% | Spawn point vacío. Respiro visual + exploración. Puede contener chest pequeño (ver §5) o POI pasivo. |
+| **Evento pacífico** | 8% | Fauna pacífica (mariposas, libélulas), NPC itinerante (bardo P5, Cazador Perdido), interactable lore (altar, diario). NO da XP por kill — da XP flat por descubrir POI (§3 bonos). |
+| **Ambush** | 7% | Mob oculto (slime en charco, bandit tras árbol, nido wasp). Se revela al entrar zona. Castiga con daño sorpresa. Drops con **+10% roll quality** (ver `p1_loot_table.md §5`). |
+
+**Nota**: el 25% de variedad es crítico para la tesis P1 "presentar variedad del juego" (`tier_1_pool P1 §premisa`). Una arena 100% combate es mecánicamente correcta pero temáticamente pobre para el piso tutorial.
+
+**Expected P1 run (1 piso, ~25 min)**:
+- ~20 sub-A + ~5 sub-B + ~1 sub-C
+- XP total ≈ 20×11 + 5×22 + 1×39 = **369 XP**
+- Suficiente para L1→L2 (100 XP) + avance parcial a L3 (~70% de 115 XP).
+
+---
+
+## 3. Curva XP L1→L3
+
+Canon `balance_v2.md` §5 sin cambios:
+
+| Nivel | XP req (this lvl) | XP acumulado |
+|-------|-------------------|--------------|
+| 1→2 | 100 | 100 |
+| 2→3 | 115 | 215 |
+| 3→4 | 132 | 347 |
+
+**L1→L3 total = 215 XP**. Alcanzable en ~1 run de P1 clear completo. A dos horas reales, esperamos L3 sólido con buffer para L4 en P3.
+
+### Bonos de XP aplicables en P1
+
+| Fuente | Bonus | Notas |
+|--------|-------|-------|
+| Kill solo (último golpe) | +0% (base) | XP ya está calibrado |
+| Kill en coop (party 2-4) | +15% | Incentiva cooperación |
+| Buff "Calor del Fuego" (P5 fogata) | +5% | Dura 30 min real |
+| Buff "Bendición Hermana" (P3 altar) | +10% | Dura 30 min real |
+| Descubrir POI nuevo (primera vez en run) | +20 XP flat | Exploración |
+| Completar piso sin morir | +50 XP flat | Al cargar P2 |
+
+Los bonos son **multiplicativos entre sí** salvo los flat (suman al final).
+
+---
+
+## 4. Drops por kill — P1
+
+### 4.0 Drop system — ownership y dispersión (canon)
+
+Detalle completo en `_drop_ownership_canon.md`. Resumen canon P1:
+
+- **Ownership tipo Metin2**: al morir el mob, los drops se asignan por **round-robin ponderado por % damage dealt**. El damage log decide dueños, no el last hit.
+- **Timer locked 2 minutos (120s)**: solo el owner asignado puede lootear. Pasado el timer → fase **Free**, cualquiera puede tomarlo. Warning visual parpadeo al seg 90.
+- **Despawn 10 minutos** (600s) desde spawn. Clutter control en arenas procedurales.
+- **Dispersión radial 1-2m**: cada item cae en círculo horizontal 1-2m alrededor del centro del mob, con arc parabólico breve (0.5s airtime, peak +0.6m). Evita "pila invisible" y da feeling de explosión de loot.
+- **Round-robin reset por kill**: no persiste anti-pity entre mobs.
+- **Support participant (healer/buffer sin damage directo)**: entra al round-robin con soft-pity si aplicó heal/buff en los últimos 10s antes del kill.
+
+### 4.0.1 Bind-on-drop — items de evento/ritual
+
+Regla general canon:
+
+> **"Items de evento/ritual = bind-on-drop. Suerte de run = suerte tuya."**
+
+Los drops con flag `bind_on_drop = TRUE` ignoran round-robin y van al jugador trigger específico. No tienen timer Free — persisten hasta pickup o despawn natural. Lista P1 completa en `p1_loot_table.md §7`.
+
+Aplica a:
+- Items de evento (Asta Antigua, quest NPC drops, fauna pacífica interactions).
+- Items ritual (Corona Oxidada del bandit leader, Veteranos con nombre propio).
+- Quest items (emblema_bandido entregable outpost).
+- Lore drops (páginas codex, diarios únicos).
+
+Razón: proteger el momento narrativo. Un jugador que encuentra el altar o mata épicamente al bandit leader no pierde su reward por randoms que pasan cerca.
+
+### 4.1 Roll por sub-tier
+
+Drop roll por mob muerto. Un único roll, tabla por sub-tier:
+
+### Sub-A (fodder)
+
+| Resultado | Chance | Contenido típico |
+|-----------|--------|------------------|
+| Nada | 70% | — |
+| Material común | 20% | Gel de slime, piel de lobezno, hierba P1 (1-2 unidades) |
+| Common item | 8% | Pieza de equip Common piso 1 |
+| Rare item | 2% | Pieza de equip Rare piso 1 |
+
+### Sub-B (líder pack)
+
+| Resultado | Chance | Contenido |
+|-----------|--------|-----------|
+| Nada | 40% | — |
+| Material común (2-3 unidades) | 30% | — |
+| Common item | 20% | — |
+| Rare item | 8% | — |
+| Epic item | 2% | Raro momento "jackpot" primera hora |
+
+### Sub-C (alfa/élite)
+
+| Resultado | Chance | Contenido |
+|-----------|--------|-----------|
+| Material raro | 40% | Colmillo de alfa, núcleo de slime |
+| Common item | 25% | — |
+| Rare item | 25% | — |
+| Epic item | 10% | — |
+
+### Veterano
+
+Drop **garantizado**: 1 Rare o Epic único (cosmético o item nombrado) + entrada en codex. Sin roll de vacío. Ver `balance_v2.md` §3.3.
+
+### Boss P1 (Rey Slime, P24 real)
+
+Fuera de scope — documentado en `boss_king_slime_spec.md`.
+
+---
+
+## 5. Chests — spawns y contenido
+
+### Spawns por arena P1
+
+| Tipo | Cantidad por arena | Spawn | Visibilidad |
+|------|--------------------|-------|-------------|
+| Chest pequeño | 3 fijos | Procedural (spots predefinidos, variación cosmética) | Visible |
+| Chest mediano | 0-1 (40% chance) | Procedural | Escondido (1 raycast/exploración) |
+| Chest grande | 0-1 (15% chance) | Detrás de puzzle/skill check leve | Requiere condición |
+| Chest de boss | 1 garantizado al clear boss piso | Fixed | Drop directo |
+
+### Contenido por tipo
+
+**Chest pequeño** (3 rolls independientes):
+- Slot 1 (material): 100% → 2-4 materiales comunes P1
+- Slot 2 (oro): 100% → 10-25 oro
+- Slot 3 (item roll):
+  - 60% Common item
+  - 30% Rare item
+  - 8% Epic item
+  - 2% nada (recompensa "dry" ocasional)
+
+**Chest mediano**:
+- Slot 1: 3-5 materiales (mix común/raro)
+- Slot 2: 30-60 oro
+- Slot 3 (garantizado item):
+  - 45% Common
+  - 40% Rare
+  - 13% Epic
+  - 2% Legendary (nunca en P1 regular, deferred)
+
+**Chest grande**:
+- Slot 1: 1 material raro P1 garantizado
+- Slot 2: 80-150 oro
+- Slot 3 (garantizado item raro+):
+  - 55% Rare
+  - 35% Epic
+  - 10% Legendary (nunca en P1 regular, deferred)
+- Slot 4: 1 consumible (poción, pergamino de retorno)
+
+### Legendary en P1 — decisión
+
+**NO hay Legendary drops en P1.** La raridad queda sembrada como rumor/visual en vendors pero sin drop. Razón: Legendary es momento pico de Tier II+. Bajarlo a P1 rompe la progresión emocional. Los slots "Legendary" en las tablas arriba están documentados para consistencia cross-tier, pero el pool real en P1 los sustituye por Epic.
+
+---
+
+## 6. Oro — drops y economía
+
+Referencia, no diseño completo (deferred a doc de economía global).
+
+| Fuente | Oro en P1 |
+|--------|-----------|
+| Kill sub-A | 0 (no drop directo) |
+| Kill sub-B | 1-3 oro (50% chance) |
+| Kill sub-C | 5-10 oro (100%) |
+| Veterano | 20-40 oro |
+| Chest pequeño | 10-25 |
+| Chest mediano | 30-60 |
+| Chest grande | 80-150 |
+| Clear piso sin morir | +25 oro bonus |
+
+**Expected oro por run P1 clean**: ~80-150 oro. Suficiente para 1-2 repairs o 1 enhancement +1 en taverna (referencia pendiente confirmar con Dept C economía global).
+
+---
+
+## 7. Abierto — pendientes
+
+- **Tuning final XP por uso (§6 balance_v2)**: señales `on_hit_landed`, `on_spell_cast`, etc. Impacto en P1: bajo (early level los %XP uso son marginales).
+- **Materiales P1 catalogados**: lista concreta (nombre, uso, vendor price). Separar a `p1_materials.md` si se complica.
+- **Validación tooling**: necesitamos sim de 10 runs de P1 con composición promedio para confirmar que XP/loot del doc matchea target. Deferred a apply.
+- **Death penalty**: si muere en P1, ¿se pierde % oro/materiales del run? Depende del doc de muerte global.
+
+---
+
+## 8. Checklist de coordinación
+
+- [ ] **B (Gameplay)**: validar HP/DMG de mobs P1 matchea canon §3 tabla piso 1.
+- [ ] **B**: implementar `xp_reward` por mob según sub-tier (sub-A=11, sub-B=22, sub-C=39).
+- [ ] **B**: pack composition en spawner de arena P1.
+- [ ] **D (Art)**: chest pequeño/mediano/grande — 3 props distintos visualmente (escala o detalle).
+- [ ] **Design (esta ventana)**: `p1_materials.md` si se decide separar.
