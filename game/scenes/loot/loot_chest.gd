@@ -51,25 +51,18 @@ func open(player: Node3D) -> void:
 	var tween := create_tween()
 	tween.tween_property(lid, "rotation:x", deg_to_rad(-110), 0.4).set_ease(Tween.EASE_OUT)
 
-	# Generar loot según tier
-	var items := _roll_chest_loot()
-	var gold := _roll_chest_gold()
+	# Canon drop-ownership v2: chest delega en DropController (mismo modelo party + floor+random).
+	var loot := _roll_chest_table()
+	var opener_pid: String = ""
+	if player != null and player.has_method("get_profile_id"):
+		opener_pid = str(player.call("get_profile_id"))
 
-	# Spawnear drops con delay para efecto visual
 	await get_tree().create_timer(0.3).timeout
-	_spawn_chest_drops(items, gold)
+	DropController.spawn_chest_drops(global_position + Vector3(0, 0.5, 0), loot, self, opener_pid)
 
 
-func _roll_chest_gold() -> int:
-	var table_name := _get_table_name()
-	var rolled := LootTable.roll(table_name)
-	return rolled.get("gold", 0)
-
-
-func _roll_chest_loot() -> Array:
-	var table_name := _get_table_name()
-	var rolled := LootTable.roll(table_name)
-	return rolled.get("items", [])
+func _roll_chest_table() -> Dictionary:
+	return LootTable.roll(_get_table_name())
 
 
 func _get_table_name() -> String:
@@ -77,30 +70,6 @@ func _get_table_name() -> String:
 		ChestTier.RARE: return "chest_rare"
 		ChestTier.BOSS: return "chest_boss"
 	return "chest_common"
-
-
-func _spawn_chest_drops(items: Array, gold: int) -> void:
-	var scene_root: Node = get_tree().current_scene
-	var spawn_pos := global_position + Vector3(0, 0.5, 0)
-
-	# Oro
-	if gold > 0:
-		var gold_scene := preload("res://scenes/loot/gold_drop.tscn")
-		var gold_drop := gold_scene.instantiate() as GoldDrop
-		gold_drop.setup(gold)
-		gold_drop.global_position = spawn_pos + Vector3(randf_range(-0.3, 0.3), 0.2, randf_range(-0.3, 0.3))
-		scene_root.call_deferred("add_child", gold_drop)
-
-	# Items
-	for i in range(items.size()):
-		var item_scene := preload("res://scenes/loot/item_drop.tscn")
-		var drop := item_scene.instantiate() as ItemDrop
-		drop.setup(items[i]["item_id"], items[i]["quantity"])
-		# Esparcir alrededor del cofre
-		var angle := float(i) / float(max(items.size(), 1)) * TAU
-		var offset := Vector3(cos(angle) * 0.8, 0.3, sin(angle) * 0.8)
-		drop.global_position = spawn_pos + offset
-		scene_root.call_deferred("add_child", drop)
 
 
 func show_label() -> void:

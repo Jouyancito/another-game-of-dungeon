@@ -83,12 +83,6 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if aggression == AggressionType.NEUTRAL and not is_provoked:
 		is_provoked = true
 
-	# Log de daño para ownership del drop (mismo patrón que base_enemy)
-	if attacker != null and is_instance_valid(attacker):
-		var aid := attacker.get_instance_id()
-		_damage_log[aid] = _damage_log.get(aid, 0.0) + effective_amount
-		_attackers[aid] = attacker
-
 	# Pasar el daño ya reducido — evitar doble reducción en la base
 	# Llamamos directamente sin el hook de DEF (que base_enemy no tiene por defecto)
 	health -= effective_amount
@@ -97,7 +91,10 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if knockback_force > 0.0 and hit_direction != Vector3.ZERO:
 		apply_knockback(hit_direction, knockback_force, attacker_str)
 
+	# Killing blow tracking — canon drop-ownership v2.
 	if health <= 0:
+		if attacker != null and is_instance_valid(attacker) and attacker.has_method("get_profile_id"):
+			_killer_profile_id = str(attacker.call("get_profile_id"))
 		die()
 		return
 

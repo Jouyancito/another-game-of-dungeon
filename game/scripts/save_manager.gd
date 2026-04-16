@@ -28,9 +28,33 @@ func load_characters() -> void:
 	var parsed = json.get_data()
 	if parsed is Array:
 		characters = parsed.filter(func(e): return e is Dictionary)
+		_backfill_profile_ids()
 	else:
 		push_warning("SaveManager: formato inesperado en el archivo de guardado.")
 		characters = []
+
+
+# Migracion silenciosa: personajes viejos sin profile_id reciben uno ahora.
+# Futuro online: backend asigna el ID real al sincronizar.
+func _backfill_profile_ids() -> void:
+	var changed := false
+	for c in characters:
+		if not c.has("profile_id") or str(c.get("profile_id", "")) == "":
+			c["profile_id"] = _generate_profile_id()
+			changed = true
+	if changed:
+		save_characters()
+
+
+func _generate_profile_id() -> String:
+	# UUID v4 simplificado — suficiente entropia para singleplayer offline.
+	# Cuando haya backend MMO, este ID se registra server-side y queda canonico.
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var parts := PackedStringArray()
+	for i in 4:
+		parts.append("%08x" % rng.randi())
+	return "local-" + "-".join(parts)
 
 
 func save_characters() -> void:
@@ -61,6 +85,7 @@ func create_character(char_name: String, class_scene: String, class_display_name
 	})
 
 	var new_char := {
+		"profile_id": _generate_profile_id(),
 		"name": char_name,
 		"class_scene": class_scene,
 		"class_name": defaults.get("class_name", class_display_name),

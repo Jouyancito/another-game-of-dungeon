@@ -54,6 +54,15 @@ signal xp_changed(xp: float, xp_max: float, level: int)
 signal player_died
 signal level_up(new_level: int, points: int)
 
+# Identidad persistente — canon drop-ownership v2.
+# profile_id sobrevive a reload/respawn. Futuro MMO: asignado server-side.
+var profile_id: String = ""
+
+# Support window — cleric/buffer registra heal/buff aca.
+# Dict: supporter_profile_id → timestamp unix del ultimo support.
+# Nunca se limpia: check es now-ts<10s, entries viejas se ignoran solas.
+var last_support_ts: Dictionary = {}
+
 # Loot / Inventario / Equipamiento
 var inventory: Inventory
 var equipment: Equipment
@@ -159,9 +168,13 @@ func add_gold(amount: int) -> void:
 	_save_inventory()
 
 func pickup_item(drop: Node) -> bool:
-	# Acepta ItemDrop (legacy) y GroundItem (DropController).
+	# Acepta ItemDrop (legacy), GroundItem (DropController), GoldDrop (sin inventory).
 	if drop.has_method("can_pickup_by") and not drop.can_pickup_by(self):
 		return false
+	# Gold no pasa por inventario — pickup() distribuye entre party.
+	if drop is GoldDrop:
+		drop.pickup()
+		return true
 	if inventory.auto_place_item(drop.item_id, drop.item_quantity):
 		item_picked_up.emit(drop.item_id, drop.item_quantity)
 		drop.pickup()
@@ -176,7 +189,9 @@ func _try_pickup_nearby() -> void:
 
 	for drop_node: Node in drops:
 		var item_drop: Node3D = drop_node as Node3D
-		if item_drop == null or not (drop_node is ItemDrop or drop_node is GroundItem):
+		if item_drop == null:
+			continue
+		if not (drop_node is ItemDrop or drop_node is GroundItem or drop_node is GoldDrop):
 			continue
 		var dist := global_position.distance_to(item_drop.global_position)
 		if dist <= pickup_range:
@@ -298,6 +313,7 @@ func _load_character_stats() -> void:
 	if idx >= 0:
 		var data = SaveManager.get_character(idx)
 		if not data.is_empty():
+			profile_id = str(data.get("profile_id", ""))
 			str_stat = data.get("str_stat", str_stat)
 			int_stat = data.get("int_stat", int_stat)
 			dex_stat = data.get("dex_stat", dex_stat)
@@ -524,9 +540,8 @@ func _update_drop_labels() -> void:
 		else:
 			drop_node3d.call("hide_label")
 
-		# Hint de pickup: solo item drops (el oro es auto-pickup).
-		# Debe estar dentro del pickup_range real + apuntado con el crosshair.
-		if hint_text == "" and (drop_node is ItemDrop or drop_node is GroundItem) and dist <= pickup_range:
+		# Hint de pickup. Canon v2: oro tambien pickup manual con [E].
+		if hint_text == "" and (drop_node is ItemDrop or drop_node is GroundItem or drop_node is GoldDrop) and dist <= pickup_range:
 			var to_drop: Vector3 = (drop_node3d.global_position - camera.global_position).normalized()
 			if to_drop.dot(forward) > 0.5:
 				hint_text = "Presioná [E] para recoger"
@@ -646,6 +661,19 @@ func heal(amount: float) -> void:
 		return
 	health = clamp(health + amount, 0, max_health)
 	health_changed.emit(health, max_health)
+
+
+## Canon drop-ownership v2: support window 10s.
+## Cleric/Buffer llama cuando aplica heal/buff a este player.
+func register_support(supporter_profile_id: String) -> void:
+	if supporter_profile_id == "":
+		return
+	last_support_ts[supporter_profile_id] = Time.get_unix_time_from_system()
+
+
+## Devuelve profile_id persistente. Sobrevive reload/respawn.
+func get_profile_id() -> String:
+	return profile_id
 
 func use_mana(amount: float) -> bool:
 	if mana < amount:

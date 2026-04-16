@@ -58,10 +58,9 @@ var _hp_bar_fill: MeshInstance3D
 var _max_health: float
 var _sighted_once := false  # flag para Journal.sight — evitar spam cada frame
 
-# Damage tracking para ownership del drop.
-# Key: attacker.get_instance_id() (int). Value: daño acumulado (float).
-var _damage_log: Dictionary = {}
-var _attackers: Dictionary = {}  # instance_id → Node (último ref conocido)
+# Killing blow — canon drop-ownership v2.
+# profile_id del ultimo attacker que puso el HP a 0. "" = kill por ambiente.
+var _killer_profile_id: String = ""
 
 
 func _ready() -> void:
@@ -332,19 +331,16 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if aggression == AggressionType.NEUTRAL and not is_provoked:
 		is_provoked = true
 
-	# Log de daño para ownership del drop (si attacker provisto)
-	if attacker != null and is_instance_valid(attacker):
-		var aid := attacker.get_instance_id()
-		_damage_log[aid] = _damage_log.get(aid, 0.0) + amount
-		_attackers[aid] = attacker
-
 	health -= amount
 	_flash_damage()
 
 	if knockback_force > 0.0 and hit_direction != Vector3.ZERO:
 		apply_knockback(hit_direction, knockback_force, attacker_str)
 
+	# Killing blow tracking — solo el ultimo attacker cuenta (canon v2 party-auto).
 	if health <= 0:
+		if attacker != null and is_instance_valid(attacker) and attacker.has_method("get_profile_id"):
+			_killer_profile_id = str(attacker.call("get_profile_id"))
 		die()
 
 
@@ -388,8 +384,8 @@ func die() -> void:
 
 func _spawn_loot() -> void:
 	var loot: Dictionary = LootTable.roll(enemy_type)
-	# DropController: spawn radial + owner resolution (killing blow o round-robin FIFO).
-	DropController.spawn_drops(global_position, loot, self, _damage_log, _attackers)
+	# Canon v2: party-auto. Killer profile_id drive ownership; kill por ambiente → "".
+	DropController.spawn_drops(global_position, loot, self, _killer_profile_id)
 
 
 ## Raycast hacia abajo desde pos para encontrar el suelo — evita que los drops floten.

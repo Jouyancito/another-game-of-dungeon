@@ -1,6 +1,6 @@
 extends Node
-## DropController — manejador global de drops tipo Metin2.
-## Spawn radial + ownership + (commit 3) expiración + (commit 4) VFX.
+## DropController — canon drop-ownership v2 (Judgment Day 2026-04-16).
+## Party-auto pool + floor+random + timers 180/120/300 + support window 10s.
 ## Autoload: accesible como DropController.
 
 signal drop_spawned(drop: GroundItem)
@@ -13,32 +13,31 @@ const RING_INNER := 1.0
 const RING_OUTER := 2.0
 const CELL_SIZE := 0.7              # gap visual claro entre items (mesh ~0.25m)
 const MAX_SPAWN_ATTEMPTS := 30
-const OWNER_WINDOW_SEC := 120.0
-const KILLER_MAJORITY_THRESHOLD := 0.60   # >=60% daño solo → ownership directa
-const CONTRIB_MIN_SHARE := 0.10           # <10% del daño total = no cuenta para round-robin
 
-# Round-robin FIFO cross-mob: recordar a quién le tocó el loot antes
-# para que la próxima vez con daño compartido entre los mismos, rote.
-var _round_robin_queue: Array[int] = []
+# Canon v2 timers
+const OWNER_LOCK_SEC := 180.0       # drop normal: fase owner-only
+const FREE_WINDOW_SEC := 120.0      # drop normal: fase free-for-all
+const DESPAWN_TOTAL_SEC := 300.0    # sanity total = OWNER_LOCK + FREE_WINDOW
+const BIND_LOCK_SEC := 300.0        # bind items: owner-only hasta despawn, sin free
+const SUPPORT_WINDOW_SEC := 10.0    # cleric/buffer window para entrar al pool
 
-# Registros activos para expiración y owner-left handling.
-# drop_instance_id → {drop: GroundItem, owner_id: int}
+# Registros activos: drop_instance_id → {drop: GroundItem, owner_profile_id: String}
 var _active_drops: Dictionary = {}
 
 
-## Entry point — base_enemy.die() llama esto.
+## Entry point — base_enemy.die() o kill por ambiente.
 ## loot: {"gold": int, "items": [{"item_id", "quantity"}]}
-## damage_log: {attacker_id(int) → dmg_total(float)}
-## attackers_map: {attacker_id(int) → Node}
+## killer_profile_id: "" → free-for-all desde spawn (kill por ambiente)
 func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
-		damage_log: Dictionary = {}, attackers_map: Dictionary = {}) -> void:
+		killer_profile_id: String = "") -> void:
 	var scene_root: Node = query_node.get_tree().current_scene
 	var occupied_cells: Dictionary = {}
 
-	# Gold: sin ownership (compat legacy + pickup auto al caminar encima)
-	if loot.get("gold", 0) > 0:
+	# Gold: canon v2 = sin owner, auto-pickup OFF, split al pickup entre party vivos.
+	var gold_amount: int = loot.get("gold", 0)
+	if gold_amount > 0:
 		var gold = GOLD_SCENE.instantiate()
-		gold.setup(loot["gold"])
+		gold.setup(gold_amount)
 		var gold_target := _pick_radial_position(enemy_position, occupied_cells, query_node)
 		gold.global_position = enemy_position + Vector3(0, 0.4, 0)
 		scene_root.call_deferred("add_child", gold)
@@ -48,48 +47,151 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 	if items.is_empty():
 		return
 
-	var owner_player: Node = _resolve_owner(damage_log, attackers_map)
+	# Pool de owners segun canon v2
+	var pool: Array[String] = _resolve_pool(killer_profile_id, query_node)
 
-	for entry in items:
+	# Reparto floor+random sobre items
+	var assignments: Array[String] = _floor_random_split(items.size(), pool)
+
+	for i in items.size():
+		var entry: Dictionary = items[i]
+		var owner_pid: String = assignments[i] if i < assignments.size() else ""
+		var owner_node: Node = _find_player_by_profile(owner_pid, query_node) if owner_pid != "" else null
+
 		var drop: GroundItem = GROUND_ITEM_SCENE.instantiate()
-		drop.setup(entry["item_id"], entry["quantity"], owner_player)
+		drop.setup(entry["item_id"], entry["quantity"], owner_node, owner_pid)
 		var target_pos := _pick_radial_position(enemy_position, occupied_cells, query_node)
-		# Arranca en el mob + arco Metin2 hacia la posicion final
 		drop.global_position = enemy_position + Vector3(0, 0.4, 0)
 		scene_root.call_deferred("add_child", drop)
 		drop.call_deferred("arc_to", target_pos)
-		_register_drop(drop, owner_player)
+		_register_drop(drop, owner_pid)
 		drop_spawned.emit(drop)
 
 
-## Registra el drop, arranca timer 120s, cablea owner-left hook.
-func _register_drop(drop: GroundItem, owner_player: Node) -> void:
+## Entry alternativa para cofres — misma regla party+floor+random.
+## opener_profile_id = profile_id del player que abrio el cofre.
+func spawn_chest_drops(chest_position: Vector3, loot: Dictionary, query_node: Node,
+		opener_profile_id: String) -> void:
+	spawn_drops(chest_position, loot, query_node, opener_profile_id)
+
+
+## Resuelve pool segun canon v2:
+## - killer_profile_id == "" → pool vacio → drops free-for-all.
+## - Con killer → Party.get_party_of(killer) + supporters que healed/buffed ultimos 10s.
+func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]:
+	if killer_profile_id == "":
+		return []
+	var party: Array[String] = Party.get_party_of(killer_profile_id)
+	if party.is_empty():
+		party = [killer_profile_id]
+
+	# Support participants: supporters que estan EN party y aplicaron heal/buff ultimos 10s.
+	var now := Time.get_unix_time_from_system()
+	var supporters: Array[String] = []
+	for member_pid in party:
+		var member: Node = _find_player_by_profile(member_pid, query_node)
+		if member == null:
+			continue
+		var ts_dict: Variant = member.get("last_support_ts")
+		if ts_dict == null or not (ts_dict is Dictionary):
+			continue
+		for supporter_pid in ts_dict:
+			var ts: float = float(ts_dict[supporter_pid])
+			if (now - ts) >= SUPPORT_WINDOW_SEC:
+				continue
+			if supporter_pid in party and supporter_pid not in supporters:
+				supporters.append(supporter_pid)
+
+	# Merge: party + supporters (dedup)
+	var pool: Array[String] = party.duplicate()
+	for s in supporters:
+		if s not in pool:
+			pool.append(s)
+	return pool
+
+
+## floor+random: N drops, M miembros.
+## floor(N/M) drops garantizados c/u + N mod M drops sorteados random.
+## Retorna array de tamano N con profile_id por indice de drop.
+func _floor_random_split(drop_count: int, pool: Array[String]) -> Array[String]:
+	var out: Array[String] = []
+	if drop_count <= 0:
+		return out
+	if pool.is_empty():
+		# Sin pool → todos free-for-all (owner="")
+		for i in drop_count:
+			out.append("")
+		return out
+
+	var members: Array[String] = pool.duplicate()
+	var m: int = members.size()
+	var guaranteed: int = drop_count / m
+	var leftover: int = drop_count % m
+
+	# guaranteed drops por miembro
+	for pid in members:
+		for _j in guaranteed:
+			out.append(pid)
+
+	# leftover: sortear sin reemplazo entre members
+	members.shuffle()
+	for k in leftover:
+		out.append(members[k])
+
+	# Shuffle final para que el ORDEN de drops no delate el reparto
+	out.shuffle()
+	return out
+
+
+## Busca player en la escena por profile_id. null si no esta.
+func _find_player_by_profile(profile_id: String, query_node: Node) -> Node:
+	if profile_id == "":
+		return null
+	for p in query_node.get_tree().get_nodes_in_group("player"):
+		if p.has_method("get_profile_id") and str(p.call("get_profile_id")) == profile_id:
+			return p
+	return null
+
+
+## Registra drop con owner profile_id. Arma timer de expiracion segun bind_on_drop.
+func _register_drop(drop: GroundItem, owner_profile_id: String) -> void:
 	var drop_id := drop.get_instance_id()
 	_active_drops[drop_id] = {
 		"drop": drop,
-		"owner_id": owner_player.get_instance_id() if owner_player != null else 0,
+		"owner_profile_id": owner_profile_id,
 	}
-	# Cleanup si el drop se libera por cualquier motivo
 	drop.tree_exited.connect(func(): _active_drops.erase(drop_id))
 
-	# Owner-left: si el owner sale de la escena antes del expire, libera o despawn
-	if owner_player != null:
-		owner_player.tree_exited.connect(
-			func(): _on_owner_left(drop_id),
-			CONNECT_ONE_SHOT
-		)
+	# Free-for-all desde spawn (kill ambiente o pool vacio) → solo timer total 300s.
+	if owner_profile_id == "":
+		_schedule_final_despawn(drop_id, DESPAWN_TOTAL_SEC)
+		return
 
-	# Solo arrancar timer si hay owner (drops libres no necesitan expirar)
-	if owner_player != null:
-		_schedule_expire(drop_id)
+	# Bind: 300s owner-only → despawn directo.
+	if drop.bind_on_drop:
+		_schedule_bind_despawn(drop_id)
+		return
 
-
-func _schedule_expire(drop_id: int) -> void:
-	var timer := get_tree().create_timer(OWNER_WINDOW_SEC)
-	timer.timeout.connect(func(): _expire_drop(drop_id))
+	# Normal: 180s owner-lock → mark_free → 120s free → despawn.
+	_schedule_owner_lock_expire(drop_id)
 
 
-func _expire_drop(drop_id: int) -> void:
+func _schedule_owner_lock_expire(drop_id: int) -> void:
+	var timer := get_tree().create_timer(OWNER_LOCK_SEC)
+	timer.timeout.connect(func(): _on_owner_lock_expired(drop_id))
+
+
+func _schedule_final_despawn(drop_id: int, delay: float) -> void:
+	var timer := get_tree().create_timer(delay)
+	timer.timeout.connect(func(): _force_despawn(drop_id, "despawn_timeout"))
+
+
+func _schedule_bind_despawn(drop_id: int) -> void:
+	var timer := get_tree().create_timer(BIND_LOCK_SEC)
+	timer.timeout.connect(func(): _force_despawn(drop_id, "bind_expired"))
+
+
+func _on_owner_lock_expired(drop_id: int) -> void:
 	var rec: Dictionary = _active_drops.get(drop_id, {})
 	if rec.is_empty():
 		return
@@ -99,89 +201,25 @@ func _expire_drop(drop_id: int) -> void:
 		return
 	if drop.is_despawning:
 		return
-	if drop.bind_on_drop:
-		# Quest/boss item — despawn con FX (VFX hook en commit 4)
-		drop.despawn_now("bind_expired")
-		drop_expired.emit(drop, "bind_expired")
-	else:
-		# Transferible — free for all
-		drop.mark_free()
-		drop_expired.emit(drop, "free_for_all")
-	_active_drops.erase(drop_id)
+	drop.mark_free()
+	drop_expired.emit(drop, "free_for_all")
+	# Segundo timer: 120s free → despawn.
+	_schedule_final_despawn(drop_id, FREE_WINDOW_SEC)
 
 
-func _on_owner_left(drop_id: int) -> void:
+func _force_despawn(drop_id: int, reason: String) -> void:
 	var rec: Dictionary = _active_drops.get(drop_id, {})
 	if rec.is_empty():
 		return
 	var drop: GroundItem = rec["drop"]
-	if not is_instance_valid(drop) or drop.is_despawning:
-		return
-	if drop.bind_on_drop:
-		drop.despawn_now("owner_left_bind")
-		drop_expired.emit(drop, "owner_left_bind")
+	if not is_instance_valid(drop):
 		_active_drops.erase(drop_id)
-	else:
-		# Transferible: libera inmediato (brief: "Owner abandona sesión → libera inmediato")
-		drop.mark_free()
-		drop_expired.emit(drop, "owner_left_free")
-
-
-## Owner resolution:
-## - Sin attackers → null (libre siempre).
-## - Killing blow con >=60% daño → ese player.
-## - Daño compartido (killer <60%) → round-robin FIFO entre contributors >=10%.
-func _resolve_owner(damage_log: Dictionary, attackers_map: Dictionary) -> Node:
-	if damage_log.is_empty():
-		return null
-	var total_dmg: float = 0.0
-	var killer_id: int = 0
-	var killer_dmg: float = 0.0
-	for att_id in damage_log:
-		var d: float = damage_log[att_id]
-		total_dmg += d
-		if d > killer_dmg:
-			killer_dmg = d
-			killer_id = att_id
-	if total_dmg <= 0.0 or killer_id == 0:
-		return null
-
-	var killer_share: float = killer_dmg / total_dmg
-	var killer_node: Node = attackers_map.get(killer_id, null)
-
-	# Killer solo o con mayoría >=60% → owner directo
-	if killer_share >= KILLER_MAJORITY_THRESHOLD:
-		return _valid_or_null(killer_node)
-
-	# Daño compartido — round-robin FIFO
-	return _round_robin_pick(damage_log, attackers_map, total_dmg)
-
-
-func _round_robin_pick(damage_log: Dictionary, attackers_map: Dictionary, total: float) -> Node:
-	var candidates: Array[int] = []
-	for att_id in damage_log:
-		if (damage_log[att_id] / total) >= CONTRIB_MIN_SHARE:
-			# Solo contar si el Node sigue vivo
-			var n: Node = attackers_map.get(att_id, null)
-			if _valid_or_null(n) != null:
-				candidates.append(att_id)
-	if candidates.is_empty():
-		return null
-
-	# Pick primer candidato en la queue FIFO; si queue vacía, tomar candidates[0]
-	for id in _round_robin_queue:
-		if id in candidates:
-			_round_robin_queue.erase(id)
-			_round_robin_queue.append(id)
-			return attackers_map[id]
-
-	var picked: int = candidates[0]
-	_round_robin_queue.append(picked)
-	return attackers_map[picked]
-
-
-func _valid_or_null(n: Node) -> Node:
-	return n if (n != null and is_instance_valid(n)) else null
+		return
+	if drop.is_despawning:
+		return
+	drop.despawn_now(reason)
+	drop_expired.emit(drop, reason)
+	_active_drops.erase(drop_id)
 
 
 func _pick_radial_position(center: Vector3, occupied: Dictionary, query_node: Node) -> Vector3:

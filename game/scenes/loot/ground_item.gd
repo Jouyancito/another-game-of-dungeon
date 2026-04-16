@@ -1,18 +1,17 @@
 class_name GroundItem
 extends Area3D
 
-## Drop en mundo tipo Metin2 — manejado por DropController.
-## Ownership, expiración y bind_on_drop se agregan en commits posteriores.
+## Drop en mundo — canon drop-ownership v2.
+## Ownership por profile_id persistente (sobrevive reload/respawn).
+## Timers viven en DropController; GroundItem expone estado + visuals.
 
 signal despawned(item: GroundItem, reason: String)
 signal vfx_despawn_requested(item: GroundItem, reason: String, color: Color)
 
-@export var despawn_time := 120.0
-
 var item_id: String = ""
 var item_quantity: int = 1
 var item_data: Dictionary = {}
-var owner_id: int = 0               # 0 = libre / instance_id del player dueño
+var owner_profile_id: String = ""   # "" = libre / profile_id del dueno
 var owner_name: String = ""
 var is_free := false
 var is_despawning := false
@@ -35,18 +34,22 @@ func _ready() -> void:
 
 
 ## Llamar ANTES de add_child.
-func setup(id: String, quantity: int = 1, owner_player: Node = null) -> void:
+## owner_player: Node para resolver display_name (opcional, solo para label).
+## owner_pid: profile_id persistente — canon drop-ownership v2.
+func setup(id: String, quantity: int = 1, owner_player: Node = null, owner_pid: String = "") -> void:
 	item_id = id
 	item_quantity = quantity
 	item_data = ItemDatabase.get_item(id)
 	bind_on_drop = item_data.get("bind_on_drop", false)
+	owner_profile_id = owner_pid
 	if owner_player != null:
-		owner_id = owner_player.get_instance_id()
 		var n: Variant = owner_player.get("display_name")
 		if n != null and str(n) != "":
 			owner_name = str(n)
 		else:
 			owner_name = String(owner_player.name)
+	elif owner_pid == "":
+		is_free = true
 
 
 ## Animacion de spawn estilo Metin2: arco pequeno desde el mob hacia la posicion final.
@@ -66,14 +69,16 @@ func arc_to(target: Vector3) -> void:
 func can_pickup_by(player: Node) -> bool:
 	if is_despawning:
 		return false
-	if is_free or owner_id == 0:
+	if is_free or owner_profile_id == "":
 		return true
-	return player.get_instance_id() == owner_id
+	if not player.has_method("get_profile_id"):
+		return false
+	return str(player.call("get_profile_id")) == owner_profile_id
 
 
 func mark_free() -> void:
 	is_free = true
-	owner_id = 0
+	owner_profile_id = ""
 	owner_name = ""
 	_refresh_label()
 
@@ -181,7 +186,7 @@ func _refresh_label() -> void:
 	var name_txt: String = item_data.get("name", "???")
 	if item_quantity > 1:
 		name_txt += " x%d" % item_quantity
-	if owner_id != 0 and owner_name != "":
+	if owner_profile_id != "" and owner_name != "":
 		name_txt += "\n[owner: %s]" % owner_name
 	LootStyle.style_world_label(label_3d, name_txt, color)
 	LootStyle.resize_label_bg(_label_bg, label_3d, name_txt.count("\n") + 1)
