@@ -2,20 +2,28 @@ class_name MimicEnemy
 extends BaseEnemy
 
 ## Mímico — cofre trampa. State machine DISGUISED → REVEALING → AGGRESSIVE.
-## Issue #60. Canon stats/drops sync pendiente con C (dept/design).
-## Mesh + reveal anim reemplazados por D (dept/art/drop-vfx).
+## Issue #60. Canon completo `game/docs/balance/_mimic.md`.
+## Mesh + anim `reveal`: `mimic_chest.tscn` (D). VFX reveal: `scenes/enemy/vfx/mimic_reveal_vfx.tscn`.
+
+# TODO spawn gate: mimic debe spawnearse como reemplazo de 5% de chests sub-B+
+# (canon _mimic.md §2.1-2.2). Requiere hook en loot_chest/spawner con flag
+# `arena.has_sub_b_enemies` + cooldown global "max 1 activo por escena".
+# Issue separado — no implementar en este merge.
 
 enum State { DISGUISED, REVEALING, AGGRESSIVE }
 
 ## Signals contract cluster:
-## D (art) escucha disguise_revealed para gatillar VFX reveal (partículas + sonido).
+## D (art) escucha disguise_revealed para gatillar VFX (ya wireado acá).
 ## C (design) escucha mimic_died para achievement Frieren.
 signal disguise_revealed(mimic: Node)
 signal mimic_died(mimic: Node)
 
+const MIMIC_REVEAL_VFX := preload("res://scenes/enemy/vfx/mimic_reveal_vfx.tscn")
+
 @export var reveal_duration := 0.6      # Fallback si AnimationPlayer no tiene "reveal"
 @export var bite_range := 1.5
 @export var bite_cooldown := 1.2
+@export var defense := 3                # Canon _mimic.md §1.2 piso 1 sub-B
 
 var state: State = State.DISGUISED
 
@@ -25,17 +33,21 @@ var state: State = State.DISGUISED
 func _on_enemy_ready() -> void:
 	enemy_type = "mimic"
 	display_name = "Mímico"
-	# TODO: sync con canon C (balance_v2 §3.1 sub-tier B)
-	health = 110.0
-	damage = 15.0
-	xp_reward = 50.0
+	# Canon _mimic.md §1.2 piso 1 sub-B
+	health = 86.0
+	damage = 8.0
+	xp_reward = 42.0  # 22 base + 20 encounter bonus (canon §1.2)
 	attack_range = bite_range
 	attack_cooldown = bite_cooldown
 	speed = 3.5
 	aggression = AggressionType.AGGRESSIVE  # aplica post-reveal
+	# Canon §1.3: cofre pesado, anclado. No volar al primer golpe.
+	knockback_resistance = 0.9
 
-	# DISGUISED setup: parecer cofre real para el player
-	add_to_group("interactables")
+	# DISGUISED setup: .tscn de D setea groups=[enemies, interactables].
+	# Mientras DISGUISED, fuera de "enemies" para no aparecer en target frame
+	# ni recibir raycasts. Se re-agrega al transicionar AGGRESSIVE.
+	remove_from_group("enemies")
 
 
 func _physics_process(delta: float) -> void:
@@ -50,6 +62,15 @@ func _physics_process(delta: float) -> void:
 			move_and_slide()
 		State.AGGRESSIVE:
 			super._physics_process(delta)
+
+
+## Canon §3.2: inmune a daño durante DISGUISED/REVEALING (anti-cheese cheese).
+## AGGRESSIVE aplica DEF canon sub-B P1 (defense=3) antes del super.
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
+	if state != State.AGGRESSIVE:
+		return
+	var effective := maxf(amount - float(defense), 1.0)
+	super.take_damage(effective, hit_direction, knockback_force, attacker_str, attacker)
 
 
 ## Hook de base_player._try_interact_nearby() — mismo path que loot_chest.open().
@@ -81,7 +102,18 @@ func _trigger_reveal(player: Node3D) -> void:
 	hide_label()
 	disguise_revealed.emit(self)
 
-	# Anim placeholder — D reemplaza. Fallback Timer si no hay AnimationPlayer.
+	# VFX burst púrpura — self-free a ~0.5s.
+	var vfx = MIMIC_REVEAL_VFX.instantiate()
+	get_tree().current_scene.add_child(vfx)
+	vfx.global_position = global_position + Vector3(0, 0.5, 0)  # altura boca
+
+	# Camera shake — TODO: camera del player aún no expone shake().
+	# Crear issue follow-up cuando se implemente el sistema de shake.
+	var cam := get_viewport().get_camera_3d()
+	if cam and cam.has_method("shake"):
+		cam.shake(0.3, 0.15)
+
+	# Anim reveal (D). Fallback Timer si la anim no existe.
 	if _anim != null and _anim.has_animation("reveal"):
 		_anim.play("reveal")
 		await _anim.animation_finished
@@ -94,7 +126,7 @@ func _trigger_reveal(player: Node3D) -> void:
 	# Transición AGGRESSIVE
 	state = State.AGGRESSIVE
 	add_to_group("enemies")
-	# Target = player que disparó el reveal (quien abrió el "cofre")
+	# Canon §3.3: target lock al jugador que hizo interact.
 	if player != null and is_instance_valid(player):
 		target = player
 	else:

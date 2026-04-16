@@ -328,6 +328,19 @@ func _register_items() -> void:
 		"stackable": true, "max_stack": 99, "value": 2,
 	})
 
+	# --- Mímico (issue #60) — material flag garantizado ---
+
+	_add({
+		"id": "dentellada_mimica",
+		"name": "Dentellada Mímica",
+		"description": "Colmillo de un mímico cazado. Trofeo temático — crafting gate futuro.",
+		"type": "material", "subtype": "monster_drop", "slot": "",
+		"grid_size": Vector2i(1, 1), "rarity": "rare",
+		"stats": {}, "level_req": 1, "item_level": 3,
+		"stackable": true, "max_stack": 99, "value": 12,
+		"bind_on_drop": false,  # Canon _mimic.md §4.4: NO bind (floor+random standard)
+	})
+
 	# --- Bind items sub-C P1 (bandit_archer / bandit_melee) ---
 
 	_add({
