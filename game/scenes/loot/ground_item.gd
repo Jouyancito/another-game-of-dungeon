@@ -7,6 +7,7 @@ extends Area3D
 
 signal despawned(item: GroundItem, reason: String)
 signal vfx_despawn_requested(item: GroundItem, reason: String, color: Color)
+signal became_free(item: GroundItem)
 
 var item_id: String = ""
 var item_quantity: int = 1
@@ -81,6 +82,7 @@ func mark_free() -> void:
 	owner_profile_id = ""
 	owner_name = ""
 	_refresh_label()
+	became_free.emit(self)
 
 
 func pickup() -> Dictionary:
