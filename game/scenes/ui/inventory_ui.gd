@@ -5,6 +5,7 @@ extends CanvasLayer
 @export var cell_size := 45
 @export var grid_cols := 12
 @export var grid_rows := 7
+@export var tooltip_max_width: float = 280.0  # cap ancho tooltip (wrap kicks in at this width)
 
 # Referencia al inventario lógico del jugador
 var inventory: Inventory = null
@@ -33,7 +34,7 @@ var _equipment_panel: EquipmentPanel = null
 @onready var _coin_label: Label = $Background/VBoxContainer/FooterRow/CoinLabel
 @onready var _close_btn: Button = $Background/VBoxContainer/TitleRow/CloseBtn
 @onready var _tooltip: PanelContainer = $Tooltip
-@onready var _tooltip_label: Label = $Tooltip/MarginContainer/TooltipLabel
+@onready var _tooltip_label: RichTextLabel = $Tooltip/MarginContainer/TooltipLabel
 @onready var _context_menu: PopupMenu = $ContextMenu
 
 
@@ -42,7 +43,8 @@ func _ready() -> void:
 	visible = false
 
 	_tooltip.visible = false
-	_tooltip_label.custom_minimum_size = Vector2(280, 0)  # fix: sin esto el autowrap colapsa
+	_tooltip.custom_minimum_size = Vector2(tooltip_max_width, 0)
+	_tooltip_label.custom_minimum_size = Vector2(tooltip_max_width - 16.0, 0)  # 16 = 2*8 margin
 	_context_menu.visible = false
 
 	_close_btn.pressed.connect(_close)
@@ -684,14 +686,19 @@ func _update_tooltip(pos: Vector2i, global_mouse: Vector2) -> void:
 		_tooltip.visible = false
 		return
 
-	var text := "[%s]\n%s\n" % [item_data.get("name", ""), item_data.get("description", "")]
+	var rarity: String = item_data.get("rarity", "common")
+	var rarity_hex: String = _rarity_color_hex(rarity)
+	var item_name: String = item_data.get("name", "")
+	var desc: String = item_data.get("description", "")
+
+	var text := "[color=#%s][b]%s[/b][/color]\n%s" % [rarity_hex, item_name, desc]
 	var stats: Dictionary = item_data.get("stats", {})
 	for stat_key in stats.keys():
-		text += "+%s %s\n" % [stats[stat_key], stat_key]
-	var rarity: String = item_data.get("rarity", "common")
-	text += "Rareza: %s" % rarity
+		text += "\n+%s %s" % [stats[stat_key], stat_key]
+	text += "\n[color=#%s]Rareza: %s[/color]" % [rarity_hex, rarity]
 
 	_tooltip_label.text = text
+	_tooltip.reset_size()
 	_tooltip.visible = true
 
 	var vp_size := get_viewport().get_visible_rect().size
@@ -702,6 +709,11 @@ func _update_tooltip(pos: Vector2i, global_mouse: Vector2) -> void:
 	if tip_pos.y + tip_size.y > vp_size.y:
 		tip_pos.y = global_mouse.y - tip_size.y - 8
 	_tooltip.global_position = tip_pos
+
+
+func _rarity_color_hex(rarity: String) -> String:
+	var c: Color = ItemDatabase.RARITY_COLORS.get(rarity, Color.WHITE)
+	return c.to_html(false)
 
 
 func _pixel_to_grid(pixel: Vector2) -> Vector2i:

@@ -4,6 +4,8 @@ class_name EquipmentPanel
 # Panel de paper doll — muestra los 12 slots de equipamiento alrededor de una
 # silueta humanoide. Abre junto con el inventario al presionar TAB.
 
+@export var tooltip_max_width: float = 280.0  # cap ancho tooltip
+
 # --- Datos de equipamiento ---
 var equipped: Dictionary = {}  # slot_name -> item_id (vacío = nada)
 
@@ -54,8 +56,8 @@ var _paper_doll: Control = null  # nodo de dibujo
 var _player: Node = null  # referencia al jugador para leer equipment
 
 # Tooltip
-@onready var _tooltip: PanelContainer = $Tooltip
-@onready var _tooltip_label: Label    = $Tooltip/MarginContainer/TooltipLabel
+@onready var _tooltip: PanelContainer     = $Tooltip
+@onready var _tooltip_label: RichTextLabel = $Tooltip/MarginContainer/TooltipLabel
 
 
 func _ready() -> void:
@@ -63,7 +65,8 @@ func _ready() -> void:
 	visible = false
 	_build_ui()
 	_tooltip.visible = false
-	_tooltip_label.custom_minimum_size = Vector2(280, 0)  # fix: sin esto autowrap colapsa a 1 letra/línea
+	_tooltip.custom_minimum_size = Vector2(tooltip_max_width, 0)
+	_tooltip_label.custom_minimum_size = Vector2(tooltip_max_width - 16.0, 0)  # 16 = 2*8 margin
 
 
 func _build_ui() -> void:
@@ -309,17 +312,21 @@ func _update_tooltip(slot_key: String, global_mouse: Vector2) -> void:
 		_tooltip.visible = false
 		return
 
-	var text: String = "[%s]\n%s\n%s\n" % [
-		slot_label,
-		item_data.get("name", item_id),
-		item_data.get("description", "")
+	var rarity: String = item_data.get("rarity", "common")
+	var rarity_hex: String = _rarity_color_hex(rarity)
+	var item_name: String = item_data.get("name", item_id)
+	var desc: String = item_data.get("description", "")
+
+	var text: String = "[color=#888888]%s[/color]\n[color=#%s][b]%s[/b][/color]\n%s" % [
+		slot_label, rarity_hex, item_name, desc
 	]
 	var stats: Dictionary = item_data.get("stats", {})
 	for stat_key in stats.keys():
-		text += "+%s %s\n" % [stats[stat_key], stat_key]
-	text += "Rareza: %s" % item_data.get("rarity", "común")
+		text += "\n+%s %s" % [stats[stat_key], stat_key]
+	text += "\n[color=#%s]Rareza: %s[/color]" % [rarity_hex, rarity]
 
 	_tooltip_label.text = text
+	_tooltip.reset_size()
 	_tooltip.visible = true
 
 	var vp_size := get_viewport().get_visible_rect().size
@@ -330,6 +337,11 @@ func _update_tooltip(slot_key: String, global_mouse: Vector2) -> void:
 	if tip_pos.y + tip_size.y > vp_size.y:
 		tip_pos.y = global_mouse.y - tip_size.y - 8
 	_tooltip.global_position = tip_pos
+
+
+func _rarity_color_hex(rarity: String) -> String:
+	var c: Color = ItemDatabase.RARITY_COLORS.get(rarity, Color.WHITE)
+	return c.to_html(false)
 
 
 # ---------------------------------------------------------------------------
