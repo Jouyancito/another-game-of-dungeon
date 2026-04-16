@@ -112,6 +112,57 @@ Probabilidades base de `p1_economy.md §4 sub-B`:
 
 ---
 
+## 2bis. Mímico — trampa sub-B (Issue #60)
+
+Mímico es enemigo sub-B con comportamiento **trampa disfrazada de loot_chest**. Canon completo: `_mimic.md`.
+
+### Stats canon (`balance_v2 §3.2` sub-B × piso)
+
+| Piso | HP | DMG | DEF | XP (base + encounter +20) |
+|------|----|----|----|---------------------------|
+| 1 | 86 | 8 | 3 | 22 + 20 = **42** |
+| 10 | 173 | 16 | 14 | 36 + 20 = 56 |
+| 25 | 400 | 32 | 32 | 60 + 20 = 80 |
+
+Resistencias: knockback 0.9, stun 0.5, elementales neutrales.
+
+### Spawn — riesgo loot_chest vs mimic por piso
+
+Probabilidad de que un spawn de `chest pequeño` sea reemplazado por mímico:
+
+| Piso | Chance mimic / chest pequeño | Gate |
+|------|------------------------------|------|
+| 1 arena sub-A (early) | **0%** | OFF — lección "chest = loot" |
+| 1 arena sub-B+ | **5%** | Primera exposición |
+| 2 | 7% | Ramp |
+| 3-5 | 8-10% | Pico P1-tier |
+| 6+ | 10% | Steady MMO |
+
+**Cooldown global**: max 1 mímico activo por escena. Solo disguise de chest **pequeño** (no mediano/grande).
+
+### Drops mímico — tier sub-B boosted
+
+| Slot | Garantía | Contenido |
+|------|----------|-----------|
+| Material flag (100%) | `dentellada_mimica` ×1 | Crafting gate futuro + prueba del kill |
+| Oro (100%) | 20-50 oro | 2× chest pequeño P1 (ver §5 economy) |
+| Item principal (100%) | ≥ Rare | Roll: 60% Rare / 35% Epic / 5% Legendary |
+| Legendary en P1 | — | Sustituido por Epic (regla `p1_economy.md §5`) |
+
+**Pool gear**: reusa pool sub-B Rare/Epic del piso actual (ver §2 wasp/wolf para P1).
+
+**Bind-on-drop**: **NO**. Drops canon ownership v2 regular (party-first pool + floor+random). Ver `_drop_ownership_canon.md §1-2`.
+
+### Pergamino Auto-Revive — slot reservado (NO P1)
+
+Cross-ref issue #55 (downed state futuro). Mímico podría dropear `Pergamino Auto-Revive` en chance baja (~2-3%) cuando exista downed state. Solo reserva de schema, **no implementar P1**.
+
+### Achievement "La Suerte de Frieren"
+
+Trigger: `mimics_killed == 1` (primer mímico matado del personaje). Puro flavor, entrada en Journal. Canon detalle `_mimic.md §5`.
+
+---
+
 ## 3. Sub-C — Alfa / Líder (bandit_archer, bandit_melee)
 
 Probabilidades base de `p1_economy.md §4 sub-C`:
