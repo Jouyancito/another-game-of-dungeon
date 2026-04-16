@@ -1,8 +1,22 @@
-# Class Skills — Dungeon Party
+> ⚠️ **DEPRECATED — 2026-04-16**
+>
+> Este documento está obsoleto. Reemplazado por:
+> - `game/docs/skills/_system.md` — reglas del sistema (gating, recursos, ascendencias, evolución)
+> - `game/docs/skills/{clase}.md` — skills canon per-clase (warrior, mage, archer, cleric, necromancer, danzante_sombras)
+> - `game/docs/skills/_synergies.md` — combos cross-class documentados
+> - `game/docs/skills/_status_effects.md` — catálogo status canon
+>
+> El modelo de este doc ("4 fijas + 2 variables", XP por uso, Maestría por drop) fue reemplazado por el modelo `_system.md` v1.0 (10-12 skills por clase, skill points puros cap 15, evolución lvl 15 + char 50, recurso único por clase, ascendencia lvl 25).
+>
+> **Mantener archivo solo por trazabilidad histórica. NO usar como referencia.** Issue #46.
 
-**Versión**: 1.0 (PLACEHOLDERS — rellenar iterando)
+---
+
+# Class Skills — Dungeon Party (DEPRECATED v1.0)
+
+**Versión**: 1.0 (PLACEHOLDERS — ver deprecation notice arriba)
 **Fecha**: 2026-04-12
-**Estado**: Draft — estructura completa con skills por llenar
+**Estado**: DEPRECATED 2026-04-16 — reemplazado por `game/docs/skills/_system.md` + per-class docs
 **Departamento**: Game Design
 **Relacionado**: `stats_system.md`, `balance_v2.md`, `systems_v2.md`, `DESIGN_BRIEF.md`
 
