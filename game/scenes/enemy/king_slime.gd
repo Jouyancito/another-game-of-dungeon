@@ -115,10 +115,12 @@ func _setup_contact_aura() -> void:
 func _on_contact_aura_entered(body: Node) -> void:
 	if body.is_in_group("player") and not _players_in_contact.has(body):
 		_players_in_contact.append(body)
-		# Guardar speed original y aplicar slow al stat directamente.
+		# TRUE orig: si un proj_slow ya esta activo, la aura NO debe
+		# guardar el speed ya reducido — lee el true orig desde meta proj.
 		if "speed" in body and not body.has_meta("king_slime_orig_speed"):
-			body.set_meta("king_slime_orig_speed", body.speed)
-			body.speed = body.speed * CONTACT_SLOW
+			var true_orig: float = body.get_meta("king_slime_proj_slow", body.speed)
+			body.set_meta("king_slime_orig_speed", true_orig)
+			body.speed = true_orig * CONTACT_SLOW
 		_attach_gelatin_overlay(body)
 
 
