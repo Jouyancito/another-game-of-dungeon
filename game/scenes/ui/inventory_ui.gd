@@ -494,7 +494,9 @@ func _grid_drop_data(at_position: Vector2, data: Variant) -> void:
 			return
 		var player := _find_player()
 		if player != null and player.has_method("unequip_slot"):
-			player.unequip_slot(slot_key)
+			var ok: bool = player.unequip_slot(slot_key)
+			if not ok and _equipment_panel != null:
+				_equipment_panel.flash_slot_fail(slot_key)
 		_grid_panel.queue_redraw()
 		return
 

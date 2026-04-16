@@ -49,11 +49,21 @@ const COLOR_BORDER    := Color(0.30, 0.30, 0.35, 1.0)
 const COLOR_HOVER     := Color(1.0, 1.0, 1.0, 0.10)
 const COLOR_SILHOUETTE := Color(0.22, 0.22, 0.27, 1.0)
 const COLOR_LABEL     := Color(0.45, 0.45, 0.50, 1.0)
+const COLOR_FLASH_FAIL := Color(0.9, 0.15, 0.15, 0.55)
+const FLASH_DURATION := 0.45
 
 # --- Estado interno ---
 var _hovered_slot: String = ""
 var _paper_doll: Control = null  # nodo de dibujo
 var _player: Node = null  # referencia al jugador para leer equipment
+
+# Flash visual cuando unequip falla (inventario lleno)
+var _flash_slot: String = ""
+var _flash_time_left: float = 0.0
+
+# Context menu para right-click sobre slot equipado
+var _context_menu: PopupMenu = null
+var _context_slot: String = ""
 
 # Tooltip
 @onready var _tooltip: PanelContainer     = $Tooltip
@@ -64,9 +74,29 @@ func _ready() -> void:
 	# Somos un Control puro — no CanvasLayer. El InventoryUI nos maneja.
 	visible = false
 	_build_ui()
-	_tooltip.visible = false
+	_build_context_menu()
 	_tooltip.custom_minimum_size = Vector2(tooltip_max_width, 0)
 	_tooltip_label.custom_minimum_size = Vector2(tooltip_max_width - 16.0, 0)  # 16 = 2*8 margin
+	set_process(false)
+
+
+func _build_context_menu() -> void:
+	_context_menu = PopupMenu.new()
+	_context_menu.name = "SlotContextMenu"
+	_context_menu.id_pressed.connect(_on_context_menu_item)
+	add_child(_context_menu)
+
+
+func _process(delta: float) -> void:
+	if _flash_time_left <= 0.0:
+		set_process(false)
+		return
+	_flash_time_left -= delta
+	if _paper_doll:
+		_paper_doll.queue_redraw()
+	if _flash_time_left <= 0.0:
+		_flash_slot = ""
+		set_process(false)
 
 
 func _build_ui() -> void:
@@ -204,6 +234,12 @@ func _draw_slots(doll: Control) -> void:
 		if _hovered_slot == slot_key:
 			doll.draw_rect(rect, COLOR_HOVER)
 
+		# Flash rojo — unequip falló (inventario lleno)
+		if _flash_slot == slot_key and _flash_time_left > 0.0:
+			var flash_col := COLOR_FLASH_FAIL
+			flash_col.a = COLOR_FLASH_FAIL.a * (_flash_time_left / FLASH_DURATION)
+			doll.draw_rect(rect, flash_col)
+
 		# Borde
 		var border_col := COLOR_BORDER
 		var item_id: String = equipped.get(slot_key, "")
@@ -264,8 +300,31 @@ func _on_doll_input(event: InputEvent, doll: Control) -> void:
 		var slot_key := _slot_at(event.position)
 		if slot_key == "":
 			return
-		if event.button_index == MOUSE_BUTTON_RIGHT or event.double_click:
+		# Double-click = atajo directo; right-click = menú contextual
+		if event.double_click:
 			_try_unequip(slot_key)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			_open_context_menu(slot_key, event.global_position)
+
+
+func _open_context_menu(slot_key: String, global_pos: Vector2) -> void:
+	# Solo abrir menú si el slot tiene un item equipado
+	if equipped.get(slot_key, "") == "":
+		return
+	_context_slot = slot_key
+	_context_menu.clear()
+	_context_menu.add_item("Desequipar", 0)
+	_tooltip.visible = false
+	_context_menu.popup(Rect2i(int(global_pos.x), int(global_pos.y), 0, 0))
+
+
+func _on_context_menu_item(id: int) -> void:
+	if _context_slot == "":
+		return
+	match id:
+		0:
+			_try_unequip(_context_slot)
+	_context_slot = ""
 
 
 func _try_unequip(slot_key: String) -> void:
@@ -273,8 +332,22 @@ func _try_unequip(slot_key: String) -> void:
 		return
 	var success: bool = _player.unequip_slot(slot_key)
 	if not success:
+		# Inventario lleno (o sin item) — feedback visual rojo
+		flash_slot_fail(slot_key)
 		return
 	_tooltip.visible = false
+	if _paper_doll:
+		_paper_doll.queue_redraw()
+
+
+## Dispara flash rojo sobre el slot — feedback de unequip fallido.
+## Público para que inventory_ui pueda llamarlo al fallar el drag out.
+func flash_slot_fail(slot_key: String) -> void:
+	if slot_key == "" or not SLOT_POSITIONS.has(slot_key):
+		return
+	_flash_slot = slot_key
+	_flash_time_left = FLASH_DURATION
+	set_process(true)
 	if _paper_doll:
 		_paper_doll.queue_redraw()
 
