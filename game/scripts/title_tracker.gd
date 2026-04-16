@@ -55,6 +55,14 @@ func on_enemy_killed(enemy_type: String) -> void:
 		_grant("exterminator")
 
 
+## Mímico matado — stub, canon formato achievement "Frieren" lo define C (dept/design).
+func notify_mimic_killed() -> void:
+	var stats := _get_stats()
+	stats["mimics_killed"] = stats.get("mimics_killed", 0) + 1
+	_save_stats(stats)
+	print("[TitleTracker] Mímico matado (total: %d)" % stats["mimics_killed"])
+
+
 func on_player_death() -> void:
 	var stats := _get_stats()
 	stats["deaths"] = stats.get("deaths", 0) + 1
