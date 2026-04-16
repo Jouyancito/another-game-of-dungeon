@@ -110,7 +110,7 @@ Regla general canon:
 
 > **"Items de evento/ritual = bind-on-drop. Suerte de run = suerte tuya."**
 
-Los drops con flag `bind_on_drop = TRUE` ignoran el reparto floor+random y van al jugador trigger específico. No tienen timer Free — persisten 300s owner-only hasta pickup o despawn. Lista P1 completa en `p1_loot_table.md §7`. Reglas completas en `_drop_ownership_canon.md §5`.
+Los drops con flag `bind_on_drop = TRUE` ignoran el reparto floor+random y van al jugador trigger específico. No tienen timer Free — persisten 300s owner-only hasta pickup o despawn. Lista P1 completa en `p1_loot_table.md §8`. Reglas completas en `_drop_ownership_canon.md §5`.
 
 Aplica a:
 - Items de evento (Asta Antigua, quest NPC drops, fauna pacífica interactions).

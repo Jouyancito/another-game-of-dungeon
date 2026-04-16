@@ -3,7 +3,7 @@
 **Versión**: 2.0
 **Fecha**: 2026-04-16
 **Estado**: Canon. Regla global cross-bioma/cross-tier. Reemplaza v1 (2026-04-15) post Judgment Day 2026-04-16.
-**Depende**: `_system.md` (party futuro), `p1_economy.md §6`, `p1_loot_table.md §7` (bind items P1).
+**Depende**: `_system.md` (party futuro), `p1_economy.md §6`, `p1_loot_table.md §8` (bind items P1).
 **Referencian**: `p1_economy.md`, `p1_loot_table.md`, `game/docs/art/drop_vfx.md`, futuras tablas boss.
 **Audiencia**: dept Gameplay (implementación `drop_controller.gd`, `party.gd`, `ground_item.gd`), dept UI (indicadores), dept Art (VFX), dept Design (futuras tablas loot).
 
@@ -129,7 +129,7 @@ Items con flag `bind_on_drop = TRUE`. Ignoran reparto floor+random y se asignan 
 
 ### 5.2 Lista canon P1
 
-Derivada de `p1_loot_table.md §7`:
+Derivada de `p1_loot_table.md §8`:
 
 | Item | Fuente | Trigger del bind |
 |------|--------|------------------|
