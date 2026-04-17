@@ -1,0 +1,26 @@
+[gd_scene load_steps=4 format=3 uid="uid://ambient_butterfly"]
+
+[ext_resource type="Script" path="res://scenes/fauna/butterfly.gd" id="1_butterfly"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_wing"]
+size = Vector2(0.25, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="mat_wing"]
+albedo_color = Color(1.0, 0.55, 0.1, 1)
+emission_enabled = true
+emission = Color(1.0, 0.7, 0.3, 1)
+emission_energy_multiplier = 0.25
+cull_mode = 2
+
+[node name="Butterfly" type="Node3D"]
+script = ExtResource("1_butterfly")
+
+[node name="WingLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, 0, 0)
+mesh = SubResource("QuadMesh_wing")
+material_override = SubResource("mat_wing")
+
+[node name="WingRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0, 0)
+mesh = SubResource("QuadMesh_wing")
+material_override = SubResource("mat_wing")
