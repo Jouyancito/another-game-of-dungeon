@@ -62,6 +62,17 @@ var _sighted_once := false  # flag para Journal.sight — evitar spam cada frame
 # profile_id del ultimo attacker que puso el HP a 0. "" = kill por ambiente.
 var _killer_profile_id: String = ""
 
+# Status effects activos — canon _status_effects.md §2.
+# Schema por efecto:
+#   stun  → {time_left: float}
+#   bleed → {time_left: float, tick_timer: float, dmg_per_tick: float, source}
+#   weak  → {time_left: float, dmg_mult: float}
+# Refresh-to-max al reapply (sin stacks en Fase 1 — bleed stacks son futuros).
+var status_effects: Dictionary = {}
+
+signal status_applied(status_name: StringName, duration: float)
+signal status_removed(status_name: StringName)
+
 
 func _ready() -> void:
 	await get_tree().process_frame
@@ -227,8 +238,16 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
+	_tick_statuses(delta)
 	_apply_gravity(delta)
 	_validate_target()
+
+	# Stun pausa AI (movement + attack). Gravedad + knockback siguen aplicando arriba.
+	if has_status(&"stun"):
+		velocity.x = 0
+		velocity.z = 0
+		move_and_slide()
+		return
 
 	if target == null:
 		_idle_behavior(delta)
@@ -252,6 +271,112 @@ func _physics_process(delta: float) -> void:
 		_idle_behavior(delta)
 
 	move_and_slide()
+
+
+# ---------------------------------------------------------------------------
+# Status Effects — canon _status_effects.md §2
+# Fase 1 soporta stun / bleed / weak. Otros (burn/slow/fear/silence/taunt)
+# vendrán en fases por-clase que los apliquen.
+# ---------------------------------------------------------------------------
+
+## Aplica un status effect. duration = segundos (refresh-to-max si ya activo).
+## source es el Node atacante — usado para bleed (STR source).
+func apply_status(name: StringName, duration: float, source: Node = null) -> void:
+	if is_dead or duration <= 0.0:
+		return
+	match name:
+		&"stun":
+			_apply_stun(duration)
+		&"bleed":
+			_apply_bleed(duration, source)
+		&"weak":
+			_apply_weak(duration)
+		_:
+			push_warning("BaseEnemy.apply_status: '%s' no implementado (Fase 1 soporta stun/bleed/weak)" % name)
+
+
+func has_status(name: StringName) -> bool:
+	return status_effects.has(name)
+
+
+func get_status_time_left(name: StringName) -> float:
+	if not status_effects.has(name):
+		return 0.0
+	return float(status_effects[name].get("time_left", 0.0))
+
+
+func _apply_stun(duration: float) -> void:
+	var existing: Dictionary = status_effects.get(&"stun", {})
+	var cur: float = float(existing.get("time_left", 0.0))
+	status_effects[&"stun"] = {"time_left": maxf(cur, duration)}
+	status_applied.emit(&"stun", duration)
+
+
+func _apply_bleed(duration: float, source: Node) -> void:
+	# Bleed ignora armor. Dmg/tick: canon physical_v2(8, 0, STR, level, 0.7).
+	# Fase 1: cálculo simple — tomamos STR del source y lvl del player source.
+	var source_str: int = 0
+	var source_level: int = 1
+	if source != null:
+		if source.has_method("get_effective_stat"):
+			source_str = source.get_effective_stat("str")
+		if "level" in source:
+			source_level = source.level
+	var dmg_per_tick: float = 8.0 + float(source_str) * 0.7 * 2.0  # aprox physical_v2 con class_mult 0.7
+	var existing: Dictionary = status_effects.get(&"bleed", {})
+	var cur: float = float(existing.get("time_left", 0.0))
+	status_effects[&"bleed"] = {
+		"time_left": maxf(cur, duration),
+		"tick_timer": 1.0,
+		"dmg_per_tick": dmg_per_tick,
+		"source_level": source_level,
+	}
+	status_applied.emit(&"bleed", duration)
+
+
+func _apply_weak(duration: float) -> void:
+	var existing: Dictionary = status_effects.get(&"weak", {})
+	var cur: float = float(existing.get("time_left", 0.0))
+	status_effects[&"weak"] = {
+		"time_left": maxf(cur, duration),
+		"dmg_mult": 0.75,  # canon −25% outgoing
+	}
+	status_applied.emit(&"weak", duration)
+
+
+func _tick_statuses(delta: float) -> void:
+	if status_effects.is_empty():
+		return
+	var to_remove: Array = []
+	for name in status_effects.keys():
+		var data: Dictionary = status_effects[name]
+		data["time_left"] = float(data.get("time_left", 0.0)) - delta
+		if name == &"bleed":
+			var tt: float = float(data.get("tick_timer", 1.0)) - delta
+			if tt <= 0.0:
+				# Tick dmg, ignora armor (directo a health sin apply_physical_defense)
+				var dmg: float = float(data.get("dmg_per_tick", 0.0))
+				health -= dmg
+				_flash_damage()
+				tt = 1.0
+			data["tick_timer"] = tt
+		if data["time_left"] <= 0.0:
+			to_remove.append(name)
+		if health <= 0.0:
+			break  # resto se limpia en die
+	for name in to_remove:
+		status_effects.erase(name)
+		status_removed.emit(name)
+	# Si bleed mató al enemy, disparar death normal
+	if health <= 0.0 and not is_dead:
+		die()
+
+
+## Multiplicador de daño saliente — respeta Weak canon.
+func outgoing_damage_mult() -> float:
+	if has_status(&"weak"):
+		return float(status_effects[&"weak"].get("dmg_mult", 0.75))
+	return 1.0
 
 
 ## Determina si este enemigo debería perseguir al jugador
@@ -313,9 +438,13 @@ func _look_at_target() -> void:
 
 
 func perform_attack() -> void:
+	if has_status(&"stun"):
+		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	can_attack = false
 	if is_instance_valid(target):
-		target.take_damage(damage)
+		# Weak reduce dmg saliente −25% (canon §2.3).
+		# Pasar self como attacker permite que el player gatille Bloqueo Perfecto reflejo.
+		target.take_damage(damage * outgoing_damage_mult(), "", self)
 	await get_tree().create_timer(attack_cooldown).timeout
 	if not is_instance_valid(self):
 		return

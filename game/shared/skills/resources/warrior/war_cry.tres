@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"warrior_war_cry"
+class_id = &"warrior"
+display_name = "Grito de Guerra"
+description = "Toggle aura AOE_LARGE (10m). Drena 20 MP cada 5s. Aliados +15% DMG saliente, enemigos Weak 5s (−25% DMG). Canon warrior.md §3 SKILL 3."
+cast_type = 2
+target_type = 2
+range_m = 10.0
+radius_m = 10.0
+cone_angle_deg = 0.0
+resource_cost = 20
+resource_type = 3
+cooldown_s = 0.0
+damage_formula = 0
+base_damage = 0
+status_applied = Array[StringName]([&"weak"])
+status_duration_s = 5.0
+unlock_level = 1
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"aura", &"buff", &"debuff", &"fear"])
+dash_distance_m = 0.0
+tick_interval_s = 5.0
+tick_resource_cost = 20
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.15

@@ -387,19 +387,27 @@ func get_physical_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_str: int = str_stat + int(bonus.get("str", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.physical(base_dmg, total_str, weapon_dmg)
+	return DamageFormula.physical(base_dmg, total_str, weapon_dmg) * _skill_buff_mult()
 
 func get_magic_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_int: int = int_stat + int(bonus.get("int", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.magic(base_dmg, total_int, weapon_dmg)
+	return DamageFormula.magic(base_dmg, total_int, weapon_dmg) * _skill_buff_mult()
 
 func get_dex_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_dex: int = dex_stat + int(bonus.get("dex", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.dex(base_dmg, total_dex, weapon_dmg)
+	return DamageFormula.dex(base_dmg, total_dex, weapon_dmg) * _skill_buff_mult()
+
+
+## Multiplicador de daño saliente por buffs activos de skills (ej Grito +15%).
+## Retorna 1.0 si no hay buffs.
+func _skill_buff_mult() -> float:
+	if skills == null:
+		return 1.0
+	return skills.outgoing_damage_mult()
 
 func apply_physical_defense(raw_damage: float) -> float:
 	var total_def: int = get_effective_stat("def")
@@ -688,9 +696,14 @@ func _regenerate(delta: float) -> void:
 		health = minf(health + hp_regen, max_health)
 		health_changed.emit(health, max_health)
 
-func take_damage(amount: float, element: String = "") -> void:
+func take_damage(amount: float, element: String = "", attacker: Node = null) -> void:
 	if is_dead:
 		return
+	# Reactive parry (Bloqueo Perfecto) — si hay ventana activa absorbe+refleja.
+	if skills != null:
+		var parry: Dictionary = skills.try_trigger_reactive(amount, attacker)
+		if parry.get("absorbed", false):
+			return  # Dmg 100% absorbido — canon Bloqueo Perfecto
 	time_since_last_hit = 0.0
 	var final_damage: float
 	if element != "":

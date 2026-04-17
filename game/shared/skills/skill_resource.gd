@@ -29,3 +29,21 @@ enum DamageFormulaType { NONE, PHYSICAL_V2, MAGIC_V2, HEAL, TRUE_DAMAGE }
 @export var max_skill_level: int = 15
 @export var evolution_id: StringName = ""
 @export var tags: Array[StringName] = []
+
+# --- Campos por cast_type (opcionales — leídos según aplique) ---
+
+# DASH (cast_type INSTANT + mobility): distancia que el player recorre.
+@export var dash_distance_m: float = 0.0
+
+# TOGGLE (aura recurrente): intervalo de tick + costo por tick.
+@export var tick_interval_s: float = 0.0
+@export var tick_resource_cost: int = 0
+
+# REACTIVE (ventana parry/dodge): duración de ventana + ratio de reflejo.
+@export var reactive_window_s: float = 0.0
+@export var reflect_ratio: float = 0.0
+@export var reactive_rage_on_success: int = 0  # Rage ganado al parry exitoso
+
+# CONE / multi-target: filtro de afectados por aura / cono.
+# ally_damage_bonus_pct: aliados en aura reciben +X% DMG (Grito de Guerra).
+@export var ally_damage_bonus_pct: float = 0.0
