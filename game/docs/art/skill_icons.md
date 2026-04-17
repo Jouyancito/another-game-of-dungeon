@@ -87,20 +87,35 @@ Colores canon (para evitar confusión con paletas de clase):
 | 7 | `#8050B0` violeta |
 | 8 | `#C05080` rosa |
 
-### 5.2 Warrior / Shield Bash (1/N)
+### 5.2 Warrior — iconos canon (5/12)
+
+Paleta Warrior: acero `#7A7A82` (primario), dorado `#D4A040` (accent), rojo Rage `#E04828` (energía).
+
+#### `punch.svg` — Puño de Guerra (Fase 1)
+
+Puño cerrado en perfil mirando derecha (antebrazo acero + guantelete dorado en muñeca + 4 nudillos dorado) con 5 shock lines radiales rojas delante. Silueta "impacto físico básico". Refs: Diablo 2 monk martial arts, JJK Maki strike frame.
+
+#### `charge.svg` — Embestida (Fase 1)
+
+Guerrero corriendo inclinado hacia derecha (cabeza + torso + brazos + piernas en zancada, banda pectoral + bota dorada) con 5 speed lines rojas + 2 doradas detrás. Sensación de dash ofensivo. Refs: God of War Spartan rage charge, Berserk Guts charge.
+
+#### `war_cry.svg` — Grito de Guerra (Fase 1)
+
+Cabeza perfil (acero + casco/banda dorada frente + ojo rojo fiero) con boca abierta (triángulo hueco) y 3 arcos sonoros concéntricos rojos saliendo a la derecha + 1 arco dorado intermedio. Aura toggle "rugido". Refs: WoW Warrior Battle Shout, FFXIV Inner Beast.
+
+#### `perfect_block.svg` — Bloqueo Perfecto (Fase 1)
+
+Escudo kite más pequeño que shield_bash (lado izquierdo del frame) con boss central dorado + highlight metálico + flash central blanco `#FFF4C0` en el borde derecho (punto de parry) + 5 chispas blancas radiales + 3 doradas. Sensación de "deflect perfecto". Refs: Sekiro deflect spark, Dark Souls parry.
+
+#### `shield_bash.svg` — preview Embestida con Escudo (rama Tank evolución, lvl 25+)
 
 `game/assets/ui/icons/skills/warrior/shield_bash.svg`
 
-**Concepto**: escudo heater (silueta clásica de torneo) con boss central dorado + banda horizontal dorada + 9 shock lines radiales rojas saliendo detrás. Los shock lines comunican "impacto/bash" sin ambigüedad; el escudo comunica la clase y el arma.
+**Status**: MANTENIDO post-Fase-1. En Fase 0 era sample de framework B. B reemplazó el stub con las 4 skills canon (punch/charge/war_cry/perfect_block) así que el icon queda huérfano — pero su concepto (escudo heater + shock lines) encaja perfectamente con **Embestida con Escudo** documentado en `warrior.md §3 Evolución rama Tank` (carga ofensiva de tanque). Se preserva como preview asset para esa skill futura en rama Tank ascendencia lvl 25+.
 
-**Paleta**: acero `#7A7A82` (primario), dorado `#D4A040` (accent en boss + banda + outline), rojo Rage `#E04828` (energía, shock lines).
+**Concepto**: escudo heater clásico de torneo con boss central dorado + banda horizontal dorada + 9 shock lines radiales rojas. Diferencia visual con `perfect_block.svg`: aquél tiene flash de parry blanco y escudo más chico; éste es escudo completo con impact lines rojas (ataque, no defensa).
 
-**Asignación `SkillResource`**: B setea en el `.tres`:
-```
-icon = preload("res://assets/ui/icons/skills/warrior/shield_bash.svg")
-```
-
-Si B deja `icon = null` (porque pushó el .tres antes que este branch merge), A hace el link en merge o en commit follow-up.
+**Paleta**: misma Warrior canon.
 
 ---
 
@@ -124,9 +139,13 @@ Checklist:
 
 Lista no exhaustiva, solo para tracking. NO implementar todos en Fase 0 — se agregan uno a uno cuando cada skill entra a código.
 
-### Warrior (10-12 skills canon)
-- `shield_bash.svg` ✅ (Fase 0 sample)
-- `bloqueo_perfecto.svg`, `escudo_vengador.svg`, `provocacion.svg`, `muralla.svg`, `carga_jabali.svg`, `berserk.svg`, `sed_sangre.svg`, `torbellino.svg`, `grito_guerra.svg`, `rompe_armadura.svg`, `ultimo_aliento.svg`
+### Warrior (5/12 canon implementados)
+- `punch.svg` ✅ (Fase 1 — Puño de Guerra)
+- `charge.svg` ✅ (Fase 1 — Embestida)
+- `war_cry.svg` ✅ (Fase 1 — Grito de Guerra)
+- `perfect_block.svg` ✅ (Fase 1 — Bloqueo Perfecto)
+- `shield_bash.svg` ⏳ (preview — Embestida con Escudo rama Tank lvl 25+)
+- Pendientes: `escudo_vengador.svg`, `provocacion.svg`, `muralla.svg`, `carga_jabali.svg`, `berserk.svg`, `sed_sangre.svg`, `torbellino.svg`, `rompe_armadura.svg`, `ultimo_aliento.svg`
 
 ### Mage (12 skills canon)
 - `bola_fuego.svg`, `rayo_hielo.svg`, `cadena_relampago.svg`, `escudo_arcano.svg`, `teleport.svg`, `muro_fuego.svg`, `tormenta_hielo.svg`, `meteorito.svg`, `disipacion.svg`, `prisma.svg`, `barrera_mana.svg`, `singularidad.svg`
@@ -143,7 +162,7 @@ Lista no exhaustiva, solo para tracking. NO implementar todos en Fase 0 — se a
 ### Danzante de Sombras (12 skills canon)
 - `paso_sombra.svg`, `daga_envenenada.svg`, `ilusion.svg`, `salto_fantasma.svg`, `combo_golpes.svg`, `manto_noche.svg`, `dardo_sangre.svg`, `parálisis.svg`, `finta.svg`, `velo_negro.svg`, `golpe_critico.svg`, `danza_muerte.svg`
 
-**Total**: 70+ iconos a crear en futuras fases. Prioridad por orden de implementación de skills en código.
+**Total progreso**: 5/64 iconos canon implementados (Warrior Fase 1) + 8 placeholders genéricos + 1 preview (shield_bash). 70+ iconos a crear en futuras fases, prioridad por orden de implementación de skills en código.
 
 ---
 
@@ -166,4 +185,4 @@ Lista no exhaustiva, solo para tracking. NO implementar todos en Fase 0 — se a
 
 ---
 
-**Última revisión**: 2026-04-17 (Fase 0 — D)
+**Última revisión**: 2026-04-17 (Fase 1 Warrior — D)

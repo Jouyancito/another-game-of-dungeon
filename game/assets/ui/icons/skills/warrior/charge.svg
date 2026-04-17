@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Speed lines / estela detrás (rojo Rage) -->
+  <g stroke="#E04828" stroke-width="2.2" stroke-linecap="round" fill="none">
+    <line x1="6"  y1="20" x2="22" y2="24"/>
+    <line x1="4"  y1="32" x2="22" y2="32"/>
+    <line x1="6"  y1="44" x2="22" y2="40"/>
+    <line x1="10" y1="14" x2="22" y2="18"/>
+    <line x1="10" y1="50" x2="22" y2="46"/>
+  </g>
+
+  <!-- Estela dorada (más tenue, suaviza el rojo) -->
+  <g stroke="#D4A040" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.8">
+    <line x1="14" y1="26" x2="24" y2="28"/>
+    <line x1="14" y1="38" x2="24" y2="36"/>
+  </g>
+
+  <!-- Figura corriendo inclinada hacia la derecha (silueta acero) -->
+  <!-- Cabeza -->
+  <circle cx="42" cy="18" r="5" fill="#7A7A82" stroke="#2A2A30" stroke-width="1.3"/>
+
+  <!-- Torso inclinado (paralelogramo hacia adelante) -->
+  <path d="M38 22
+           L48 24
+           L46 38
+           L34 36 Z"
+        fill="#7A7A82"
+        stroke="#2A2A30"
+        stroke-width="1.3"/>
+
+  <!-- Banda dorada pectoral (armadura warrior) -->
+  <path d="M36 28 L47 30 L46 33 L35 31 Z"
+        fill="#D4A040"
+        stroke="#8A5A18"
+        stroke-width="0.8"/>
+
+  <!-- Brazo delantero (extendido hacia adelante) -->
+  <path d="M46 26
+           L56 30
+           L54 34
+           L44 30 Z"
+        fill="#7A7A82"
+        stroke="#2A2A30"
+        stroke-width="1.2"/>
+
+  <!-- Brazo trasero (flexionado atrás) -->
+  <path d="M34 30
+           L28 34
+           L30 38
+           L36 34 Z"
+        fill="#7A7A82"
+        stroke="#2A2A30"
+        stroke-width="1.2"/>
+
+  <!-- Pierna delantera (zancada adelante, dorado guantelete bota) -->
+  <path d="M44 36
+           L54 46
+           L50 50
+           L40 40 Z"
+        fill="#7A7A82"
+        stroke="#2A2A30"
+        stroke-width="1.3"/>
+  <ellipse cx="53" cy="48" rx="4" ry="2.5" fill="#D4A040" stroke="#8A5A18" stroke-width="0.8"/>
+
+  <!-- Pierna trasera (empujando suelo) -->
+  <path d="M36 36
+           L28 46
+           L32 50
+           L40 40 Z"
+        fill="#7A7A82"
+        stroke="#2A2A30"
+        stroke-width="1.3"/>
+</svg>

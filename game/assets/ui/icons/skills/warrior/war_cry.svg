@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Ondas sonoras radiales (3 arcos concéntricos rojos, desde la boca hacia la derecha) -->
+  <g stroke="#E04828" fill="none" stroke-linecap="round">
+    <path d="M 40 20 Q 52 32 40 44" stroke-width="2.5"/>
+    <path d="M 44 16 Q 58 32 44 48" stroke-width="2.2" opacity="0.75"/>
+    <path d="M 48 12 Q 62 32 48 52" stroke-width="1.8" opacity="0.5"/>
+  </g>
+
+  <!-- Dorado intermedio en las ondas (suaviza tono) -->
+  <g stroke="#D4A040" fill="none" stroke-linecap="round" opacity="0.6">
+    <path d="M 42 22 Q 50 32 42 42" stroke-width="1"/>
+  </g>
+
+  <!-- Cabeza perfil mirando a la derecha (silueta acero) -->
+  <!-- Cráneo -->
+  <path d="M14 22
+           Q14 12 22 12
+           Q34 12 36 20
+           L36 26
+           Q34 32 34 34
+           L30 36
+           L28 44
+           L22 48
+           Q14 48 14 36 Z"
+        fill="#7A7A82"
+        stroke="#2A2A30"
+        stroke-width="1.5"/>
+
+  <!-- Banda dorada frente (casco minimal) -->
+  <path d="M16 18 Q24 11 34 17 L34 22 Q24 15 16 22 Z"
+        fill="#D4A040"
+        stroke="#8A5A18"
+        stroke-width="0.8"/>
+
+  <!-- Boca abierta (triángulo gritando, hueco oscuro) -->
+  <path d="M30 30
+           L40 26
+           L40 36
+           L30 34 Z"
+        fill="#18181F"
+        stroke="#2A2A30"
+        stroke-width="1"/>
+
+  <!-- Diente superior suggest (pequeño highlight claro dentro boca) -->
+  <rect x="33" y="28" width="4" height="2" fill="#E8E8D0" opacity="0.6"/>
+
+  <!-- Ojo fiero (pequeño rojo) -->
+  <circle cx="25" cy="24" r="1.8" fill="#E04828"/>
+</svg>
