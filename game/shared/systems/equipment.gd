@@ -85,9 +85,34 @@ func get_total_bonuses() -> Dictionary:
 		for stat_key in stats:
 			if stat_key == "damage":
 				continue  # El daño de arma se obtiene via get_weapon_damage(), no acumular aquí
+			if (stat_key as String).begins_with("res_"):
+				continue  # Resistencias elementales → get_total_resistances() (son float, no int)
 			var val = stats[stat_key]
 			if val is int or val is float:
 				totals[stat_key] = totals.get(stat_key, 0) + int(val)
+	return totals
+
+
+## Suma las resistencias elementales de todos los items equipados.
+## Claves soportadas: res_fire, res_ice, res_lightning, res_poison, res_void.
+## Los valores se mantienen como float (los ints los trata get_total_bonuses).
+## Retorna: {"res_fire": float, "res_ice": float, ...} — sólo keys con suma > 0.
+func get_total_resistances() -> Dictionary:
+	var totals := {}
+	for slot_key in slots:
+		var entry: Dictionary = slots[slot_key]
+		if entry.is_empty():
+			continue
+		var item_data := ItemDatabase.get_item(entry.get("item_id", ""))
+		if item_data.is_empty():
+			continue
+		var stats: Dictionary = item_data.get("stats", {})
+		for stat_key in stats:
+			if not stat_key.begins_with("res_"):
+				continue
+			var val = stats[stat_key]
+			if val is int or val is float:
+				totals[stat_key] = float(totals.get(stat_key, 0.0)) + float(val)
 	return totals
 
 

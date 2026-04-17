@@ -161,4 +161,4 @@ func _do_melee(base_dmg: float, side: float = 0.0, kb_force: float = 0.0) -> voi
 		# Fuerza reducida por golpe descentrado
 		var effective_kb = kb_force * (0.4 + center_factor * 0.6)
 
-		result.collider.take_damage(final_damage, hit_direction, effective_kb, str_stat, self)
+		result.collider.take_damage(final_damage, hit_direction, effective_kb, get_effective_stat("str"), self)
