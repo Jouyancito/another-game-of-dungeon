@@ -1,5 +1,7 @@
 # Danzante de Sombras — Skill Set Canon
 
+> Lore + identidad cultural: ver `game/docs/lore/_class_lore_danzante_sombras.md`
+
 **Versión**: 2.0 — migrado al modelo `_system.md` v1.0
 **Fecha**: 2026-04-16
 **Estado**: Canon. Reemplaza versión 1.0 (clase nueva, from scratch en 2026-04-14).
