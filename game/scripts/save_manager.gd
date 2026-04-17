@@ -2,6 +2,12 @@ extends Node
 
 const SAVE_PATH = "user://characters.json"
 const SAVE_PATH_TMP = "user://characters.json.tmp"
+const SAVE_PATH_BAK = "user://characters.json.bak"
+
+# Schema version — bump cuando cambie la estructura del save.
+# v1: char base (stats, level, xp, profile_id)
+# v2: + inventory (items + coins), + equipment (slots), + gold, + version field
+const SCHEMA_VERSION := 2
 
 var characters: Array = []
 
@@ -21,29 +27,55 @@ func load_characters() -> void:
 	var json := JSON.new()
 	var err := json.parse(content)
 	if err != OK:
-		push_warning("SaveManager: archivo de guardado corrupto, iniciando vacío.")
+		push_warning("SaveManager: archivo de guardado corrupto — backup → .bak, iniciando vacío.")
+		_backup_corrupt_save()
 		characters = []
 		return
 
 	var parsed = json.get_data()
 	if parsed is Array:
 		characters = parsed.filter(func(e): return e is Dictionary)
-		_backfill_profile_ids()
+		_migrate_characters()
 	else:
 		push_warning("SaveManager: formato inesperado en el archivo de guardado.")
 		characters = []
 
 
-# Migracion silenciosa: personajes viejos sin profile_id reciben uno ahora.
-# Futuro online: backend asigna el ID real al sincronizar.
-func _backfill_profile_ids() -> void:
+# Migración transparente: characters viejos reciben:
+#   v0 → profile_id generado
+#   v1 → v2: inventory{} / equipment{} / gold vacíos + version bump
+# Inventory/equipment como dict vacío es funcionalmente equivalente al load actual
+# (from_save_data skipea keys ausentes), el bump explicíta el schema.
+func _migrate_characters() -> void:
 	var changed := false
 	for c in characters:
 		if not c.has("profile_id") or str(c.get("profile_id", "")) == "":
 			c["profile_id"] = _generate_profile_id()
 			changed = true
+		var cur_version: int = int(c.get("version", 1))
+		if cur_version < 2:
+			if not c.has("inventory"):
+				c["inventory"] = {}
+			if not c.has("equipment"):
+				c["equipment"] = {}
+			if not c.has("gold"):
+				c["gold"] = 0
+			c["version"] = 2
+			changed = true
 	if changed:
 		save_characters()
+
+
+func _backup_corrupt_save() -> void:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	if FileAccess.file_exists(SAVE_PATH_BAK):
+		DirAccess.remove_absolute(SAVE_PATH_BAK)
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		push_error("SaveManager: no se pudo crear backup del save corrupto.")
+		return
+	dir.rename(SAVE_PATH, SAVE_PATH_BAK)
 
 
 func _generate_profile_id() -> String:
@@ -85,6 +117,7 @@ func create_character(char_name: String, class_scene: String, class_display_name
 	})
 
 	var new_char := {
+		"version": SCHEMA_VERSION,
 		"profile_id": _generate_profile_id(),
 		"name": char_name,
 		"class_scene": class_scene,
@@ -99,6 +132,9 @@ func create_character(char_name: String, class_scene: String, class_display_name
 		"stat_points": 0,
 		"titles": [],
 		"active_title": "",
+		"inventory": {},
+		"equipment": {},
+		"gold": 0,
 		"created_at": Time.get_date_string_from_system(),
 	}
 
