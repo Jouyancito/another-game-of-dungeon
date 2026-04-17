@@ -93,6 +93,11 @@ var _torch_item_id: String = ""       # ID del item de luz activo
 var _torch_time_remaining: float = 0.0  # Segundos restantes (0 = infinito)
 var _torch_flicker_time: float = 0.0    # Timer para flicker effect
 
+# Skills — hotbar 1-8 + recurso único de clase (Rage/Fe/etc). ClassResource null
+# para clases sin recurso único (Mage solo usa MP).
+var skills: PlayerSkills = null
+var class_resource: ClassResource = null
+
 # Modelos del jugador
 var view_model: ViewModel
 var world_model: WorldModel
@@ -112,6 +117,26 @@ func _ready() -> void:
 	mana = max_mana
 	_setup_player_models()
 	_setup_inventory()
+	_setup_skills()
+
+
+## Override en clases derivadas si necesitan setup custom de skills / recursos.
+## BasePlayer monta PlayerSkills + (opcionalmente) un ClassResource seteado por _on_class_ready.
+func _setup_skills() -> void:
+	skills = PlayerSkills.new()
+	skills.name = "PlayerSkills"
+	add_child(skills)
+	if class_resource != null and class_resource.get_parent() == null:
+		class_resource.name = "ClassResource"
+		add_child(class_resource)
+	skills.setup(self, class_resource)
+	# Equipar skills default de la clase (override en player.gd / mage.gd)
+	_equip_default_skills()
+
+
+## Override en cada clase para rellenar hotbar inicial.
+func _equip_default_skills() -> void:
+	pass
 
 # Override en cada clase para combat values (speed, base_health, attack_range, etc.)
 func _on_class_ready() -> void:
@@ -426,6 +451,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle_torch()
 		return
 
+	# Hotbar skills 1-8 — Fase 0 framework. D wirea iconos después.
+	if event is InputEventKey and event.pressed and not event.echo and skills != null:
+		var kc: int = event.keycode
+		if kc >= KEY_1 and kc <= KEY_8:
+			var slot: int = kc - KEY_1
+			skills.cast_slot(slot)
+			return
+
 	# Atacar — cada clase maneja el input de ataque
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
@@ -666,8 +699,22 @@ func take_damage(amount: float, element: String = "") -> void:
 		final_damage = apply_physical_defense(amount)
 	health = clamp(health - final_damage, 0, max_health)
 	health_changed.emit(health, max_health)
+	# Rage gen: Warrior gana Rage por daño recibido (canon _system.md §5ter: +10/10% HP perdido).
+	# Mapeo simple: 10% del dmg final como Rage. Solo si class_resource es RAGE.
+	if class_resource != null and class_resource.type == ClassResource.Type.RAGE:
+		class_resource.add(int(final_damage * 0.1))
 	if health <= 0:
 		die()
+
+
+## Hook unificado — llamar desde player.gd / mage.gd tras conectar un golpe.
+## Genera recurso único (Rage para Warrior) proporcional al daño hecho.
+func on_damage_dealt(amount: float) -> void:
+	if class_resource == null:
+		return
+	if class_resource.type == ClassResource.Type.RAGE:
+		# Canon: +5 por hit conectado (approx). Escalamos con daño: max(5, 3% del dmg).
+		class_resource.add(maxi(5, int(amount * 0.03)))
 
 func heal(amount: float) -> void:
 	if is_dead:

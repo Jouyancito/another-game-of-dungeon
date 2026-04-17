@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"warrior_shield_bash"
+class_id = &"warrior"
+display_name = "Embate de Escudo"
+description = "Golpe frontal con escudo. Daña y atonta al objetivo. NOTA: stub de framework — no está en warrior.md canon."
+cast_type = 0
+target_type = 1
+range_m = 3.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 15
+resource_type = 1
+cooldown_s = 6.0
+damage_formula = 1
+base_damage = 25
+status_applied = Array[StringName]([&"stun"])
+status_duration_s = 1.5
+unlock_level = 1
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"physical", &"frontline", &"control"])

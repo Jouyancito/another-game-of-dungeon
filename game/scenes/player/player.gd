@@ -32,6 +32,25 @@ func _on_class_ready() -> void:
 	attack_range = 3.0
 	heavy_cooldown = 0.6
 	# Stats (str, int, dex, def, vit) se cargan desde SaveManager en BasePlayer
+	# Recurso único: Rage (canon _system.md §5ter). Cap 100, sin regen pasivo, decay 5/s fuera combate.
+	class_resource = ClassResource.new()
+	class_resource.type = ClassResource.Type.RAGE
+	class_resource.max_value = 100
+	class_resource.regen_rate = 0.0
+	class_resource.combat_decay_rate = 5.0
+	class_resource.decay_delay_s = 8.0
+
+
+func _equip_default_skills() -> void:
+	# Fase 0 MVP: equipar Shield Bash en slot 0 si existe en el DB.
+	if not Engine.has_singleton("SkillDB") and get_node_or_null("/root/SkillDB") == null:
+		return
+	var db = get_node_or_null("/root/SkillDB")
+	if db == null:
+		return
+	var bash: SkillResource = db.get_skill(&"warrior_shield_bash")
+	if bash != null:
+		skills.set_slot(0, bash)
 
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
@@ -162,3 +181,5 @@ func _do_melee(base_dmg: float, side: float = 0.0, kb_force: float = 0.0) -> voi
 		var effective_kb = kb_force * (0.4 + center_factor * 0.6)
 
 		result.collider.take_damage(final_damage, hit_direction, effective_kb, get_effective_stat("str"), self)
+		# Rage gen canon: Warrior gana recurso al conectar hits.
+		on_damage_dealt(final_damage)

@@ -29,6 +29,7 @@ Party="*res://shared/systems/party.gd"
 LootStyle="*res://shared/loot/loot_style.gd"
 Journal="*res://scripts/journal.gd"
 TitleTracker="*res://scripts/title_tracker.gd"
+SkillDB="*res://shared/skills/skill_definitions.gd"
 
 [display]
 
