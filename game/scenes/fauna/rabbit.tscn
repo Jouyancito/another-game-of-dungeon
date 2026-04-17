@@ -1,0 +1,48 @@
+[gd_scene load_steps=6 format=3 uid="uid://ambient_rabbit"]
+
+[ext_resource type="Script" path="res://scenes/fauna/rabbit.gd" id="1_rabbit"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.3, 0.25, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="mat_body"]
+albedo_color = Color(0.72, 0.66, 0.55, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_head"]
+size = Vector3(0.22, 0.22, 0.22)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ear"]
+size = Vector3(0.05, 0.22, 0.05)
+
+[sub_resource type="SphereMesh" id="SphereMesh_tail"]
+radius = 0.07
+height = 0.14
+radial_segments = 8
+rings = 4
+
+[node name="Rabbit" type="Node3D"]
+script = ExtResource("1_rabbit")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, 0)
+mesh = SubResource("BoxMesh_body")
+material_override = SubResource("mat_body")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, -0.24)
+mesh = SubResource("BoxMesh_head")
+material_override = SubResource("mat_body")
+
+[node name="EarLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 0.48, -0.24)
+mesh = SubResource("BoxMesh_ear")
+material_override = SubResource("mat_body")
+
+[node name="EarRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06, 0.48, -0.24)
+mesh = SubResource("BoxMesh_ear")
+material_override = SubResource("mat_body")
+
+[node name="Tail" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17, 0.22)
+mesh = SubResource("SphereMesh_tail")

@@ -1,7 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://floor1_prairie"]
+[gd_scene load_steps=9 format=3 uid="uid://floor1_prairie"]
 
 [ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://crystal_ceiling" path="res://scenes/levels/components/crystal_ceiling.tscn" id="2_ceiling"]
+[ext_resource type="PackedScene" uid="uid://ambient_fauna_spawner" path="res://scenes/levels/components/ambient_fauna_spawner.tscn" id="3_spawner"]
+[ext_resource type="PackedScene" uid="uid://ambient_butterfly" path="res://scenes/fauna/butterfly.tscn" id="4_butterfly"]
+[ext_resource type="PackedScene" uid="uid://ambient_bird" path="res://scenes/fauna/bird.tscn" id="5_bird"]
+[ext_resource type="PackedScene" uid="uid://ambient_rabbit" path="res://scenes/fauna/rabbit.tscn" id="6_rabbit"]
 
 ; ── Sky / Environment ──────────────────────────────────────────────────────────
 
@@ -45,3 +49,37 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0)
 size = Vector3(600, 0.3, 600)
 use_collision = true
 material_override = SubResource("mat_floor")
+
+; ── Fauna ambiental (issue #53) — decorativa, no interactúa con combat
+
+[node name="AmbientFauna" type="Node3D" parent="."]
+
+[node name="ButterflySpawner_A" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, 12)
+creature_scene = ExtResource("4_butterfly")
+count = 5
+spawn_radius = 6.0
+
+[node name="ButterflySpawner_B" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0, -8)
+creature_scene = ExtResource("4_butterfly")
+count = 5
+spawn_radius = 6.0
+
+[node name="BirdSpawner_A" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 10, 0)
+creature_scene = ExtResource("5_bird")
+count = 3
+spawn_radius = 25.0
+
+[node name="BirdSpawner_B" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 10, -30)
+creature_scene = ExtResource("5_bird")
+count = 3
+spawn_radius = 25.0
+
+[node name="RabbitSpawner" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -20)
+creature_scene = ExtResource("6_rabbit")
+count = 4
+spawn_radius = 12.0

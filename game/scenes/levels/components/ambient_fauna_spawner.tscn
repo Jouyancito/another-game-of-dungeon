@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ambient_fauna_spawner"]
+
+[ext_resource type="Script" path="res://scenes/levels/components/ambient_fauna_spawner.gd" id="1_spawner"]
+
+[node name="AmbientFaunaSpawner" type="Node3D"]
+script = ExtResource("1_spawner")
