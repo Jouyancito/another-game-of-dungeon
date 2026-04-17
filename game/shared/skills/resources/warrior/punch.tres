@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"warrior_punch"
+class_id = &"warrior"
+display_name = "Puño de Guerra"
+description = "Ataque básico de puño. Cono frontal 60° alcance 2m. Genera +5 Rage por hit. Canon warrior.md §3 SKILL 1."
+cast_type = 0
+target_type = 3
+range_m = 2.0
+radius_m = 0.0
+cone_angle_deg = 60.0
+resource_cost = 0
+resource_type = 0
+cooldown_s = 0.5
+damage_formula = 1
+base_damage = 15
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+unlock_level = 1
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"physical", &"melee", &"single", &"strike"])
+dash_distance_m = 0.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0

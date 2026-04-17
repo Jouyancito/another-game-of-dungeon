@@ -42,15 +42,22 @@ func _on_class_ready() -> void:
 
 
 func _equip_default_skills() -> void:
-	# Fase 0 MVP: equipar Shield Bash en slot 0 si existe en el DB.
-	if not Engine.has_singleton("SkillDB") and get_node_or_null("/root/SkillDB") == null:
-		return
+	# Fase 1 canon: 4 skills generales del Warrior (warrior.md §3).
 	var db = get_node_or_null("/root/SkillDB")
 	if db == null:
 		return
-	var bash: SkillResource = db.get_skill(&"warrior_shield_bash")
-	if bash != null:
-		skills.set_slot(0, bash)
+	var punch: SkillResource = db.get_skill(&"warrior_punch")
+	var charge: SkillResource = db.get_skill(&"warrior_charge")
+	var war_cry: SkillResource = db.get_skill(&"warrior_war_cry")
+	var perfect_block: SkillResource = db.get_skill(&"warrior_perfect_block")
+	if punch != null:
+		skills.set_slot(0, punch)
+	if charge != null:
+		skills.set_slot(1, charge)
+	if war_cry != null:
+		skills.set_slot(2, war_cry)
+	if perfect_block != null:
+		skills.set_slot(3, perfect_block)
 
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)

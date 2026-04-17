@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"warrior_charge"
+class_id = &"warrior"
+display_name = "Embestida"
+description = "Dash ofensivo 6m. Impacta enemigo en trayectoria con daño físico + Stun 0.8s. Canon warrior.md §3 SKILL 2."
+cast_type = 0
+target_type = 1
+range_m = 6.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 10
+resource_type = 3
+cooldown_s = 8.0
+damage_formula = 1
+base_damage = 20
+status_applied = Array[StringName]([&"stun"])
+status_duration_s = 0.8
+unlock_level = 1
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"physical", &"mobility", &"single", &"stun"])
+dash_distance_m = 6.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
