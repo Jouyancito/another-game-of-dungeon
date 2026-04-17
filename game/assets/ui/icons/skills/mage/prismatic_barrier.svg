@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Hexágono exterior contenedor (outline violeta, stroke grueso) -->
+  <path d="M 32 8
+           L 52 20
+           L 52 44
+           L 32 56
+           L 12 44
+           L 12 20 Z"
+        fill="#2A1F3E"
+        stroke="#6E3FA8"
+        stroke-width="2.5"
+        stroke-linejoin="round"/>
+
+  <!-- Facetas prismáticas (6 triángulos desde centro hacia vértices — c/u color distinto simula refracción) -->
+  <!-- Faceta 1: arriba (violeta primario) -->
+  <path d="M 32 32 L 32 8 L 52 20 Z" fill="#6E3FA8" opacity="0.85"/>
+  <!-- Faceta 2: der (azul andino) -->
+  <path d="M 32 32 L 52 20 L 52 44 Z" fill="#3E78B8" opacity="0.85"/>
+  <!-- Faceta 3: der-abajo (cyan) -->
+  <path d="M 32 32 L 52 44 L 32 56 Z" fill="#5EBFE8" opacity="0.85"/>
+  <!-- Faceta 4: izq-abajo (blanco tiza) -->
+  <path d="M 32 32 L 32 56 L 12 44 Z" fill="#F0ECD8" opacity="0.85"/>
+  <!-- Faceta 5: izq (oro apagado) -->
+  <path d="M 32 32 L 12 44 L 12 20 Z" fill="#C89F4A" opacity="0.85"/>
+  <!-- Faceta 6: izq-arriba (violeta claro / lapislázuli shift) -->
+  <path d="M 32 32 L 12 20 L 32 8 Z" fill="#8A5FC8" opacity="0.85"/>
+
+  <!-- Líneas internas (separadores de faceta, refuerzan feel cristal) -->
+  <g stroke="#18181F" stroke-width="1" fill="none" stroke-linecap="round">
+    <line x1="32" y1="32" x2="32" y2="8"/>
+    <line x1="32" y1="32" x2="52" y2="20"/>
+    <line x1="32" y1="32" x2="52" y2="44"/>
+    <line x1="32" y1="32" x2="32" y2="56"/>
+    <line x1="32" y1="32" x2="12" y2="44"/>
+    <line x1="32" y1="32" x2="12" y2="20"/>
+  </g>
+
+  <!-- Núcleo central (gema pequeña — turquesa lapis) -->
+  <circle cx="32" cy="32" r="3.5" fill="#F0ECD8" stroke="#6E3FA8" stroke-width="1.2"/>
+
+  <!-- Highlight refracción (destello blanco en una faceta) -->
+  <path d="M 36 14 L 46 22 L 44 24 L 36 18 Z" fill="#F0ECD8" opacity="0.5"/>
+</svg>

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Glow violeta difuso (channeled feel) -->
+  <defs>
+    <radialGradient id="stormGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#8A5FC8" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#6E3FA8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="34" r="26" fill="url(#stormGlow)"/>
+
+  <!-- Vórtice / espiral canalizada (3 brazos curvos desde centro hacia afuera) -->
+  <g fill="none" stroke-linecap="round">
+    <!-- Brazo 1 (azul andino) -->
+    <path d="M 32 34
+             Q 40 28 44 36
+             Q 46 44 38 46"
+          stroke="#3E78B8"
+          stroke-width="3"/>
+    <!-- Brazo 2 (violeta) -->
+    <path d="M 32 34
+             Q 24 40 20 32
+             Q 18 24 26 22"
+          stroke="#6E3FA8"
+          stroke-width="3"/>
+    <!-- Brazo 3 (violeta claro) -->
+    <path d="M 32 34
+             Q 36 42 28 46
+             Q 20 48 18 40"
+          stroke="#8A5FC8"
+          stroke-width="2.5"/>
+  </g>
+
+  <!-- 3 lightning bolts radiales (arriba, izq-arriba, der-abajo) zigzag -->
+  <g fill="none" stroke="#F0ECD8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Bolt arriba -->
+    <path d="M 34 14 L 30 22 L 34 24 L 30 32"/>
+    <!-- Bolt izq -->
+    <path d="M 10 22 L 18 24 L 14 28 L 22 32"/>
+    <!-- Bolt der-abajo -->
+    <path d="M 54 46 L 46 44 L 50 40 L 42 36"/>
+  </g>
+
+  <!-- Bolts cyan finos (secundarios) -->
+  <g fill="none" stroke="#5EBFE8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 52 18 L 46 22 L 48 26"/>
+    <path d="M 14 48 L 20 46 L 18 42"/>
+  </g>
+
+  <!-- Núcleo de canalización (ojo de la tormenta) -->
+  <circle cx="32" cy="34" r="4" fill="#F0ECD8"/>
+  <circle cx="32" cy="34" r="2.2" fill="#6E3FA8"/>
+</svg>
