@@ -29,6 +29,11 @@
             "type": "command",
             "shell": "powershell",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/dept-bus-check.ps1\""
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/canon-doc-staleness-check.ps1\""
           }
         ]
       }
@@ -41,6 +46,11 @@
             "type": "command",
             "shell": "powershell",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/dept-bus-check.ps1\""
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/canon-doc-staleness-check.ps1\""
           }
         ]
       }

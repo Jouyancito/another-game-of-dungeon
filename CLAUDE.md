@@ -115,18 +115,29 @@ Métodos override por clase: `_on_class_ready()`, `_on_attack_pressed()`, `_on_a
 4. Tu dungeon, tu historia — mundo persistente con marcas
 5. Fácil de aprender, difícil de dominar — sistemas simples, profundidad emergente
 
-### 5 Clases (lanzamiento)
-1. **Warrior**: Tanque (escudo) / Berserk (furia)
-2. **Mage**: Elementalista (fuego/hielo/rayo) / Arcano (espacio) — ataque base: finger guns + bolita inestable
-3. **Archer**: Ranger (rapid fire) / Artillero (explosivos)
-4. **Necromancer**: Maldiciones (debuffs) / Creador (invocaciones)
-5. **Healer**: Sanador (heal directo) / Buffer (buffs)
+### 6 Clases (lanzamiento)
+1. **Warrior**: Tanque (escudo) / Berserk (furia) — recurso: Rage
+2. **Mage**: Elementalista (fuego/hielo/rayo) / Arcano (espacio) — recurso: MP only (fantasy lock)
+3. **Archer**: Ranger (rapid fire) / Artillero (explosivos) — recurso: Concentración
+4. **Cleric**: Sanador / Buffer / Exorcista (excepción 3 ramas) — recurso: Fe
+5. **Necromancer**: Maldiciones (debuffs) / Creador (invocaciones) — recurso: Vida
+6. **Danzante de Sombras**: Sombra (stealth burst) / Trickster (control) — recurso: Combo Points
 
 ### Progresión
 - Niveles 1-50, curva XP 1.15x, 3 stat points por nivel (150 totales)
-- Especialización a nivel 10 (2 ramas por clase)
-- Skill tree estilo Diablo 2
+- **Skill points**: 1/nivel, cap 15 por skill (canon `_system.md` v1.0)
+- **Ascendencia**: lvl 25 (no lvl 10) — desbloquea rama
+- **Evolución skill**: lvl 15 skill + char 50 + ítem raro (forma alternativa)
 - 6 resets máximo → después "The Lost"
+
+### Sistema de Skills (canon v1.0 — 2026-04-14)
+
+- **Canon central**: `game/docs/skills/_system.md`
+- **64 skills documentadas** (10-12 por clase fase prototipo, target 25 endgame)
+- **Per-class docs**: `game/docs/skills/{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md`
+- **Sinergias cross-class**: `game/docs/skills/_synergies.md` (15 combos canon)
+- **Status effects**: `game/docs/skills/_status_effects.md`
+- Recursos únicos por clase (ver lista de clases arriba) — descartado XP por uso + Maestría por drop
 
 ### Loot y Muerte
 - Raridades: Common → Rare → Epic → Legendary
@@ -235,5 +246,21 @@ Para ver estado de todos: `mem_search(query: "dept-status")`.
 - **2026-04-12**: Expansión masiva — 5 clases jugables (Warrior/Mage/Archer/Cleric/Necromancer), 15+ tipos de enemigos (bandit, slime+mini_slime, golem, wolf, bird, fox, etc.), sistema loot completo (drops, chests, loot table), inventory+equipment con drag&drop, torch system, target frame MMO, knockback, save system JSON, piso 1 pradera en desarrollo, GUT testing addon + 6 test files, docs extensivos en `game/docs/`.
 - **2026-04-12 (coordinación)**: Setup worktrees A/B/C/D + hooks semáforo conflictos + dept-status protocol. Tag `v0.1-prototype`.
 - **2026-04-12 (refactor 1a)**: Extracción `DamageFormula` + `Progression` a `game/shared/stats/`. MMO-ready. Commit `1a17853`.
+- **2026-04-14**: Skills system canon v1.0 — `_system.md` (skill points + ascendencia lvl 25 + recursos únicos). 6 per-class docs base + drop_ownership canon v1.
+- **2026-04-15**: Drop ownership canon v2 post Judgment Day — party-first model, floor+random reparto, timers 180/120/300s, bind items, seeded RNG. Tag `v0.4`.
+- **2026-04-16**: Mimic enemy completo (issue #60 — state machine + mesh + canon + integration), equipment context menu unequip (#58), tooltip RichTextLabel (#59), skills MIGRATE 6 per-class al `_system.md` v1.0 + `_synergies.md` (15 combos cross-class, #46).
 
-**ESTADO COMPLETO DEL PROYECTO en `PROJECT_STATE.md`.** Siempre consultar ese archivo antes de refactorizar o agregar sistemas grandes.
+## Canon de Design Vigente
+
+**Siempre consultar antes de refactorizar sistemas de skills, stats, o loot:**
+
+- `game/docs/skills/_system.md` (skills system v1.0, 2026-04-14)
+- `game/docs/skills/{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (per-class v2.0, 2026-04-16)
+- `game/docs/skills/_synergies.md` (combos cross-class, 2026-04-16)
+- `game/docs/skills/_status_effects.md`
+- `game/docs/balance_v2.md` (curvas + fórmulas compound)
+- `game/docs/balance/_drop_ownership_canon.md` (v2.0, 2026-04-16)
+- `game/docs/balance/_mimic.md` (v1.0, 2026-04-16)
+- `game/docs/balance/p1_loot_table.md`
+
+**ESTADO COMPLETO DEL PROYECTO en `PROJECT_STATE.md`** (snapshot 2026-04-12, parcialmente desactualizado por skills/mimic post 14-16).
