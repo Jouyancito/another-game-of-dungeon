@@ -208,8 +208,24 @@ func from_save_data(data: Dictionary) -> void:
 	coins = data.get("coins", 0)
 
 	for entry in data.get("items", []):
+		var item_id: String = entry.get("item_id", "")
 		var pos := Vector2i(entry.get("grid_pos_x", 0), entry.get("grid_pos_y", 0))
-		place_item(entry.get("item_id", ""), pos, entry.get("quantity", 1))
+		var qty: int = entry.get("quantity", 1)
+
+		# Validar: item existe en DB
+		var item_data: Dictionary = ItemDatabase.get_item(item_id)
+		if item_data.is_empty():
+			push_warning("Inventory.from_save_data: item_id '%s' no existe en DB (slot %s) — skip" % [item_id, pos])
+			continue
+
+		# Cap quantity a max_stack si el save tiene más (cambio de cap post-save)
+		var stack_cap: int = item_data.get("max_stack", 1)
+		if qty > stack_cap:
+			push_warning("Inventory.from_save_data: quantity %d > max_stack %d para '%s' — capeando" % [qty, stack_cap, item_id])
+			qty = stack_cap
+
+		if not place_item(item_id, pos, qty):
+			push_warning("Inventory.from_save_data: no se pudo colocar '%s' en %s (pos ocupada/inválida) — skip" % [item_id, pos])
 
 
 # --- Helpers ---

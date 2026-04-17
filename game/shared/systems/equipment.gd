@@ -161,10 +161,24 @@ func to_save_data() -> Dictionary:
 	return data
 
 
-## Carga desde save
+## Carga desde save. Valida que cada item_id exista en DB y sea equipable
+## (tenga `slot` en su schema). Slots corruptos se dejan vacíos con warning.
 func from_save_data(data: Dictionary) -> void:
 	for slot_key in SLOT_NAMES:
 		slots[slot_key] = {}
 	for slot_key in data:
-		if slots.has(slot_key):
-			slots[slot_key] = data[slot_key]
+		if not slots.has(slot_key):
+			push_warning("Equipment.from_save_data: slot '%s' desconocido — skip" % slot_key)
+			continue
+		var entry = data[slot_key]
+		if not (entry is Dictionary) or entry.is_empty():
+			continue
+		var item_id: String = entry.get("item_id", "")
+		var item_data: Dictionary = ItemDatabase.get_item(item_id)
+		if item_data.is_empty():
+			push_warning("Equipment.from_save_data: item_id '%s' en slot '%s' no existe en DB — unequip" % [item_id, slot_key])
+			continue
+		if item_data.get("slot", "") == "":
+			push_warning("Equipment.from_save_data: item '%s' no es equipable — unequip slot '%s'" % [item_id, slot_key])
+			continue
+		slots[slot_key] = entry
