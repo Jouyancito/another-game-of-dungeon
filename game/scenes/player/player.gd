@@ -188,5 +188,6 @@ func _do_melee(base_dmg: float, side: float = 0.0, kb_force: float = 0.0) -> voi
 		var effective_kb = kb_force * (0.4 + center_factor * 0.6)
 
 		result.collider.take_damage(final_damage, hit_direction, effective_kb, get_effective_stat("str"), self)
-		# Rage gen canon: Warrior gana recurso al conectar hits.
-		on_damage_dealt(final_damage)
+		# Rage gen del melee básico LMB vive en base_player.take_damage (pasivo por dmg recibido)
+		# + en skills via resource_gen_on_hit. El combo hardcoded NO es una skill — no gen.
+		# Fase futura: migrar el combo a skill framework para unificar.

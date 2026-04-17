@@ -62,6 +62,10 @@ func cast_slot(slot: int) -> bool:
 func cast_skill(skill: SkillResource) -> bool:
 	if skill == null:
 		return false
+	# G11: quest-gated check
+	if skill.quest_gate != &"" and not _is_quest_completed(skill.quest_gate):
+		skill_cast.emit(skill.id, false, "quest_locked")
+		return false
 	# TOGGLE: si ya activo, apagar (no paga costo ni cooldown)
 	if skill.cast_type == SkillResource.CastType.TOGGLE and active_toggles.has(skill.id):
 		_deactivate_toggle(skill.id)
@@ -71,64 +75,195 @@ func cast_skill(skill: SkillResource) -> bool:
 	if cooldowns.get(skill.id, 0.0) > 0.0:
 		skill_cast.emit(skill.id, false, "cooldown")
 		return false
-	# Recurso
-	if not _can_pay_cost(skill):
+	# Recurso (G1 dual + G3 HP) — validar TODO antes de consumir
+	if not _can_pay_all_costs(skill):
 		skill_cast.emit(skill.id, false, "insufficient_resource")
 		return false
-	# Pagar costo
-	_pay_cost(skill)
+	# Pagar atómico. Si algo falla inesperadamente, rollback.
+	if not _pay_all_costs(skill):
+		skill_cast.emit(skill.id, false, "payment_failed")
+		return false
 	# Cooldown set
 	if skill.cooldown_s > 0.0:
 		cooldowns[skill.id] = skill.cooldown_s
+	# G2: resource gen al castear (Fe pre-heal, Rage pre-charge, etc)
+	if skill.resource_gen_on_cast > 0:
+		_gen_resource(skill, skill.resource_gen_on_cast)
 	# Ejecutar
 	_execute(skill)
 	skill_cast.emit(skill.id, true, "")
 	return true
 
 
-func _can_pay_cost(skill: SkillResource) -> bool:
-	if skill.resource_cost <= 0:
-		return true
-	match skill.resource_type:
+# ---------------------------------------------------------------------------
+# G1 + G3: validación + pago atómico con rollback
+# ---------------------------------------------------------------------------
+
+func _can_pay_all_costs(skill: SkillResource) -> bool:
+	# Primary resource
+	if skill.resource_cost > 0:
+		if not _can_pay_single(skill.resource_cost, skill.resource_type):
+			return false
+	# G1: secondary resource
+	if skill.secondary_resource_cost > 0:
+		if not _can_pay_single(skill.secondary_resource_cost, skill.secondary_resource_type):
+			return false
+	# G3: HP cost (FIXED / PERCENT_MAX — DRAIN_PER_SECOND valida al activar toggle)
+	if skill.hp_cost_type == SkillResource.HpCostType.FIXED or skill.hp_cost_type == SkillResource.HpCostType.PERCENT_MAX:
+		var hp_needed: float = _compute_hp_cost(skill)
+		if _owner_player == null:
+			return false
+		if _owner_player.health <= hp_needed:  # min 1 HP preservado
+			return false
+	return true
+
+
+func _can_pay_single(amount: int, rtype: int) -> bool:
+	match rtype:
 		SkillResource.ResourceCostType.NONE:
 			return true
 		SkillResource.ResourceCostType.MP:
 			if _owner_player == null:
 				return false
-			return _owner_player.mana >= float(skill.resource_cost)
+			return _owner_player.mana >= float(amount)
 		SkillResource.ResourceCostType.RAGE, \
 		SkillResource.ResourceCostType.FE, \
 		SkillResource.ResourceCostType.COMBO, \
 		SkillResource.ResourceCostType.CONCENTRACION:
 			if class_resource == null:
 				return false
-			return class_resource.get_current() >= skill.resource_cost
+			return class_resource.get_current() >= amount
 		SkillResource.ResourceCostType.VIDA:
 			if _owner_player == null:
 				return false
-			return _owner_player.health > float(skill.resource_cost)
+			return _owner_player.health > float(amount)
 	return false
 
 
-func _pay_cost(skill: SkillResource) -> void:
-	if skill.resource_cost <= 0:
-		return
-	match skill.resource_type:
+func _pay_all_costs(skill: SkillResource) -> bool:
+	# Rollback-safe: primero consumir primary; si falla 2ndary, devolver primary.
+	var primary_paid: bool = false
+	if skill.resource_cost > 0:
+		primary_paid = _pay_single(skill.resource_cost, skill.resource_type)
+		if not primary_paid:
+			return false
+	# G1: secondary
+	if skill.secondary_resource_cost > 0:
+		var ok: bool = _pay_single(skill.secondary_resource_cost, skill.secondary_resource_type)
+		if not ok:
+			# Rollback primary
+			if primary_paid:
+				_refund_single(skill.resource_cost, skill.resource_type)
+			return false
+	# G3: HP cost (FIXED / PERCENT_MAX)
+	if skill.hp_cost_type == SkillResource.HpCostType.FIXED or skill.hp_cost_type == SkillResource.HpCostType.PERCENT_MAX:
+		var hp_needed: float = _compute_hp_cost(skill)
+		if _owner_player:
+			_owner_player.health = maxf(_owner_player.health - hp_needed, 1.0)
+			if _owner_player.has_signal("health_changed"):
+				_owner_player.health_changed.emit(_owner_player.health, _owner_player.max_health)
+	return true
+
+
+func _pay_single(amount: int, rtype: int) -> bool:
+	if amount <= 0:
+		return true
+	match rtype:
 		SkillResource.ResourceCostType.MP:
 			if _owner_player and _owner_player.has_method("use_mana"):
-				_owner_player.use_mana(float(skill.resource_cost))
+				return _owner_player.use_mana(float(amount))
+			return false
 		SkillResource.ResourceCostType.RAGE, \
 		SkillResource.ResourceCostType.FE, \
 		SkillResource.ResourceCostType.COMBO, \
 		SkillResource.ResourceCostType.CONCENTRACION:
 			if class_resource:
-				class_resource.consume(skill.resource_cost)
+				return class_resource.consume(amount)
+			return false
 		SkillResource.ResourceCostType.VIDA:
 			if _owner_player:
-				# No usar take_damage (triggerea regen delay + death) — restar directo
-				_owner_player.health = maxf(_owner_player.health - float(skill.resource_cost), 1.0)
+				_owner_player.health = maxf(_owner_player.health - float(amount), 1.0)
 				if _owner_player.has_signal("health_changed"):
 					_owner_player.health_changed.emit(_owner_player.health, _owner_player.max_health)
+				return true
+			return false
+	return true
+
+
+func _refund_single(amount: int, rtype: int) -> void:
+	if amount <= 0:
+		return
+	match rtype:
+		SkillResource.ResourceCostType.MP:
+			if _owner_player:
+				_owner_player.mana = minf(_owner_player.mana + float(amount), _owner_player.max_mana)
+				if _owner_player.has_signal("mana_changed"):
+					_owner_player.mana_changed.emit(_owner_player.mana, _owner_player.max_mana)
+		SkillResource.ResourceCostType.RAGE, \
+		SkillResource.ResourceCostType.FE, \
+		SkillResource.ResourceCostType.COMBO, \
+		SkillResource.ResourceCostType.CONCENTRACION:
+			if class_resource:
+				class_resource.add(amount)
+		SkillResource.ResourceCostType.VIDA:
+			if _owner_player:
+				_owner_player.health = minf(_owner_player.health + float(amount), _owner_player.max_health)
+				if _owner_player.has_signal("health_changed"):
+					_owner_player.health_changed.emit(_owner_player.health, _owner_player.max_health)
+
+
+func _compute_hp_cost(skill: SkillResource) -> float:
+	if _owner_player == null:
+		return 0.0
+	match skill.hp_cost_type:
+		SkillResource.HpCostType.FIXED:
+			return skill.hp_cost_value
+		SkillResource.HpCostType.PERCENT_MAX:
+			return _owner_player.max_health * skill.hp_cost_value
+	return 0.0
+
+
+# ---------------------------------------------------------------------------
+# G2: generación de recurso — usa resource_gen_type (con fallback a class_resource)
+# ---------------------------------------------------------------------------
+
+func _gen_resource(skill: SkillResource, amount: int) -> void:
+	if amount <= 0:
+		return
+	var rtype: int = skill.resource_gen_type
+	if rtype == SkillResource.ResourceCostType.NONE and class_resource != null:
+		# Fallback: si no especifica, usa el recurso único de la clase.
+		rtype = _class_resource_type_to_cost_type(class_resource.type)
+	match rtype:
+		SkillResource.ResourceCostType.MP:
+			if _owner_player:
+				_owner_player.mana = minf(_owner_player.mana + float(amount), _owner_player.max_mana)
+				if _owner_player.has_signal("mana_changed"):
+					_owner_player.mana_changed.emit(_owner_player.mana, _owner_player.max_mana)
+		SkillResource.ResourceCostType.RAGE, \
+		SkillResource.ResourceCostType.FE, \
+		SkillResource.ResourceCostType.COMBO, \
+		SkillResource.ResourceCostType.CONCENTRACION:
+			if class_resource:
+				class_resource.add(amount)
+
+
+func _class_resource_type_to_cost_type(ct: int) -> int:
+	match ct:
+		ClassResource.Type.RAGE: return SkillResource.ResourceCostType.RAGE
+		ClassResource.Type.FE: return SkillResource.ResourceCostType.FE
+		ClassResource.Type.COMBO: return SkillResource.ResourceCostType.COMBO
+		ClassResource.Type.CONCENTRACION: return SkillResource.ResourceCostType.CONCENTRACION
+		ClassResource.Type.VIDA: return SkillResource.ResourceCostType.VIDA
+	return SkillResource.ResourceCostType.NONE
+
+
+func _is_quest_completed(quest_id: StringName) -> bool:
+	# QuestSystem no existe aún — stub. Cuando exista, wirear acá.
+	var qs = _owner_player.get_tree().get_root().get_node_or_null("QuestSystem") if _owner_player else null
+	if qs != null and qs.has_method("is_completed"):
+		return qs.is_completed(quest_id)
+	return false  # gate activo — skill bloqueada hasta que QuestSystem wireé
 
 
 # ---------------------------------------------------------------------------
@@ -136,13 +271,23 @@ func _pay_cost(skill: SkillResource) -> void:
 # Resto de target_types / damage_formulas quedan como TODO para fases 1-2.
 # ---------------------------------------------------------------------------
 func _execute(skill: SkillResource) -> void:
+	# G9: invul frames (Danzante dashes) — abre ventana de invul al castear
+	if skill.invul_duration_s > 0.0 and _owner_player != null:
+		_owner_player.set_meta("invul_time_left", skill.invul_duration_s)
+	# G10: summon — si skill tiene summon_data, instancia antes del execute main
+	if skill.summon_data != null:
+		_execute_summon(skill)
 	match skill.cast_type:
 		SkillResource.CastType.INSTANT:
 			_execute_instant(skill)
 		SkillResource.CastType.TOGGLE:
 			_activate_toggle(skill)
 		SkillResource.CastType.CHANNELED:
-			push_warning("PlayerSkills: CHANNELED no implementado (Fase 2 Mage)")
+			_activate_channeled(skill)
+		SkillResource.CastType.CHARGED:
+			# G6: para Archer Flecha Cargada. Fase 4 Archer wirea charge_progress per-frame.
+			# MVP: cast directo con mult máximo (stub — se puede refinar con hold tracking).
+			_execute_instant(skill)
 		SkillResource.CastType.PASSIVE:
 			push_warning("PlayerSkills: PASSIVE no implementado (Fase por rama)")
 
@@ -175,7 +320,6 @@ func _execute_single_enemy(skill: SkillResource) -> void:
 		return
 	var dmg: float = _compute_damage(skill)
 	if dmg > 0.0 and target.has_method("take_damage"):
-		# BaseEnemy.take_damage firma: (amount, hit_direction, kb_force, attacker_str, attacker)
 		var hit_dir: Vector3 = Vector3.FORWARD
 		if _owner_player and target is Node3D:
 			hit_dir = (target.global_position - _owner_player.global_position).normalized()
@@ -184,7 +328,9 @@ func _execute_single_enemy(skill: SkillResource) -> void:
 		if _owner_player and _owner_player.has_method("get_effective_stat"):
 			str_effective = _owner_player.get_effective_stat("str")
 		target.take_damage(dmg, hit_dir, 0.0, str_effective, _owner_player)
-	# Aplicar status effects (stub Fase 0 — usa método del enemy si existe)
+		# G2: gen on hit
+		if skill.resource_gen_on_hit > 0:
+			_gen_resource(skill, skill.resource_gen_on_hit)
 	_apply_status_effects(skill, target)
 
 
@@ -213,6 +359,7 @@ func _apply_skill_to_targets(skill: SkillResource, targets: Array) -> void:
 	var attacker_str: int = 0
 	if _owner_player and _owner_player.has_method("get_effective_stat"):
 		attacker_str = _owner_player.get_effective_stat("str")
+	var hits: int = 0
 	for t in targets:
 		if dmg > 0.0 and t.has_method("take_damage"):
 			var hit_dir: Vector3 = Vector3.FORWARD
@@ -220,7 +367,13 @@ func _apply_skill_to_targets(skill: SkillResource, targets: Array) -> void:
 				hit_dir = (t.global_position - _owner_player.global_position).normalized()
 				hit_dir.y = 0
 			t.take_damage(dmg, hit_dir, 0.0, attacker_str, _owner_player)
+			hits += 1
 		_apply_status_effects(skill, t)
+	# G2: gen on hit (por cada target impactado) + gen per_target (aliados curados, etc)
+	if hits > 0 and skill.resource_gen_on_hit > 0:
+		_gen_resource(skill, skill.resource_gen_on_hit * hits)
+	if targets.size() > 0 and skill.resource_gen_per_target > 0:
+		_gen_resource(skill, skill.resource_gen_per_target * targets.size())
 
 
 func _enemies_in_cone(range_m: float, cone_deg: float) -> Array:
@@ -382,8 +535,12 @@ func try_trigger_reactive(incoming_damage: float, attacker: Node) -> Dictionary:
 				dir = (attacker.global_position - _owner_player.global_position).normalized()
 				dir.y = 0
 			attacker.take_damage(reflect_dmg, dir, 0.0, str_eff, _owner_player)
-		# Rage bonus por parry exitoso (canon Bloqueo Perfecto)
-		if class_resource != null and skill.reactive_rage_on_success > 0:
+		# G2: resource_gen_on_cast en path reactive = ganancia por parry exitoso
+		# (reemplaza el legacy reactive_rage_on_success, que queda como fallback).
+		if skill.resource_gen_on_cast > 0:
+			_gen_resource(skill, skill.resource_gen_on_cast)
+		elif class_resource != null and skill.reactive_rage_on_success > 0:
+			# Fallback legacy para compat — .tres con solo reactive_rage_on_success
 			class_resource.add(skill.reactive_rage_on_success)
 		reactive_triggered.emit(sid, incoming_damage, reflect_dmg)
 		return {"absorbed": true, "reflect_dmg": reflect_dmg, "stun_duration": skill.status_duration_s}
@@ -437,19 +594,31 @@ func _acquire_enemy_target(range_m: float) -> Node:
 func _compute_damage(skill: SkillResource) -> float:
 	if skill.damage_formula == SkillResource.DamageFormulaType.NONE:
 		return 0.0
-	if _owner_player == null:
-		return float(skill.base_damage)
-	match skill.damage_formula:
-		SkillResource.DamageFormulaType.PHYSICAL_V2:
-			if _owner_player.has_method("get_physical_damage"):
-				return _owner_player.get_physical_damage(float(skill.base_damage))
-		SkillResource.DamageFormulaType.MAGIC_V2:
-			if _owner_player.has_method("get_magic_damage"):
-				return _owner_player.get_magic_damage(float(skill.base_damage))
-		SkillResource.DamageFormulaType.HEAL, \
-		SkillResource.DamageFormulaType.TRUE_DAMAGE:
-			return float(skill.base_damage)
-	return float(skill.base_damage)
+	var base: float = float(skill.base_damage)
+	if _owner_player != null:
+		match skill.damage_formula:
+			SkillResource.DamageFormulaType.PHYSICAL_V2:
+				if _owner_player.has_method("get_physical_damage"):
+					base = _owner_player.get_physical_damage(float(skill.base_damage))
+			SkillResource.DamageFormulaType.MAGIC_V2:
+				if _owner_player.has_method("get_magic_damage"):
+					base = _owner_player.get_magic_damage(float(skill.base_damage))
+			SkillResource.DamageFormulaType.HEAL, \
+			SkillResource.DamageFormulaType.TRUE_DAMAGE:
+				base = float(skill.base_damage)
+	# G4: combo points damage multiplier (Danzante finishers).
+	# Si combo_damage_multipliers no vacío, lee current combo del class_resource.
+	if skill.combo_damage_multipliers.size() > 0 and class_resource != null:
+		var points: int = class_resource.get_current()
+		if points > 0:
+			var idx: int = clampi(points - 1, 0, skill.combo_damage_multipliers.size() - 1)
+			base *= skill.combo_damage_multipliers[idx]
+		if skill.combo_consume_all:
+			class_resource.consume(points)
+	# G6: charge damage multiplier (Archer Flecha Cargada — full charge si CHARGED)
+	if skill.cast_type == SkillResource.CastType.CHARGED and skill.charge_damage_multiplier_max > 1.0:
+		base *= skill.charge_damage_multiplier_max
+	return base
 
 
 func _apply_status_effects(skill: SkillResource, target: Node) -> void:
@@ -483,14 +652,39 @@ func _process(delta: float) -> void:
 		cooldowns.erase(id)
 		cooldown_tick.emit(id, 0.0, 0.0)
 
-	# Toggles activos — tick drain + re-aplicar Weak a enemies en aura
+	# G3: HP drain per second para toggles con hp_cost_type DRAIN_PER_SECOND
+	# (Aura Marchita Necromancer pattern — mismo loop de toggles abajo cubre MP/Rage/etc
+	#  pero HP drain es per-frame, no per-tick).
+	var hp_drain_to_stop: Array = []
+	for id in active_toggles.keys():
+		var skill: SkillResource = active_toggles[id]["skill"]
+		if skill.hp_cost_type == SkillResource.HpCostType.DRAIN_PER_SECOND and _owner_player:
+			var drain: float = skill.hp_cost_value * delta
+			if _owner_player.health - drain <= 1.0:
+				hp_drain_to_stop.append(id)  # apagar en vez de matar
+			else:
+				_owner_player.health -= drain
+				if _owner_player.has_signal("health_changed"):
+					_owner_player.health_changed.emit(_owner_player.health, _owner_player.max_health)
+	for id in hp_drain_to_stop:
+		_deactivate_toggle(id)
+
+	# G9: decrementar invul_time_left del player
+	if _owner_player != null and _owner_player.has_meta("invul_time_left"):
+		var t: float = float(_owner_player.get_meta("invul_time_left")) - delta
+		if t <= 0.0:
+			_owner_player.remove_meta("invul_time_left")
+		else:
+			_owner_player.set_meta("invul_time_left", t)
+
+	# Toggles + channeled — tick drain + efecto per-tick
 	var toggles_to_stop: Array = []
 	for id in active_toggles.keys():
 		var data: Dictionary = active_toggles[id]
 		var skill: SkillResource = data["skill"]
 		var tt: float = float(data["tick_timer"]) - delta
 		if tt <= 0.0:
-			# Drain recurso
+			# Drain recurso (G5: tick_resource_cost para channeled + toggle)
 			if skill.tick_resource_cost > 0:
 				var paid: bool = false
 				match skill.resource_type:
@@ -508,8 +702,11 @@ func _process(delta: float) -> void:
 				if not paid:
 					toggles_to_stop.append(id)
 					continue
-			# Re-aplicar aura enemy debuff
-			_apply_aura_enemy_debuff(skill)
+			# Efecto per-tick: channeled aplica damage, toggle aplica aura debuff
+			if data.get("is_channeled", false):
+				_channeled_tick(skill)
+			else:
+				_apply_aura_enemy_debuff(skill)
 			tt = skill.tick_interval_s
 		data["tick_timer"] = tt
 	for id in toggles_to_stop:
@@ -530,3 +727,109 @@ func _process(delta: float) -> void:
 ## Helper para tests — devuelve cooldown restante de una skill.
 func get_cooldown(skill_id: StringName) -> float:
 	return cooldowns.get(skill_id, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# G5: CHANNELED — hold-to-cast recurrente (Mage Tormenta, Cleric Círculo, Necro Aura)
+# MVP: reusa active_toggles pero marca is_channeled=true. Cada tick aplica el
+# damage_formula a targets en cono/AoE. stop_channel() al soltar input o MP out.
+# Fase 2 Mage refinará con hold-tracking (input release detection).
+# ---------------------------------------------------------------------------
+func _activate_channeled(skill: SkillResource) -> void:
+	active_toggles[skill.id] = {
+		"skill": skill,
+		"tick_timer": skill.tick_interval_s,  # próximo tick
+		"is_channeled": true,
+	}
+	toggle_changed.emit(skill.id, true)
+
+
+func stop_channel(skill_id: StringName) -> void:
+	# Llamado explícitamente al soltar tecla o MP out.
+	if active_toggles.has(skill_id):
+		# Arranca cooldown_s del skill al soltar (canon G5 brief).
+		var data: Dictionary = active_toggles[skill_id]
+		var skill: SkillResource = data.get("skill")
+		if skill != null and skill.cooldown_s > 0.0:
+			cooldowns[skill_id] = skill.cooldown_s
+		_deactivate_toggle(skill_id)
+
+
+func _channeled_tick(skill: SkillResource) -> void:
+	# Aplica damage_formula a targets en cono o AoE según target_type.
+	var targets: Array = []
+	match skill.target_type:
+		SkillResource.TargetType.CONE:
+			targets = _enemies_in_cone(skill.range_m, skill.cone_angle_deg)
+		SkillResource.TargetType.AOE:
+			targets = _enemies_in_sphere(skill.radius_m if skill.radius_m > 0.0 else skill.range_m)
+		SkillResource.TargetType.SINGLE_ENEMY:
+			var t: Node = _acquire_enemy_target(skill.range_m)
+			if t != null:
+				targets = [t]
+	_apply_skill_to_targets(skill, targets)
+
+
+# ---------------------------------------------------------------------------
+# G10: SUMMON — instanciar escena con HP/DMG formulas del SummonResource
+# Fase 1: stub sólido — instancia y aplica formulas. Aggregar a
+# player.active_summons dict para tracking + cap max_active.
+# ---------------------------------------------------------------------------
+func _execute_summon(skill: SkillResource) -> void:
+	var sr = skill.summon_data
+	if sr == null or _owner_player == null:
+		return
+	if not (sr is SummonResource):
+		push_warning("PlayerSkills: summon_data no es SummonResource — skip")
+		return
+	var summon_res: SummonResource = sr
+	if summon_res.summon_scene == null:
+		push_warning("PlayerSkills: summon_scene null para '%s'" % summon_res.summon_id)
+		return
+	# Track active summons en player
+	if not _owner_player.has_meta("active_summons"):
+		_owner_player.set_meta("active_summons", {})
+	var active: Dictionary = _owner_player.get_meta("active_summons")
+	var key: StringName = summon_res.summon_id
+	if not active.has(key):
+		active[key] = []
+	var list: Array = active[key]
+	# Limpiar refs inválidas
+	list = list.filter(func(n): return is_instance_valid(n))
+	# Cap max_active: despawn el más viejo si excede
+	while list.size() >= summon_res.max_active and list.size() > 0:
+		var oldest: Node = list.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+	# Instanciar
+	var instance: Node = summon_res.summon_scene.instantiate()
+	if instance is Node3D and _owner_player is Node3D:
+		var fwd: Vector3 = -_owner_player.global_transform.basis.z
+		fwd.y = 0
+		(instance as Node3D).global_position = _owner_player.global_position + fwd.normalized() * 1.5
+	# Aplicar formulas
+	var hp: float = SummonResource.eval_formula(summon_res.hp_formula, _owner_player)
+	var dmg: float = SummonResource.eval_formula(summon_res.dmg_formula, _owner_player)
+	if "health" in instance:
+		instance.health = hp
+	if "_max_health" in instance:
+		instance._max_health = hp
+	if "damage" in instance:
+		instance.damage = dmg
+	if instance.has_method("set_ai_behavior"):
+		instance.set_ai_behavior(summon_res.ai_behavior)
+	_owner_player.get_tree().current_scene.add_child(instance)
+	list.append(instance)
+	active[key] = list
+	# Duration — auto-despawn si > 0
+	if summon_res.duration_s > 0.0:
+		var timer := Timer.new()
+		timer.wait_time = summon_res.duration_s
+		timer.one_shot = true
+		timer.timeout.connect(func():
+			if is_instance_valid(instance):
+				instance.queue_free()
+			timer.queue_free()
+		)
+		instance.add_child(timer)
+		timer.start()

@@ -699,6 +699,9 @@ func _regenerate(delta: float) -> void:
 func take_damage(amount: float, element: String = "", attacker: Node = null) -> void:
 	if is_dead:
 		return
+	# G9: invul frames — si skill abrió ventana de invul, ignorar dmg.
+	if has_meta("invul_time_left") and float(get_meta("invul_time_left")) > 0.0:
+		return
 	# Reactive parry (Bloqueo Perfecto) — si hay ventana activa absorbe+refleja.
 	if skills != null:
 		var parry: Dictionary = skills.try_trigger_reactive(amount, attacker)
@@ -712,22 +715,12 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 		final_damage = apply_physical_defense(amount)
 	health = clamp(health - final_damage, 0, max_health)
 	health_changed.emit(health, max_health)
-	# Rage gen: Warrior gana Rage por daño recibido (canon _system.md §5ter: +10/10% HP perdido).
-	# Mapeo simple: 10% del dmg final como Rage. Solo si class_resource es RAGE.
+	# Rage gen por daño recibido (canon _system.md §5ter: +10 por 10% HP perdido).
+	# Este gen vive acá (no en skill .tres) porque es pasivo de la clase, no per-skill.
 	if class_resource != null and class_resource.type == ClassResource.Type.RAGE:
 		class_resource.add(int(final_damage * 0.1))
 	if health <= 0:
 		die()
-
-
-## Hook unificado — llamar desde player.gd / mage.gd tras conectar un golpe.
-## Genera recurso único (Rage para Warrior) proporcional al daño hecho.
-func on_damage_dealt(amount: float) -> void:
-	if class_resource == null:
-		return
-	if class_resource.type == ClassResource.Type.RAGE:
-		# Canon: +5 por hit conectado (approx). Escalamos con daño: max(5, 3% del dmg).
-		class_resource.add(maxi(5, int(amount * 0.03)))
 
 func heal(amount: float) -> void:
 	if is_dead:
