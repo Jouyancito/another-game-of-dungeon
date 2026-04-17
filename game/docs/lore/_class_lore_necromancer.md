@@ -1,157 +1,228 @@
-# Necromancer — Identidad, Lore y Fantasía
+# Necromancer — Identidad, Lore y Fantasía (DARK)
 
-**Versión**: 1.0
+**Versión**: 2.0 — **rewrite DARK 2026-04-17**. Pisa versión 1.0 "moralmente gris" (2026-04-16).
 **Fecha**: 2026-04-17
-**Estado**: Canon lore — complemento narrativo de `game/docs/skills/necromancer.md`
-**Depende**: GDD_DungeonParty.md, `_system.md`, `_class_lore_*` (hermanos — especialmente `_class_lore_cleric.md` para el Sínodo como antagonista doctrinal).
-**Audiencia**: Design, Art, UI (voz NPCs Pacto), Story.
+**Estado**: Canon lore — complemento narrativo de `game/docs/skills/necromancer.md`.
+**Depende**: `_world_canon.md` (mundo + Necromancer = excepción dark canónica §6), `_system.md`, GDD.
+**Audiencia**: Design (consistencia narrativa dark), Art (paleta oscura chilota), UI (voz NPCs del Caleuche), Story (quests oscuras).
 
 ---
 
-## 0. Canon de mundo asumido
+## §0 Contexto del Mundo
 
-> **Canon de mundo** (asumido por Dept Design 2026-04-17 — flag A si requiere ajuste):
-> - **Ambientación**: medieval-fantástico oscurecido. Reino heredero de civilizaciones caídas.
-> - **La Torre**: pre-existente, nexo dimensional, origen desconocido.
-> - **Gremio de la Torre**: institución transversal (Asesora del Gremio GDD §3).
-> - **Clases = órdenes preexistentes** del mundo exterior.
-> - **La Taberna**: zona neutral cross-orden.
+Ver canon central: [`_world_canon.md`](_world_canon.md).
+
+Resumen: medieval-fantástico con esencia chilena. **El Necromancer es la única excepción tonal dark canon** dentro de un mundo cuyo tono general es misterio > mal (ver `_world_canon.md §6`). **No es gris. No es ambiguo. Es brujo real del Chiloé negro.**
 
 ---
 
-## 1. Esencia
+## §1 Esencia — Pacto oscuro, no academia gris
 
-El Necromancer **no es el malo**. Esto es la primera regla del lore de la clase. Quien piense que "nigromancia = villano" no entiende al Pacto de los Marchitos.
+El Necromancer **rompe tabúes**. No los desafía, no los cuestiona — los **rompe**. Y lo sabe. Y lo hace igual.
 
-El Necromancer es **el que respeta la muerte dándole propósito**. Su fantasía es **pagar con sangre para honrar la sangre ya derramada**. El Pacto sostiene una tesis incómoda pero coherente: los muertos ya perdieron su tiempo. Seguir ahí, quietos, es desperdicio. Darles un último rol — tanquear por un vivo, detonar en masa, maldecir al que mató a los suyos — es **honra**, no profanación.
+Su fantasía NO es "el que respeta la muerte dándole propósito" (framing v1.0 descartado). Su fantasía real es:
 
-Esta tesis es herejía para el Sínodo. Es pragma para el Pacto. El juego no toma partido — le deja al jugador decidir.
+> *"Necesito lo que solo los muertos ofrecen. Pago lo que corresponde. El precio es alto. Lo pago igual."*
 
-Inspiraciones base:
-- **Death Note L (moral ambigua con fundamento)** — el Pacto tiene código; simplemente no es el código del Sínodo.
-- **Dark Souls — Pyromancer + Deep Sorceries** — magia oscura con disciplina técnica.
-- **Witcher 3 — Gaunter O'Dimm** (precio a pagar, pacto consciente, no engaño).
-- **Frieren — Aura la Degolladora** (solo estéticamente — la armadura de huesos, el uso de muertos como recurso. Moralmente opuesto: los Marchitos NO esclavizan almas).
-- **Final Fantasy — Kefka / Exdeath** solo en silhouette, NO en moral.
+El Necromancer **no** es el villano definitivo del mundo — es **anti-hero jugable** con conciencia oscura. Sabe que roba descanso. Sabe que tuerce almas. Sabe que el Pacto no compensa lo que toma. Y aun así — **vuelve a invocar**. La fantasía es **determinación con peso moral irrefutable**: el Necromancer no puede defenderse diciendo "yo respeto la muerte". La muerte no es lo que él respeta — es lo que él **usa**.
 
-La fantasía emocional: *"No te asustes, yo también pago por esto."*
+**Tres verdades canónicas del Necromancer v2.0**:
+1. **El Pacto roba.** No toma prestado. No cuida. **Roba.** El Imbunche grita en silencio. El esqueleto invocado no descansa. El alma marcada no cierra su ciclo.
+2. **El brujo paga con vida propia.** Canon `necromancer.md` — Vida-recurso. Pero pagar NO lo redime. Solo lo equilibra mecánicamente.
+3. **El brujo elige seguir.** Aquí está el punto dark: **nadie obliga al Necromancer**. Entra al Pacto voluntariamente. Sigue voluntariamente. La oscuridad es elección repetida, no tragedia pasiva.
 
----
+Inspiraciones base (framing dark):
+- **Brujería tradicional chilota** — Chiloé negro real. Imbunche (niño deformado criado por brujo), Caleuche (barco de ahogados tripulados contra su voluntad), Machi Negra (chamana de oscuro real del folklore chilote).
+- **Berserk — Griffith / God Hand** (pacto con costo irrecuperable, ambición no negociable).
+- **The Witcher — Brujas del Pantano** (Crookback Bog, Baba Yaga tipo oscuro rural).
+- **Dark Souls — Pontiff Sulyvahn + Aldrich** (corrupción con estética litúrgica pervertida).
+- **Frieren — Aura la Degolladora** (aspecto estético hueso-esqueleto — moralidad ahora SÍ alineada al dark canónico, no solo estética).
 
-## 2. Origen / cultura — El Pacto de los Marchitos
-
-El **Pacto de los Marchitos** es una orden **pequeña** (~300 miembros activos registrados, comparado con ~3.000 del Sínodo y ~1.500 de la Orden del Muro). **Clandestina durante 200 años, semi-legalizada hace 60 años** cuando el Gremio de la Torre firmó contrato con ellos (el Gremio necesitaba a alguien que entendiera de undead/void — y los Marchitos eran los únicos que tenían siglos de registros).
-
-**Sede principal**: las **Catacumbas de Bramastrum** — una red de cripta-ciudad bajo las ruinas de una civilización pre-reino. Los Marchitos no construyeron las catacumbas; las **ocuparon**. Las ruinas tienen inscripciones en un idioma anterior al actual, que ningún Mage de la Vigilia ha podido descifrar completamente. Los Marchitos tampoco — y eso es parte de su humildad cultural.
-
-**Reclutamiento**: el más duro de todas las órdenes. El aspirante debe **haber visto morir a alguien cercano en circunstancias injustas** y haber llegado a la conclusión — **por sí mismo, sin inducción externa** — de que "el muerto quiso vivir más, y esta voluntad no debería desaparecer completamente". Los Marchitos **nunca reclutan activamente**. Aparecen cuando el aspirante ya llegó a la filosofía; los encuentran, no los convencen.
-
-**Formación**: 6-10 años en las Catacumbas. Pasos:
-- **Fase del Silencio** (2-3 años): el aspirante no practica nigromancia — **aprende a sentir el peso de la muerte** sin controlarla. Monasterio de observación de cadáveres naturales, entierros, cremaciones. Sin hechizos. Propósito: **verificar que el aspirante no sea un sádico**. Los sádicos son expulsados sin ceremonia — los Marchitos NO los quieren.
-- **Fase del Pago** (3-4 años): primera nigromancia. Cada hechizo cuesta HP (canon skills — recurso Vida). El aspirante aprende a **pagar conscientemente**. Si sobrevive y mantiene la mente sana, pasa a la Fase del Pacto.
-- **Fase del Pacto** (1-3 años): el aspirante jura su primer Pacto personal — una muerte específica del pasado a la que dedicará su práctica. No es místico: es ético. El Pacto es el compromiso de no usar nigromancia por razones banales.
-
-**Firma cultural**: los Marchitos tienen **siempre un nombre de pacto** además del nombre propio. El nombre de pacto es el nombre del muerto al que dedicaron su práctica. Ejemplo: *"Soy Kestrel, Pacto de mi hermano Adrik."*
+La palabra que lo define: **impagable**. Lo que el brujo hace **no se puede pagar de verdad** — aunque él pague en sangre, el costo moral supera.
 
 ---
 
-## 3. Filosofía / código — "Pago por lo que tomo"
+## §2 Origen / cultura — La Cofradía del Caleuche (Chiloé negro)
 
-El juramento del Pacto, al cumplir la Fase del Pacto:
+La **Cofradía del Caleuche** es la orden más **secreta y más temida** del reino. Canon: **~150 miembros activos estimados** (nadie los cuenta oficialmente — se esconden bien). Clandestina durante **500 años**, semi-legalizada hace 60 años cuando el Gremio de la Torre firmó un contrato limitado con ellos — porque la Torre contenía undead que **solo el Pacto sabía manejar**.
 
-> *"No uso lo muerto por placer. Uso lo muerto por propósito. Pago el precio en mi propia sangre para que nadie diga que hago esto gratis. Mi Pacto [nombre del muerto] es mi testigo."*
+**Sede principal**: las **Cuevas de Quicaví**. Quicaví es un pueblo pequeño en el archipiélago de Chiloé — real geográfico en Chile. Las cuevas bajo Quicaví son el lugar legendario donde (según folklore chilote real) los brujos hacían su **recuta** — la iniciación oscura. En el lore de Dungeon Party, Quicaví es la sede central de la Cofradía, construida sobre ruinas pre-reino aún más antiguas.
 
-**Cinco principios operativos del Pacto** (más largos que los otros códigos — es una orden doctrinalmente densa):
+**Fundador legendario**: **Kalku el Primero**. El nombre "Kalku" significa literalmente "brujo malo" en mapudungun — una de las pocas palabras mapuche con connotación explícitamente oscura. La orden **acepta el nombre**. No se esconde detrás de eufemismos. Kalku el Primero fundó el Pacto hace ~500 años, tras la muerte de su hermana **Lican** (obsidiana/piedra negra en mapudungun). La leyenda dark: Kalku no **invocó** a Lican — la **consumió** para potenciar su primer ritual de Pacto. La frase que sobrevive de Kalku: *"Lican ya no necesitaba sus huesos. Yo sí."*
 
-1. **Pagar siempre.** Toda skill cuesta HP o pool máximo (canon `necromancer.md` recurso Vida). El Necromancer que intenta evitar el pago **pierde la potencia** — es mecánico + dogmático.
-2. **No usar muertos al azar.** Los Marchitos consideran sacrilegio levantar undead **sin intención específica**. Un esqueleto invocado es un encargo, no una decoración.
-3. **Respetar lo descansado.** Si un cadáver está en un cementerio consagrado, los Marchitos no tocan. Fuera de camposanto (como pasa en la torre), es permitido.
-4. **Nunca contra aliados.** La maldición se usa contra enemigos. Nunca — **jamás** — contra aliados, ni en broma, ni como "test". El Marchito que viola esto es expulsado y su nombre borrado del registro.
-5. **El Pacto personal es sagrado.** Cada Marchito dedica su práctica a una muerte específica. Esa muerte no es chiste, no se menciona casualmente, no se compara con la de otro Marchito. Es la línea íntima que el Pacto toca pero no cruza.
+**Reclutamiento**:
+- **No hay proceso voluntario abierto** — la Cofradía elige.
+- Los aspirantes suelen venir de **vidas rotas**: viudos, huérfanos, ex-soldados con trauma, pescadores que perdieron su barco, personas que **llegaron por sí mismas a la conclusión de que la muerte es herramienta** antes que la Cofradía los encuentre.
+- **Se detecta a través de actos**: el aspirante, sin saberlo, hace algo moralmente negro (roba restos, practica necromancia amateur, abandona a un moribundo con intención) y la Cofradía lo nota.
+- **No hay rechazo suave**: o entrás al Pacto, o **te cazan para borrarte** (porque sabés demasiado). El aspirante enfrenta elección forzada.
+
+**Formación**: 5-7 años en las Cuevas de Quicaví. Fases:
+
+- **Recuta del Silencio** (1 año): el aspirante **no practica nigromancia**. Aprende a **convivir con los muertos**. Los veteranos le muestran Imbunches custodios (criaturas deformadas que custodian las cuevas — canon dark chilota, real folklore). El aspirante decide: aguantar el horror o huir. Los que huyen **son cazados**.
+
+- **Pacto Personal** (1 año): el aspirante elige **a quién usar como ancla del Pacto**. Aquí el canon v2.0 pisa el v1.0: en v1.0 era "dedicas tu práctica a un muerto en homenaje". **En v2.0 es**: el aspirante elige un muerto cercano y **lo consume ritualmente** (pequeña porción de reliquia — hueso, pelo, sangre seca). **El Pacto Personal es un agravio permanente contra ese muerto**. El brujo carga esa deuda específica toda su vida.
+
+- **Oficios del Pacto** (3-5 años): práctica nigromántica. Aprender a invocar, maldecir, armar cadenas mágicas. Cada hechizo nuevo cuesta **vida propia + pequeñas piezas del Pacto Personal** (más drenaje moral, no solo HP).
+
+**Graduación**: al completar el **Rito del Caleuche** — el aspirante debe ver el barco fantasma (rito que mezcla hallucinación/real — canon ambiguo) y **abordarlo sin huir**. Los que abordan son Brujos Plenos. Los que huyen son ejecutados en cueva.
+
+**Firma cultural**:
+- Los Brujos Plenos tienen **nombre de Pacto** además del nombre propio. El nombre de Pacto **es el del muerto consumido** — recordatorio permanente de la deuda.
+- Ejemplo canon: *"Soy Waikilaf, Pacto de mi hermano Lican."* (= "yo soy lanza-herida, y traigo para siempre el peso de haber consumido a mi hermano piedra negra")
+- Los Pactos se heredan: un brujo viejo puede **pasar su Pacto** a un aprendiz al morir — el aprendiz hereda la deuda + el poder.
 
 ---
 
-## 4. Aesthetic / visual identity
+## §3 Filosofía / código — "Pago. Sé que no alcanza."
 
-- **Colores primarios**: violeta oscuro (casi negro) + negro tinta.
-- **Colores secundarios**: rojo sangre seca (símbolos + acentos), blanco hueso (detalles rituales), verde podredumbre (solo en plaga/Pacto Marchita).
-- **Materiales**: lana negra teñida (gruesa, silenciosa al moverse), cuero oscurecido, **hueso pulido** (usado como broche, puntero, báculo, joyería ritual — los Marchitos consideran el hueso noble, NO macabro). Tela violeta interior visible solo al mover la sotana. Algunos portan collar con **dedo pequeño óseo** (reliquia del muerto del Pacto — dedo índice porque apunta y elige).
+No hay juramento formal que busque redención. El Pacto **no se redime**. El código del Pacto es más pragmático que moral:
+
+> *"Pago con mi vida para no pagar con la tuya. Sé lo que hago. Sé lo que cuesta. Sigo."*
+
+**Cinco principios operativos** (reinterpretados dark):
+
+1. **Pagar siempre — pero el pago NO redime**. Cada skill cuesta HP/pool (canon recurso Vida). El Pacto paga, pero es **equilibrio mecánico**, no absolución moral. El brujo paga porque **si no paga, el Pacto lo consume**.
+
+2. **Usar muertos con propósito específico** — NO es respeto. Es **eficiencia**. El Pacto no desperdicia (porque cada cadáver invocado es un alma incomodada — hacerlo al azar sería estúpido gasto de moral).
+
+3. **Cazar a los brujos caídos.** La Cofradía **mata a los suyos** cuando se corrompen demasiado (caen en sadismo puro, rompen la regla anti-infante, venden secretos). El brujo moribundo a manos de la Cofradía es gesto de contención interna — "sabemos que somos oscuros, pero **tenemos límite**".
+
+4. **Nunca contra infantes.** Regla absoluta (preservada del v1.0 porque es el límite interno que **preserva la humanidad mínima** del brujo). Violación = cacería cofrade del propio miembro.
+
+5. **El Pacto Personal es sagrado.** Pero ahora sagrado significa **deuda no pagable**, no "dedicatoria honrada". El brujo carga el nombre del consumido como **carga** — no como homenaje.
+
+**Principio NUEVO v2.0**:
+
+6. **No ofrecer redención pública.** El brujo que intenta "limpiar su imagen" frente a otras órdenes **pierde el respeto del Pacto**. La Cofradía considera que **fingir bondad es peor que ser oscuro declaradamente**. La coherencia con la propia elección es la única dignidad que les queda.
+
+---
+
+## §4 Aesthetic / visual identity — Chiloé negro
+
+- **Colores primarios**: **negro profundo** + **púrpura de corteza podrida** (casi negro, tono Chiloé húmedo). Rojo sangre seca como acento.
+- **Colores secundarios**: blanco hueso (símbolos rituales, dientes visibles en tallado), verde podredumbre-musgo (mojadura de cueva chilota). **Nada dorado. Nada brillante.**
+- **Materiales**:
+  - Lana negra teñida con corteza de alerce quemada (tradición chilota real)
+  - Cuero oscurecido — el Pacto usa cuero **sintéticamente envejecido**, NO nuevo (respeto simbólico a lo pasado)
+  - **Hueso pulido** — usado como broche, puntero, báculo, joyería ritual. Los Marchitos consideran el hueso noble — **ahora con framing dark**: el hueso es trofeo + recuerdo + herramienta.
+  - **Obsidiana chilena (lican)** — puntas de daga ritual + medallones
+  - **Plumas de Caleuche** (criatura mítica — en lore canon, las plumas son huesos cubiertos de algas marinas secas)
 - **Símbolos**:
-  - **Calavera coronada con espiral violeta** (emblema oficial del Pacto)
-  - **Mano con 3 dedos extendidos + 2 cerrados** (tres que siguen, dos que se van — ciclo respetado)
-  - **Espiral violeta** (el Pacto personal)
-- **Postura/silhouette**: **ligeramente encorvada** por peso ritual + por pérdida periódica de HP (el Necromancer es **visiblemente cansado** en mid-run). Caminan despacio. Al castear invocación, gesto lento y deliberado — nunca apresurado. Silhueta alta y delgada, **sotana larga** que arrastra sutilmente.
-- **Fantasía visual canónica** (`necromancer.md §0`): **venas negras** en el personaje mientras tiene invocaciones activas. Intensifica con stack de summons. Se ven visibles en la piel — cuello, manos, sienes. No es maldición — es el pago hecho visible.
-- **Refs** (cross-ref `necromancer.md §7`):
-  - **Dark Souls — Gravelord Servant** (cultura de la muerte con disciplina, no caos)
-  - **Overwatch — Reaper** (solo silhouette; moralmente opuesto — Reaper es venganza, Marchito es honra)
-  - **JJK — Sukuna en casting lento** (el ritual deliberado)
-  - **Frieren — estética hueso + estudio de hechizos oscuros** (no la moralidad — la estética)
+  - **Calavera coronada con espiral violeta rota en la punta** (emblema oficial del Pacto — v2.0: la espiral está **rota**, no intacta, representando la promesa agrietada del Pacto)
+  - **Barco de huesos + 4 velas negras** (Caleuche estilizado)
+  - **Mano con 3 dedos extendidos + 2 cerrados** (los 3 que siguen en el Pacto + 2 consumidos — v2.0: explícitamente consumidos, no "que se van")
+  - **Espiral violeta con manchas rojas** (Pacto Personal con deuda visible)
+- **Postura/silhouette**:
+  - **Ligeramente encorvada** por peso ritual + HP drain frecuente
+  - **Caminan despacio** en público — más rápido en cuevas oscuras (se sueltan)
+  - Al castear invocación: gesto **ritual lento, deliberado, casi tierno al muerto** (porque el muerto merece cortesía — es lo único que el brujo le puede dar ya)
+  - Silhueta alta y delgada, **sotana larga negra** que arrastra
+- **Fantasía visual canónica** (`necromancer.md §0`): **venas negras** en el personaje mientras tiene invocaciones activas. **V2.0 refuerza**: las venas negras NO son "pago hecho visible" (framing v1.0). Son **la podredumbre filtrándose** — el Pacto literalmente corrompe al brujo por dentro. A mayor poder, más corrupción visible en piel.
+- **Refs** (cross-ref `necromancer.md §7` + framing v2.0):
+  - **Berserk — Griffith pos-Behelit** (la belleza envuelta en perfecto mal)
+  - **Bloodborne — Hunter of Hunters + Cainhurst** (aristocracia corrompida)
+  - **Chiloé brujería real** — fotografías de recutas chilotas, estilo de "brujo del sur"
+  - **Frieren — Aura la Degolladora** (estética + ahora moralidad alineada)
+  - **Dark Souls — Gravelord Servant + Archdeacon McDonnell** (decrepitud ritualizada)
 
 ---
 
-## 5. Voz / personalidad
+## §5 Voz / personalidad — Irónica, fría, negra
 
-**Irónico, sobrio, con humor negro comedido.** Los Marchitos han vivido mucho cerca de la muerte — ya no la temen ni la glorifican. Bromean sobre ella, pero con **cortesía**: nunca sobre la muerte de alguien específico sin permiso.
+**Humor negro seco + conciencia explícita de la oscuridad.** El Necromancer v2.0 **no se esconde** de su naturaleza — la reconoce abiertamente, con distancia estética.
 
 Ejemplos de líneas típicas:
-- Al invocar esqueleto: *"Arriba. Hoy trabajás."* (tono casi amistoso — el esqueleto es empleado, no esclavo)
-- Al aplicar Maldición Marchita: *"Te va a pesar."* (frase literal — el target sentirá -DEF literalmente)
-- Al castear Rito del Abismo modo Legión: *"Seis. Porque tres no alcanzan."*
-- En la Taberna a un Cleric Exorcista: *"Sabés que no te tengo miedo."* (dicho con cierta ternura — los Exorcistas suelen responder con un cabeceo)
-- Al morir un aliado durante run: silencio. El Marchito **NO dice nada**. Respeto total — él sabe qué pesa.
+
+- Al invocar esqueleto: *"Arriba. Hoy trabajás para mí."* (antes: "Arriba. Hoy trabajás." — v2.0 explicita propiedad)
+- Al aplicar Maldición Marchita: *"Va a pesar. No te prometí que no."*
+- Al castear Rito del Abismo modo Marca: *"Te marco. Cuando termine, estás parte del Pacto. Lo siento. No tanto."*
+- En la Taberna a un Cleric Exorcista: *"Sabés que te voy a matar si me lo pedís. Pedímelo."* (provocación fría — enemistad nuclear)
+- Al morir un aliado en run: **silencio total**. El brujo baja la capucha. No habla hasta el final del run. Respeto extremo — **es el único momento donde el brujo muestra humanidad plena**.
+- Cuando un NPC pregunta por su Pacto Personal: *"Mi hermana se llamaba Lican. No preguntes más."* (la respuesta es corta — la deuda no se discute)
+
+**Lo que el Necromancer SÍ dice (nuevo v2.0)**:
+- Asume su oscuridad públicamente (antes: irónico pero no asumido)
+- Provoca al Exorcista con cortesía siniestra (nueva relación nuclear)
+- Habla con distancia estética — la oscuridad **como hecho**, no como tragedia
 
 **Lo que NUNCA dice**:
-- Mención casual a su Pacto personal (el nombre del muerto es sagrado)
-- Bromas sobre la muerte de otro Marchito (nombre de Pacto nunca se bromea)
-- Descalificar al Cleric Sanador por "cortar la muerte antes de tiempo" — los Marchitos entienden y respetan la devoción contraria
+- Justificar su oficio con razones nobles ("respeto la muerte", "honro a los míos" — **framing v1.0 descartado**)
+- Pedir perdón a las otras órdenes — no hay perdón disponible ni esperado
+- Menciona casual a la hermana/Pacto Personal (sigue sagrado, pero sagrado = no-tocable, no homenaje)
+- Bromear sobre muerte ajena específica (el humor negro es abstracto, nunca sobre un muerto con nombre)
 
-**Patrón curioso**: los Marchitos hablan **más que el Warrior, menos que el Mage, en tono más bajo que todos**. Es una voz que se acerca, no que impone.
-
----
-
-## 6. Pareo con otras clases (lore)
-
-### Cleric (Sínodo de la Tres Luz)
-**Relación central del lore del Necromancer.** Los tres niveles de relación según rama del Cleric (ver `_class_lore_cleric.md §6` — espejo desde el lado Cleric):
-
-- **vs Sanador**: *tensión profesional respetuosa.* Ambos piensan que el otro hace algo incorrecto. Ambos coordinan si el contrato lo exige.
-- **vs Buffer**: *neutralidad funcional.* El Aura de Resguardo aplica a invocaciones Necromancer — canon balance_v2. Buena cooperación.
-- **vs Exorcista**: **enemistad doctrinal explícita.** El Exorcista considera al undead impureza; el Necromancer considera al undead herramienta legítima. Canon `_synergies.md §3 combo #6` — requiere consentimiento previo para party mixta. **La enemistad es doctrinal, no personal** — en la Taberna pueden compartir silencio cordial. En combate, el Exorcista golpea las invocaciones del Necro sin preguntar.
-
-### Warrior (Orden del Muro Inquebrantable)
-**Desconfianza operativa sin hostilidad** (ver `_class_lore_warrior.md §6`). La Orden entiende el Pacto pero no lo aprueba. Cooperan por contrato del Gremio. La regla: *"Si el Pacto pelea con nosotros, peleamos con el Pacto."*
-
-### Mage (Vigilia Arcana)
-**Curiosidad mutua bajo tabú político** (ver `_class_lore_mage.md §6`). La Vigilia tiene libros del Pacto a escondidas. Los Marchitos tienen secciones prestadas de la Vigilia. Sin alianza pública, pero **respeto intelectual mutuo**.
-
-### Archer (Hermandad + Gremio Mecánico)
-**Distancia cortés.** Los Rangers entienden el respeto del Necromancer por la muerte (comparten filosofía de "no matar al azar"). Los Artilleros consideran al Necromancer "raro pero efectivo". Sin fricción.
-
-### Danzante de Sombras (Hijos de la Medianoche)
-**Alianza secreta informal.** Ambas órdenes son **pequeñas, clandestinas históricamente, mal vistas por el Sínodo**. El Pacto y los Hijos de la Medianoche **comparten cuevas seguras** fuera de la Taberna oficial — se ayudan mutuamente cuando alguien del Sínodo o de la Orden del Muro los persigue. No hay juramento formal — solo tradición silenciosa. En runs de la torre cooperan naturalmente. En la Taberna se saludan con discreción.
+**Patrón**: el Necromancer **habla menos que el Mage, más que el Warrior, con tono más bajo que todos**. Voz **serena pero fría**. Se acerca al interlocutor cuando habla — los demás suelen retroceder.
 
 ---
 
-## 7. Hooks de quest
+## §6 Pareo con otras clases — Enemistad natural con Exorcista
 
-### Hook A — "El Pacto Inacabado"
-El fundador registrado del Pacto de los Marchitos, **Orn el Primero**, desapareció en la torre hace 400 años — **antes del Pacto oficial con el Gremio**. Legendariamente, entró para encontrar el cuerpo de su hermana muerta, dedicataria de su pacto personal. Nunca volvió. Los Marchitos creen que Orn puede seguir ahí — el Pacto extiende la vida mientras el ritual no se complete. Quest: encontrar a Orn (vivo o muerto) y decidir si completar el ritual por él (lo que lo libera) o preservarlo (lo que mantiene la tradición). **Decisión narrativa profunda**: liberar al fundador puede debilitar la orden mística, pero es el acto honorable.
+### Cleric Exorcista — ENEMIGO NATURAL NUCLEAR (cambio v2.0)
 
-### Hook B — "El Pacto de la Marchita" — la prueba
-La quest canon `_system.md §5bis` — *"Matar 100 enemigos con maldiciones activas"* — **es literalmente la prueba final del Pacto**. Un Marchito que completa la prueba es reconocido como **Maestro del Pacto** y puede tomar aspirantes propios. Hook narrativo: un aspirante actual de las Catacumbas pide al jugador Necromancer ser **su Maestro** si completa la prueba. El jugador decide: aceptar (responsabilidad permanente — el aspirante muere, la culpa es del Maestro) o declinar (el aspirante queda sin guía, muchos no sobreviven solos).
+**Cambio canon 2026-04-17**: la relación pasa de "enemistad doctrinal, NO personal" (v1.0) a **enemistad fundamental**.
 
-### Hook C — "El Idioma de Bramastrum"
-Las inscripciones en las Catacumbas de Bramastrum (§2) nunca fueron descifradas. Rumor: **alguna de las inscripciones menciona la Torre del Gremio** — lo que implicaría que la civilización pre-reino ya sabía de la torre. Quest: expedición mixta Necromancer + Mage (Vigilia) para descifrar. Implicancia cosmogónica: si la torre existía antes del reino Y las inscripciones mencionan la torre, entonces **alguien sabía algo que el reino actual no sabe**. Conecta potencialmente con el hook C del Mage ("Biblioteca bajo la Torre") — se puede resolver como quest dual.
+- El Cleric Exorcista cree que **el Pacto debe ser detenido**. No tolerado, no reformado — **detenido**.
+- El Necromancer cree que **el Exorcista no entiende el precio** del Pacto y su cruzada es simplificación cómoda.
+- **Son enemigos mecánica + narrativamente**:
+  - Canon `_synergies.md §3 combo #6` anti-sinergia — Exorcista golpea invocaciones Necro.
+  - Canon lore v2.0 — la Cofradía entrena a los nuevos brujos específicamente en **cómo sobrevivir a un Exorcista**.
+  - Los Exorcistas del Sínodo tienen **quests internos de "cazador de brujos"** — implícito en canon `_class_lore_cleric.md` hook C.
+- **En la Taberna**: tregua tensa. **NO se sientan en la misma mesa.** Si coinciden en la barra, **miran de frente sin hablar**. La Asesora Millaray (Gremio) los separa con cortesía gélida.
+
+### Cleric Sanador/Buffer — desconfianza explícita (cambio v2.0)
+
+v1.0: "tensión profesional" (Sanador), "neutralidad funcional" (Buffer).
+**v2.0**:
+- **Sanador**: desconfianza profunda. Los Sanadores consideran que el Necromancer **activamente arruina** lo que ellos protegen. En coop cross-contrato funcionan por Gremio, pero **sin palabras extra**.
+- **Buffer**: tolerancia política. Aplica Aura de Resguardo a invocaciones Necromancer solo porque canon balance lo permite. En persona, **evita al Necromancer**. La dualidad "canto colectivo" vs "pacto individual oscuro" es filosóficamente incómoda para el Buffer.
+
+### Warrior (Orden del Muro de Ñielol) — cazador histórico (cambio v2.0)
+
+v1.0: "desconfianza sin hostilidad".
+**v2.0**: **la Orden del Muro tiene tradición de cazar brujos caídos**. Antes del contrato del Gremio, la Orden capturaba brujos del Pacto para ejecución pública. La tregua actual es **incómoda para ambos**. Los veteranos Warriors tienen **nombres de brujos cazados** en listas privadas de la Orden — no escritos, memorizados. **En combate**, Warrior protege al Necromancer aliado porque contrato Gremio manda. **Fuera de combate**, distancia explícita.
+
+### Mage (Vigilantes de Atacama) — estudio con horror (cambio v2.0)
+
+v1.0: "curiosidad mutua bajo tabú político".
+**v2.0**: los Vigilantes de Atacama **estudian al Necromancer con horror controlado**. No aprueban — pero **catalogan** (la disciplina académica obliga). Los Mages mayores **prohíben a estudiantes jóvenes leer sobre Pacto** hasta que alcancen Tercer Ciclo. La envidia secreta del v1.0 **ya no es canon** — los Mages ahora reconocen que estudiar sin costo moral **no equivale a practicar con él**.
+
+### Archer (Hermandad Nahuelbuta + Gremio Forja de Lota) — neutral operativo
+
+v1.0 casi preservado. **Pequeño ajuste v2.0**: los Rangers de Nahuelbuta **ya no comparten filosofía** con el Necromancer (v1.0 decía "Rangers entienden el respeto del Necromancer por la muerte"). Ahora los Rangers ven al Necromancer como **violador de ciclos naturales** — por tradición forestal, ofensivo. Artilleros de Lota: preservan pragmatismo ("si me paga, le disparo a lo que me diga"). **Ninguna orden Archer inicia hostilidad** — pero ninguna ofrece amistad.
+
+### Danzante de Sombras (Hijos de la Noche Austral) — alianza informal difícil (cambio v2.0)
+
+v1.0: "alianza secreta informal" — ambas órdenes pequeñas, perseguidas, compartían cuevas seguras.
+**v2.0**: **la alianza se enfría**. Los Hijos de la Noche Austral **aceptan la existencia del Pacto** pero **ya no son aliados automáticos**. La razón: los Hijos matan con precisión, **no consumen almas**. Hay diferencia moral que los Hijos valoran. La relación pasa a **pragmatismo selectivo** — cooperan cuando las circunstancias lo imponen, pero ya no hay "cuevas compartidas". La enemistad Warrior vs Danzante es MÁS parecida que la Necro vs Danzante en v2.0.
 
 ---
 
-## 8. Cross-ref
+## §7 Hooks de quest — oscuros por diseño
 
-- **Skills canon**: `game/docs/skills/necromancer.md` (v2.0, 10 skills, Vida como recurso)
-- **Sinergias**: `_synergies.md` (combo #3 Armor-Pierce con Archer, #6 anti-sinergia Exorcista, #8 Plagued Land, #10 Rito Cast-Protect, #12 Séquito Tanks, #14 Vulnerable Burst)
-- **Lore hermano**: `_class_lore_cleric.md §6` (lado Cleric de la relación doctrinal)
+### Hook A — "El Primer Pacto de Kalku"
+**Actualizado dark v2.0**. La leyenda de Kalku el Primero consumiendo a su hermana Lican para fundar el Pacto **es real en canon**. Los Brujos Plenos tienen esto asumido. Quest: los aspirantes actuales preparan un ritual anual llamado *El Primer Pacto* donde recuerdan la deuda original. **El jugador Necromancer puede participar** — si lo hace, recibe skill oculta + carga narrativa (su personaje jamás puede fingir inocencia sobre la naturaleza del Pacto). Si el jugador **se niega**, es expulsado de la Cofradía (mecánica: pierde acceso a invocaciones durante X runs hasta que **complete penitencia** con consumo propio — literal, -50% HP máximo permanente hasta resolución).
+
+### Hook B — "El Pacto de la Marchita" — ritual nuclear
+**Rewrite v2.0**. La quest canon `_system.md §5bis` — *"Matar 100 enemigos con maldiciones activas"* — **NO es la prueba de Maestro** (framing v1.0). **Es la Marca del Pacto Maduro** — el brujo que completa esta prueba **literalmente se convierte en recipiente de Kalku el Primero** durante 24 horas (canon ritual). Durante ese tiempo, el brujo es **peligroso incluso para sus aliados**. Quest-gate: el jugador que completa la prueba debe pasar las 24h **en aislamiento ritual** en Quicaví; si falla (intenta comunicarse, sale de cueva), **mata a Waikilaf el Maestro** (NPC canon) sin querer. Consecuencia narrativa profunda + permanente.
+
+### Hook C — "El Caleuche ha vuelto"
+Rumor oscuro: el Caleuche **ha sido visto en uno de los pisos altos de la Torre** — lo cual, canónicamente, **no debería pasar** (el Caleuche es del mar de Chiloé, no de dimensiones-torre). Teoría del Pacto: **alguien en la Torre está haciendo necromancia a escala masiva**, más grande que cualquier Brujo Pleno puede hacer. Quest: investigar. Posible descubrimiento:
+- Un **ex-Brujo Pleno cayó en cacería interna** 50 años atrás, huyó a la Torre, **se transformó en algo más que humano** (boss encuentro).
+- O peor: **el Caleuche original** está en la Torre y el ex-Brujo es solo su anclaje.
+
+Esta quest es **la única del juego** donde matar al boss no es la solución elegante — **detener el Caleuche puede implicar redimir al ex-Brujo** (costo alto) **o sellarlo para siempre** (costo mayor). El jugador decide: opción heroica imposible vs opción pragmática oscura. Consistente con el tono dark del Necromancer.
 
 ---
 
-*Lore Necromancer v1.0. El Pacto de los Marchitos es canon. Moralmente gris por diseño — el juego no toma partido.*
+## §8 Cross-ref
+
+- **Skills canon**: `game/docs/skills/necromancer.md` (v2.0, 10 skills, Vida como recurso — **mechanics NO cambiadas en rewrite v2.0**)
+- **World canon**: `game/docs/lore/_world_canon.md` (especialmente §6 Necromancer = excepción dark)
+- **Sinergias**: `_synergies.md` (combo #3 Armor-Pierce con Archer, #6 anti-sinergia Exorcista NUCLEAR, #8 Plagued Land, #10 Rito Cast-Protect, #12 Séquito Tanks, #14 Vulnerable Burst)
+- **Lore hermanos**: especialmente `_class_lore_cleric.md §6` (lado Cleric de la enemistad)
+
+---
+
+*Lore Necromancer v2.0 — DARK canon. La Cofradía del Caleuche es canon oscuro. El juego NO es moralmente neutral sobre esta clase — la pinta dark por diseño, y le deja al jugador la decisión de caminarla.*
+
+*Deprecated v1.0 (2026-04-16 "moralmente gris"): descartado por decisión user 2026-04-17. Preservado en git history si se necesita trazar la evolución narrativa.*
