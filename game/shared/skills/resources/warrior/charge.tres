@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/warrior/charge.svg" id="2_icon"]
 
 [resource]
 script = ExtResource("1_skres")
@@ -8,6 +9,7 @@ id = &"warrior_charge"
 class_id = &"warrior"
 display_name = "Embestida"
 description = "Dash ofensivo 6m. Impacta enemigo en trayectoria con daño físico + Stun 0.8s. Canon warrior.md §3 SKILL 2."
+icon = ExtResource("2_icon")
 cast_type = 0
 target_type = 1
 range_m = 6.0

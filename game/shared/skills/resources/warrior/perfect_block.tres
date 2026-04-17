@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/warrior/perfect_block.svg" id="2_icon"]
 
 [resource]
 script = ExtResource("1_skres")
@@ -8,6 +9,7 @@ id = &"warrior_perfect_block"
 class_id = &"warrior"
 display_name = "Bloqueo Perfecto"
 description = "Parry reactivo 0.4s. Absorbe 100% del próximo golpe, refleja 50% dmg + Stun 0.5s al atacante, +10 Rage. Canon warrior.md §3 SKILL 4."
+icon = ExtResource("2_icon")
 cast_type = 0
 target_type = 0
 range_m = 0.0

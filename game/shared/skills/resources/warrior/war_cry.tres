@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/warrior/war_cry.svg" id="2_icon"]
 
 [resource]
 script = ExtResource("1_skres")
@@ -8,6 +9,7 @@ id = &"warrior_war_cry"
 class_id = &"warrior"
 display_name = "Grito de Guerra"
 description = "Toggle aura AOE_LARGE (10m). Drena 20 MP cada 5s. Aliados +15% DMG saliente, enemigos Weak 5s (−25% DMG). Canon warrior.md §3 SKILL 3."
+icon = ExtResource("2_icon")
 cast_type = 2
 target_type = 2
 range_m = 10.0
