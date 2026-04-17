@@ -740,6 +740,24 @@ func _register_items() -> void:
 		"stats": {"dex": 3}, "level_req": 2, "item_level": 3,
 		"stackable": false, "max_stack": 1, "value": 42,
 	})
+	_add({
+		"id": "amulet_fire_ward",
+		"name": "Amuleto Ígneo",
+		"description": "Rubí tallado que irradia calor. Mitiga el daño de fuego.",
+		"type": "accessory", "subtype": "amulet", "slot": "amulet",
+		"grid_size": Vector2i(1, 1), "rarity": "magic",
+		"stats": {"res_fire": 0.2}, "level_req": 2, "item_level": 3,
+		"stackable": false, "max_stack": 1, "value": 50,
+	})
+	_add({
+		"id": "ring_frostbite",
+		"name": "Anillo de Escarcha",
+		"description": "Banda helada que nunca se funde. Reduce el daño de hielo.",
+		"type": "accessory", "subtype": "ring", "slot": "ring",
+		"grid_size": Vector2i(1, 1), "rarity": "magic",
+		"stats": {"res_ice": 0.25}, "level_req": 2, "item_level": 3,
+		"stackable": false, "max_stack": 1, "value": 50,
+	})
 
 	# --- Light sources (fuentes de luz portables) ---
 	# stats.light_range / light_energy / light_color / light_duration (segundos, 0 = infinito)

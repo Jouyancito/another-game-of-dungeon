@@ -381,15 +381,28 @@ func apply_physical_defense(raw_damage: float) -> float:
 	return DamageFormula.apply_physical_defense(raw_damage, total_def)
 
 func apply_elemental_damage(raw_damage: float, element: String) -> float:
-	var res: float = 0.0
-	match element:
-		"fire": res = res_fire
-		"ice": res = res_ice
-		"lightning": res = res_lightning
-		"poison": res = res_poison
-		"void": res = res_void
-		_: push_warning("apply_elemental_damage: unknown element '%s'" % element)
+	var res: float = get_effective_resistance(element)
 	return DamageFormula.apply_elemental_resistance(raw_damage, res)
+
+
+## Resistencia efectiva = base + suma items equipados.
+## Capeada en DamageFormula.apply_elemental_resistance (cap 0.75 canon balance_v2).
+func get_effective_resistance(element: String) -> float:
+	var base_res: float = 0.0
+	match element:
+		"fire": base_res = res_fire
+		"ice": base_res = res_ice
+		"lightning": base_res = res_lightning
+		"poison": base_res = res_poison
+		"void": base_res = res_void
+		_:
+			push_warning("get_effective_resistance: unknown element '%s'" % element)
+			return 0.0
+	var item_res: float = 0.0
+	if equipment:
+		var totals: Dictionary = equipment.get_total_resistances()
+		item_res = float(totals.get("res_" + element, 0.0))
+	return base_res + item_res
 
 func _unhandled_input(event: InputEvent) -> void:
 	# TEST: respawn con R (temporal para prototipo)
@@ -630,15 +643,15 @@ func _update_target_frame() -> void:
 func _regenerate(delta: float) -> void:
 	time_since_last_hit += delta
 
-	# Maná: siempre regenera
+	# Maná: siempre regenera — usa INT efectivo (base + items)
 	if mana < max_mana:
-		var mp_regen = Progression.mp_regen_rate(int_stat) * delta
+		var mp_regen = Progression.mp_regen_rate(get_effective_stat("int")) * delta
 		mana = minf(mana + mp_regen, max_mana)
 		mana_changed.emit(mana, max_mana)
 
-	# Vida: solo fuera de combate
+	# Vida: solo fuera de combate — usa VIT efectivo (base + items)
 	if time_since_last_hit >= hp_regen_delay and health < max_health:
-		var hp_regen = Progression.hp_regen_rate(vit_stat) * delta
+		var hp_regen = Progression.hp_regen_rate(get_effective_stat("vit")) * delta
 		health = minf(health + hp_regen, max_health)
 		health_changed.emit(health, max_health)
 

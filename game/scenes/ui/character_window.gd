@@ -97,6 +97,8 @@ func _ready() -> void:
 	if players.size() > 0:
 		player = players[0] as BasePlayer
 		player.level_up.connect(_on_level_up)
+		if player.has_signal("equipment_changed"):
+			player.equipment_changed.connect(_on_equipment_changed)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -161,28 +163,33 @@ func _refresh_stats() -> void:
 	mp_label.text = "MP: %d/%d" % [int(player.mana), int(player.max_mana)]
 	xp_label.text = "XP: %d/%d (próx nivel)" % [int(player.xp), int(player.xp_to_next_level)]
 
-	# Base stats
-	str_value.text = str(player.str_stat)
-	int_value.text = str(player.int_stat)
-	dex_value.text = str(player.dex_stat)
-	def_value.text = str(player.def_stat)
-	vit_value.text = str(player.vit_stat)
+	# Base stats — muestra total (base + bonus de equipo) con sufijo "+N" si hay gear
+	str_value.text = _stat_display(player.str_stat, player.get_effective_stat("str"))
+	int_value.text = _stat_display(player.int_stat, player.get_effective_stat("int"))
+	dex_value.text = _stat_display(player.dex_stat, player.get_effective_stat("dex"))
+	def_value.text = _stat_display(player.def_stat, player.get_effective_stat("def"))
+	vit_value.text = _stat_display(player.vit_stat, player.get_effective_stat("vit"))
 
-	# Derived stats
-	phys_dmg_label.text = str(player.str_stat * 2)
-	magic_dmg_label.text = str(player.int_stat * 2)
-	dex_dmg_label.text = str(player.dex_stat * 2)
-	defense_label.text = str(player.def_stat)
+	# Derived stats — usan effective (refleja gear equipado)
+	var eff_str: int = player.get_effective_stat("str")
+	var eff_int: int = player.get_effective_stat("int")
+	var eff_dex: int = player.get_effective_stat("dex")
+	var eff_def: int = player.get_effective_stat("def")
+	var eff_vit: int = player.get_effective_stat("vit")
+	phys_dmg_label.text = str(eff_str * 2)
+	magic_dmg_label.text = str(eff_int * 2)
+	dex_dmg_label.text = str(eff_dex * 2)
+	defense_label.text = str(eff_def)
 	move_speed_label.text = "%.1f" % player.speed
 
-	# Advanced stats
-	res_fire_label.text = "%d%%" % int(player.res_fire * 100)
-	res_ice_label.text = "%d%%" % int(player.res_ice * 100)
-	res_lightning_label.text = "%d%%" % int(player.res_lightning * 100)
-	res_poison_label.text = "%d%%" % int(player.res_poison * 100)
-	res_void_label.text = "%d%%" % int(player.res_void * 100)
-	hp_regen_label.text = "%.1f/s" % (0.5 + player.vit_stat * 0.15)
-	mp_regen_label.text = "%.1f/s" % (1.0 + player.int_stat * 0.1)
+	# Advanced stats — resistencias muestran efectivas (base + items), capeadas 75%
+	res_fire_label.text = "%d%%" % int(minf(player.get_effective_resistance("fire"), 0.75) * 100)
+	res_ice_label.text = "%d%%" % int(minf(player.get_effective_resistance("ice"), 0.75) * 100)
+	res_lightning_label.text = "%d%%" % int(minf(player.get_effective_resistance("lightning"), 0.75) * 100)
+	res_poison_label.text = "%d%%" % int(minf(player.get_effective_resistance("poison"), 0.75) * 100)
+	res_void_label.text = "%d%%" % int(minf(player.get_effective_resistance("void"), 0.75) * 100)
+	hp_regen_label.text = "%.1f/s" % (0.5 + eff_vit * 0.15)
+	mp_regen_label.text = "%.1f/s" % (1.0 + eff_int * 0.1)
 
 	# Botones
 	var has_points = player.stat_points > 0
@@ -191,6 +198,14 @@ func _refresh_stats() -> void:
 	dex_btn.disabled = not has_points
 	def_btn.disabled = not has_points
 	vit_btn.disabled = not has_points
+
+
+func _stat_display(base_val: int, effective: int) -> String:
+	var bonus: int = effective - base_val
+	if bonus == 0:
+		return str(base_val)
+	var sign_str: String = "+" if bonus > 0 else ""
+	return "%d (%s%d)" % [base_val, sign_str, bonus]
 
 
 func _toggle_advanced() -> void:
@@ -203,5 +218,11 @@ func _show_desc(stat_name: String) -> void:
 
 
 func _on_level_up(_new_level: int, _points: int) -> void:
+	if visible:
+		_refresh_stats()
+
+
+func _on_equipment_changed() -> void:
+	# Refresca los stats mostrados cuando se equipa / desequipa algo con la ventana abierta
 	if visible:
 		_refresh_stats()
