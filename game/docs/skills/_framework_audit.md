@@ -1,8 +1,8 @@
-# Skills Framework Audit — Fase 0 Schema vs Canon 64 Skills
+# Skills Framework Audit — Fase 0 + Fase 2 Mage Schema vs Canon 64 Skills
 
-**Versión**: 1.0
+**Versión**: 1.1 — Fase 2 Mage check (3 gaps nuevos G16-G18 agregados §2.1)
 **Fecha**: 2026-04-17
-**Estado**: Audit Fase 0 — gaps detectados entre schema `SkillResource` y canon skills v2.0.
+**Estado**: Audit Fase 0 completo + Fase 2 Mage check detectó gaps adicionales específicos de Mage.
 **Depende**: `_system.md`, `_status_effects.md`, los 6 per-class docs, `balance_v2.md`.
 **Audiencia**: dept Gameplay (B — implementar fixes de schema), dept Design (C — este doc).
 
@@ -205,6 +205,82 @@ Canon: Freeze L5 → 1.5s, L10 → shatter combo, L15 → +50% dmg trigger. Los 
 ```
 
 Alternativa: tabla curve en lugar de 15 valores.
+
+---
+
+## §2.1 Gaps adicionales detectados en Fase 2 check (Mage)
+
+Verificación de las 4 skills generales Mage (`mage.md §3`) contra schema post-fix-P0.
+
+### G16. Status effect variable amount (Shield / Regen / Heal con fórmula por stat)
+Canon: Barrera Prismática aplica `Shield absorb = 80 + INT*3`. Cleric Luz Restauradora `heal = (25 + INT*2) * (1 + level*0.03) * 1.2`. El amount del status escala con stat + level + class_mult.
+
+**Schema actual (post-P0)**: `status_applied: Array[StringName]` + `status_duration_s` — **no modela amount variable**.
+
+**Fix propuesto**:
+```gdscript
+@export var status_base_amount: int = 0          # base raw del status (80 para Barrera)
+@export var status_scaling_stat: StringName = ""  # "INT" / "STR" / "DEX" / "" si no escala
+@export var status_scaling_coeff: float = 0.0    # 3.0 para Barrera (INT*3)
+@export var status_level_coeff: float = 0.0      # 0.03 para heal Cleric
+@export var status_class_mult: float = 1.0       # 1.2 para heal Cleric
+```
+
+**Aplicable a**: Shield (Mage Barrera + Cleric Égida + Warrior Bloqueo L15), Regen (Cleric Luz L5+), Heal Cleric general, Burst damage con amount escalado.
+
+**Prioridad**: **P0** (bloquea stubs correctos Mage Barrera + Cleric Luz/Círculo/Égida + Warrior Bloqueo L15).
+
+### G17. Projectile speed + AoE impact
+Canon: Bolita Inestable `velocity 22 m/s` + `AoE SMALL 1m radio al impactar`. Disparo Preciso Archer `40 m/s`. Proyectil Explosivo `18 m/s` + AoE 4m al impactar. Tajo de Hueso Necro `20 m/s`.
+
+**Schema actual**: no modela projectile speed ni AoE-on-impact separada del AoE general.
+
+**Fix propuesto**:
+```gdscript
+@export var projectile_speed_mps: float = 0.0           # 0 = no projectile (ej melee / AoE autocast)
+@export var projectile_aoe_on_impact_m: float = 0.0      # radius AoE que explota al impactar
+@export var projectile_pierce_count: int = 0            # enemigos que atraviesa (Flecha Precisa L15 = 2)
+@export var projectile_pierce_damage_reduction: float = 0.0  # 0.2 = -20% por enemigo extra
+```
+
+**Aplicable a**: Mage Bolita + Tormenta proj (si aplica), Archer Disparo Preciso + Flecha Cargada + Ráfaga + Proyectil Explosivo, Necromancer Tajo de Hueso + Maldición Marchita (ranged).
+
+**Prioridad**: **P0** (bloquea Mage Bolita + Archer 4 skills proj + Necromancer Tajo).
+
+Relacionado con **G13 range aliases**: PROJ_FAST (40), PROJ_MED (22), PROJ_SLOW (18) son aliases canon — tablearlos en `RangeAliases.gd` con velocidad asociada.
+
+### G18. TargetOrigin — origen del AoE/cone
+Canon: Supernova explota `10m radio alrededor del caster` (origin = SELF). Tormenta Arcana target `cono 8m hacia cursor + AoE 4m en target point` (origin = CURSOR). Manipulación Atracción `cono 8m desde player hacia cursor` (origin = SELF-directed). Grito de Guerra aura `10m alrededor del caster` (origin = SELF pasivo). Círculo Sagrado `6m radio centrado en caster` (origin = SELF).
+
+**Schema actual**: `TargetType` = AOE / CONE — pero no especifica **origen** del AoE.
+
+**Fix propuesto**:
+```gdscript
+enum TargetOrigin { SELF, CURSOR_POINT, TARGET_ENEMY, PROJECTILE_IMPACT, ALLY }
+@export var target_origin: TargetOrigin = TargetOrigin.CURSOR_POINT
+```
+
+**Aplicable a**:
+- SELF: Supernova, Grito de Guerra, Círculo Sagrado, Danza de Mil Sombras
+- CURSOR_POINT: Tormenta Arcana (ubicable), Proyectil Explosivo (apuntable), Ingeniería del Caos (deploy en zona)
+- TARGET_ENEMY: Maldición Marchita, Bolita homing (Arcano integración), Ojo Verdadero
+- PROJECTILE_IMPACT: Bolita (AoE explota donde impacta), Flecha Cargada full charge (trail arcano)
+- ALLY: Luz Restauradora target, Égida Divina target
+
+**Prioridad**: **P0** (bloquea cualquier skill AoE o cone — 30+ skills afectadas cross-clase).
+
+### Cobertura Mage skills con fixes G1-G18 aplicados
+
+Post-fixes P0 + P1 + G16/G17/G18, las 4 skills generales Mage **se pueden stubbear correctamente**:
+
+| Skill | Gaps cubiertos |
+|-------|----------------|
+| Bolita Inestable | G2 (gen), G13 alias PROJ_MED, G17 proj speed+AoE, G18 origin PROJECTILE_IMPACT |
+| Tormenta Arcana | G5 channel tick, G18 origin CURSOR_POINT, G13 alias CONE_CANAL |
+| Barrera Prismática | G16 status amount fórmula (Shield 80 + INT*3), G9 invul no aplica |
+| Arte Arcano Supernova | G1 dual cost (solo MP — wait: canon dice 70 MP + 30 Conc. Mage NO tiene Conc, es Archer. **Flag**: revisar canon `mage.md §3 skill 4 Supernova cost**), G18 origin SELF, G17 no proj (self-AoE) |
+
+**Flag hallazgo inconsistencia**: `mage.md §3 SKILL 4 Supernova` actual dice "**Costo**: 70 MP | **CD**: 120s". El audit inicial Fase 0 G1 decía "Mage Supernova 70 MP + 30 Conc" pero **re-lectura canon Mage.md SOLO dice 70 MP**. Mage canon `§1 Recurso` explícitamente dice "MP-only — fantasy lock" (sin recurso secundario). **No hay dual cost en Mage**. Error de mi audit Fase 0. Gap G1 aplica solo a Warrior/Cleric/Archer/Necromancer/Danzante — Mage queda fuera del dual cost. Corrección aplicada en este Fase 2 check.
 
 ---
 
