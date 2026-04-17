@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/warrior/shield_bash.svg" id="2_icon"]
 
 [resource]
 script = ExtResource("1_skres")
@@ -8,6 +9,7 @@ id = &"warrior_shield_bash"
 class_id = &"warrior"
 display_name = "Embate de Escudo"
 description = "Golpe frontal con escudo. Daña y atonta al objetivo. NOTA: stub de framework — no está en warrior.md canon."
+icon = ExtResource("2_icon")
 cast_type = 0
 target_type = 1
 range_m = 3.0
