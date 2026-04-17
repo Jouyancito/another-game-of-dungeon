@@ -249,14 +249,14 @@ Para ver estado de todos: `mem_search(query: "dept-status")`.
 - **2026-04-14**: Skills system canon v1.0 — `_system.md` (skill points + ascendencia lvl 25 + recursos únicos). 6 per-class docs base + drop_ownership canon v1.
 - **2026-04-15**: Drop ownership canon v2 post Judgment Day — party-first model, floor+random reparto, timers 180/120/300s, bind items, seeded RNG. Tag `v0.4`.
 - **2026-04-16**: Mimic enemy completo (issue #60 — state machine + mesh + canon + integration), equipment context menu unequip (#58), tooltip RichTextLabel (#59), skills MIGRATE 6 per-class al `_system.md` v1.0 + `_synergies.md` (15 combos cross-class, #46).
-- **2026-04-17**: Class lore canon (#47 — 6 docs lore + identidad cultural, órdenes preexistentes). World canon chileno central (`_world_canon.md`) + naming chileno (Pire-Mapu/Nahuelbuta/Lota/San Pedro de Atacama/Tres Cumbres volcanes/Quicaví-Caleuche) + Necromancer rewrite DARK (excepción tonal canon — pisa "moralmente gris" anterior).
+- **2026-04-17**: Class lore canon (#47 — 6 docs lore + identidad cultural, órdenes preexistentes). World canon central (`_world_canon.md`) + Necromancer rewrite DARK (excepción tonal canon — pisa "moralmente gris" anterior). Naming fantasy genérico (Vandrheim/Velathir/Drennhold/Bramastrum/Torre de Vigilia/Catedral de Tres Cúpulas) — acentos regionales reservados para post-producción en biomas específicos.
 
 ## Canon de Design Vigente
 
 **Siempre consultar antes de refactorizar sistemas de skills, stats, loot, o lore/worldbuilding:**
 
-- `game/docs/lore/_world_canon.md` (world canon central + naming chileno + Necromancer DARK, 2026-04-17)
-- `game/docs/lore/_class_lore_{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (lore per-class v2.0 naming chileno, 2026-04-17 — Necromancer v2.0 DARK)
+- `game/docs/lore/_world_canon.md` (world canon central v2.0 + Necromancer DARK, 2026-04-17)
+- `game/docs/lore/_class_lore_{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (lore per-class v3.0 naming fantasy genérico, 2026-04-17 — Necromancer DARK)
 - `game/docs/skills/_system.md` (skills system v1.0, 2026-04-14)
 - `game/docs/skills/{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (per-class v2.0, 2026-04-16)
 - `game/docs/skills/_synergies.md` (combos cross-class, 2026-04-16)
