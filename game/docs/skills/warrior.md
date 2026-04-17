@@ -80,7 +80,8 @@ Gap-closer que fija el inicio del encuentro.
 - **Lvl 5**: stun 1.2s
 - **Lvl 10**: atraviesa hasta 3 enemigos (stun a cada uno)
 - **Lvl 15**: super-armor durante el dash (inmune a interrupts). **Forma base — cap**.
-- **Evolución (+ ítem *Cuerno del Jabalí Blindado* boss P50)**: **Carga del Jabalí** — dist 10m, al impactar genera escudo temporal 200 HP absorbe-dmg (decae 10s).
+- **Evolución A (+ ítem *Cuerno del Jabalí Blindado* boss P50, ambas ramas)**: **Carga del Jabalí** — dist 10m, al impactar genera escudo temporal 200 HP absorbe-dmg (decae 10s).
+- **Evolución B (+ ítem específico rama Tank, lvl 25+)**: **Embestida con Escudo** — embestida con escudo 1H equipado. Costo cambia 10 MP → **20 Rage**. Daño base + 50% block chance durante el dash + aplica `Taunt` 2s a impactados. Identidad rama Tank (preview en stub `shield_bash.tres` Fase 0).
 - **Acuática**: **Arpón de Placaje** — lanza cadena, arrastra 4m al enemigo hacia vos.
 
 ### SKILL 3 — Grito de Guerra
