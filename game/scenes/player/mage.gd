@@ -28,6 +28,28 @@ func _on_class_ready() -> void:
 	base_mana = 120.0
 	attack_range = 15.0
 	heavy_cooldown = 1.0
+	# Canon balance_v2 §2.4 + mage.md — class_mult mágico del Mage = 1.5.
+	class_mult_physical = 1.0
+	class_mult_magic = 1.5
+
+func _equip_default_skills() -> void:
+	# Fase 1 canon: 4 skills generales del Mage (mage.md §3).
+	var db = get_node_or_null("/root/SkillDB")
+	if db == null:
+		return
+	var orb: SkillResource = db.get_skill(&"mage_unstable_orb")
+	var storm: SkillResource = db.get_skill(&"mage_arcane_storm")
+	var barrier: SkillResource = db.get_skill(&"mage_prismatic_barrier")
+	var supernova: SkillResource = db.get_skill(&"mage_supernova")
+	if orb != null:
+		skills.set_slot(0, orb)
+	if storm != null:
+		skills.set_slot(1, storm)
+	if barrier != null:
+		skills.set_slot(2, barrier)
+	if supernova != null:
+		skills.set_slot(3, supernova)
+
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false

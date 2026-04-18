@@ -21,7 +21,8 @@ func _load_all_skills(path: String) -> void:
 	dir.list_dir_begin()
 	var entry := dir.get_next()
 	while entry != "":
-		if dir.current_is_dir() and entry != "." and entry != "..":
+		# Skip carpetas especiales — _archive contiene .tres obsoletos no registrables.
+		if dir.current_is_dir() and entry != "." and entry != ".." and not entry.begins_with("_"):
 			_load_all_skills(path + entry + "/")
 		elif entry.ends_with(".tres"):
 			_register_skill(path + entry)

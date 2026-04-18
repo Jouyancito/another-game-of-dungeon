@@ -307,11 +307,14 @@ func _class_resource_type_to_cost_type(ct: int) -> int:
 
 
 func _is_quest_completed(quest_id: StringName) -> bool:
-	# QuestSystem no existe aún — stub. Cuando exista, wirear acá.
-	var qs = _owner_player.get_tree().get_root().get_node_or_null("QuestSystem") if _owner_player else null
+	# QuestSystem autoload stub registrado en project.godot. Canon _system.md §5bis.
+	# En test context (sin autoload), fallback a false — la skill queda gate-locked.
+	if _owner_player == null:
+		return false
+	var qs = _owner_player.get_tree().get_root().get_node_or_null("QuestSystem")
 	if qs != null and qs.has_method("is_completed"):
 		return qs.is_completed(quest_id)
-	return false  # gate activo — skill bloqueada hasta que QuestSystem wireé
+	return false
 
 
 # ---------------------------------------------------------------------------
@@ -506,6 +509,28 @@ func _execute_dash(skill: SkillResource) -> void:
 	else:
 		stop_pos = end
 
+	# Canon playtest 2026-04-18 — raycast contra world (layer 1) ANTES del tween.
+	# Si hay muro en el path, clampear stop_pos 0.4m antes del hit (radio player ~0.4m).
+	# Evita teletransportarse a través de paredes.
+	if _owner_player.is_inside_tree():
+		var space := _owner_player.get_world_3d().direct_space_state
+		var wall_query := PhysicsRayQueryParameters3D.create(start, stop_pos)
+		wall_query.exclude = [_owner_player.get_rid()]
+		wall_query.collision_mask = 1  # solo World layer
+		var wall_hit := space.intersect_ray(wall_query)
+		if not wall_hit.is_empty():
+			var wall_pos: Vector3 = wall_hit.position
+			var clamped: Vector3 = wall_pos - forward * 0.4  # radio aprox del CharacterBody3D
+			clamped.y = start.y
+			# Solo clampeamos si el clamp queda más cerca que stop_pos original.
+			if start.distance_to(clamped) < start.distance_to(stop_pos):
+				stop_pos = clamped
+				# Si el wall está antes del enemy, no lo impactamos.
+				if hit_enemy != null:
+					var enemy_pos := (hit_enemy as Node3D).global_position
+					if start.distance_to(wall_pos) < start.distance_to(enemy_pos):
+						hit_enemy = null
+
 	dash_started.emit(skill.id)
 
 	# Fallback sync: sin tree o duration 0 → mover+aplicar inmediato (tests, edge cases).
@@ -575,9 +600,12 @@ func _get_player_camera() -> Camera3D:
 # TOGGLE — aura recurrente (Grito de Guerra)
 # ---------------------------------------------------------------------------
 func _activate_toggle(skill: SkillResource) -> void:
+	# Fix judgment-day 2026-04-18: tick_timer empieza en 0.0 (no tick_interval_s) para
+	# que el primer tick dispare YA y pague el resource. Previene exploit de togglear off/on
+	# dentro de la ventana tick_interval para re-aplicar Weak sin pagar MP.
 	active_toggles[skill.id] = {
 		"skill": skill,
-		"tick_timer": skill.tick_interval_s,  # primer drain en el próximo tick
+		"tick_timer": 0.0,
 	}
 	# Aplicar buff de daño del aura al caster (aliados = party, no implementado — caster cuenta).
 	if skill.ally_damage_bonus_pct > 0.0:

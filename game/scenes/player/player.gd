@@ -31,6 +31,9 @@ func _on_class_ready() -> void:
 	base_mana = 80.0
 	attack_range = 3.0
 	heavy_cooldown = 0.6
+	# Canon balance_v2 §2.3 — class_mult físico del Warrior = 1.5.
+	class_mult_physical = 1.5
+	class_mult_magic = 1.0
 	# Stats (str, int, dex, def, vit) se cargan desde SaveManager en BasePlayer
 	# Recurso único: Rage (canon _system.md §5ter). Cap 100, sin regen pasivo, decay 5/s fuera combate.
 	class_resource = ClassResource.new()

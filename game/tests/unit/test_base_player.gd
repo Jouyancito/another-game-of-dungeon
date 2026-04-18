@@ -28,70 +28,83 @@ func after_each() -> void:
 		player.free()
 
 
-# ─── recalculate_stats ───
+# ─── recalculate_stats (canon v2 §2.1-2.2 con level=1) ───
 
 func test_max_health_formula() -> void:
-	# max_health = base_health + (vit_stat * 5)
-	assert_eq(player.max_health, 135.0, "HP = 100 + (7 * 5) = 135")
+	# v2 §2.1: 100 + VIT*5 + VIT^1.3*0.8 + level*8
+	# VIT=7, lvl=1 → 100 + 35 + 7^1.3*0.8 + 8 ≈ 153.39
+	var expected: float = 100.0 + 7.0 * 5.0 + pow(7.0, 1.3) * 0.8 + 1.0 * 8.0
+	assert_almost_eq(player.max_health, expected, 0.01, "HP v2 con level=1")
 
 
 func test_max_mana_formula() -> void:
-	# max_mana = base_mana + (int_stat * 3)
-	assert_eq(player.max_mana, 104.0, "MP = 80 + (8 * 3) = 104")
+	# v2 §2.2: 80 + INT*3 + INT^1.2*0.5 + level*5
+	# INT=8, lvl=1 → 80 + 24 + 8^1.2*0.5 + 5 ≈ 115.06
+	var expected: float = 80.0 + 8.0 * 3.0 + pow(8.0, 1.2) * 0.5 + 1.0 * 5.0
+	assert_almost_eq(player.max_mana, expected, 0.01, "MP v2 con level=1")
 
 
 func test_recalculate_updates_on_stat_change() -> void:
 	player.vit_stat = 20
 	player.recalculate_stats()
-	assert_eq(player.max_health, 200.0, "HP = 100 + (20 * 5) = 200")
+	var expected: float = 100.0 + 20.0 * 5.0 + pow(20.0, 1.3) * 0.8 + 1.0 * 8.0
+	assert_almost_eq(player.max_health, expected, 0.01, "HP v2 recalculado")
 
 
-# ─── Fórmulas de daño ───
+# ─── Fórmulas de daño (canon v2 §2.3-2.4 con level=1 class_mult=1) ───
 
 func test_physical_damage() -> void:
-	# get_physical_damage = base + (str * 2)
+	# v2: (base+weapon) * (1+STR*0.02) * (1+level*0.03) * class_mult
+	# base=35, str=10, weapon=0, lvl=1, class_mult=1 → 35 * 1.20 * 1.03 * 1.0 = 43.26
 	var dmg = player.get_physical_damage(35.0)
-	assert_eq(dmg, 55.0, "35 + (10 * 2) = 55")
+	assert_almost_eq(dmg, 43.26, 0.05)
 
 
 func test_magic_damage() -> void:
-	# get_magic_damage = base + (int * 2)
+	# base=25, int=8, weapon=0, lvl=1, class_mult=1 → 25 * 1.16 * 1.03 = 29.87
 	var dmg = player.get_magic_damage(25.0)
-	assert_eq(dmg, 41.0, "25 + (8 * 2) = 41")
+	assert_almost_eq(dmg, 29.87, 0.05)
 
 
 func test_dex_damage() -> void:
-	# get_dex_damage = base + (dex * 2)
+	# get_dex_damage sigue con fórmula legacy lineal (v1 deprecated, no canon v2).
+	# base + weapon + DEX*2 = 20 + 0 + 12 = 32
 	var dmg = player.get_dex_damage(20.0)
-	assert_eq(dmg, 32.0, "20 + (6 * 2) = 32")
+	assert_eq(dmg, 32.0)
 
 
 func test_physical_damage_zero_str() -> void:
 	player.str_stat = 0
-	assert_eq(player.get_physical_damage(10.0), 10.0, "Sin STR, daño = base")
+	# 10 * (1+0) * (1+0.03) * 1 = 10.3
+	assert_almost_eq(player.get_physical_damage(10.0), 10.3, 0.01)
 
 
 func test_magic_damage_zero_int() -> void:
 	player.int_stat = 0
-	assert_eq(player.get_magic_damage(10.0), 10.0, "Sin INT, daño = base")
+	assert_almost_eq(player.get_magic_damage(10.0), 10.3, 0.01)
 
 
-# ─── Defensa física ───
+# ─── Defensa física (canon v2 §2.5 armor self-capping) ───
 
 func test_physical_defense_reduces_damage() -> void:
-	# apply_physical_defense = max(raw - def, 1.0)
-	var reduced = player.apply_physical_defense(20.0)
-	assert_eq(reduced, 15.0, "20 - 5 DEF = 15")
+	# v2: raw * (1 - DEF/(DEF + atk_lvl*50))
+	# raw=20, DEF=5, atk_lvl=1 → 20 * (1 - 5/55) = 20 * 50/55 ≈ 18.18
+	var reduced = player.apply_physical_defense(20.0, 1)
+	assert_almost_eq(reduced, 18.18, 0.02)
 
 
 func test_physical_defense_minimum_one() -> void:
-	var reduced = player.apply_physical_defense(1.0)
-	assert_eq(reduced, 1.0, "Mínimo siempre es 1")
+	# Floor v2 = 1.0 (mantiene convención v1).
+	var reduced = player.apply_physical_defense(1.0, 1)
+	# 1 * (1 - 5/55) ≈ 0.909 → floor 1.0
+	assert_eq(reduced, 1.0)
 
 
-func test_physical_defense_below_def_clamps_to_one() -> void:
-	var reduced = player.apply_physical_defense(3.0)
-	assert_eq(reduced, 1.0, "3 - 5 = -2, clamped a 1")
+func test_physical_defense_floor_one_on_extreme_def() -> void:
+	# Con DEF masiva la reducción es casi 100% pero floor mínimo 1.
+	player.def_stat = 100000
+	var reduced = player.apply_physical_defense(3.0, 1)
+	assert_eq(reduced, 1.0, "floor v2 = 1.0")
 
 
 # ─── Resistencias elementales ───
@@ -216,17 +229,21 @@ func test_assign_stat_str() -> void:
 
 
 func test_assign_stat_int_recalculates_mana() -> void:
+	# v2 §2.2: +1 INT = +3 + diff del término INT^1.2*0.5. Mayor que +3 estricto.
 	player.stat_points = 1
 	var old_max = player.max_mana
 	player.assign_stat("int")
-	assert_eq(player.max_mana, old_max + 3.0, "+1 INT = +3 max MP")
+	assert_gt(player.max_mana, old_max + 3.0, "+1 INT > +3 max MP (v2 compound)")
+	assert_lt(player.max_mana, old_max + 5.0, "+1 INT < +5 (diminishing)")
 
 
 func test_assign_stat_vit_recalculates_health() -> void:
+	# v2 §2.1: +1 VIT = +5 + diff del término VIT^1.3*0.8. Mayor que +5 estricto.
 	player.stat_points = 1
 	var old_max = player.max_health
 	player.assign_stat("vit")
-	assert_eq(player.max_health, old_max + 5.0, "+1 VIT = +5 max HP")
+	assert_gt(player.max_health, old_max + 5.0, "+1 VIT > +5 max HP (v2 compound)")
+	assert_lt(player.max_health, old_max + 7.0, "+1 VIT < +7 (diminishing)")
 
 
 func test_assign_stat_fails_no_points() -> void:
@@ -254,8 +271,9 @@ func test_assign_stat_all_types() -> void:
 func test_take_damage_physical() -> void:
 	var initial = player.health
 	player.take_damage(20.0)
-	# 20 - 5 DEF = 15 daño real
-	assert_eq(player.health, initial - 15.0)
+	# v2 §2.5: raw * (1 - DEF/(DEF + atk_lvl*50))
+	# atk_lvl fallback=1 cuando attacker=null. DEF=5 → 20 * 50/55 ≈ 18.18
+	assert_almost_eq(player.health, initial - 18.18, 0.05)
 
 
 func test_take_damage_elemental() -> void:
@@ -266,9 +284,11 @@ func test_take_damage_elemental() -> void:
 
 
 func test_take_damage_kills_at_zero() -> void:
+	# Canon MVP #5 — dmg letal NO mata instant, entra en downed primero.
 	player.take_damage(999.0)
 	assert_eq(player.health, 0.0)
-	assert_true(player.is_dead)
+	assert_true(player.is_downed, "entra en downed al llegar a 0 HP")
+	assert_false(player.is_dead, "muerte real solo tras timeout o _actual_die")
 
 
 func test_take_damage_ignored_when_dead() -> void:
@@ -313,8 +333,18 @@ func test_signal_mana_changed_on_restore() -> void:
 
 
 func test_signal_player_died() -> void:
+	# Canon MVP #5 — dmg letal emite player_downed (no player_died).
+	# player_died se emite en _actual_die (timeout o abismo).
 	watch_signals(player)
 	player.take_damage(999.0)
+	assert_signal_emitted(player, "player_downed")
+	assert_signal_not_emitted(player, "player_died")
+
+
+func test_signal_player_died_on_actual_die() -> void:
+	# _actual_die bypasses downed → player_died directo.
+	watch_signals(player)
+	player._actual_die()
 	assert_signal_emitted(player, "player_died")
 
 
@@ -345,26 +375,27 @@ func test_signal_level_up_not_emitted_below_threshold() -> void:
 
 
 func test_die_is_idempotent_via_take_damage() -> void:
+	# take_damage letal 2x: solo emite player_downed 1 vez (idempotente en downed).
 	watch_signals(player)
-	player.take_damage(999.0)  # Primera muerte
-	player.take_damage(999.0)  # Segunda llamada — ya está muerto, take_damage guarda con is_dead
-	assert_signal_emit_count(player, "player_died", 1, "take_damage no re-emite player_died")
+	player.take_damage(999.0)
+	player.take_damage(999.0)  # ignorado — is_downed guard
+	assert_signal_emit_count(player, "player_downed", 1, "take_damage letal emite downed solo una vez")
 
 
 func test_die_direct_double_call_is_idempotent() -> void:
 	watch_signals(player)
 	player.die()
 	player.die()
-	assert_signal_emit_count(player, "player_died", 1, "die() con guard emite solo una vez")
+	assert_signal_emit_count(player, "player_downed", 1, "die() re-entrante emite downed solo una vez")
 
 
 func test_signal_health_changed_params() -> void:
 	watch_signals(player)
 	player.take_damage(20.0)
-	# take_damage(20) → apply_physical_defense(20) → max(20-5, 1) = 15
-	var expected_health = player.max_health - 15.0
+	# v2 §2.5: 20 * (1 - 5/55) ≈ 18.18
+	var expected_health: float = player.max_health - 18.18
 	var params = get_signal_parameters(player, "health_changed")
-	assert_eq(params[0], expected_health, "Señal con HP actual correcto")
+	assert_almost_eq(float(params[0]), expected_health, 0.05, "Señal con HP actual v2")
 	assert_eq(params[1], player.max_health, "Señal con max HP correcto")
 
 

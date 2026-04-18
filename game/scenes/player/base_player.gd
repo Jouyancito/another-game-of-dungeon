@@ -32,6 +32,11 @@ class_name BasePlayer
 @export var base_health := 100.0
 @export var base_mana := 80.0
 
+# Multiplicadores de daño por clase — canon balance_v2.md §2.3-2.4.
+# Warrior 1.5 físico, Mage 1.5 mágico. Cada clase los ajusta en _on_class_ready().
+@export var class_mult_physical: float = 1.0
+@export var class_mult_magic: float = 1.0
+
 # Regeneración
 @export var hp_regen_delay := 15.0
 
@@ -53,6 +58,9 @@ signal mana_changed(new_value: float, max_value: float)
 signal xp_changed(xp: float, xp_max: float, level: int)
 signal player_died
 signal level_up(new_level: int, points: int)
+# Downed state (canon MVP #5) — player entra downed antes de morir.
+signal player_downed(player: BasePlayer)
+signal player_revived(player: BasePlayer, healer: Node)
 
 # Identidad persistente — canon drop-ownership v2.
 # profile_id sobrevive a reload/respawn. Futuro MMO: asignado server-side.
@@ -76,6 +84,11 @@ signal equipment_changed
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var can_attack := true
 var is_dead := false
+# Downed state (canon MVP #5): el player entra acá ANTES de muerte real.
+# Si no revive en downed_time_s, _actual_die() se ejecuta y drop/loot se dispara.
+var is_downed := false
+@export var downed_time_s: float = 30.0
+var _downed_time_left: float = 0.0
 var is_holding_attack := false
 var dash_locked := false  # PlayerSkills lo alza durante tween de Embestida — WASD y vel enemy overrides OFF.
 var is_crouching := false
@@ -375,8 +388,9 @@ func recalculate_stats() -> void:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_vit: int = vit_stat + int(bonus.get("vit", 0))
 	var total_int: int = int_stat + int(bonus.get("int", 0))
-	max_health = Progression.max_health(base_health, total_vit)
-	max_mana = Progression.max_mana(base_mana, total_int)
+	# Canon balance_v2 §2.1-2.2 — fórmulas compound decelerada con level.
+	max_health = Progression.max_health_v2(base_health, total_vit, level)
+	max_mana = Progression.max_mana_v2(base_mana, total_int, level)
 
 func _get_equipment_bonuses() -> Dictionary:
 	if equipment:
@@ -399,13 +413,15 @@ func get_physical_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_str: int = str_stat + int(bonus.get("str", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.physical(base_dmg, total_str, weapon_dmg) * _skill_buff_mult()
+	# Canon balance_v2 §2.3 — compound con level + class_mult.
+	return DamageFormula.physical_v2(base_dmg, weapon_dmg, total_str, level, class_mult_physical) * _skill_buff_mult()
 
 func get_magic_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_int: int = int_stat + int(bonus.get("int", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.magic(base_dmg, total_int, weapon_dmg) * _skill_buff_mult()
+	# Canon balance_v2 §2.4 — compound con level + class_mult.
+	return DamageFormula.magic_v2(base_dmg, weapon_dmg, total_int, level, class_mult_magic) * _skill_buff_mult()
 
 func get_dex_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
@@ -421,9 +437,10 @@ func _skill_buff_mult() -> float:
 		return 1.0
 	return skills.outgoing_damage_mult()
 
-func apply_physical_defense(raw_damage: float) -> float:
+func apply_physical_defense(raw_damage: float, attacker_level: int = 1) -> float:
 	var total_def: int = get_effective_stat("def")
-	return DamageFormula.apply_physical_defense(raw_damage, total_def)
+	# Canon balance_v2 §2.5 — armor self-capping por attacker_level.
+	return DamageFormula.apply_armor_v2(raw_damage, total_def, attacker_level)
 
 func apply_elemental_damage(raw_damage: float, element: String) -> float:
 	var res: float = get_effective_resistance(element)
@@ -490,7 +507,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_attack_released()
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * mouse_sensitivity)
+		# Durante dash (Embestida): NO rotar el body horizontalmente — el dash sigue
+		# el forward inicial. Sí permitimos mover cabeza (pitch) para no frizar la vista.
+		if not dash_locked:
+			rotate_y(-event.relative.x * mouse_sensitivity)
 		head.rotate_x(-event.relative.y * mouse_sensitivity)
 		head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
 
@@ -512,6 +532,15 @@ func apply_knockback(hit_direction: Vector3, force: float) -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		velocity = Vector3.ZERO
+		move_and_slide()
+		return
+
+	# Downed state — no moverse, no regen, tickear timer. Si se agota → muerte real.
+	if is_downed:
+		velocity = Vector3.ZERO
+		_downed_time_left -= delta
+		if _downed_time_left <= 0.0:
+			_actual_die()
 		move_and_slide()
 		return
 
@@ -715,8 +744,8 @@ func _regenerate(delta: float) -> void:
 		health_changed.emit(health, max_health)
 
 func take_damage(amount: float, element: String = "", attacker: Node = null) -> void:
-	if is_dead:
-		return
+	if is_dead or is_downed:
+		return  # downed state = invul a más dmg (canon MVP #5)
 	# G9: invul frames — si skill abrió ventana de invul, ignorar dmg.
 	if has_meta("invul_time_left") and float(get_meta("invul_time_left")) > 0.0:
 		return
@@ -726,17 +755,25 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 		if parry.get("absorbed", false):
 			return  # Dmg 100% absorbido — canon Bloqueo Perfecto
 	time_since_last_hit = 0.0
+	# Canon v2 §2.5 — armor reduction needs attacker level. Fallback 1 si el atacante no lo expone.
+	var atk_level: int = 1
+	if attacker != null and "level" in attacker:
+		atk_level = int(attacker.level)
 	var final_damage: float
 	if element != "":
 		final_damage = apply_elemental_damage(amount, element)
 	else:
-		final_damage = apply_physical_defense(amount)
+		final_damage = apply_physical_defense(amount, atk_level)
 	health = clamp(health - final_damage, 0, max_health)
 	health_changed.emit(health, max_health)
-	# Rage gen por daño recibido (canon _system.md §5ter: +10 por 10% HP perdido).
+	# Rage gen por %HP perdido (canon _system.md §5ter: +10 por 10% HP perdido).
+	# Fórmula canon: (final_damage / max_health) * 100 → +1 Rage por cada 1% HP perdido.
 	# Este gen vive acá (no en skill .tres) porque es pasivo de la clase, no per-skill.
+	# Solo Warriors con Rage. Otros recursos (Fe/Combo/Concentración/Vida) no escalan por daño recibido.
 	if class_resource != null and class_resource.type == ClassResource.Type.RAGE:
-		class_resource.add(int(final_damage * 0.1))
+		if max_health > 0.0:
+			var rage_gained: int = int((final_damage / max_health) * 100.0)
+			class_resource.add(rage_gained)
 	if health <= 0:
 		die()
 
@@ -904,11 +941,48 @@ func _update_torch(delta: float) -> void:
 		else:
 			_torch_light.light_energy = base_energy + randf_range(-0.25, 0.15)
 
+## Canon MVP #5 — downed state antes de muerte real.
+## Cuando HP ≤ 0, el player NO muere instant. Entra en downed, pueden revivirlo.
+## Si nadie revive en downed_time_s, _actual_die() ejecuta (drop/loot, signal player_died).
+##
+## Nota: un player ya downed que recibe más daño NO re-dispara el estado (idempotente).
+## Para forzar la muerte instantánea (ej: caer al abismo), usar _actual_die() directo.
 func die() -> void:
+	if is_dead or is_downed:
+		return
+	is_downed = true
+	_downed_time_left = downed_time_s
+	# HP visualmente a 0 — el player no puede accionar. Respawn frame sync.
+	health = 0.0
+	health_changed.emit(health, max_health)
+	_remove_torch()  # Apagar antorcha en downed
+	player_downed.emit(self)
+
+
+## Revive un player downed. Restaura a 30% HP max y resetea el timer.
+## Canon MVP #5 — healer (cleric, consumible) llama acá.
+func revive(healer: Node = null) -> bool:
+	if is_dead:
+		return false  # muerte real — no se puede revivir
+	if not is_downed:
+		return false  # no estaba downed, nada que hacer
+	is_downed = false
+	_downed_time_left = 0.0
+	health = max_health * 0.3
+	health_changed.emit(health, max_health)
+	player_revived.emit(self, healer)
+	return true
+
+
+## Ejecuta la muerte real (dispara drop/loot + player_died signal).
+## Se llama internamente al expirar downed_time_s o desde _physics_process por
+## casos de "muerte instantánea" (ej: abismo, scripts específicos).
+func _actual_die() -> void:
 	if is_dead:
 		return
 	is_dead = true
-	_remove_torch()  # Apagar antorcha al morir
+	is_downed = false
+	_remove_torch()
 	if TitleTracker:
 		TitleTracker.on_player_death()
 	player_died.emit()

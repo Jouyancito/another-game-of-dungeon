@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/mage/arcane_storm.svg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"mage_arcane_storm"
+class_id = &"mage"
+display_name = "Tormenta Arcana"
+description = "Canalizada CONE_CANAL (8m cono 45°) + AOE_SMALL 4m. 20 MP/s (tick 0.25s = 5 MP/tick). CD 3s post-canal. magic_v2(6, weapon*0.3, INT, lvl, 1.5). Canon mage.md §3 SKILL 2."
+icon = ExtResource("2_icon")
+cast_type = 1
+target_type = 3
+range_m = 8.0
+radius_m = 4.0
+cone_angle_deg = 45.0
+resource_cost = 5
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 3.0
+damage_formula = 2
+base_damage = 6
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 0
+unlock_level = 4
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"magic", &"channel", &"AoE", &"arcane"])
+dash_distance_m = 0.0
+tick_interval_s = 0.25
+tick_resource_cost = 5
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.0
+quest_gate = &""
