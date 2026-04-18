@@ -1,0 +1,107 @@
+[gd_scene load_steps=14 format=3 uid="uid://bchgwarvfx001"]
+
+[ext_resource type="Script" path="res://scenes/fx/vfx_base.gd" id="1_vfxbase"]
+[ext_resource type="Script" path="res://scenes/fx/warrior/charge_vfx.gd" id="2_chargevfx"]
+
+; --- Dust kick inicial (burst dorado en pies) ---
+[sub_resource type="ParticleProcessMaterial" id="PPM_dust"]
+emission_shape = 1
+emission_sphere_radius = 0.25
+direction = Vector3(0, 1, 0)
+spread = 60.0
+initial_velocity_min = 1.5
+initial_velocity_max = 3.0
+gravity = Vector3(0, -4, 0)
+scale_min = 0.18
+scale_max = 0.32
+color = Color(0.83, 0.63, 0.25, 0.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dust"]
+size = Vector3(0.15, 0.15, 0.15)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dust"]
+albedo_color = Color(0.83, 0.63, 0.25, 0.85)
+emission_enabled = true
+emission = Color(0.83, 0.63, 0.25, 1)
+emission_energy_multiplier = 1.2
+transparency = 1
+
+; --- Trail (rage-red partículas detrás) ---
+[sub_resource type="ParticleProcessMaterial" id="PPM_trail"]
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, 0.2, 1)
+spread = 25.0
+initial_velocity_min = 0.5
+initial_velocity_max = 1.5
+gravity = Vector3(0, -0.5, 0)
+scale_min = 0.12
+scale_max = 0.22
+color = Color(0.88, 0.28, 0.16, 0.95)
+
+[sub_resource type="BoxMesh" id="BoxMesh_trail"]
+size = Vector3(0.12, 0.12, 0.12)
+
+[sub_resource type="StandardMaterial3D" id="Mat_trail"]
+albedo_color = Color(0.88, 0.28, 0.16, 0.9)
+emission_enabled = true
+emission = Color(0.88, 0.28, 0.16, 1)
+emission_energy_multiplier = 1.8
+transparency = 1
+
+; --- Speed lines (líneas alargadas doradas hacia atrás) ---
+[sub_resource type="ParticleProcessMaterial" id="PPM_lines"]
+emission_shape = 3
+emission_box_extents = Vector3(0.4, 0.5, 0.1)
+direction = Vector3(0, 0, 1)
+spread = 5.0
+initial_velocity_min = 4.0
+initial_velocity_max = 6.0
+gravity = Vector3(0, 0, 0)
+scale_min = 0.6
+scale_max = 1.2
+color = Color(0.95, 0.78, 0.35, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_lines"]
+size = Vector3(0.05, 0.05, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="Mat_lines"]
+albedo_color = Color(0.95, 0.78, 0.35, 1)
+emission_enabled = true
+emission = Color(0.95, 0.78, 0.35, 1)
+emission_energy_multiplier = 2.5
+transparency = 1
+
+[node name="ChargeVFX" type="Node3D"]
+script = ExtResource("2_chargevfx")
+duration_s = 0.3
+auto_free = true
+fade_out_s = 0.15
+
+[node name="DustKick" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 18
+lifetime = 0.35
+one_shot = true
+explosiveness = 0.9
+process_material = SubResource("PPM_dust")
+draw_pass_1 = SubResource("BoxMesh_dust")
+material_override = SubResource("Mat_dust")
+
+[node name="Trail" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 24
+lifetime = 0.4
+explosiveness = 0.0
+process_material = SubResource("PPM_trail")
+draw_pass_1 = SubResource("BoxMesh_trail")
+material_override = SubResource("Mat_trail")
+
+[node name="SpeedLines" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 10
+lifetime = 0.25
+explosiveness = 0.6
+process_material = SubResource("PPM_lines")
+draw_pass_1 = SubResource("BoxMesh_lines")
+material_override = SubResource("Mat_lines")
