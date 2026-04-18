@@ -302,6 +302,8 @@ func connect_to_player(player: Node) -> void:
 	if player.skills != null:
 		if not player.skills.hotbar_changed.is_connected(_refresh_hotbar_visuals):
 			player.skills.hotbar_changed.connect(_refresh_hotbar_visuals)
+		if not player.skills.cooldown_tick.is_connected(_on_cooldown_tick):
+			player.skills.cooldown_tick.connect(_on_cooldown_tick)
 		_refresh_hotbar_visuals()
 
 
@@ -348,6 +350,15 @@ func _show_level_up_notification(new_level: int) -> void:
 	# Fade out hacia arriba
 	tween.tween_property(level_up_label, "modulate:a", 0.0, 0.8)
 	tween.tween_callback(func(): level_up_label.visible = false)
+
+
+## Recibe ticks de cooldown desde PlayerSkills y actualiza el overlay del slot.
+func _on_cooldown_tick(skill_id: StringName, remaining_s: float, total_s: float) -> void:
+	for child in hotbar_slots.get_children():
+		if child is HotbarSlot:
+			if child.skill != null and child.skill.id == skill_id:
+				child.set_cooldown(remaining_s, total_s)
+				return
 
 
 func _on_player_died() -> void:

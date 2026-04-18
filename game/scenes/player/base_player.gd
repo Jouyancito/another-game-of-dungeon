@@ -774,6 +774,9 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 		if max_health > 0.0:
 			var rage_gained: int = int((final_damage / max_health) * 100.0)
 			class_resource.add(rage_gained)
+	# ── SFX daño recibido ─────────────────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"punch_hit", global_position)
 	if health <= 0:
 		die()
 
@@ -817,6 +820,9 @@ func gain_xp(amount: float) -> void:
 		level_up.emit(level, stat_points)
 		if TitleTracker:
 			TitleTracker.on_level_up(level)
+		# ── SFX level up ─────────────────────────────────────────────────────
+		if AudioManager:
+			AudioManager.play_sfx(&"level_up")
 	xp_changed.emit(xp, xp_to_next_level, level)
 	save_progress()
 
