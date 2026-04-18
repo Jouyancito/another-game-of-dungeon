@@ -10,10 +10,16 @@ extends Node
 ## hija con su propio VFX_MAP, o extender esta clase y redefinir VFX_MAP.
 
 const VFX_MAP: Dictionary = {
-	&"warrior_charge":       preload("res://scenes/fx/warrior/charge_vfx.tscn"),
-	&"warrior_war_cry":      preload("res://scenes/fx/warrior/war_cry_vfx.tscn"),
-	&"warrior_punch":        preload("res://scenes/fx/warrior/punch_impact_vfx.tscn"),
+	# Warrior
+	&"warrior_charge":        preload("res://scenes/fx/warrior/charge_vfx.tscn"),
+	&"warrior_war_cry":       preload("res://scenes/fx/warrior/war_cry_vfx.tscn"),
+	&"warrior_punch":         preload("res://scenes/fx/warrior/punch_impact_vfx.tscn"),
 	&"warrior_perfect_block": preload("res://scenes/fx/warrior/perfect_block_vfx.tscn"),
+	# Mage
+	&"mage_unstable_orb":     preload("res://scenes/fx/mage/unstable_orb_vfx.tscn"),
+	&"mage_arcane_storm":     preload("res://scenes/fx/mage/arcane_storm_vfx.tscn"),
+	&"mage_prismatic_barrier": preload("res://scenes/fx/mage/prismatic_barrier_vfx.tscn"),
+	&"mage_supernova":        preload("res://scenes/fx/mage/supernova_vfx.tscn"),
 }
 
 # Duración one-shot para charge_vfx adjunto al player (trail durante el dash).
@@ -49,16 +55,21 @@ func _on_dash_started(skill_id: StringName) -> void:
 		return
 	vfx.duration_s = charge_trail_duration_s  # one-shot: auto_free cuando termina el dash
 	vfx.play()
+	# ── SFX ──────────────────────────────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"dash_whoosh")
 
 
-func _on_dash_ended(_skill_id: StringName, _hit_enemy: Node) -> void:
+func _on_dash_ended(skill_id: StringName, hit_enemy: Node) -> void:
 	# El charge_vfx ya tiene duration_s > 0 → se auto-libera solo.
-	# Nada extra que hacer acá, el hook existe por si en el futuro
-	# se quiere hacer un burst de impacto extra al llegar.
-	pass
+	# CameraShake si impactó a un enemigo.
+	if hit_enemy != null and CameraShake:
+		CameraShake.shake_medium()
+	if hit_enemy != null and AudioManager:
+		AudioManager.play_sfx(&"dash_impact")
 
 
-func _on_skill_hit(skill_id: StringName, _enemy: Node, hit_position: Vector3) -> void:
+func _on_skill_hit(skill_id: StringName, enemy: Node, hit_position: Vector3) -> void:
 	# warrior_punch y warrior_charge comparten punch_impact_vfx
 	if skill_id != &"warrior_punch" and skill_id != &"warrior_charge":
 		return
@@ -73,6 +84,20 @@ func _on_skill_hit(skill_id: StringName, _enemy: Node, hit_position: Vector3) ->
 	vfx.global_position = hit_position
 	vfx.play()  # auto_free via duration_s del .tscn
 
+	# ── SFX + feel ───────────────────────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"punch_hit", hit_position)
+
+	# CameraShake leve en cada hit
+	if CameraShake:
+		CameraShake.shake_light()
+
+	# HitStop — crit si el metadata lo indica
+	if HitStop:
+		var is_crit: bool = enemy != null and enemy.has_meta("last_hit_crit") and bool(enemy.get_meta("last_hit_crit"))
+		if is_crit:
+			HitStop.stop_crit()
+
 
 func _on_toggle_changed(skill_id: StringName, active: bool) -> void:
 	if skill_id != &"warrior_war_cry":
@@ -86,6 +111,9 @@ func _on_toggle_changed(skill_id: StringName, active: bool) -> void:
 		vfx.duration_s = 0.0  # sostenido — stop() manual al desactivar
 		vfx.play()
 		_active_toggle_vfx[skill_id] = vfx
+		# ── SFX activación ───────────────────────────────────────────────────
+		if AudioManager:
+			AudioManager.play_sfx(&"war_cry_activate")
 	else:
 		_stop_toggle(skill_id)
 
@@ -120,6 +148,14 @@ func _on_reactive_triggered(skill_id: StringName, _absorbed: float, _reflected: 
 	if vfx.duration_s <= 0.0:
 		vfx.duration_s = 0.25
 	vfx.play()
+
+	# ── SFX + feel bloqueo perfecto ───────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"block_success")
+	if CameraShake:
+		CameraShake.shake_heavy()
+	if HitStop:
+		HitStop.stop_heavy()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

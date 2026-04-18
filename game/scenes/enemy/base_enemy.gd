@@ -452,7 +452,7 @@ func perform_attack() -> void:
 		can_attack = true
 
 
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null, element: String = "physical", is_crit: bool = false) -> void:
 	if is_dead:
 		return
 
@@ -462,6 +462,13 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 
 	health -= amount
 	_flash_damage()
+
+	# ── Floating Damage Number ────────────────────────────────────────────────
+	_spawn_damage_number(int(amount), is_crit, element)
+
+	# ── SFX hit ──────────────────────────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"enemy_hit_flesh", global_position)
 
 	if knockback_force > 0.0 and hit_direction != Vector3.ZERO:
 		apply_knockback(hit_direction, knockback_force, attacker_str)
@@ -504,6 +511,17 @@ func die() -> void:
 	# Registrar kill en el tracker de títulos
 	if TitleTracker:
 		TitleTracker.on_enemy_killed(enemy_type)
+
+	# ── SFX muerte + CameraShake ─────────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"enemy_die_slime", global_position)
+	if CameraShake:
+		var is_boss: bool = sub_tier == SubTier.BOSS or enemy_tier >= 10
+		if is_boss:
+			CameraShake.shake_heavy()
+		else:
+			CameraShake.shake_light()
+
 	_spawn_loot()
 	_on_death()
 	var tween = create_tween()
@@ -530,6 +548,25 @@ func _ground_drop_position(pos: Vector3) -> Vector3:
 		return Vector3(pos.x, hit.position.y + 0.05, pos.z)
 	# Fallback: 0.8m debajo (aprox feet level para la mayoría de enemigos)
 	return pos - Vector3(0, 0.8, 0)
+
+
+## Instancia un FloatingDamageNumber en world-space sobre este enemigo.
+func _spawn_damage_number(amount: int, is_crit: bool, element: String) -> void:
+	const FDN_PATH := "res://scenes/fx/floating_damage_number.tscn"
+	if not ResourceLoader.exists(FDN_PATH):
+		return
+	var fdn_scene: PackedScene = ResourceLoader.load(FDN_PATH, "PackedScene", ResourceLoader.CACHE_MODE_REUSE)
+	if fdn_scene == null:
+		return
+	var fdn = fdn_scene.instantiate()
+	if fdn == null:
+		return
+	var scene_root := get_tree().current_scene
+	if scene_root == null:
+		return
+	scene_root.add_child(fdn)
+	fdn.global_position = global_position + Vector3(0, 1.5, 0)
+	fdn.setup(amount, is_crit, element)
 
 
 ## Override para efectos de muerte custom

@@ -737,6 +737,9 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 	# Este gen vive acá (no en skill .tres) porque es pasivo de la clase, no per-skill.
 	if class_resource != null and class_resource.type == ClassResource.Type.RAGE:
 		class_resource.add(int(final_damage * 0.1))
+	# ── SFX daño recibido ─────────────────────────────────────────────────────
+	if AudioManager:
+		AudioManager.play_sfx(&"punch_hit", global_position)
 	if health <= 0:
 		die()
 
@@ -780,6 +783,9 @@ func gain_xp(amount: float) -> void:
 		level_up.emit(level, stat_points)
 		if TitleTracker:
 			TitleTracker.on_level_up(level)
+		# ── SFX level up ─────────────────────────────────────────────────────
+		if AudioManager:
+			AudioManager.play_sfx(&"level_up")
 	xp_changed.emit(xp, xp_to_next_level, level)
 	save_progress()
 

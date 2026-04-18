@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://mage_unstable_orb_vfx"]
+
+[ext_resource type="Script" path="res://scenes/fx/mage/unstable_orb_vfx.gd" id="1_uov"]
+
+[node name="UnstableOrbVFX" type="Node3D"]
+script = ExtResource("1_uov")
+duration_s = 3.0
+auto_free = true

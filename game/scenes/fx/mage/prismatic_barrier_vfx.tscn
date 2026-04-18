@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://mage_prismatic_barrier_vfx"]
+
+[ext_resource type="Script" path="res://scenes/fx/mage/prismatic_barrier_vfx.gd" id="1_pbv"]
+
+[node name="PrismaticBarrierVFX" type="Node3D"]
+script = ExtResource("1_pbv")
+duration_s = 0.0
+auto_free = true

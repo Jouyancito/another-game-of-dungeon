@@ -30,6 +30,9 @@ LootStyle="*res://shared/loot/loot_style.gd"
 Journal="*res://scripts/journal.gd"
 TitleTracker="*res://scripts/title_tracker.gd"
 SkillDB="*res://shared/skills/skill_definitions.gd"
+AudioManager="*res://shared/systems/audio_manager.gd"
+CameraShake="*res://shared/systems/camera_shake.gd"
+HitStop="*res://shared/systems/hit_stop.gd"
 
 [display]
 
