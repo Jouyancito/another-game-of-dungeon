@@ -1,6 +1,6 @@
 # World References — Canon de Referencias Culturales
 
-**Versión**: 1.0
+**Versión**: 1.1 — refs propuestas (Genshin/BG3/Hollow Knight/Sea of Thieves/Slay Spire/Vampire Survivors/Honkai) aprobadas y movidas a canon + §7 Monster Feast adoptado + §8 Filosofía adoptada por refs
 **Fecha**: 2026-04-17
 **Estado**: Canon central de referencias. Fuente única para alinear visión narrativa, visual, jugable y de sistema.
 **Depende**: `_world_canon.md` (mundo), `GDD_DungeonParty.md` (pilares + estructura), `_system.md` (skills canon), `_class_lore_*.md` (identidad per-orden).
@@ -181,6 +181,37 @@ Dungeon Party no inventa cada sistema desde cero. Se **para sobre hombros** de o
 - **Aporta**: trinity coop (tank/healer/DPS) + raids 8-man + identidad de clase/job marcada. Glamour system (cosmetics).
 - **Usado en**: coop roles (DP usa pseudo-trinity), cosmetics canon GDD §9.4.
 
+#### Genshin Impact
+- **Aporta**: elemental reactions (Hydro + Electro = Electrocharged, Pyro + Cryo = Melt, Pyro + Hydro = Vaporize, etc). Paralelo directo con status combos DP canon `_status_effects.md §3` (Shatter / Ignite / Plagued Land). Modelo para expansión futura del sistema de combos (DP podría sumar "Burn + Bleed = Cauterize" o "Poison + Burn = Infection").
+- **Usado en**: sistema de status combos canon + UI hint para reacción lista.
+- **⚠️ Filtro**: NO adoptamos gacha / pull system. Solo la mecánica de reactions.
+
+#### Baldur's Gate 3
+- **Aporta**: party cooperativo 4 jugadores + class synergies explícitas visibles en UI durante combate (tooltip *"tu Cleric puede curar este aliado"*). Reactions en combate (AoO). Inspiración dialogue tree post-producción.
+- **Usado en**: UI hint de sinergias disponibles en combate (design pendiente dept UI), coop 4+ party.
+- **⚠️ Filtro**: DP es action-RPG, no turn-based. Solo adoptamos el concepto de "UI comunica sinergias".
+
+#### Hollow Knight
+- **Aporta**: atmósfera misterio > mal **perfecta** + mapa interconectado + NPCs memorables con arcos personales largos (no solo flavor). Side-stories como quests opcionales. Aesthetic minimalista del mundo.
+- **Usado en**: tono Taberna (NPCs con arcos narrativos largos, no NPCs-vending-machines), Journal lore descubierto por exploración, atmósfera general misterio.
+
+#### Sea of Thieves
+- **Aporta**: coop emergente con roles no-fijos + navegación compartida + voice chat proximidad (paralelo directo a canon GDD §9.1 chat de proximidad DP).
+- **Usado en**: **refuerza** la decisión canon de proximity voice chat. Coop emergente post-producción si DP escala a party 6+.
+
+#### Slay the Spire
+- **Aporta**: gameplay loop de decisiones estratégicas entre pisos — cada nodo ofrece opciones (curar / riesgo / shop / event / fight). Loop estratégico macro además del combate micro.
+- **Usado en**: design "entre pisos" DP — nodo de decisión entre sala de transición y siguiente piso (heal / loot / shop / evento). Canon GDD §3 menciona "sala de transición con portal" — expandir con decision nodes estilo Slay the Spire.
+
+#### Vampire Survivors
+- **Aporta**: sensación de **build-up de poder visible** — al final del run te sentís 10× más fuerte que al principio, sin inflación numérica sin control. Curva de escalado clara.
+- **Usado en**: diseño de progresión por run DP (curva STR/INT + loot + skill XP), sensación de "lvl 50 es realmente 10× más fuerte que lvl 5" consistente con `balance_v2.md` compound formulas.
+
+#### Honkai Star Rail
+- **Aporta**: aesthetic visual de **ultimate shots cinematográficos** (framing ultra-close, pose, slow-mo, nombres grandes). Cuando un personaje castea su ultimate, el juego se detiene y muestra la animación completa.
+- **Usado en**: VFX framing de ultimates DP (pose JJK + framing HSR combinados — Arte Arcano Supernova, Juicio Sagrado, Rito del Abismo, Forma del Titán, Tormenta de Flechas, Danza de Mil Sombras).
+- **⚠️ Filtro**: turn-based gameplay NO aplica a DP action. Solo adoptamos el framing visual dramático.
+
 ### 3.3 Mitología chilena (criaturas citables)
 Canon `_world_canon.md §11` — reservado para post-producción a nivel bioma, no identidad de clase:
 
@@ -221,8 +252,16 @@ Tabla de decisión rápida: si diseñás sistema X, consultá ref Y.
 | **Party trinity + roles** | FFXIV | DRG |
 | **Achievements + quests ocultas** | Danmachi (grado por logros) + Hades (heat system) | — |
 | **Naming fantasy genérico** | Witcher 3 (fonética inventada) | Elden Ring |
-| **Atmósfera misterio > mal** | Made in Abyss + Dark Souls | Hades (tragedia sin nihilismo) |
+| **Atmósfera misterio > mal** | Made in Abyss + Dark Souls + **Hollow Knight** | Hades (tragedia sin nihilismo) |
 | **Mitología rural oscura** | Chiloé negro (Imbunche/Caleuche) + Witcher Brujas | — |
+| **Status combos cross-clase** | **Genshin Impact** elemental reactions | canon `_status_effects.md §3` (Shatter/Ignite/Plagued Land) |
+| **UI sinergias en combate** | **Baldur's Gate 3** (tooltip hints) | — |
+| **NPCs Taberna con arcos largos** | **Hollow Knight** + Hades | Stardew Valley |
+| **Voice chat proximidad** | **Sea of Thieves** + canon GDD §9.1 | — |
+| **Decisiones entre pisos (nodos)** | **Slay the Spire** | Hades (boons) |
+| **Build-up de poder sensible** | **Vampire Survivors** | Diablo 2 |
+| **Framing cinematográfico ultimate** | **Honkai Star Rail** (visual) + JJK (pose) | One Piece |
+| **Evento mundo cross-orden** | **Danmachi Monster Feast** (§7) | — |
 
 ---
 
@@ -260,67 +299,160 @@ Combinando las referencias anteriores, Dungeon Party debería sentirse como:
 
 **Pilares GDD reforzados por refs**:
 - **Coord es poder** → DRG + Danmachi (roles complementarios mecánicos)
-- **Sinergias ganan batallas** → Genshin Impact elemental reactions (**ref propuesta C, validar user** — ver §8)
+- **Sinergias ganan batallas** → Genshin Impact elemental reactions + BG3 UI hints de sinergia
 - **Cada run importa** → Hades runs + Danmachi mortalidad de NPCs
-- **Tu dungeon tu historia** → Danmachi pisos únicos + Made in Abyss lore emergente
-- **Fácil aprender difícil dominar** → Slay the Spire / Hades mechanical depth
+- **Tu dungeon tu historia** → Danmachi pisos únicos + Made in Abyss lore emergente + Hollow Knight NPCs con arcos
+- **Fácil aprender difícil dominar** → Slay the Spire decisiones + Hades mechanical depth + Vampire Survivors build-up
 
 ---
 
-## §7. Refs propuestas C (validar user)
+## §7. Eventos Mundo — Monster Feast (adopción Danmachi)
 
-Estas refs no fueron mencionadas explícitamente por el user, pero C las propone como potencialmente útiles. **Flag pendiente validación**:
+**Status**: **BACKLOG canon**. Diseño concept aprobado user 2026-04-17. **NO implementar ahora** — esperar sistema de eventos servidor.
 
-1. **Genshin Impact** — elemental reactions (Hydro + Electro = Electrocharged, Pyro + Cryo = Melt, etc). Paralelo directo con status combos DP (canon `_status_effects.md §3` Shatter/Ignite/Plagued Land). Podría inspirar expansión del sistema de combos.
-   - **Aporte**: expansión de status combos, UI indicador de reacción lista.
-   - **Filtro**: evitar gacha/pull system de Genshin.
+### 7.1 Concepto Danmachi (origen)
 
-2. **Baldur's Gate 3** — party cooperative 4 + class synergies + D&D roots. Muy aplicable al coop + synergies DP.
-   - **Aporte**: party 4 coop, reactions en combate (AoO), inspiración dialogue tree.
-   - **Filtro**: DP es action no turn-based.
+Cuando un monstruo profundo escapa de su piso, o aparece una anomalía en el Dungeon de Orario, **todas las familias convergen** para contenerlo. Evento limited-time con recompensas únicas. Rompe la rutina de "familia hace run individual" — obliga cooperación cross-familia.
 
-3. **Final Fantasy XIV** — party trinity + raids + glamour cosmetics.
-   - **Aporte**: roles coop MMO, cosmetics canon GDD §9.4.
-   - Ya incluido en §3.2.
+### 7.2 Adaptación canon DP — Monster Feast
 
-4. **Honkai Star Rail** — turn-based + character synergy.
-   - **⚠️ Filtro**: turn-based no aplica a DP action. Solo inspiración de marketing visual.
+**Trigger** (una de estas condiciones):
+- **Regresión de mazmorra**: un monstruo de piso N aparece en piso < N (anomalía vertical)
+- **Boss-tier spawn anómalo**: boss o tier-elite aparece en zona que normalmente no lo tiene
+- **Evento scripted futuro**: diseño posterior decide triggers específicos
 
-5. **Slay the Spire** — gameplay loop adictivo con decisiones entre runs.
-   - **Aporte**: design de "qué recompensa dar entre pisos" (heal / loot / upgrade).
+**Anuncio cross-orden**:
+- La **Asesora del Gremio** (GDD §3 NPC canon) emite alerta global a todas las 6 órdenes vía red del Gremio
+- Notificación in-game visible para todos los players online en ese server
+- Timer visible (ej: "Monster Feast en 5 minutos en zona X")
 
-6. **Vampire Survivors** — gameplay loop adictivo simple pero profundo.
-   - **Aporte**: sensación de build-up de poder durante el run.
+**Convergencia coop ampliada**:
+- Parties de **TODAS las clases** pueden converger a la zona del evento
+- No limitado a 6 jugadores — puede haber **12-30 players simultáneos** en server compartido durante el evento
+- Rompe el límite normal de party coop
 
-7. **Hollow Knight** — atmósfera misterio > mal perfecta + mapa interconectado + NPCs memorables.
-   - **Aporte**: tono exploración, NPCs con secretos.
+**Mecánica — escalado por # players (EXCEPCIÓN CANON)**:
+- ⚠️ **Excepción canon documentada al pilar 1 GDD "no escala con # jugadores"**.
+- Monster Feast **sí escala** con cantidad de players activos — es evento mundial, no run normal.
+- **Justificación**: el pilar 1 aplica a runs individuales de party. Monster Feast es evento servidor — comparable a "raid" en MMO convencional, donde escalado es necesario para balance.
+- **Flag revisión**: si esto rompe demasiado el pilar 1 en la práctica, ajustar post-playtest.
 
-8. **Sea of Thieves** — coop 4 jugadores con roles emergentes + navegación + voice chat proximidad (paralelo canon GDD §9.1 chat de proximidad).
-   - **Aporte**: coop emergente + voice chat proximidad.
+**Drops únicos**:
+- **Cosmético garantizado** por participante activo (skin / tinte / title)
+- **1 evolution item garantizado** al grupo (seleccionado de los 32 evolution items canon pendientes de drop source — ver `_framework_audit.md §4.4`). Distribución vía canon drop ownership v2 expandido.
+- **Flavor text de bestiario**: cada participante recibe entrada de Journal con lore del monstruo anómalo (descubrimiento colectivo).
+
+**Drops ownership — adaptación canon v2**:
+- Canon `_drop_ownership_canon.md` v2 aplica con modificación Monster Feast:
+- **Pool entry ampliada**: TODOS los players activos del server en la zona del evento entran al pool, sin importar party.
+- Floor+random reparte entre todos los participantes (no solo killer).
+- Timers canon 180/120/300s aplican normal post-reparto.
+
+**Frecuencia**:
+- Server cooldown post-evento (ej: 1× por week real-time o 1× cada N runs colectivos).
+- Evento no camcable — no se puede "farmear" Monster Feast consecutivos.
+- Intencional: el evento es **especial por escaso**.
+
+### 7.3 Diseño DP-specific (no en Danmachi)
+
+#### Mediación doctrinal obligatoria — Cleric Exorcista + Necromancer
+
+Canon `_class_lore_necromancer.md §6` + `_class_lore_cleric.md §6`: Exorcista vs Necromancer son enemigos naturales nucleares. **Monster Feast fuerza cooperación** — momento dramático canon.
+
+- Si la anomalía es **undead / dark**, party mixta Exorcista + Necromancer requiere **mediación de la Asesora del Gremio** in-game (NPC presente al inicio del evento).
+- Los dos rivales doctrinales se ven obligados a coordinar.
+- **Impacto narrativo**: Monster Feast es **el único momento canon** donde Exorcista y Necromancer **trabajan juntos activamente** (vs. en Taberna donde solo coexisten en silencio).
+- Después del evento, la enemistad vuelve al status quo. Es tregua local, no reconciliación.
+
+#### Journal entry especial
+
+Cada Monster Feast exitoso deja entrada en el Journal:
+- Monstruo anómalo (nombre + lore descubierto)
+- Lista de participantes (todos los players activos)
+- Timestamp + server seed
+
+Futuros players pueden **ver en Journal compartido** quién participó de eventos pasados — refuerza pilar 4 GDD "mundo persistente con marcas".
+
+### 7.4 Restricciones canon
+
+- **NO implementar P1** (fase actual prototipo). Reserva para cuando haya sistema de eventos servidor.
+- **NO aplica a single-player** (el evento es cross-server — en modo solo puede no ocurrir, o adaptarse a "mini-evento con NPCs aliados controlados").
+- **NO loot infinito** — cooldown estricto previene farm.
+- **NO obliga participación** — players pueden ignorar el evento (pero pierden drops únicos).
+
+### 7.5 Gate de implementación
+
+Pre-requisitos para sacar Monster Feast del BACKLOG:
+1. Sistema de eventos servidor funcional (no existe en fase prototipo)
+2. Red de notificaciones cross-player (requiere networking Steam/GodotSteam)
+3. Al menos 3 pisos estables + 1 boss por piso (para tener pool de monstruos anómalos)
+4. Canon de cosmetics implementado (GDD §9.4 pending)
+5. 32 evolution items con drop sources definidos (`_framework_audit.md §4.4`)
+
+Cuando estos 5 gates estén cumplidos, Monster Feast puede entrar a implementación.
 
 ---
 
-## §8. Cross-ref
+## §8. Filosofía adoptada por refs — qué cada ref moldea en DP
+
+Cómo cada referencia **canon aprobada** influye en decisiones de diseño activas:
+
+| Ref | Lo que aporta a DP (decisión canon) |
+|-----|-------------------------------------|
+| **Danmachi** | Mazmorra vertical + Gremio neutral + Taberna cross-orden + Monster Feast (§7). Ancla narrativa central. |
+| **Deep Rock Galactic** | Coop 4+ con roles mecánicos complementarios. Cada clase importa, cada rol se siente distinto. |
+| **Hades** | Taberna como base emocional con NPCs que te reconocen + progresión cross-run visible. |
+| **Diablo 2** | Skill tree 2-ramas + stat points por nivel + drops raridades (canon GDD §6). |
+| **Metin2** | Drop ownership + hotbar 4 loadouts + enhancement +1/+9 (canon implementado). |
+| **JJK + Demon Slayer** | VFX ultimates con pose + nombre visible declarado en combate. Disciplina espiritual de los Clerics. |
+| **Frieren** | Paciencia académica del Mage + achievement "Suerte de Frieren" (canon mimic). |
+| **Berserk + Bloodborne** | Necromancer DARK canon (Pacto oscuro real, aristocracia corrompida aesthetic). |
+| **Made in Abyss** | Atmósfera misterio>mal en exploración vertical + biomas descendentes (filtro: sin body horror). |
+| **Dark Souls / Elden Ring** | Lore ambiental descubierto por items/NPCs/ruinas — no cutscenes expositivas. Bosses como misterios. |
+| **Witcher 3** | Naming fantasy inventado (Vandrheim/Velathir/Drennhold/Bramastrum canon). Brujas rurales oscuras. |
+| **Ghost of Tsushima** | Transición honor → shadow del Danzante (Jin post-Ghost). |
+| **Monster Hunter** | Bosses por piso con loot garantizado + hunting coop 4. |
+| **FFXIV** | Trinity coop (tank/heal/DPS) + glamour cosmetics separados de stats. |
+| **Stardew Valley + Spiritfarer** | Calidez Taberna + fauna ambient + despedidas emocionales sin melodrama. |
+| **Castlevania SotN** | Arquitectura gótica + mapa interconectado (crystal_ceiling refs). |
+| **Genshin Impact** | Modelo para status combos cross-clase (ej *Bleed + Burn = Cauterize*, *Poison + Freeze = Crystallize*). Expansión futura de `_status_effects.md §3`. UI hint de reacción disponible. |
+| **Baldur's Gate 3** | UI sinergias en combate — tooltip/indicador *"tu Cleric puede curar este aliado"* o *"Mage puede aplicar Freeze sobre target para combo Shatter con Warrior"*. Design hint canon pendiente dept UI. |
+| **Hollow Knight** | NPCs Taberna con **arcos personales largos** (no flavor-vending-machines). Side-stories → quests opcionales canon. Aesthetic minimalista mundo. |
+| **Sea of Thieves** | **Refuerza** decisión canon GDD §9.1 chat de proximidad. Coop emergente post-producción 6+ party. |
+| **Slay the Spire** | **Nodo de decisión entre pisos**: entre sala de transición y siguiente piso, ofrecer opciones (heal / risk-high-reward / shop / event / fight-nodo). Loop estratégico macro además del combate micro. Design canon pendiente (expandir GDD §3 "sala de transición"). |
+| **Vampire Survivors** | **Curva de escalado clara** — al lvl 50 te sentís 10× más fuerte que lvl 5 sin inflación numérica sin control. Consistente con `balance_v2.md` compound formulas. Build-up poder visible durante run. |
+| **Honkai Star Rail** | **Framing cinematográfico ultimate** — pose JJK + framing ultra-close + slow-mo + nombre grande al castear. VFX canon para Supernova / Juicio Sagrado / Rito del Abismo / Forma del Titán / Tormenta de Flechas / Danza de Mil Sombras. |
+| **Risk of Rain 2** | Solo vibe coop — NO escalado con # players (pilar 1 GDD). **Excepción Monster Feast** (§7) rompe esto intencionalmente. |
+| **Path of Exile** | Drop tables + afixes gear (issue #23). Skill tree complexity como aspiración futura post-Fase 0. |
+| **One Piece** | Aesthetic flamboyant + gear declarations + pose dramática combate. |
+| **Rurouni Kenshin + Bleach Soi Fon + Death Note L** | Danzante + Necromancer personalidad (antagonistas con código propio claro, no villanos caricatura). |
+
+---
+
+## §9. Cross-ref
 
 - **World canon**: `_world_canon.md` (mundo, tono misterio>mal, Necromancer dark excepción, acentos regionales reservados)
 - **Skills canon**: `game/docs/skills/_system.md` (+ `_synergies.md` para combos)
 - **Class lore**: `_class_lore_*.md` (6 órdenes con sus refs específicas ya documentadas)
-- **Drop canon**: `_drop_ownership_canon.md` (Metin2 reference)
+- **Drop canon**: `_drop_ownership_canon.md` (Metin2 reference + Monster Feast §7 ampliación pool)
 - **Mimic canon**: `_mimic.md` (Frieren reference)
-- **GDD**: `GDD_DungeonParty.md` (pilares + estructura)
+- **Framework audit**: `_framework_audit.md` (32 evolution items pendientes drop source — relevante para Monster Feast drops)
+- **GDD**: `GDD_DungeonParty.md` (pilares + estructura + §9.1 voice chat proximidad)
 - **Visual bible**: `game/docs/visual_bible.md` (paleta + silhouettes)
 
 ---
 
-## §9. Cómo usar este doc
+## §10. Cómo usar este doc
 
 1. **Antes de diseñar sistema nuevo**: consultá §4 (mapeo aplicado) — te dice qué ref debería inspirar tu diseño.
 2. **Si proponés cambio que rompe tono**: chequeá §5 (tono prohibido) — si rompe, reconsiderá.
 3. **Si citás ref nueva**: agregá a §3 con 1-2 líneas de aporte concreto + 1 línea de filtro (qué NO adoptar).
 4. **Si el user menciona una ref**: linkealo a este doc. Si la ref no está, abrir sesión para agregar.
+5. **Para evento Monster Feast (§7)**: consultá pre-requisitos §7.5 antes de intentar implementar — NO está listo hasta que los 5 gates estén cumplidos.
+6. **Para filosofía adoptada (§8)**: es el "cheat sheet" más rápido — si preguntás "qué ref aporta X a DP", §8 te lo dice directo.
 
 Este doc **crece con el proyecto**. No es snapshot 2026-04-17 — es vivo. Cambios se versionan aquí primero.
 
 ---
 
-*Canon References v1.0. Danmachi es la referencia central por decisión user 2026-04-17. Las otras 25+ refs aportan piezas específicas. Actualizar al agregar refs nuevas — no sobrescribir sin justificar.*
+*Canon References v1.1. Danmachi es la referencia central. 26+ refs canon aprobadas (incluyendo las 7 que eran propuestas C en v1.0). Monster Feast §7 adoptado como evento futuro canon. Filosofía adoptada §8 es resumen ejecutivo de contribución de cada ref. Actualizar al agregar refs nuevas — no sobrescribir sin justificar.*
