@@ -233,7 +233,12 @@ func test_cast_skips_target_out_of_range() -> void:
 # ─── Rage gen por damage recibido ───
 
 func test_rage_gains_from_damage_taken() -> void:
+	# Canon _system.md §5ter: Rage gen = (final_damage / max_health) * 100.
+	# v2 §2.5 armor: 30 * (1 - 10/60) = 25 final.
+	# Rage = int((25 / max_health) * 100). max_health v2 (VIT=10, lvl=1).
 	assert_eq(rage.get_current(), 0)
-	player.take_damage(30.0)  # físico: 30 - 10 DEF = 20 final
-	# on-damage-taken: 10% del dmg final como Rage = 2
-	assert_eq(rage.get_current(), 2)
+	var max_hp_before: float = player.max_health
+	player.take_damage(30.0)
+	var final_dmg_approx: float = 30.0 * (1.0 - 10.0 / 60.0)
+	var expected_rage: int = int((final_dmg_approx / max_hp_before) * 100.0)
+	assert_eq(rage.get_current(), expected_rage, "rage gen por %HP perdido canon §5ter")
