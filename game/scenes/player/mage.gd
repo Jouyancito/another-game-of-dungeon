@@ -28,6 +28,9 @@ func _on_class_ready() -> void:
 	base_mana = 120.0
 	attack_range = 15.0
 	heavy_cooldown = 1.0
+	# Canon balance_v2 §2.4 + mage.md — class_mult mágico del Mage = 1.5.
+	class_mult_physical = 1.0
+	class_mult_magic = 1.5
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false

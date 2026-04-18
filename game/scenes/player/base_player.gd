@@ -32,6 +32,11 @@ class_name BasePlayer
 @export var base_health := 100.0
 @export var base_mana := 80.0
 
+# Multiplicadores de daño por clase — canon balance_v2.md §2.3-2.4.
+# Warrior 1.5 físico, Mage 1.5 mágico. Cada clase los ajusta en _on_class_ready().
+@export var class_mult_physical: float = 1.0
+@export var class_mult_magic: float = 1.0
+
 # Regeneración
 @export var hp_regen_delay := 15.0
 
@@ -375,8 +380,9 @@ func recalculate_stats() -> void:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_vit: int = vit_stat + int(bonus.get("vit", 0))
 	var total_int: int = int_stat + int(bonus.get("int", 0))
-	max_health = Progression.max_health(base_health, total_vit)
-	max_mana = Progression.max_mana(base_mana, total_int)
+	# Canon balance_v2 §2.1-2.2 — fórmulas compound decelerada con level.
+	max_health = Progression.max_health_v2(base_health, total_vit, level)
+	max_mana = Progression.max_mana_v2(base_mana, total_int, level)
 
 func _get_equipment_bonuses() -> Dictionary:
 	if equipment:
@@ -399,13 +405,15 @@ func get_physical_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_str: int = str_stat + int(bonus.get("str", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.physical(base_dmg, total_str, weapon_dmg) * _skill_buff_mult()
+	# Canon balance_v2 §2.3 — compound con level + class_mult.
+	return DamageFormula.physical_v2(base_dmg, weapon_dmg, total_str, level, class_mult_physical) * _skill_buff_mult()
 
 func get_magic_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
 	var total_int: int = int_stat + int(bonus.get("int", 0))
 	var weapon_dmg: int = equipment.get_weapon_damage() if equipment else 0
-	return DamageFormula.magic(base_dmg, total_int, weapon_dmg) * _skill_buff_mult()
+	# Canon balance_v2 §2.4 — compound con level + class_mult.
+	return DamageFormula.magic_v2(base_dmg, weapon_dmg, total_int, level, class_mult_magic) * _skill_buff_mult()
 
 func get_dex_damage(base_dmg: float) -> float:
 	var bonus: Dictionary = _get_equipment_bonuses()
@@ -421,9 +429,10 @@ func _skill_buff_mult() -> float:
 		return 1.0
 	return skills.outgoing_damage_mult()
 
-func apply_physical_defense(raw_damage: float) -> float:
+func apply_physical_defense(raw_damage: float, attacker_level: int = 1) -> float:
 	var total_def: int = get_effective_stat("def")
-	return DamageFormula.apply_physical_defense(raw_damage, total_def)
+	# Canon balance_v2 §2.5 — armor self-capping por attacker_level.
+	return DamageFormula.apply_armor_v2(raw_damage, total_def, attacker_level)
 
 func apply_elemental_damage(raw_damage: float, element: String) -> float:
 	var res: float = get_effective_resistance(element)
@@ -726,11 +735,15 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 		if parry.get("absorbed", false):
 			return  # Dmg 100% absorbido — canon Bloqueo Perfecto
 	time_since_last_hit = 0.0
+	# Canon v2 §2.5 — armor reduction needs attacker level. Fallback 1 si el atacante no lo expone.
+	var atk_level: int = 1
+	if attacker != null and "level" in attacker:
+		atk_level = int(attacker.level)
 	var final_damage: float
 	if element != "":
 		final_damage = apply_elemental_damage(amount, element)
 	else:
-		final_damage = apply_physical_defense(amount)
+		final_damage = apply_physical_defense(amount, atk_level)
 	health = clamp(health - final_damage, 0, max_health)
 	health_changed.emit(health, max_health)
 	# Rage gen por daño recibido (canon _system.md §5ter: +10 por 10% HP perdido).
