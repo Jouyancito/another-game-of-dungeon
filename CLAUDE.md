@@ -250,6 +250,7 @@ Para ver estado de todos: `mem_search(query: "dept-status")`.
 - **2026-04-15**: Drop ownership canon v2 post Judgment Day — party-first model, floor+random reparto, timers 180/120/300s, bind items, seeded RNG. Tag `v0.4`.
 - **2026-04-16**: Mimic enemy completo (issue #60 — state machine + mesh + canon + integration), equipment context menu unequip (#58), tooltip RichTextLabel (#59), skills MIGRATE 6 per-class al `_system.md` v1.0 + `_synergies.md` (15 combos cross-class, #46).
 - **2026-04-17**: Class lore canon (#47 — 6 docs lore + identidad cultural, órdenes preexistentes). World canon chileno central (`_world_canon.md`) + naming chileno (Pire-Mapu/Nahuelbuta/Lota/San Pedro de Atacama/Tres Cumbres volcanes/Quicaví-Caleuche) + Necromancer rewrite DARK (excepción tonal canon — pisa "moralmente gris" anterior).
+- **2026-04-18**: Tag `v0.5` — mergeadas 3 ramas: C `refs-approved-monster-feast` (world_references v1.1 + framework_audit v1.0 con 11 gaps schema), B `skills-schema-p0-fix` (SkillResource schema P0/P1 completo + 430L tests + 4 warrior .tres re-wired), D `mage-skill-icons` (4 SVG canon Fase 2 prep). Playtest reveló 3 gaps polish Fase 1: VFX faltantes (issue #63), embestida teletransporte (issue #64), no skill tree UI (issue #65). 3 ramas dept/* nuevas asignadas en paralelo: `dept/art/warrior-vfx-fase1`, `dept/gameplay/warrior-skills-polish`, `dept/design/skill-tree-ui-spec`.
 
 ## Canon de Design Vigente
 
