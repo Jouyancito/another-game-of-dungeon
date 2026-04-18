@@ -29,6 +29,15 @@ signal toggle_changed(skill_id: StringName, active: bool)
 signal reactive_window_opened(skill_id: StringName, duration: float)
 signal reactive_triggered(skill_id: StringName, absorbed: float, reflected: float)
 
+# VFX hooks — D engancha VFX aquí sin tocar lógica de skills.
+signal dash_started(skill_id: StringName)
+signal dash_ended(skill_id: StringName, hit_enemy: Node)
+signal skill_hit(skill_id: StringName, enemy: Node, hit_position: Vector3)
+
+# Tuneables dash polish (canon playtest 2026-04-18 — embestida teletransporte fix).
+@export var dash_tween_duration_s: float = 0.3
+@export var dash_fov_pulse_deg: float = 5.0
+
 
 func _ready() -> void:
 	# Inicializar 8 slots null
@@ -38,6 +47,9 @@ func _ready() -> void:
 func setup(player: Node, resource: ClassResource = null) -> void:
 	_owner_player = player
 	class_resource = resource
+	# Defensive: resize aunque _ready todavía no haya corrido (tests, flujos alternos).
+	if hotbar.size() != HOTBAR_SIZE:
+		hotbar.resize(HOTBAR_SIZE)
 
 
 ## Asigna una skill a un slot del hotbar (0-7). Reemplaza lo que había.
@@ -45,6 +57,42 @@ func set_slot(slot: int, skill: SkillResource) -> void:
 	if slot < 0 or slot >= HOTBAR_SIZE:
 		return
 	hotbar[slot] = skill
+	hotbar_changed.emit()
+
+
+## Intercambia dos slots del hotbar (drag&drop reorder).
+func swap_slots(a: int, b: int) -> void:
+	if a < 0 or b < 0 or a >= HOTBAR_SIZE or b >= HOTBAR_SIZE or a == b:
+		return
+	var tmp: SkillResource = hotbar[a]
+	hotbar[a] = hotbar[b]
+	hotbar[b] = tmp
+	hotbar_changed.emit()
+
+
+## Layout actual como PackedStringArray de IDs (persistencia SaveManager v3).
+func get_hotbar_layout() -> PackedStringArray:
+	var out := PackedStringArray()
+	for s in hotbar:
+		if s != null:
+			out.append(String(s.id))
+		else:
+			out.append("")
+	return out
+
+
+## Restaura layout desde IDs usando SkillDB autoload. Slots sin match quedan null.
+func load_hotbar_layout(ids: Array) -> void:
+	var db = null
+	if _owner_player != null:
+		db = _owner_player.get_tree().get_root().get_node_or_null("SkillDB")
+	for i in range(min(ids.size(), HOTBAR_SIZE)):
+		var sid := String(ids[i])
+		if sid == "" or db == null:
+			hotbar[i] = null
+			continue
+		var s: SkillResource = db.get_skill(StringName(sid)) if db.has_method("get_skill") else null
+		hotbar[i] = s
 	hotbar_changed.emit()
 
 
@@ -331,6 +379,9 @@ func _execute_single_enemy(skill: SkillResource) -> void:
 		# G2: gen on hit
 		if skill.resource_gen_on_hit > 0:
 			_gen_resource(skill, skill.resource_gen_on_hit)
+		# VFX hook — impact
+		if target is Node3D:
+			skill_hit.emit(skill.id, target, (target as Node3D).global_position)
 	_apply_status_effects(skill, target)
 
 
@@ -368,6 +419,9 @@ func _apply_skill_to_targets(skill: SkillResource, targets: Array) -> void:
 				hit_dir.y = 0
 			t.take_damage(dmg, hit_dir, 0.0, attacker_str, _owner_player)
 			hits += 1
+			# VFX hook — impact (multi-target cone/aoe)
+			if t is Node3D:
+				skill_hit.emit(skill.id, t, (t as Node3D).global_position)
 		_apply_status_effects(skill, t)
 	# G2: gen on hit (por cada target impactado) + gen per_target (aliados curados, etc)
 	if hits > 0 and skill.resource_gen_on_hit > 0:
@@ -445,17 +499,76 @@ func _execute_dash(skill: SkillResource) -> void:
 		if d < closest_dist:
 			hit_enemy = e
 			closest_dist = d
-	# Mover player al punto de impacto (o end si no hubo hit)
+	var stop_pos: Vector3
 	if hit_enemy != null:
-		var stop_pos: Vector3 = (hit_enemy as Node3D).global_position - forward * 1.2
+		stop_pos = (hit_enemy as Node3D).global_position - forward * 1.2
 		stop_pos.y = start.y
-		_owner_player.global_position = stop_pos
-		var dmg: float = _compute_damage(skill)
-		var attacker_str: int = _owner_player.get_effective_stat("str") if _owner_player.has_method("get_effective_stat") else 0
-		hit_enemy.take_damage(dmg, forward, 0.0, attacker_str, _owner_player)
-		_apply_status_effects(skill, hit_enemy)
 	else:
-		_owner_player.global_position = end
+		stop_pos = end
+
+	dash_started.emit(skill.id)
+
+	# Fallback sync: sin tree o duration 0 → mover+aplicar inmediato (tests, edge cases).
+	if not _owner_player.is_inside_tree() or dash_tween_duration_s <= 0.0:
+		_owner_player.global_position = stop_pos
+		_apply_dash_hit(skill, hit_enemy, forward)
+		dash_ended.emit(skill.id, hit_enemy)
+		return
+
+	# Lock input/movement durante el dash — BasePlayer lee dash_locked en _physics_process.
+	if "dash_locked" in _owner_player:
+		_owner_player.dash_locked = true
+
+	# Position tween — ease_in_out para entrada suave y stop "pegajoso".
+	var pos_tween: Tween = _owner_player.create_tween()
+	pos_tween.set_ease(Tween.EASE_IN_OUT)
+	pos_tween.set_trans(Tween.TRANS_SINE)
+	pos_tween.tween_property(_owner_player, "global_position", stop_pos, dash_tween_duration_s)
+	pos_tween.tween_callback(_on_dash_finished.bind(skill, hit_enemy, forward))
+
+	# Camera FOV pulse — parallel tween (no bloquea si no hay camera).
+	var cam: Camera3D = _get_player_camera()
+	if cam != null and dash_fov_pulse_deg > 0.0:
+		var fov_base: float = cam.fov
+		var half: float = dash_tween_duration_s * 0.5
+		var fov_tween: Tween = _owner_player.create_tween()
+		fov_tween.tween_property(cam, "fov", fov_base + dash_fov_pulse_deg, half).set_trans(Tween.TRANS_SINE)
+		fov_tween.tween_property(cam, "fov", fov_base, half).set_trans(Tween.TRANS_SINE)
+
+
+func _on_dash_finished(skill: SkillResource, hit_enemy: Node, forward: Vector3) -> void:
+	if _owner_player != null and "dash_locked" in _owner_player:
+		_owner_player.dash_locked = false
+	_apply_dash_hit(skill, hit_enemy, forward)
+	dash_ended.emit(skill.id, hit_enemy)
+
+
+func _apply_dash_hit(skill: SkillResource, hit_enemy: Node, forward: Vector3) -> void:
+	if hit_enemy == null or not is_instance_valid(hit_enemy):
+		return
+	if "is_dead" in hit_enemy and hit_enemy.is_dead:
+		return
+	var dmg: float = _compute_damage(skill)
+	var attacker_str: int = 0
+	if _owner_player and _owner_player.has_method("get_effective_stat"):
+		attacker_str = _owner_player.get_effective_stat("str")
+	if hit_enemy.has_method("take_damage"):
+		hit_enemy.take_damage(dmg, forward, 0.0, attacker_str, _owner_player)
+	_apply_status_effects(skill, hit_enemy)
+	var hit_pos: Vector3 = Vector3.ZERO
+	if hit_enemy is Node3D:
+		hit_pos = (hit_enemy as Node3D).global_position
+	skill_hit.emit(skill.id, hit_enemy, hit_pos)
+
+
+func _get_player_camera() -> Camera3D:
+	if _owner_player == null:
+		return null
+	if "camera" in _owner_player:
+		var c = _owner_player.camera
+		if c is Camera3D:
+			return c
+	return null
 
 
 # ---------------------------------------------------------------------------

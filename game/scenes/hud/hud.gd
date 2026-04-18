@@ -35,6 +35,40 @@ func _ready() -> void:
 	level_up_label.visible = false
 	_build_pickup_hint()
 	_build_target_frame()
+	_wire_hotbar_slots()
+
+
+# ── Hotbar drag&drop ─────────────────────────────────────────────────────────
+# Cada slot tiene HotbarSlot script (hud.tscn). Conectamos sus señales al PlayerSkills.
+func _wire_hotbar_slots() -> void:
+	for child in hotbar_slots.get_children():
+		if child is HotbarSlot:
+			if not child.skill_dropped.is_connected(_on_slot_skill_dropped):
+				child.skill_dropped.connect(_on_slot_skill_dropped)
+			if not child.slot_swap_requested.is_connected(_on_slot_swap_requested):
+				child.slot_swap_requested.connect(_on_slot_swap_requested)
+
+
+func _on_slot_skill_dropped(slot_index: int, skill_res: SkillResource) -> void:
+	if _player == null or _player.skills == null:
+		return
+	_player.skills.set_slot(slot_index, skill_res)
+
+
+func _on_slot_swap_requested(from_index: int, to_index: int) -> void:
+	if _player == null or _player.skills == null:
+		return
+	_player.skills.swap_slots(from_index, to_index)
+
+
+func _refresh_hotbar_visuals() -> void:
+	if _player == null or _player.skills == null:
+		return
+	for child in hotbar_slots.get_children():
+		if child is HotbarSlot:
+			var idx: int = child.slot_index
+			if idx >= 0 and idx < _player.skills.hotbar.size():
+				child.set_skill(_player.skills.hotbar[idx])
 
 
 func _build_pickup_hint() -> void:
@@ -264,6 +298,11 @@ func connect_to_player(player: Node) -> void:
 	_on_xp_changed(player.xp, player.xp_to_next_level, player.level)
 	if player.stat_points > 0:
 		stat_indicator.visible = true
+	# Sincronizar hotbar visuals y escuchar cambios futuros (drag&drop o _equip_default_skills).
+	if player.skills != null:
+		if not player.skills.hotbar_changed.is_connected(_refresh_hotbar_visuals):
+			player.skills.hotbar_changed.connect(_refresh_hotbar_visuals)
+		_refresh_hotbar_visuals()
 
 
 func _on_health_changed(new_value: float, max_value: float) -> void:

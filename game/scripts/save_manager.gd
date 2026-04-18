@@ -7,7 +7,8 @@ const SAVE_PATH_BAK = "user://characters.json.bak"
 # Schema version — bump cuando cambie la estructura del save.
 # v1: char base (stats, level, xp, profile_id)
 # v2: + inventory (items + coins), + equipment (slots), + gold, + version field
-const SCHEMA_VERSION := 2
+# v3: + hotbar (Array[String] 8 slots, "" = vacío) — persiste loadout drag&drop
+const SCHEMA_VERSION := 3
 
 var characters: Array = []
 
@@ -61,6 +62,12 @@ func _migrate_characters() -> void:
 			if not c.has("gold"):
 				c["gold"] = 0
 			c["version"] = 2
+			cur_version = 2
+			changed = true
+		if cur_version < 3:
+			if not c.has("hotbar"):
+				c["hotbar"] = []
+			c["version"] = 3
 			changed = true
 	if changed:
 		save_characters()
@@ -135,6 +142,7 @@ func create_character(char_name: String, class_scene: String, class_display_name
 		"inventory": {},
 		"equipment": {},
 		"gold": 0,
+		"hotbar": [],
 		"created_at": Time.get_date_string_from_system(),
 	}
 
@@ -187,3 +195,22 @@ func delete_character(index: int) -> void:
 
 func get_character_count() -> int:
 	return characters.size()
+
+
+# ── Hotbar persistence (v3+) ────────────────────────────────────────────────
+
+func update_character_hotbar(index: int, skill_ids: Array) -> void:
+	if index < 0 or index >= characters.size():
+		push_error("SaveManager: índice de personaje inválido: %d" % index)
+		return
+	var serialized: Array = []
+	for s in skill_ids:
+		serialized.append(String(s))
+	characters[index]["hotbar"] = serialized
+	save_characters()
+
+
+func get_character_hotbar(index: int) -> Array:
+	if index < 0 or index >= characters.size():
+		return []
+	return characters[index].get("hotbar", [])
