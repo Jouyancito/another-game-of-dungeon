@@ -31,63 +31,71 @@ func after_each() -> void:
 		player.free()
 
 
-# ─── STR efectivo modifica daño físico ───
+# ─── STR efectivo modifica daño físico (canon v2 §2.3) ───
 
 func test_equip_str_item_raises_physical_damage() -> void:
-	var base_dmg := player.get_physical_damage(35.0)  # 35 + 12*2 = 59
-	assert_eq(base_dmg, 59.0, "baseline pre-equip: 35 + (12*2)")
-	# Equipar anillo con +2 STR (amulet_fang tiene str:2, vit:1)
+	# v2: (base+weapon) * (1+STR*0.02) * (1+level*0.03) * class_mult
+	# base=35, STR=12, weapon=0, lvl=1, class_mult=1 → 35 * 1.24 * 1.03 ≈ 44.702
+	var base_dmg := player.get_physical_damage(35.0)
+	assert_almost_eq(base_dmg, 44.702, 0.05)
+	# +2 STR via amulet_fang (str:2, vit:1) → STR=14 → 35 * 1.28 * 1.03 ≈ 46.144
 	player.equipment.equip("amulet_fang")
 	player.recalculate_stats()
-	var buffed := player.get_physical_damage(35.0)  # 35 + (12+2)*2 = 63
-	assert_eq(buffed, 63.0, "con +2 STR: 35 + (14*2) = 63")
+	var buffed := player.get_physical_damage(35.0)
+	assert_almost_eq(buffed, 46.144, 0.05)
+	assert_gt(buffed, base_dmg, "item +STR sube dmg")
 
 
 func test_weapon_damage_sums_to_base_attack() -> void:
-	# Sword rusty: damage=5, str=+1
+	# Sword rusty: damage=5, str=+1 → (35+5) * (1+13*0.02) * 1.03 * 1 = 40 * 1.26 * 1.03 ≈ 51.912
 	player.equipment.equip("sword_rusty")
 	player.recalculate_stats()
-	# physical = 35 + 5 (weapon) + (12+1)*2 = 35 + 5 + 26 = 66
 	var dmg := player.get_physical_damage(35.0)
-	assert_eq(dmg, 66.0, "35 base + 5 weapon + (13*2) = 66")
+	assert_almost_eq(dmg, 51.912, 0.05)
 
 
-# ─── DEF efectivo reduce daño recibido ───
+# ─── DEF efectivo reduce daño recibido (canon v2 §2.5 armor self-capping) ───
 
 func test_equip_def_item_reduces_damage_taken() -> void:
-	var raw_pre := player.apply_physical_defense(30.0)  # 30 - 10 = 20
-	assert_eq(raw_pre, 20.0, "baseline: 30 - 10 DEF = 20")
-	# Chaleco reforzado: def=6, vit=1 → DEF efectivo = 16
+	# v2: raw * (1 - DEF/(DEF + atk_lvl*50))
+	# raw=30, DEF=10, atk_lvl=1 → 30 * (1 - 10/60) = 30 * 50/60 = 25
+	var raw_pre := player.apply_physical_defense(30.0, 1)
+	assert_almost_eq(raw_pre, 25.0, 0.05)
+	# Chaleco reforzado: def=6, vit=1 → DEF efectivo = 16 → 30 * (1 - 16/66) = 30 * 50/66 ≈ 22.727
 	player.equipment.equip("armor_reinforced_vest")
 	player.recalculate_stats()
-	var raw_post := player.apply_physical_defense(30.0)  # 30 - 16 = 14
-	assert_eq(raw_post, 14.0, "con +6 DEF: 30 - 16 = 14")
+	var raw_post := player.apply_physical_defense(30.0, 1)
+	assert_almost_eq(raw_post, 22.727, 0.05)
+	assert_lt(raw_post, raw_pre, "más DEF reduce más dmg (self-capping v2)")
 
 
-# ─── VIT efectivo sube HP max ───
+# ─── VIT efectivo sube HP max (canon v2 §2.1) ───
 
 func test_equip_vit_item_raises_max_health_opcion_a() -> void:
-	# Opción A canon: HP actual igual, max sube (sin escalar proporcional)
+	# v2 §2.1: 100 + VIT*5 + VIT^1.3*0.8 + level*8
 	var old_hp_actual := player.health
-	var old_max := player.max_health  # 100 + 10*5 = 150
-	assert_eq(old_max, 150.0, "baseline HP max = 100 + (10*5) = 150")
+	var expected_base: float = 100.0 + 10.0 * 5.0 + pow(10.0, 1.3) * 0.8 + 8.0
+	assert_almost_eq(player.max_health, expected_base, 0.01)
 
 	# Ring slime: vit=3, def=2 → VIT efectivo = 13
 	player.equipment.equip("ring_slime")
 	player.recalculate_stats()
-	assert_eq(player.max_health, 100.0 + 13 * 5, "HP max = 100 + (13*5) = 165")
+	var expected_buffed: float = 100.0 + 13.0 * 5.0 + pow(13.0, 1.3) * 0.8 + 8.0
+	assert_almost_eq(player.max_health, expected_buffed, 0.01)
 	assert_eq(player.health, old_hp_actual, "HP actual NO escala — opción A")
 
 
-# ─── INT efectivo sube MP max ───
+# ─── INT efectivo sube MP max (canon v2 §2.2) ───
 
 func test_equip_int_item_raises_max_mana() -> void:
-	var old_max := player.max_mana  # 80 + 4*3 = 92
-	assert_eq(old_max, 92.0, "baseline MP max = 80 + (4*3) = 92")
-	# Offhand holy symbol: int=1, vit=1
+	# v2 §2.2: 80 + INT*3 + INT^1.2*0.5 + level*5
+	var expected_base: float = 80.0 + 4.0 * 3.0 + pow(4.0, 1.2) * 0.5 + 5.0
+	assert_almost_eq(player.max_mana, expected_base, 0.01)
+	# Offhand holy symbol: int=1, vit=1 → INT efectivo = 5
 	player.equipment.equip("offhand_holy_symbol")
 	player.recalculate_stats()
-	assert_eq(player.max_mana, 80.0 + 5 * 3, "MP max = 80 + (5*3) = 95")
+	var expected_buffed: float = 80.0 + 5.0 * 3.0 + pow(5.0, 1.2) * 0.5 + 5.0
+	assert_almost_eq(player.max_mana, expected_buffed, 0.01)
 
 
 # ─── Resistencias elementales suman de items ───
@@ -122,14 +130,17 @@ func test_ice_resistance_from_ring() -> void:
 # ─── Unequip vuelve todo a base ───
 
 func test_unequip_restores_base_stats() -> void:
-	player.equipment.equip("ring_slime")  # vit:3, def:2
+	# v2 §2.1: expected values computed with compound formula.
+	var base_hp: float = 100.0 + 10.0 * 5.0 + pow(10.0, 1.3) * 0.8 + 8.0
+	player.equipment.equip("ring_slime")  # vit:3, def:2 → VIT=13
 	player.recalculate_stats()
 	var buffed_max := player.max_health
-	assert_eq(buffed_max, 165.0)
+	var expected_buffed: float = 100.0 + 13.0 * 5.0 + pow(13.0, 1.3) * 0.8 + 8.0
+	assert_almost_eq(buffed_max, expected_buffed, 0.01)
 
 	player.equipment.unequip("ring_1")  # ring_slime entró en ring_1
 	player.recalculate_stats()
-	assert_eq(player.max_health, 150.0, "unequip restaura max HP base")
+	assert_almost_eq(player.max_health, base_hp, 0.01, "unequip restaura max HP base v2")
 	assert_eq(player.get_effective_stat("def"), 10, "DEF vuelve a base")
 
 

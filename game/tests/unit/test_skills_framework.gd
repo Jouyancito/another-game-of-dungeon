@@ -199,8 +199,10 @@ func test_cast_applies_physical_damage_to_target() -> void:
 	rage.add(20)
 
 	skills.cast_slot(0)
-	# get_physical_damage(25) = 25 + (12 * 2) + 0 weapon = 49
-	assert_almost_eq(mock.last_damage, 49.0, 0.01, "physical_v2(25, STR=12, 0 weapon) = 49")
+	# Canon v2 §2.3: (base+weapon) * (1+STR*0.02) * (1+lvl*0.03) * class_mult
+	# (25+0) * 1.24 * 1.03 * 1.0 ≈ 31.93 (level=1, no weapon, class_mult default 1.0)
+	var expected: float = DamageFormula.physical_v2(25.0, 0, 12, 1, 1.0)
+	assert_almost_eq(mock.last_damage, expected, 0.05, "physical_v2 canon v2")
 	assert_eq(mock.last_attacker_str, 12, "attacker_str pasado correctamente")
 
 
