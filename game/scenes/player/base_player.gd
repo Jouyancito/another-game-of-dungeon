@@ -58,6 +58,9 @@ signal mana_changed(new_value: float, max_value: float)
 signal xp_changed(xp: float, xp_max: float, level: int)
 signal player_died
 signal level_up(new_level: int, points: int)
+# Downed state (canon MVP #5) — player entra downed antes de morir.
+signal player_downed(player: BasePlayer)
+signal player_revived(player: BasePlayer, healer: Node)
 
 # Identidad persistente — canon drop-ownership v2.
 # profile_id sobrevive a reload/respawn. Futuro MMO: asignado server-side.
@@ -81,6 +84,11 @@ signal equipment_changed
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var can_attack := true
 var is_dead := false
+# Downed state (canon MVP #5): el player entra acá ANTES de muerte real.
+# Si no revive en downed_time_s, _actual_die() se ejecuta y drop/loot se dispara.
+var is_downed := false
+@export var downed_time_s: float = 30.0
+var _downed_time_left: float = 0.0
 var is_holding_attack := false
 var dash_locked := false  # PlayerSkills lo alza durante tween de Embestida — WASD y vel enemy overrides OFF.
 var is_crouching := false
@@ -527,6 +535,15 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	# Downed state — no moverse, no regen, tickear timer. Si se agota → muerte real.
+	if is_downed:
+		velocity = Vector3.ZERO
+		_downed_time_left -= delta
+		if _downed_time_left <= 0.0:
+			_actual_die()
+		move_and_slide()
+		return
+
 	_regenerate(delta)
 
 	# Dash activo — tween controla global_position directo. Cortamos WASD/knockback.
@@ -727,8 +744,8 @@ func _regenerate(delta: float) -> void:
 		health_changed.emit(health, max_health)
 
 func take_damage(amount: float, element: String = "", attacker: Node = null) -> void:
-	if is_dead:
-		return
+	if is_dead or is_downed:
+		return  # downed state = invul a más dmg (canon MVP #5)
 	# G9: invul frames — si skill abrió ventana de invul, ignorar dmg.
 	if has_meta("invul_time_left") and float(get_meta("invul_time_left")) > 0.0:
 		return
@@ -924,11 +941,48 @@ func _update_torch(delta: float) -> void:
 		else:
 			_torch_light.light_energy = base_energy + randf_range(-0.25, 0.15)
 
+## Canon MVP #5 — downed state antes de muerte real.
+## Cuando HP ≤ 0, el player NO muere instant. Entra en downed, pueden revivirlo.
+## Si nadie revive en downed_time_s, _actual_die() ejecuta (drop/loot, signal player_died).
+##
+## Nota: un player ya downed que recibe más daño NO re-dispara el estado (idempotente).
+## Para forzar la muerte instantánea (ej: caer al abismo), usar _actual_die() directo.
 func die() -> void:
+	if is_dead or is_downed:
+		return
+	is_downed = true
+	_downed_time_left = downed_time_s
+	# HP visualmente a 0 — el player no puede accionar. Respawn frame sync.
+	health = 0.0
+	health_changed.emit(health, max_health)
+	_remove_torch()  # Apagar antorcha en downed
+	player_downed.emit(self)
+
+
+## Revive un player downed. Restaura a 30% HP max y resetea el timer.
+## Canon MVP #5 — healer (cleric, consumible) llama acá.
+func revive(healer: Node = null) -> bool:
+	if is_dead:
+		return false  # muerte real — no se puede revivir
+	if not is_downed:
+		return false  # no estaba downed, nada que hacer
+	is_downed = false
+	_downed_time_left = 0.0
+	health = max_health * 0.3
+	health_changed.emit(health, max_health)
+	player_revived.emit(self, healer)
+	return true
+
+
+## Ejecuta la muerte real (dispara drop/loot + player_died signal).
+## Se llama internamente al expirar downed_time_s o desde _physics_process por
+## casos de "muerte instantánea" (ej: abismo, scripts específicos).
+func _actual_die() -> void:
 	if is_dead:
 		return
 	is_dead = true
-	_remove_torch()  # Apagar antorcha al morir
+	is_downed = false
+	_remove_torch()
 	if TitleTracker:
 		TitleTracker.on_player_death()
 	player_died.emit()

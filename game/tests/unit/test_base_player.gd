@@ -284,9 +284,11 @@ func test_take_damage_elemental() -> void:
 
 
 func test_take_damage_kills_at_zero() -> void:
+	# Canon MVP #5 — dmg letal NO mata instant, entra en downed primero.
 	player.take_damage(999.0)
 	assert_eq(player.health, 0.0)
-	assert_true(player.is_dead)
+	assert_true(player.is_downed, "entra en downed al llegar a 0 HP")
+	assert_false(player.is_dead, "muerte real solo tras timeout o _actual_die")
 
 
 func test_take_damage_ignored_when_dead() -> void:
@@ -331,8 +333,18 @@ func test_signal_mana_changed_on_restore() -> void:
 
 
 func test_signal_player_died() -> void:
+	# Canon MVP #5 — dmg letal emite player_downed (no player_died).
+	# player_died se emite en _actual_die (timeout o abismo).
 	watch_signals(player)
 	player.take_damage(999.0)
+	assert_signal_emitted(player, "player_downed")
+	assert_signal_not_emitted(player, "player_died")
+
+
+func test_signal_player_died_on_actual_die() -> void:
+	# _actual_die bypasses downed → player_died directo.
+	watch_signals(player)
+	player._actual_die()
 	assert_signal_emitted(player, "player_died")
 
 
@@ -363,17 +375,18 @@ func test_signal_level_up_not_emitted_below_threshold() -> void:
 
 
 func test_die_is_idempotent_via_take_damage() -> void:
+	# take_damage letal 2x: solo emite player_downed 1 vez (idempotente en downed).
 	watch_signals(player)
-	player.take_damage(999.0)  # Primera muerte
-	player.take_damage(999.0)  # Segunda llamada — ya está muerto, take_damage guarda con is_dead
-	assert_signal_emit_count(player, "player_died", 1, "take_damage no re-emite player_died")
+	player.take_damage(999.0)
+	player.take_damage(999.0)  # ignorado — is_downed guard
+	assert_signal_emit_count(player, "player_downed", 1, "take_damage letal emite downed solo una vez")
 
 
 func test_die_direct_double_call_is_idempotent() -> void:
 	watch_signals(player)
 	player.die()
 	player.die()
-	assert_signal_emit_count(player, "player_died", 1, "die() con guard emite solo una vez")
+	assert_signal_emit_count(player, "player_downed", 1, "die() re-entrante emite downed solo una vez")
 
 
 func test_signal_health_changed_params() -> void:
