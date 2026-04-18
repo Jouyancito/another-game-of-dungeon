@@ -77,6 +77,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var can_attack := true
 var is_dead := false
 var is_holding_attack := false
+var dash_locked := false  # PlayerSkills lo alza durante tween de Embestida — WASD y vel enemy overrides OFF.
 var is_crouching := false
 var time_since_last_hit := 0.0
 var _reloading := false
@@ -504,6 +505,12 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_regenerate(delta)
+
+	# Dash activo — tween controla global_position directo. Cortamos WASD/knockback.
+	if dash_locked:
+		velocity = Vector3.ZERO
+		knockback_velocity = Vector3.ZERO
+		return
 
 	if not is_on_floor():
 		velocity.y -= gravity * delta
