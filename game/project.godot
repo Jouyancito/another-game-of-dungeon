@@ -30,6 +30,7 @@ LootStyle="*res://shared/loot/loot_style.gd"
 Journal="*res://scripts/journal.gd"
 TitleTracker="*res://scripts/title_tracker.gd"
 SkillDB="*res://shared/skills/skill_definitions.gd"
+QuestSystem="*res://shared/systems/quest_system.gd"
 
 [display]
 

@@ -216,6 +216,25 @@ func test_war_cry_drains_mp_each_tick() -> void:
 	assert_eq(player.mana, 40.0, "tick drena 20 MP cada 5s")
 
 
+func test_war_cry_toggle_off_on_exploit_fixed() -> void:
+	# Fix judgment-day: re-activar dentro del tick window NO debe permitir re-aplicar
+	# Weak sin costo adicional. Cada re-cast cobra resource_cost completo.
+	var cry: SkillResource = load("res://shared/skills/resources/warrior/war_cry.tres")
+	skills.set_slot(2, cry)
+	player.mana = 80.0
+	skills.cast_slot(2)
+	assert_eq(player.mana, 60.0, "costo inicial 20 MP")
+	# Simular 2s pasando (dentro del intervalo tick=5s)
+	skills._process(2.0)  # ya no dispara tick porque tick_timer era 0 → dispara primer tick
+	var after_first_tick: float = player.mana
+	assert_eq(after_first_tick, 40.0, "primer tick T+0 ya disparó (paga 20)")
+	# Toggle off + re-on dentro de la ventana
+	skills.cast_slot(2)  # apaga
+	assert_false(skills.is_toggle_active(&"warrior_war_cry"))
+	skills.cast_slot(2)  # re-activa — paga resource_cost OTRA vez
+	assert_eq(player.mana, 20.0, "re-cast paga 20 MP más (no gratis)")
+
+
 func test_war_cry_deactivates_when_mp_runs_out() -> void:
 	var cry: SkillResource = load("res://shared/skills/resources/warrior/war_cry.tres")
 	skills.set_slot(2, cry)

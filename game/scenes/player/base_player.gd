@@ -499,7 +499,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_attack_released()
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * mouse_sensitivity)
+		# Durante dash (Embestida): NO rotar el body horizontalmente — el dash sigue
+		# el forward inicial. Sí permitimos mover cabeza (pitch) para no frizar la vista.
+		if not dash_locked:
+			rotate_y(-event.relative.x * mouse_sensitivity)
 		head.rotate_x(-event.relative.y * mouse_sensitivity)
 		head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
 
