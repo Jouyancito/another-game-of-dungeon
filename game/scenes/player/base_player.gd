@@ -133,11 +133,22 @@ func _setup_skills() -> void:
 	skills.setup(self, class_resource)
 	# Equipar skills default de la clase (override en player.gd / mage.gd)
 	_equip_default_skills()
+	# VFX wire layer — conecta signals de skills a spawn de VFX
+	_setup_skill_vfx_hooks()
 
 
 ## Override en cada clase para rellenar hotbar inicial.
 func _equip_default_skills() -> void:
 	pass
+
+
+## Wire layer VFX — conecta signals de PlayerSkills a spawn de VFX .tscn.
+## Clases hijas pueden override para registrar sus propias SkillVFXHooks.
+func _setup_skill_vfx_hooks() -> void:
+	var hooks := SkillVFXHooks.new()
+	hooks.name = "SkillVFXHooks"
+	add_child(hooks)
+	hooks.setup(self)
 
 # Override en cada clase para combat values (speed, base_health, attack_range, etc.)
 func _on_class_ready() -> void:
