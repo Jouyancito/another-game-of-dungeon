@@ -749,10 +749,14 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 		final_damage = apply_physical_defense(amount, atk_level)
 	health = clamp(health - final_damage, 0, max_health)
 	health_changed.emit(health, max_health)
-	# Rage gen por daño recibido (canon _system.md §5ter: +10 por 10% HP perdido).
+	# Rage gen por %HP perdido (canon _system.md §5ter: +10 por 10% HP perdido).
+	# Fórmula canon: (final_damage / max_health) * 100 → +1 Rage por cada 1% HP perdido.
 	# Este gen vive acá (no en skill .tres) porque es pasivo de la clase, no per-skill.
+	# Solo Warriors con Rage. Otros recursos (Fe/Combo/Concentración/Vida) no escalan por daño recibido.
 	if class_resource != null and class_resource.type == ClassResource.Type.RAGE:
-		class_resource.add(int(final_damage * 0.1))
+		if max_health > 0.0:
+			var rage_gained: int = int((final_damage / max_health) * 100.0)
+			class_resource.add(rage_gained)
 	if health <= 0:
 		die()
 
