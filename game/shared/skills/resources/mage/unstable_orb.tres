@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/mage/unstable_orb.svg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"mage_unstable_orb"
+class_id = &"mage"
+display_name = "Bolita Inestable"
+description = "Proyectil arcano base. MP 8. CD 0.4s. Rango 22m (PROJ_MED). Explota en AOE_SMALL 1m. magic_v2(18, weapon, INT, lvl, 1.5). Canon mage.md §3 SKILL 1."
+icon = ExtResource("2_icon")
+cast_type = 0
+target_type = 1
+range_m = 22.0
+radius_m = 1.0
+cone_angle_deg = 0.0
+resource_cost = 8
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 0.4
+damage_formula = 2
+base_damage = 18
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 0
+unlock_level = 1
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"magic", &"projectile", &"single", &"arcane"])
+dash_distance_m = 0.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.0
+quest_gate = &""

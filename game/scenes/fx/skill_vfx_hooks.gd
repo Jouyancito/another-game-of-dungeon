@@ -14,6 +14,18 @@ const VFX_MAP: Dictionary = {
 	&"warrior_war_cry":      preload("res://scenes/fx/warrior/war_cry_vfx.tscn"),
 	&"warrior_punch":        preload("res://scenes/fx/warrior/punch_impact_vfx.tscn"),
 	&"warrior_perfect_block": preload("res://scenes/fx/warrior/perfect_block_vfx.tscn"),
+	# Mage Fase 1 — .tscn placeholders. Dept D (Art) los implementará.
+	# Los paths NO se cargan con preload aún (rompe el boot si no existen).
+	# Se resuelven por string en _spawn_on_player via ResourceLoader.load check.
+}
+
+# Paths-only map para skills con VFX .tscn aún no creados (Mage Fase 2 Art handoff).
+# Se resuelven con load() lazy — si el archivo no existe, _spawn_on_player hace skip silently.
+const VFX_PATHS: Dictionary = {
+	&"mage_unstable_orb":       "res://scenes/fx/mage/unstable_orb_vfx.tscn",
+	&"mage_arcane_storm":       "res://scenes/fx/mage/arcane_storm_vfx.tscn",
+	&"mage_prismatic_barrier":  "res://scenes/fx/mage/prismatic_barrier_vfx.tscn",
+	&"mage_supernova":          "res://scenes/fx/mage/supernova_vfx.tscn",
 }
 
 # Duración one-shot para charge_vfx adjunto al player (trail durante el dash).
@@ -125,12 +137,18 @@ func _on_reactive_triggered(skill_id: StringName, _absorbed: float, _reflected: 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 ## Instancia un VFX y lo agrega como child del owner_player.
-## Devuelve null si el skill_id no tiene entrada en VFX_MAP.
+## Devuelve null si el skill_id no tiene entrada en VFX_MAP ni VFX_PATHS.
+## VFX_PATHS se resuelve lazy: si el .tscn aún no existe (placeholder Art), return null sin error.
 func _spawn_on_player(skill_id: StringName) -> VFXBase:
 	var scene: PackedScene = VFX_MAP.get(skill_id)
 	if scene == null:
-		push_warning("SkillVFXHooks: no VFX_MAP entry para '%s'" % skill_id)
-		return null
+		# Fallback a VFX_PATHS (lazy — skills con .tscn pendiente de Art)
+		var path: String = VFX_PATHS.get(skill_id, "")
+		if path == "" or not ResourceLoader.exists(path):
+			return null  # silent skip — placeholder aún no implementado
+		scene = load(path)
+		if scene == null:
+			return null
 	var vfx: VFXBase = scene.instantiate() as VFXBase
 	if vfx == null:
 		push_error("SkillVFXHooks: '%s'.tscn no tiene VFXBase como root script" % skill_id)

@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/skills/mage/prismatic_barrier.svg" id="2_icon"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"mage_prismatic_barrier"
+class_id = &"mage"
+display_name = "Barrera Prismática"
+description = "Escudo defensivo SELF. MP 25. CD 15s. Duración 6s o hasta romper. Absorb = 80 + INT*3 (base_damage = 80 placeholder para el sistema de shield futuro). Canon mage.md §3 SKILL 3."
+icon = ExtResource("2_icon")
+cast_type = 0
+target_type = 0
+range_m = 0.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 25
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 15.0
+damage_formula = 0
+base_damage = 80
+status_applied = Array[StringName]([&"shield"])
+status_duration_s = 6.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 0
+unlock_level = 8
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"magic", &"shield", &"defensive", &"arcane"])
+dash_distance_m = 0.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.5
+quest_gate = &""
