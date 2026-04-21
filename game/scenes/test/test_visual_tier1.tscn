@@ -1,0 +1,79 @@
+[gd_scene load_steps=10 format=3 uid="uid://test_visual_tier1"]
+
+[ext_resource type="ShaderMaterial" uid="uid://toon_grass_floor" path="res://assets/art/materials/toon_grass_floor.tres" id="1_grass"]
+[ext_resource type="ShaderMaterial" uid="uid://toon_player_warrior" path="res://assets/art/materials/toon_player_warrior.tres" id="2_warrior"]
+[ext_resource type="ShaderMaterial" uid="uid://toon_enemy_red" path="res://assets/art/materials/toon_enemy_red.tres" id="3_enemy_red"]
+[ext_resource type="ShaderMaterial" uid="uid://toon_enemy_slime" path="res://assets/art/materials/toon_enemy_slime.tres" id="4_slime"]
+[ext_resource type="ShaderMaterial" uid="uid://toon_prop_wood" path="res://assets/art/materials/toon_prop_wood.tres" id="5_wood"]
+[ext_resource type="Environment" uid="uid://env_pradera_main" path="res://assets/art/environments/env_pradera.tres" id="6_env"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(30, 30)
+subdivide_width = 10
+subdivide_depth = 10
+
+[sub_resource type="SphereMesh" id="SphereMesh_hero"]
+radius = 0.6
+height = 1.2
+
+[sub_resource type="BoxMesh" id="BoxMesh_enemy"]
+size = Vector3(0.9, 1.6, 0.9)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_prop"]
+top_radius = 0.4
+bottom_radius = 0.5
+height = 0.8
+
+[node name="TestVisualTier1" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("6_env")
+
+[node name="SunLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766, -0.492, 0.413, 0, 0.643, 0.766, -0.643, -0.587, 0.492, 0, 10, 0)
+light_color = Color(0.96, 0.85, 0.63, 1)
+light_energy = 1.2
+shadow_enabled = true
+shadow_blur = 2.5
+directional_shadow_mode = 2
+directional_shadow_max_distance = 60.0
+
+[node name="LightmapGI" type="LightmapGI" parent="."]
+bounces = 2
+quality = 2
+environment_mode = 2
+environment_custom_color = Color(0.72, 0.77, 0.85, 1)
+environment_custom_energy = 0.4
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_floor")
+material_override = ExtResource("1_grass")
+gi_mode = 2
+
+[node name="HeroWarriorSphere" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.6, 0)
+mesh = SubResource("SphereMesh_hero")
+material_override = ExtResource("2_warrior")
+gi_mode = 1
+
+[node name="EnemyRedCube" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+mesh = SubResource("BoxMesh_enemy")
+material_override = ExtResource("3_enemy_red")
+gi_mode = 1
+
+[node name="SlimeSphere" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.6, 1.5)
+mesh = SubResource("SphereMesh_hero")
+material_override = ExtResource("4_slime")
+gi_mode = 1
+
+[node name="WoodBarrel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0.4, -1.5)
+mesh = SubResource("CylinderMesh_prop")
+material_override = ExtResource("5_wood")
+gi_mode = 2
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.906, -0.217, 0.362, 0, 0.857, 0.514, -0.423, -0.466, 0.777, 6, 5, 7)
+fov = 60.0

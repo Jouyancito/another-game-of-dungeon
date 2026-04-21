@@ -1,0 +1,65 @@
+[gd_resource type="Environment" load_steps=2 format=3 uid="uid://env_pradera_main"]
+
+[sub_resource type="Sky" id="Sky_pradera"]
+sky_material = null
+
+[resource]
+background_mode = 1
+background_color = Color(0.72, 0.77, 0.85, 1)
+background_energy_multiplier = 1.0
+ambient_light_source = 2
+ambient_light_color = Color(0.72, 0.77, 0.85, 1)
+ambient_light_energy = 0.4
+ambient_light_sky_contribution = 0.0
+reflected_light_source = 0
+tonemap_mode = 3
+tonemap_exposure = 1.0
+tonemap_white = 1.1
+ssr_enabled = false
+ssao_enabled = true
+ssao_radius = 2.0
+ssao_intensity = 1.0
+ssao_power = 1.5
+ssao_detail = 0.5
+ssao_horizon = 0.06
+ssao_sharpness = 0.98
+ssao_light_affect = 0.5
+ssao_ao_channel_affect = 0.0
+ssil_enabled = false
+sdfgi_enabled = false
+glow_enabled = true
+glow_intensity = 0.8
+glow_strength = 1.0
+glow_mix = 0.05
+glow_bloom = 0.1
+glow_blend_mode = 1
+glow_hdr_threshold = 1.0
+glow_hdr_scale = 2.0
+glow_hdr_luminance_cap = 12.0
+glow_map_strength = 0.8
+fog_enabled = true
+fog_light_color = Color(0.78, 0.83, 0.88, 1)
+fog_light_energy = 1.0
+fog_sun_scatter = 0.15
+fog_density = 0.004
+fog_sky_affect = 0.6
+fog_height = 0.0
+fog_height_density = 0.0
+fog_aerial_perspective = 0.0
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.01
+volumetric_fog_albedo = Color(1, 0.95, 0.85, 1)
+volumetric_fog_emission = Color(0, 0, 0, 1)
+volumetric_fog_emission_energy = 0.0
+volumetric_fog_gi_inject = 0.1
+volumetric_fog_anisotropy = 0.2
+volumetric_fog_length = 48.0
+volumetric_fog_detail_spread = 2.0
+volumetric_fog_ambient_inject = 0.2
+volumetric_fog_sky_affect = 0.5
+volumetric_fog_temporal_reprojection_enabled = true
+volumetric_fog_temporal_reprojection_amount = 0.9
+adjustment_enabled = true
+adjustment_brightness = 1.02
+adjustment_contrast = 1.05
+adjustment_saturation = 1.1
