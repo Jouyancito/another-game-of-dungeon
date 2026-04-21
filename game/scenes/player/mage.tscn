@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://mage001"]
 
 [ext_resource type="Script" path="res://scenes/player/mage.gd" id="1_mage"]
+[ext_resource type="ShaderMaterial" uid="uid://toon_player_mage" path="res://assets/art/materials/toon_player_mage.tres" id="2_toon_mage"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_001"]
 radius = 0.35
@@ -10,9 +11,6 @@ height = 1.8
 radius = 0.35
 height = 1.8
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
-albedo_color = Color(0.3, 0.3, 0.8, 1)
-
 [node name="Mage" type="CharacterBody3D" groups=["player"]]
 script = ExtResource("1_mage")
 
@@ -21,7 +19,7 @@ shape = SubResource("CapsuleShape3D_001")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("CapsuleMesh_001")
-material_override = SubResource("StandardMaterial3D_001")
+material_override = ExtResource("2_toon_mage")
 
 [node name="Head" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)

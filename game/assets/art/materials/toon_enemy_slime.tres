@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://toon_enemy_slime"]
+
+[ext_resource type="Shader" uid="uid://toon_basic_shader" path="res://assets/art/shaders/toon_basic.gdshader" id="1_toon"]
+
+[resource]
+shader = ExtResource("1_toon")
+shader_parameter/albedo_color = Color(0.2, 0.75, 0.2, 1)
+shader_parameter/use_albedo_texture = false
+shader_parameter/ramp_steps = 3.0
+shader_parameter/ramp_smoothness = 0.05
+shader_parameter/shadow_intensity = 0.45
+shader_parameter/rim_color = Color(0.7, 1, 0.7, 1)
+shader_parameter/rim_power = 2.5
+shader_parameter/rim_intensity = 1.6
+shader_parameter/emission_color = Color(0.1, 0.4, 0.1, 1)
+shader_parameter/emission_energy = 0.3
