@@ -652,4 +652,72 @@ Todo lo demás (gating, cap 15, skill points 1/lvl, ascendencia 25, respec 6 max
 
 ---
 
+## 12. Reconciliación con schema `.tres` existente (addendum 2026-04-21)
+
+**Contexto**: wave2 cerró `SkillResource` schema P0/P1 con tests (`test_skills_schema_p0.gd`, 430L) + 4 .tres Warrior re-wired + runtime `QuestSystem.is_completed()` dependiente. Algunos campos que §9 propuso agregar **ya existen** o **entrarían en conflicto con runtime/tests vigentes**. Esta sección fija la reconciliación canon.
+
+### 12.1 Campos — estado real vs propuesta §9
+
+| Campo §9 | Estado en `skill_resource.gd` | Resolución canon |
+|----------|-------------------------------|------------------|
+| `description: String` | ✅ Existe (line 17) | **No-op** — usar el campo existente |
+| `general_group: StringName` | ❌ No existe | **Agregar** `@export var general_group: StringName = &""` |
+| `level_effects: Array[Dictionary]` | ❌ No existe | **Agregar** `@export var level_effects: Array[Dictionary] = []` (cada dict: `{level: int, description: String}`) |
+| `evolution: Dict{name, required_item_id, required_char_level}` | ⚠️ Existe `evolution_id: StringName` (line 61) | **NO cambiar a Dict**. `evolution_id` queda como referencia al SkillResource evolucionado. Metadata UI (name, required_item_id, char_level) **vive en el target SkillResource** (display_name propio + nuevo campo `evolution_required_item_id: StringName` + `evolution_required_char_level: int` en ambos lados). UI lookupea por `evolution_id` al render del tooltip. |
+| `quest_gate: Dict{id, description, trigger_summary}` | ⚠️ Existe `quest_gate: StringName` (line 101) | **NO cambiar a Dict**. `quest_gate: StringName` es el id de quest consumido por `QuestSystem.is_completed(quest_gate)` — cambiar a Dict **rompe runtime + tests P0/P1**. Metadata UI (description, trigger_summary) vive en un **`QuestCatalog` autoload separado** — `Dict[StringName, {description: String, trigger_summary: String}]`. UI consulta `QuestCatalog.get_meta(skill.quest_gate)` al mostrar tooltip. |
+
+### 12.2 Schema bump final — campos NUEVOS a agregar a `skill_resource.gd`
+
+```gdscript
+# ── UI metadata (skill tree panel) ──────────────────────────────────────────
+@export var general_group: StringName = &""  # &"combate_directo" / &"control_de_campo" / etc.
+@export var level_effects: Array[Dictionary] = []  # [{level: 5, description: "crit chance +10%"}, ...]
+
+# ── Evolución metadata (extensión del evolution_id existente) ───────────────
+@export var evolution_required_item_id: StringName = &""  # ítem raro para activar forma alterna
+@export var evolution_required_char_level: int = 50       # canon _system.md §3
+```
+
+**NO modificar**: `description` (ya existe), `evolution_id` (ya existe, mantener StringName), `quest_gate` (ya existe, mantener StringName).
+
+### 12.3 QuestCatalog autoload — nuevo sistema
+
+Responsabilidad: mapear `quest_id` → metadata de presentación (description, trigger_summary) sin tocar el runtime de `QuestSystem`.
+
+```gdscript
+# game/shared/systems/quest_catalog.gd
+class_name QuestCatalog extends Node
+
+const QUEST_META: Dictionary = {
+    &"el_muro_inquebrantable": {
+        "description": "Completá piso 50 sin que ningún aliado muera en tu radio 8m.",
+        "trigger_summary": "Piso 50 + 0 muertes aliadas en 8m radius",
+    },
+    # ... más quests
+}
+
+static func get_meta(quest_id: StringName) -> Dictionary:
+    return QUEST_META.get(quest_id, {})
+```
+
+Autoload en `project.godot` como singleton `QuestCatalog`. UI tooltip hace `QuestCatalog.get_meta(skill.quest_gate)` — no rompe runtime existente.
+
+### 12.4 `general_group` — fuente única
+
+§1 del spec mezclaba "dict por clase en UI" vs "campo `.tres` metadata". **Fuente de verdad canon: `.tres` field `general_group`.** El UI lee directo del `.tres`, sin dict paralelo. Strings i18n-ready vía `tr("skill.group." + str(general_group))` en capa de traducción (fuera de scope wave3).
+
+### 12.5 Gap menor — fórmula gold respec parcial
+
+Canon `_system.md §2` dice "oro incremental" sin fórmula. **Cierre canon wave3**: `gold_cost = 500 × skill_level` (lineal, transparente para el player). Revisable en Alpha si playtest muestra que incentiva hoarding.
+
+### 12.6 Gap menor — drag durante combate
+
+§9 test plan lo dejó "pedir confirmación a Design". **Cierre canon wave3**: **NO bloquear drag durante combate** (QoL coop standard — RoR2, Borderlands, DRG permiten). Bloquear SOLO en `_is_dead == true` (player fantasma). Bloquear en `_is_downed == true` también (canon MVP #5 stub).
+
+---
+
+*Addendum §12 — dept A (master coordinator), 2026-04-21. Reconciliación con schema P0/P1 cerrado wave2. NO cambia diseño funcional — aclara integración.*
+
+---
+
 *Spec v1.0 — dept Design. Implementación a cargo de gameplay + art + QA. Cambios al diseño se versionan aquí primero.*
