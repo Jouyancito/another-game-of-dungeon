@@ -121,6 +121,11 @@ var world_model: WorldModel
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var capsule_mesh: MeshInstance3D = $MeshInstance3D
+# Animation pipeline (wave3). Opcionales — si el rig Mixamo no está importado, degradan a no-op.
+@onready var anim_player: AnimationPlayer = get_node_or_null("AnimationPlayer")
+@onready var anim_tree: AnimationTree = get_node_or_null("AnimationTree")
+@onready var animation_controller: AnimationController3D = get_node_or_null("AnimationController")
+@onready var foot_ik: FootIKController = get_node_or_null("FootIKController")
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -132,6 +137,19 @@ func _ready() -> void:
 	_setup_player_models()
 	_setup_inventory()
 	_setup_skills()
+	_setup_animation_pipeline()
+
+
+## Wire AnimationController3D + FootIKController si existen en la escena.
+## Si AnimationPlayer carece de anims Mixamo, ambos quedan inactive — fallback Tween WorldModel.
+func _setup_animation_pipeline() -> void:
+	if animation_controller != null:
+		animation_controller.tree = anim_tree
+		animation_controller.setup(self, anim_player)
+		if anim_tree != null and not anim_tree.animation_finished.is_connected(animation_controller._on_tree_anim_finished):
+			anim_tree.animation_finished.connect(animation_controller._on_tree_anim_finished)
+	if foot_ik != null:
+		foot_ik.setup(self)
 
 
 ## Override en clases derivadas si necesitan setup custom de skills / recursos.
@@ -616,6 +634,12 @@ func _physics_process(delta: float) -> void:
 		world_model.set_moving(moving, sprinting)
 		world_model.sync_head_rotation(head.rotation.x)
 
+	# AnimationTree blend + foot IK (wave3). No-op si rig Mixamo no importado.
+	if animation_controller != null:
+		animation_controller.update_locomotion(velocity, sprint_speed, delta)
+	if foot_ik != null:
+		foot_ik.update(is_on_floor())
+
 	# Mostrar label de item drops cercanos que miramos
 	_update_drop_labels()
 	# Target frame MMO — panel con nombre/HP/tier del enemigo apuntado
@@ -989,6 +1013,8 @@ func _actual_die() -> void:
 	is_dead = true
 	is_downed = false
 	_remove_torch()
+	if animation_controller != null:
+		animation_controller.set_dead(true)
 	if TitleTracker:
 		TitleTracker.on_player_death()
 	player_died.emit()
