@@ -106,12 +106,17 @@ func _attack_heavy() -> void:
 		else:
 			world_model.play_attack_both(heavy_cooldown)
 
+	# AnimationTree OneShot — si rig importado, dispara punch. animation_finished
+	# gateará el hit window; si inactive, caemos al timer hardcoded (fallback wave2).
+	if animation_controller != null and animation_controller.trigger_attack(&"attack_punch"):
+		pass  # tree activo — _wait_attack_window usa animation_finished
+
 	_do_melee(dmg, step.side, kb_force)
 
 	combo_index = (combo_index + 1) % combo_chain.size()
 	combo_reset_timer = 0.0
 
-	await get_tree().create_timer(heavy_cooldown).timeout
+	await _wait_attack_window(heavy_cooldown)
 	if not is_instance_valid(self) or is_dead:
 		return
 	can_attack = true
@@ -138,7 +143,7 @@ func _attack_frenzy() -> void:
 				world_model.play_attack_left(combo_cooldown)
 		_do_melee(base_combo_damage, side, base_knockback_force * 0.3)
 
-		await get_tree().create_timer(combo_cooldown).timeout
+		await _wait_attack_window(combo_cooldown)
 		if not is_instance_valid(self) or is_dead:
 			return
 		can_attack = true
@@ -194,3 +199,22 @@ func _do_melee(base_dmg: float, side: float = 0.0, kb_force: float = 0.0) -> voi
 		# Rage gen del melee básico LMB vive en base_player.take_damage (pasivo por dmg recibido)
 		# + en skills via resource_gen_on_hit. El combo hardcoded NO es una skill — no gen.
 		# Fase futura: migrar el combo a skill framework para unificar.
+
+
+## Gateo hit window. Si AnimationTree activo y attack OneShot disparado,
+## espera `animation_finished` (real anim duration). Si inactive, fallback timer hardcoded.
+## Safety timeout fallback_s*2 evita hang si signal nunca llega.
+func _wait_attack_window(fallback_s: float) -> void:
+	if animation_controller == null or not animation_controller.is_attacking():
+		await get_tree().create_timer(fallback_s).timeout
+		return
+	var done: Array = [false]
+	var on_finish: Callable = func(_v: StringName) -> void: done[0] = true
+	var on_timeout: Callable = func() -> void: done[0] = true
+	animation_controller.attack_finished.connect(on_finish, CONNECT_ONE_SHOT)
+	var timer := get_tree().create_timer(fallback_s * 2.0)
+	timer.timeout.connect(on_timeout, CONNECT_ONE_SHOT)
+	while not done[0]:
+		await get_tree().process_frame
+	if animation_controller.attack_finished.is_connected(on_finish):
+		animation_controller.attack_finished.disconnect(on_finish)
