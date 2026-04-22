@@ -98,7 +98,25 @@ enum HpCostType { NONE, FIXED, PERCENT_MAX, DRAIN_PER_SECOND }
 
 # ── G11: Quest-gated unlock (13 ascendencia skills canon _system.md §5bis) ──
 # quest_gate == "" → skill disponible. Si != "" → QuestSystem.is_completed(quest_gate) gate.
+# Metadata UI (description, trigger_summary) vive en QuestCatalog autoload separado.
 @export var quest_gate: StringName = ""
+
+# ── UI metadata — skill tree panel (canon _skill_tree_spec.md §12.2) ────────
+# general_group: agrupación visual dentro del panel ("combate_directo" /
+# "control_campo" / etc). Strings canon viven en Art Direction Bible §2
+# y _skill_tree_spec.md §1.
+@export var general_group: StringName = &""
+
+# level_effects: efectos cualitativos por nivel — cada entry Dict con
+# {level: int, description: String}. Se renderizan en tooltip spec §3
+# "Efectos por nivel" (lvl 5/10/15 canon per-class docs).
+@export var level_effects: Array[Dictionary] = []
+
+# ── Evolución metadata (extensión del evolution_id existente) ───────────────
+# evolution_id ya referencia el target SkillResource. Estos 2 campos extienden
+# la metadata UI sin cambiar el schema P0/P1 locked.
+@export var evolution_required_item_id: StringName = &""  # ítem raro activa forma alterna
+@export var evolution_required_char_level: int = 50       # canon _system.md §3
 
 # ── DUAL_MODE (G7) ──────────────────────────────────────────────────────────
 # Skills con target_type = DUAL_MODE se comportan según target en crosshair:
