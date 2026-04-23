@@ -38,6 +38,17 @@ func _ready() -> void:
 ## owner_player: Node para resolver display_name (opcional, solo para label).
 ## owner_pid: profile_id persistente — canon drop-ownership v2.
 func setup(id: String, quantity: int = 1, owner_player: Node = null, owner_pid: String = "") -> void:
+	# Guard defensivo: id vacío llega cuando un drop se dispara sin item_id válido
+	# (ambient kill sin trigger, error en loot_table). Mantenemos defaults seguros
+	# para que el nodo no crashee en _apply_visuals ni al acceder item_data.
+	if id == "":
+		push_warning("GroundItem.setup: item_id vacío — spawn con defaults seguros.")
+		item_id = ""
+		item_data = {}
+		bind_on_drop = false
+		is_free = true
+		owner_profile_id = ""
+		return
 	item_id = id
 	item_quantity = quantity
 	item_data = ItemDatabase.get_item(id)

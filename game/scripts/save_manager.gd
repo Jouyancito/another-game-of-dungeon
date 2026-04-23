@@ -51,6 +51,10 @@ func load_characters() -> void:
 func _migrate_characters() -> void:
 	var changed := false
 	for c in characters:
+		# Skip malformed entries (save corrupto o editado a mano con tipos raros).
+		if not (c is Dictionary):
+			push_warning("SaveManager: entry no-Dictionary ignorada en migración.")
+			continue
 		if not c.has("profile_id") or str(c.get("profile_id", "")) == "":
 			c["profile_id"] = _generate_profile_id()
 			changed = true
@@ -75,6 +79,23 @@ func _migrate_characters() -> void:
 			if not c.has("highest_floor"):
 				c["highest_floor"] = 1
 			c["version"] = 4
+			changed = true
+		# Safety net: saves con version=N pero campos faltantes (edit manual, save custom,
+		# carga parcial). Garantiza schema completo independiente del path de migración.
+		if not c.has("inventory"):
+			c["inventory"] = {}
+			changed = true
+		if not c.has("equipment"):
+			c["equipment"] = {}
+			changed = true
+		if not c.has("hotbar"):
+			c["hotbar"] = []
+			changed = true
+		if not c.has("gold"):
+			c["gold"] = 0
+			changed = true
+		if not c.has("highest_floor"):
+			c["highest_floor"] = 1
 			changed = true
 	if changed:
 		save_characters()

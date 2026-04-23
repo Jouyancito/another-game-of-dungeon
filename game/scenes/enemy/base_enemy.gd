@@ -427,7 +427,15 @@ func apply_knockback(hit_direction: Vector3, force: float, attacker_str: int = 0
 
 
 func _validate_target() -> void:
-	if target != null and not is_instance_valid(target):
+	if target == null:
+		return
+	if not is_instance_valid(target):
+		target = null
+		return
+	# Canon Danzante: enemies NO pueden mantener target en stealth (rompería la mecánica).
+	# Cuando salga del stealth, la adquisición normal (idle → pursue) lo vuelve a fichar.
+	var stealth: Variant = target.get("is_in_stealth")
+	if stealth != null and stealth == true:
 		target = null
 
 
