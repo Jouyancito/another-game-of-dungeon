@@ -124,6 +124,7 @@ func _distribute_gold(picker_node: Node) -> void:
 	if alive_members.is_empty():
 		return
 
+	@warning_ignore("integer_division")
 	var per_member: int = amount / alive_members.size()
 	var remainder: int = amount % alive_members.size()
 

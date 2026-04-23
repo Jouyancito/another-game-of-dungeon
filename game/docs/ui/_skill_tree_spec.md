@@ -696,11 +696,11 @@ const QUEST_META: Dictionary = {
     # ... más quests
 }
 
-static func get_meta(quest_id: StringName) -> Dictionary:
+static func get_quest_meta(quest_id: StringName) -> Dictionary:
     return QUEST_META.get(quest_id, {})
 ```
 
-Autoload en `project.godot` como singleton `QuestCatalog`. UI tooltip hace `QuestCatalog.get_meta(skill.quest_gate)` — no rompe runtime existente.
+Autoload en `project.godot` como singleton `QuestCatalog`. UI tooltip hace `QuestCatalog.get_quest_meta(skill.quest_gate)` — no rompe runtime existente. **Nota**: el método se llama `get_quest_meta` (no `get_meta`) porque `Object.get_meta` es built-in de Godot y colisiona.
 
 ### 12.4 `general_group` — fuente única
 

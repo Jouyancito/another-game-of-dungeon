@@ -1,4 +1,3 @@
-class_name QuestCatalog
 extends Node
 
 # Metadata de presentación para quests quest-gated — SOLO strings UI.
@@ -104,7 +103,7 @@ const QUEST_META: Dictionary = {
 
 ## Devuelve el dict metadata de una quest. Dict vacío si no existe — la UI debe
 ## fallbackear a placeholder tipo "Quest desconocida" en ese caso.
-static func get_meta(quest_id: StringName) -> Dictionary:
+static func get_quest_meta(quest_id: StringName) -> Dictionary:
 	return QUEST_META.get(quest_id, {})
 
 

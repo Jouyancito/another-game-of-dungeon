@@ -44,10 +44,10 @@ static func create_box(size: Vector3, mat: StandardMaterial3D) -> MeshInstance3D
 	return mi
 
 ## Construye un brazo completo con pivotes para animación.
-## side: 1.0 = derecho, -1.0 = izquierdo
+## _side: 1.0 = derecho, -1.0 = izquierdo (reservado — mirroring se hace en el caller vía position)
 ## Retorna: Node3D (shoulder pivot) con estructura:
 ##   ShoulderPivot → [ShoulderJoint, UpperArm, ElbowPivot → [ElbowJoint, Forearm, Hand]]
-static func build_arm(color: Color, side: float) -> Node3D:
+static func build_arm(color: Color, _side: float) -> Node3D:
 	var body_mat := create_material(color)
 	var joint_mat := create_material(color, true)
 

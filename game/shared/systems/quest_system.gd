@@ -1,4 +1,3 @@
-class_name QuestSystem
 extends Node
 
 # Singleton stub para canon quest-gate de skills T3/B3 (_system.md §5bis).

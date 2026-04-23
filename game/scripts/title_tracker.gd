@@ -118,10 +118,10 @@ func _grant(title_key: String) -> void:
 
 	SaveManager.grant_title(idx, title_key)
 	var info: Dictionary = TITLES.get(title_key, {})
-	var name: String = info.get("name", title_key)
+	var title_display_name: String = info.get("name", title_key)
 	var desc: String = info.get("desc", "")
-	title_unlocked.emit(name, desc)
-	print("[TitleTracker] Título desbloqueado: %s — %s" % [name, desc])
+	title_unlocked.emit(title_display_name, desc)
+	print("[TitleTracker] Título desbloqueado: %s — %s" % [title_display_name, desc])
 
 
 ## Devuelve el display name de un título por su key.

@@ -9,7 +9,10 @@ var _spin_speed := 0.3
 var _auto_spin := true
 
 
-func _ready() -> void:
+func _init() -> void:
+	# Inicializar en _init (no _ready) para que _viewport exista ANTES de
+	# que el caller invoque setup_character() tras CharacterPreview.new() + add_child().
+	# _ready() corre diferido — no sirve acá.
 	_viewport = SubViewport.new()
 	_viewport.size = Vector2i(200, 280)
 	_viewport.transparent_bg = true

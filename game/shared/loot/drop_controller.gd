@@ -133,6 +133,11 @@ func _resolve_pool(killer_profile_id: String, query_node: Node) -> Array[String]
 		if node == null or node.get("is_dead") == true:
 			continue
 		alive_party.append(pid)
+	# Edge case: si todos aparecen como muertos/offline pero hubo un kill, el killer está
+	# vivo por definición (un self-kill no dispara drops). Fallback a [killer] para no
+	# devolver pool vacío y perder el loot como free-for-all sin dueño.
+	if alive_party.is_empty():
+		alive_party = [killer_profile_id]
 	party = alive_party
 
 	# Support participants: supporters que estan EN party y aplicaron heal/buff ultimos 10s.
@@ -184,6 +189,7 @@ func _floor_random_split(drop_count: int, pool: Array[String], rng: RandomNumber
 
 	var members: Array[String] = pool.duplicate()
 	var m: int = members.size()
+	@warning_ignore("integer_division")
 	var guaranteed: int = drop_count / m
 	var leftover: int = drop_count % m
 
