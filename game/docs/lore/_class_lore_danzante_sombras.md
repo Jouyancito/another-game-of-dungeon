@@ -1,5 +1,7 @@
 # Danzante de Sombras — Identidad, Lore y Fantasía
 
+> **⚠️ TODO-canon-update (2026-04-23)**: naming v1.0 chileno (Hijos de la Noche Austral/Selk'nam/Yagán/Kawésqar/Lefkén/etc.) quedó **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. No tocar por ahora — rewrite pospuesto hasta que el juego sea jugable. Al retomar, alinear con `_world_canon.md` v2.0 §2 (hub planetario), §9 (naming diverso), §13 (5 pisos mixtos) y `_taverna_spec.md` v2.0 (Zahra/Brandr/Ayana).
+
 **Versión**: 2.0 — naming chileno (Hijos de la Noche Austral, Selk'nam/Yagán/Kawésqar) + §0 refactor + alianza Necro enfriada
 **Fecha**: 2026-04-17
 **Estado**: Canon lore — complemento narrativo de `game/docs/skills/danzante_sombras.md`

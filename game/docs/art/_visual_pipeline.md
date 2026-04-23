@@ -1,5 +1,7 @@
 # Visual Pipeline — Tier 1 (wave3)
 
+> **⚠️ TODO-canon-update (2026-04-23)**: refs a pisos con naming chileno (Pire-Mapu/Nahuelbuta/Quicaví/Tres Cumbres) quedaron **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. El pipeline técnico (toon shader, lightmaps, env_pradera base) **se mantiene**; solo cambia el naming de los pisos. Nuevos nombres canon: Valle de Erindar (piso 1, celta) / Selva de Aokigahara (piso 2, japonés) / Jötunheim (piso 3, nórdico) / Desierto de Al-Samum (piso 4, árabe) / Umbral Fragmentado (piso 5). Ver `_world_canon.md` v2.0 §13. No tocar por ahora — actualizar cuando se integren los pisos reales.
+
 **Versión**: 1.0 — 2026-04-21
 **Estado**: Canon. Base pipeline visual para subir el LOOK de "prototipo" a "juego" sin tocar poly count.
 **Scope**: toon shader canon + WorldEnvironment per bioma + lightmap bake workflow + material presets per rol.

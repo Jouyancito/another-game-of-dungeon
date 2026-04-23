@@ -1,5 +1,7 @@
 # Spec Fase 1 — Necromancer (dept/design, ola 2, 2026-04-18)
 
+> **⚠️ TODO-canon-update (2026-04-23)**: refs a Caleuche/Chiloé/Quicaví/Kalku/Lican/Imbunche quedaron **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. La identidad DARK + skills + mecánicas (Vida recurso, invocaciones, maldiciones, Rito del Abismo) **SE MANTIENEN**; solo cambia la tradición real-world que inspira (TBD post-pausa — candidatos: vudú haitiano, brujería eslava, artes tántricas negras). No tocar por ahora. Al retomar, alinear con `_world_canon.md` v2.0 §6 (Necro excepción dark).
+
 **Leer antes**: `necromancer.md` v2.0, `_class_lore_necromancer.md` v2.0 DARK, `_system.md` v1.0, `balance_v2.md`.
 **Estado**: Draft canon — handoff a B (gameplay) y D (art).
 **Clase**: Necromancer | **ID clase**: `necromancer`
