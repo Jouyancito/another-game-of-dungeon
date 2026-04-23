@@ -44,25 +44,27 @@ func _refresh_characters() -> void:
 
 func _create_character_card(character: Dictionary, index: int) -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(140, 200)
+	panel.custom_minimum_size = Vector2(180, 320)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
+	vbox.add_theme_constant_override("separation", 6)
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	panel.add_child(vbox)
 
-	var color_rect := ColorRect.new()
-	color_rect.custom_minimum_size = Vector2(80, 80)
-	color_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	color_rect.mouse_filter = Control.MOUSE_FILTER_PASS
 	var class_key: String = character.get("class_name", "Guerrero")
-	color_rect.color = CLASS_COLORS.get(class_key, Color(1.0, 1.0, 1.0, 1.0))
-	vbox.add_child(color_rect)
+	var class_color: Color = CLASS_COLORS.get(class_key, Color(1.0, 1.0, 1.0, 1.0))
+
+	var preview := CharacterPreview.new()
+	preview.custom_minimum_size = Vector2(160, 200)
+	preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(preview)
+	preview.setup_character(class_color)
 
 	var name_label := Label.new()
 	name_label.text = character.get("name", "???")
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.add_theme_font_size_override("font_size", 16)
+	name_label.add_theme_font_size_override("font_size", 18)
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(name_label)
@@ -83,6 +85,14 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 	level_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	vbox.add_child(level_label)
 
+	var floor_label := Label.new()
+	floor_label.text = "Piso %d" % character.get("highest_floor", 1)
+	floor_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	floor_label.add_theme_font_size_override("font_size", 13)
+	floor_label.modulate = Color(0.7, 0.9, 1.0, 1.0)
+	floor_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	vbox.add_child(floor_label)
+
 	panel.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_select_card(index)
@@ -93,7 +103,7 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 
 func _create_new_card() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(140, 200)
+	panel.custom_minimum_size = Vector2(180, 320)
 
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
