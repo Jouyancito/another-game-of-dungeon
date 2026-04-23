@@ -749,13 +749,17 @@ func _compute_damage(skill: SkillResource) -> float:
 				base = float(skill.base_damage)
 	# G4: combo points damage multiplier (Danzante finishers).
 	# Si combo_damage_multipliers no vacío, lee current combo del class_resource.
+	# CHANNELED: usa mult cacheado en _activate_channeled (ya consumió combo al inicio del canal).
 	if skill.combo_damage_multipliers.size() > 0 and class_resource != null:
-		var points: int = class_resource.get_current()
-		if points > 0:
-			var idx: int = clampi(points - 1, 0, skill.combo_damage_multipliers.size() - 1)
-			base *= skill.combo_damage_multipliers[idx]
-		if skill.combo_consume_all:
-			class_resource.consume(points)
+		if skill.cast_type == SkillResource.CastType.CHANNELED and active_toggles.has(skill.id):
+			base *= float(active_toggles[skill.id].get("combo_mult_cached", 1.0))
+		else:
+			var points: int = class_resource.get_current()
+			if points > 0:
+				var idx: int = clampi(points - 1, 0, skill.combo_damage_multipliers.size() - 1)
+				base *= skill.combo_damage_multipliers[idx]
+			if skill.combo_consume_all:
+				class_resource.consume(points)
 	# G6: charge damage multiplier (Archer Flecha Cargada — full charge si CHARGED)
 	if skill.cast_type == SkillResource.CastType.CHARGED and skill.charge_damage_multiplier_max > 1.0:
 		base *= skill.charge_damage_multiplier_max
@@ -877,10 +881,23 @@ func get_cooldown(skill_id: StringName) -> float:
 # Fase 2 Mage refinará con hold-tracking (input release detection).
 # ---------------------------------------------------------------------------
 func _activate_channeled(skill: SkillResource) -> void:
+	# Combo-mult cache: si el canal usa combo_damage_multipliers (ej Danza de Mil Sombras),
+	# capturamos el mult al INICIO y consumimos combo acá. Previene que solo el 1er tick
+	# aplique el mult (el resource se consumiría al primer _compute_damage) y asegura
+	# que los 20 cortes compartan uniformemente el bonus canon (canon danzante_sombras.md SKILL 4).
+	var combo_mult_cached: float = 1.0
+	if skill.combo_damage_multipliers.size() > 0 and class_resource != null:
+		var points: int = class_resource.get_current()
+		if points > 0:
+			var idx: int = clampi(points - 1, 0, skill.combo_damage_multipliers.size() - 1)
+			combo_mult_cached = skill.combo_damage_multipliers[idx]
+		if skill.combo_consume_all:
+			class_resource.consume(points)
 	active_toggles[skill.id] = {
 		"skill": skill,
 		"tick_timer": skill.tick_interval_s,  # próximo tick
 		"is_channeled": true,
+		"combo_mult_cached": combo_mult_cached,
 	}
 	toggle_changed.emit(skill.id, true)
 

@@ -23,4 +23,8 @@ const DEFAULTS := {
 		"class_name": "Clérigo",
 		"str_stat": 8, "int_stat": 6, "dex_stat": 4, "def_stat": 8, "vit_stat": 9
 	},
+	"res://scenes/player/danzante.tscn": {
+		"class_name": "Danzante de Sombras",
+		"str_stat": 7, "int_stat": 4, "dex_stat": 13, "def_stat": 3, "vit_stat": 5
+	},
 }

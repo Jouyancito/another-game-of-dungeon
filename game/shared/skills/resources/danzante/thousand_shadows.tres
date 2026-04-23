@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"danzante_thousand_shadows"
+class_id = &"danzante"
+display_name = "Danza de Mil Sombras"
+description = "ULTIMATE. 4s invul. 20 cortes AoE 8m. PHYSICAL_V2 base 25/corte. Gasta todos los Combo. 70 MP. CD 110s. Canon danzante_sombras.md §3 SKILL 4."
+cast_type = 1
+target_type = 2
+range_m = 8.0
+radius_m = 8.0
+cone_angle_deg = 0.0
+resource_cost = 70
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 110.0
+damage_formula = 1
+base_damage = 25
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 0
+unlock_level = 12
+max_skill_level = 15
+evolution_id = &"danzante_red_moon_dance"
+tags = Array[StringName]([&"physical", &"ultimate", &"multihit", &"invul"])
+dash_distance_m = 0.0
+tick_interval_s = 0.2
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = true
+combo_damage_multipliers = PackedFloat32Array(1.0, 1.2, 1.4, 1.6, 1.8, 2.0)
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 4.0
+quest_gate = &""
