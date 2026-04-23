@@ -8,7 +8,8 @@ const SAVE_PATH_BAK = "user://characters.json.bak"
 # v1: char base (stats, level, xp, profile_id)
 # v2: + inventory (items + coins), + equipment (slots), + gold, + version field
 # v3: + hotbar (Array[String] 8 slots, "" = vacío) — persiste loadout drag&drop
-const SCHEMA_VERSION := 3
+# v4: + highest_floor (int, piso más alto alcanzado — display en character select)
+const SCHEMA_VERSION := 4
 
 var characters: Array = []
 
@@ -68,6 +69,12 @@ func _migrate_characters() -> void:
 			if not c.has("hotbar"):
 				c["hotbar"] = []
 			c["version"] = 3
+			cur_version = 3
+			changed = true
+		if cur_version < 4:
+			if not c.has("highest_floor"):
+				c["highest_floor"] = 1
+			c["version"] = 4
 			changed = true
 	if changed:
 		save_characters()
@@ -143,6 +150,7 @@ func create_character(char_name: String, class_scene: String, class_display_name
 		"equipment": {},
 		"gold": 0,
 		"hotbar": [],
+		"highest_floor": 1,
 		"created_at": Time.get_date_string_from_system(),
 	}
 
