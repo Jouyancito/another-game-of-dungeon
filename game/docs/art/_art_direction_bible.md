@@ -1,5 +1,7 @@
 # Art Direction Bible — Dungeon Party
 
+> **⚠️ TODO-canon-update (2026-04-23)**: paleta y refs visuales v1.0 centradas en estética chilena (6 clases con raíz chilena + 5 pisos chilenos) quedaron **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. El framework toon (shaders, workflow low-poly, pipeline) **se mantiene**; solo cambian las paletas y referencias culturales per-clase y per-piso. Nuevos pisos: Valle de Erindar (celta) / Selva de Aokigahara (japonés) / Jötunheim (nórdico) / Desierto de Al-Samum (árabe) / Umbral Fragmentado. Nuevos NPCs taberna: Zahra (árabe) / Brandr (nórdico) / Ayana (yoruba). No tocar por ahora — rewrite de la bible al retomar el arte narrativo.
+
 **Versión**: 1.0
 **Fecha**: 2026-04-21
 **Estado**: Canon único de dirección artística. Consolida identidad visual + feel animado per-clase + atmosphere per-piso.

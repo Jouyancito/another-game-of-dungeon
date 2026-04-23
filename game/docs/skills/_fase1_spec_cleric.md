@@ -1,5 +1,7 @@
 # Spec Fase 1 — Cleric (dept/design, ola 2, 2026-04-18)
 
+> **⚠️ TODO-canon-update (2026-04-23)**: refs a NPCs/lugares chilenos (Tres Cumbres, volcanes Llaima/Villarrica/Osorno, Kutral, Pangui) quedaron **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. Las skills y mecánicas (Fe recurso, 3 ramas excepción) **SE MANTIENEN**; solo cambia el framing cultural. No tocar por ahora. Al retomar, alinear con `_world_canon.md` v2.0 y el rewrite futuro de `_class_lore_cleric.md`.
+
 **Leer antes**: `cleric.md` v2.0, `_class_lore_cleric.md` v2.0, `_system.md` v1.0, `balance_v2.md`.
 **Estado**: Draft canon — handoff a B (gameplay) y D (art).
 **Clase**: Cleric | **ID clase**: `cleric`

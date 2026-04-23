@@ -1,5 +1,7 @@
 # World References — Canon de Referencias Culturales
 
+> **⚠️ TODO-canon-update (2026-04-23)**: refs v1.1 centradas en ambientación chilena quedaron parcialmente **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. Las refs de juegos (Genshin/BG3/Hollow Knight/etc.) siguen válidas como framework; las refs culturales chilenas (volcanes, Chiloé, Atacama) pasan a ser **una cultura entre muchas**, no la base. No tocar por ahora — rewrite al retomar el worldbuilding. Al retomar, alinear con `_world_canon.md` v2.0 §2 (hub planetario) + §13 (5 pisos mixtos culturales).
+
 **Versión**: 1.1 — refs propuestas (Genshin/BG3/Hollow Knight/Sea of Thieves/Slay Spire/Vampire Survivors/Honkai) aprobadas y movidas a canon + §7 Monster Feast adoptado + §8 Filosofía adoptada por refs
 **Fecha**: 2026-04-17
 **Estado**: Canon central de referencias. Fuente única para alinear visión narrativa, visual, jugable y de sistema.

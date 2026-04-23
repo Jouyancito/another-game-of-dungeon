@@ -1,5 +1,7 @@
 # Skill Icons — canon art + convenciones
 
+> **⚠️ TODO-canon-update (2026-04-23)**: refs culturales chilenas en descripciones de iconos quedaron **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. La convención técnica (tamaños, formato SVG, estilo toon) **se mantiene**; solo cambian refs culturales cuando se reescriban los lore docs per-class. No tocar por ahora.
+
 **Canon art** para iconos de skills del hotbar + panel de habilidades.
 Alimenta el campo `icon: Texture2D` de los `SkillResource .tres` que B crea
 en Fase 0+.

@@ -1,5 +1,7 @@
 # Necromancer — Identidad, Lore y Fantasía (DARK)
 
+> **⚠️ TODO-canon-update (2026-04-23)**: naming v1.0 chileno (Caleuche/Chiloé/Quicaví/Kalku/Lican/Waikilaf/Imbunche/etc.) quedó **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. La identidad DARK y las mecánicas (recurso Vida, invocaciones, maldiciones) **SE MANTIENEN**. Solo cambia el framing cultural — la tradición real-world que inspira al Necromancer se re-elegirá post-pausa (candidatos: vudú haitiano, brujería eslava, artes tántricas negras, etc.). No tocar por ahora. Al retomar, alinear con `_world_canon.md` v2.0 §6 (Necro excepción dark) + §2 (hub planetario) + `_taverna_spec.md` v2.0.
+
 **Versión**: 2.0 — **rewrite DARK 2026-04-17**. Pisa versión 1.0 "moralmente gris" (2026-04-16).
 **Fecha**: 2026-04-17
 **Estado**: Canon lore — complemento narrativo de `game/docs/skills/necromancer.md`.
