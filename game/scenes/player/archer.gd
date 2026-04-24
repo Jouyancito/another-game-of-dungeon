@@ -23,6 +23,37 @@ func _on_class_ready() -> void:
 	base_mana = 70.0
 	attack_range = 20.0
 	heavy_cooldown = 0.7
+	# Canon balance_v2 §2.3 + _fase1_spec_archer.md — DEX class 1.3 físico, 1.0 mágico.
+	class_mult_physical = 1.3
+	class_mult_magic = 1.0
+	# Recurso único: Concentración (canon _system.md §5ter). Cap 100, NO regen pasivo,
+	# decay 3/s tras 10s sin disparar. Gen por calidad de disparo (headshot +10,
+	# full charge +15, hit >15m +3, miss -5) — lógica en PlayerSkills / projectiles.
+	class_resource = ClassResource.new()
+	class_resource.type = ClassResource.Type.CONCENTRACION
+	class_resource.max_value = 100
+	class_resource.regen_rate = 0.0
+	class_resource.combat_decay_rate = 3.0
+	class_resource.decay_delay_s = 10.0
+
+
+func _equip_default_skills() -> void:
+	# Fase 1 canon: 4 skills generales del Archer (_fase1_spec_archer.md).
+	var db = get_node_or_null("/root/SkillDB")
+	if db == null:
+		return
+	var precise: SkillResource = db.get_skill(&"archer_precise_shot")
+	var charged: SkillResource = db.get_skill(&"archer_charged_arrow")
+	var roll: SkillResource = db.get_skill(&"archer_evasive_roll")
+	var storm: SkillResource = db.get_skill(&"archer_arrow_storm")
+	if precise != null:
+		skills.set_slot(0, precise)
+	if charged != null:
+		skills.set_slot(1, charged)
+	if roll != null:
+		skills.set_slot(2, roll)
+	if storm != null:
+		skills.set_slot(3, storm)
 
 func _stop_charge() -> void:
 	var was_charging := is_charging

@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+[ext_resource type="Resource" path="res://shared/skills/resources/necromancer/skeleton_base.tres" id="2_skel"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"necromancer_summon_skeleton"
+class_id = &"necromancer"
+display_name = "Llamar Esqueleto"
+description = "Invocación persistente. -15% HP max mientras vivo. Max 2. 35 MP. Canon necromancer.md §3 SKILL 2."
+cast_type = 0
+target_type = 5
+range_m = 3.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 35
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 2
+hp_cost_value = 0.15
+cooldown_s = 12.0
+damage_formula = 0
+base_damage = 0
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 0
+unlock_level = 4
+max_skill_level = 15
+evolution_id = &"necromancer_skeleton_captain"
+tags = Array[StringName]([&"summon", &"persistent", &"hp_cost"])
+dash_distance_m = 0.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.0
+summon_data = ExtResource("2_skel")
+quest_gate = &""

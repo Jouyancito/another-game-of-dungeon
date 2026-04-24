@@ -29,6 +29,39 @@ func _on_class_ready() -> void:
 	base_mana = 110.0
 	attack_range = 15.0
 	heavy_cooldown = heavy_cooldown_orb
+	# Canon balance_v2 + _fase1_spec_necromancer.md — bone_slash y rite_of_abyss 1.3.
+	class_mult_physical = 1.0
+	class_mult_magic = 1.3
+	# Recurso único: Vida (canon _system.md §5ter + _fase1_spec_necromancer.md).
+	# Pool conceptual — el HP real vive en BasePlayer.health. ClassResource tipo VIDA
+	# se crea como FLAG de identidad de clase (HUD / SaveManager / framework de
+	# recurso único uniforme). max_value = 0 porque el costo HP vive en
+	# SkillResource.hp_cost_type/value, no en este pool. Canon DARK framing.
+	class_resource = ClassResource.new()
+	class_resource.type = ClassResource.Type.VIDA
+	class_resource.max_value = 0
+	class_resource.regen_rate = 0.0
+	class_resource.combat_decay_rate = 0.0
+	class_resource.decay_delay_s = 1.0e9
+
+
+func _equip_default_skills() -> void:
+	# Fase 1 canon: 4 skills generales del Necromancer (_fase1_spec_necromancer.md).
+	var db = get_node_or_null("/root/SkillDB")
+	if db == null:
+		return
+	var slash: SkillResource = db.get_skill(&"necromancer_bone_slash")
+	var summon: SkillResource = db.get_skill(&"necromancer_summon_skeleton")
+	var curse: SkillResource = db.get_skill(&"necromancer_withering_curse")
+	var rite: SkillResource = db.get_skill(&"necromancer_rite_of_abyss")
+	if slash != null:
+		skills.set_slot(0, slash)
+	if summon != null:
+		skills.set_slot(1, summon)
+	if curse != null:
+		skills.set_slot(2, curse)
+	if rite != null:
+		skills.set_slot(3, rite)
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false

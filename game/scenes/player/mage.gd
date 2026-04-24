@@ -31,6 +31,9 @@ func _on_class_ready() -> void:
 	# Canon balance_v2 §2.4 + mage.md — class_mult mágico del Mage = 1.5.
 	class_mult_physical = 1.0
 	class_mult_magic = 1.5
+	# Mage NO usa ClassResource — MP only (fantasy lock canon _system.md §5ter).
+	# Pool MP grande (base 120), gestión intensa. Sin Rage/Fe/Combo/Concentración/Vida.
+	# Es el arquetipo clásico del mana puro — intencional por diseño.
 
 func _equip_default_skills() -> void:
 	# Fase 1 canon: 4 skills generales del Mage (mage.md §3).

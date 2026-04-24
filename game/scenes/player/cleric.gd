@@ -19,6 +19,39 @@ func _on_class_ready() -> void:
 	base_mana = 100.0
 	attack_range = 3.0
 	heavy_cooldown = 0.5
+	# Canon balance_v2 + _fase1_spec_cleric.md — híbrido físico (maza)/mágico (heal+smite).
+	# Heal class_mult = 1.2 canon; magic sagrado 1.1-1.2. Adoptamos 1.2 como primary.
+	class_mult_physical = 1.0
+	class_mult_magic = 1.2
+	# Recurso único: Fe (canon _system.md §5ter). Cap 50 (más chico — cada pt pesa más),
+	# NO regen pasivo. Genera por heal/buff/cleanse a aliados (+3/+2/+5 coop — valores
+	# reducidos +1/+1/+0.5 en solo). Plegaria regen +15 vía canal 3s. Excepción canon:
+	# 3 ramas ascendencia (Sanador/Buffer/Exorcista).
+	class_resource = ClassResource.new()
+	class_resource.type = ClassResource.Type.FE
+	class_resource.max_value = 50
+	class_resource.regen_rate = 0.0
+	class_resource.combat_decay_rate = 0.0
+	class_resource.decay_delay_s = 1.0e9
+
+
+func _equip_default_skills() -> void:
+	# Fase 1 canon: 4 skills generales del Cleric (_fase1_spec_cleric.md).
+	var db = get_node_or_null("/root/SkillDB")
+	if db == null:
+		return
+	var light: SkillResource = db.get_skill(&"cleric_healing_light")
+	var prayer: SkillResource = db.get_skill(&"cleric_prayer")
+	var circle: SkillResource = db.get_skill(&"cleric_sacred_circle")
+	var aegis: SkillResource = db.get_skill(&"cleric_divine_aegis")
+	if light != null:
+		skills.set_slot(0, light)
+	if prayer != null:
+		skills.set_slot(1, prayer)
+	if circle != null:
+		skills.set_slot(2, circle)
+	if aegis != null:
+		skills.set_slot(3, aegis)
 
 func _on_attack_pressed() -> void:
 	is_holding_attack = false

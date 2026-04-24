@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"archer_evasive_roll"
+class_id = &"archer"
+display_name = "Voltereta Evasiva"
+description = "Dash 5m. Invul 0.4s. Limpia 1 debuff no-boss. 10 MP. CD 6s. Canon archer.md §3 SKILL 3."
+cast_type = 0
+target_type = 0
+range_m = 5.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 10
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 6.0
+damage_formula = 0
+base_damage = 0
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 0
+unlock_level = 8
+max_skill_level = 15
+evolution_id = &"archer_wind_step"
+tags = Array[StringName]([&"physical", &"mobility", &"invul", &"aoe"])
+dash_distance_m = 5.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.4
+quest_gate = &""

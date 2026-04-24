@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"cleric_prayer"
+class_id = &"cleric"
+display_name = "Plegaria"
+description = "Canal 3s estacionario. Regen +15 Fe al completar. Interrumpible. 0 MP. CD 20s. Canon cleric.md §3 SKILL 2."
+cast_type = 1
+target_type = 0
+range_m = 0.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 0
+resource_type = 0
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 20.0
+damage_formula = 0
+base_damage = 0
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 0
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 2
+unlock_level = 4
+max_skill_level = 15
+evolution_id = &""
+tags = Array[StringName]([&"channel", &"faith_gen"])
+dash_distance_m = 0.0
+tick_interval_s = 1.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.0
+quest_gate = &""
