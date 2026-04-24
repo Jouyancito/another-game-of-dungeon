@@ -511,8 +511,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Bloqueo de acciones en dead/downed — no atacar, no recoger, no castear.
 	# Canon downed (MVP #5): player caído espera revive. Mientras, el HUD
 	# captura R para respawn temprano (ver hud.gd).
-	# La cámara (mouse motion) SIGUE libre — el user puede mirar alrededor.
-	if is_dead or is_downed:
+	# Cámara: libre en DOWNED (el player mira alrededor), bloqueada en DEAD
+	# (la cámara queda congelada con fade-to-black del HUD).
+	if is_dead:
+		return
+	if is_downed:
 		if not (event is InputEventMouseMotion):
 			return
 
@@ -951,16 +954,10 @@ func toggle_torch() -> void:
 					_equip_torch_item(equipped_id, equipped_data)
 					return
 
-	# 2) Fallback — antorchas que quedaron en inventario sin equipar todavía.
-	if inventory == null:
-		return
-	for entry in inventory.items:
-		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
-		if item_data.is_empty():
-			continue
-		if item_data.get("type", "") == "light":
-			_equip_torch_item(entry["item_id"], item_data)
-			return
+	# NO fallback a inventario — canon 2026-04-24: F solo enciende lo equipado.
+	# Antes había fallback que auto-equipaba la primera antorcha del inventario,
+	# resultado: F prendía luz aunque el user "no tuviera antorcha" (estaba en
+	# la grilla, no en el slot). Ahora requiere equip explícito primero.
 
 func _equip_torch_item(item_id: String, item_data: Dictionary) -> void:
 	var stats: Dictionary = item_data.get("stats", {})

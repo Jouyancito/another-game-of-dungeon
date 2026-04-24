@@ -436,8 +436,8 @@ func _build_last_breath_bar() -> void:
 	_last_breath_panel.anchor_bottom = 0.0
 	_last_breath_panel.offset_left = -180.0
 	_last_breath_panel.offset_right = 180.0
-	_last_breath_panel.offset_top = 40.0
-	_last_breath_panel.offset_bottom = 100.0
+	_last_breath_panel.offset_top = 80.0
+	_last_breath_panel.offset_bottom = 140.0
 	_last_breath_panel.visible = false
 	_last_breath_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
