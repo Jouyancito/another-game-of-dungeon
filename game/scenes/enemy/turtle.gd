@@ -72,7 +72,7 @@ func _idle_behavior(delta: float) -> void:
 # ─── Shell mechanic ─────────────────────────────────────────────────────────
 
 ## Override take_damage: cualquier golpe dispara la retracción
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null, element: String = "physical", is_crit: bool = false) -> void:
 	if is_dead:
 		return
 

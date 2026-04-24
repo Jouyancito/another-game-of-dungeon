@@ -490,11 +490,11 @@ func _pursue_tick(delta: float) -> void:
 # ──────────────────────────────────────────────────────────────────────
 # Phase transitions
 # ──────────────────────────────────────────────────────────────────────
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null, element: String = "physical", is_crit: bool = false) -> void:
 	var final_amount: float = amount
 	if _shielding:
 		final_amount = amount * SHIELD_DAMAGE_MULT
-	super(final_amount, hit_direction, knockback_force, attacker_str, attacker)
+	super.take_damage(final_amount, hit_direction, knockback_force, attacker_str, attacker, element, is_crit)
 	if is_dead:
 		return
 	_update_phase()

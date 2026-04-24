@@ -36,6 +36,13 @@ const CLASSES: Array = [
 		"desc": "Melee con maza y castigo divino. Fuerte contra no-muertos.",
 		"color": Color(0.8, 0.7, 0.2, 1.0),
 	},
+	{
+		"key": "Danzante",
+		"scene": "res://scenes/player/danzante.tscn",
+		"display": "Danzante de Sombras",
+		"desc": "Sigilo y burst crítico. Combo Points, clon sombrío y cortes encadenados.",
+		"color": Color(0.35, 0.2, 0.5, 1.0),
+	},
 ]
 
 var current_index: int = 0

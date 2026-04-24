@@ -20,8 +20,8 @@ var _particles_debris: GPUParticles3D = null
 
 
 func _ready() -> void:
-	super._ready()
-	# Supernova es siempre one-shot — forzar duration si es 0
+	# VFXBase no define _ready() — hooks van en _on_play / _on_stop.
+	# Supernova es siempre one-shot — forzar duration si es 0.
 	if duration_s <= 0.0:
 		duration_s = 1.0
 

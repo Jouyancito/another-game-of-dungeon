@@ -513,11 +513,11 @@ func _execute_dash(skill: SkillResource) -> void:
 	# Si hay muro en el path, clampear stop_pos 0.4m antes del hit (radio player ~0.4m).
 	# Evita teletransportarse a través de paredes.
 	if _owner_player.is_inside_tree():
-		var space := _owner_player.get_world_3d().direct_space_state
-		var wall_query := PhysicsRayQueryParameters3D.create(start, stop_pos)
+		var space: PhysicsDirectSpaceState3D = _owner_player.get_world_3d().direct_space_state
+		var wall_query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, stop_pos)
 		wall_query.exclude = [_owner_player.get_rid()]
 		wall_query.collision_mask = 1  # solo World layer
-		var wall_hit := space.intersect_ray(wall_query)
+		var wall_hit: Dictionary = space.intersect_ray(wall_query)
 		if not wall_hit.is_empty():
 			var wall_pos: Vector3 = wall_hit.position
 			var clamped: Vector3 = wall_pos - forward * 0.4  # radio aprox del CharacterBody3D

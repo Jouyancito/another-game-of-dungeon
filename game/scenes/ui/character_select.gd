@@ -6,6 +6,7 @@ const CLASS_COLORS: Dictionary = {
 	"Arquero": Color(0.2, 0.6, 0.3, 1.0),
 	"Nigromante": Color(0.4, 0.1, 0.5, 1.0),
 	"Clérigo": Color(0.8, 0.7, 0.2, 1.0),
+	"Danzante": Color(0.35, 0.2, 0.5, 1.0),
 }
 
 const MAX_CHARACTERS: int = 6

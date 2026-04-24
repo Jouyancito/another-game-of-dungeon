@@ -66,11 +66,11 @@ func _physics_process(delta: float) -> void:
 
 ## Canon §3.2: inmune a daño durante DISGUISED/REVEALING (anti-cheese cheese).
 ## AGGRESSIVE aplica DEF canon sub-B P1 (defense=3) antes del super.
-func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null) -> void:
+func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null, element: String = "physical", is_crit: bool = false) -> void:
 	if state != State.AGGRESSIVE:
 		return
 	var effective := maxf(amount - float(defense), 1.0)
-	super.take_damage(effective, hit_direction, knockback_force, attacker_str, attacker)
+	super.take_damage(effective, hit_direction, knockback_force, attacker_str, attacker, element, is_crit)
 
 
 ## Hook de base_player._try_interact_nearby() — mismo path que loot_chest.open().
