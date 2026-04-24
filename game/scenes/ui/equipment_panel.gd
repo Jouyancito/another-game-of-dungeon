@@ -113,19 +113,19 @@ func _build_ui() -> void:
 	style.corner_radius_bottom_left  = 8
 	panel.add_theme_stylebox_override("panel", style)
 
-	# Posición canon 2026-04-24: pegado a la derecha del inventario (que ahora
-	# está en bottom-center sobre el hotbar). Mismo top/bottom que el inv para
-	# alinear visualmente — alto 360, ancho 300, gap 4px del borde derecho del inv.
-	# Inventario tiene anchor 0.5/1.0 con offset_left=-285 / offset_right=285 /
-	# offset_top=-450 / offset_bottom=-90. El equipment empieza en 285+4=289.
-	panel.anchor_left   = 0.5
+	# Posición canon 2026-04-24 v2: paper-doll ENCIMA del inventario, mismo borde
+	# derecho. Layout estilo Diablo 2 con paper doll arriba e items grid abajo.
+	# Inventario tiene anchor 1.0/1.0 con offset_left=-590 / offset_right=-20 /
+	# offset_top=-435 / offset_bottom=-75. Equipment va arriba con 5px gap.
+	# Alto 360, ancho 300 (paper-doll proporciones).
+	panel.anchor_left   = 1.0
 	panel.anchor_top    = 1.0
-	panel.anchor_right  = 0.5
+	panel.anchor_right  = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_left   = 289.0
-	panel.offset_top    = -450.0
-	panel.offset_right  = 589.0
-	panel.offset_bottom = -90.0
+	panel.offset_left   = -320.0
+	panel.offset_top    = -800.0
+	panel.offset_right  = -20.0
+	panel.offset_bottom = -440.0
 	add_child(panel)
 
 	# --- Margin ---
