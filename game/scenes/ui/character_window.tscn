@@ -602,133 +602,61 @@ Bloqueo, Evasión, Golpe Crítico...
 (disponibles con equipo e ítems)"
 horizontal_alignment = 1
 
+[node name="SepRespec" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+layout_mode = 2
+
+[node name="RespecButton" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Redistribuir Stats (ítem requerido)"
+theme_override_font_sizes/font_size = 12
+tooltip_text = "Próximamente — Piedra de Redistribución (ítem consumible MU-style)."
+
 [node name="Habilidades" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
-[node name="SkillsLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
-text = "Especialización disponible a nivel 10"
-horizontal_alignment = 1
-
-[node name="SkillGrid" type="GridContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
-layout_mode = 2
-columns = 4
-
-[node name="Skill1" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill1"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill2" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill2"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill3" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill3"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill4" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill4"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill5" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill5"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill6" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill6"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill7" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill7"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="Skill8" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid"]
-layout_mode = 2
-custom_minimum_size = Vector2(80, 80)
-theme_override_styles/panel = SubResource("StyleBoxFlat_skill_slot")
-
-[node name="Label" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades/SkillGrid/Skill8"]
-layout_mode = 2
-text = "?"
-horizontal_alignment = 1
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
-
-[node name="BranchInfo" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+[node name="SkillsHeader" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
-text = "2 ramas de especialización por clase.
-Elegí tu camino a nivel 10."
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
+text = "Arrastrá una skill al hotbar para asignarla (1–8)."
 horizontal_alignment = 1
+
+[node name="SkillListContainer" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="SkillsEmpty" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
+text = "Aún no hay skills disponibles para esta clase."
+horizontal_alignment = 1
+
+[node name="Equipo" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="EquipoHint" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Equipo"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
+text = "Solo lectura. Usá TAB para equipar / desequipar con drag&drop."
+horizontal_alignment = 1
+
+[node name="PaperDoll" type="Control" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Equipo"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(280, 440)
+size_flags_horizontal = 4
 
 [node name="CloseHint" type="Label" parent="Panel/Margin/VBox"]
 layout_mode = 2
