@@ -30,12 +30,20 @@ var _connected_player: Node = null
 var _equipment_panel: EquipmentPanel = null
 
 # Sub-nodos (asignados en _ready desde la escena)
+@onready var _background: PanelContainer = $Background
+@onready var _title_row: HBoxContainer = $Background/VBoxContainer/TitleRow
 @onready var _grid_panel: Control = $Background/VBoxContainer/GridPanel
 @onready var _coin_label: Label = $Background/VBoxContainer/FooterRow/CoinLabel
 @onready var _close_btn: Button = $Background/VBoxContainer/TitleRow/CloseBtn
 @onready var _tooltip: PanelContainer = $Tooltip
 @onready var _tooltip_label: RichTextLabel = $Tooltip/MarginContainer/TooltipLabel
 @onready var _context_menu: PopupMenu = $ContextMenu
+
+# Drag state para mover la ventana entera (canon UX: inventory no debe tapar
+# el HUD, el user arrastra del título).
+var _window_dragging: bool = false
+var _window_drag_offset: Vector2 = Vector2.ZERO
+var _window_unanchored: bool = false
 
 
 func _ready() -> void:
@@ -66,6 +74,39 @@ func _ready() -> void:
 	if eq_scene:
 		_equipment_panel = eq_scene.instantiate() as EquipmentPanel
 		add_child(_equipment_panel)
+
+	# Wire drag en el TitleRow — el user agarra del título y arrastra.
+	_title_row.mouse_filter = Control.MOUSE_FILTER_STOP
+	_title_row.gui_input.connect(_on_title_drag_input)
+
+
+func _on_title_drag_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_window_dragging = true
+			_window_drag_offset = _background.get_global_mouse_position() - _background.global_position
+			_unanchor_window()
+		else:
+			_window_dragging = false
+	if event is InputEventMouseMotion and _window_dragging:
+		var new_pos: Vector2 = _background.get_global_mouse_position() - _window_drag_offset
+		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+		# Clampear al viewport para que no se pierda la ventana fuera de pantalla.
+		new_pos.x = clampf(new_pos.x, -_background.size.x + 80.0, viewport_size.x - 80.0)
+		new_pos.y = clampf(new_pos.y, 0.0, viewport_size.y - 40.0)
+		_background.global_position = new_pos
+
+
+func _unanchor_window() -> void:
+	if _window_unanchored:
+		return
+	_window_unanchored = true
+	var cur_pos: Vector2 = _background.global_position
+	_background.anchor_left = 0.0
+	_background.anchor_top = 0.0
+	_background.anchor_right = 0.0
+	_background.anchor_bottom = 0.0
+	_background.global_position = cur_pos
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

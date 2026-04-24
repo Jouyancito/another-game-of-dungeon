@@ -34,6 +34,12 @@ var is_dead := false
 var can_attack := true
 var is_provoked := false  # Para neutrales: se activa al recibir daño
 
+# Alerta por daño — si recibí hit, persigo al attacker incluso fuera del
+# detection_range normal. Se resetea tras _alert_time_s sin recibir daño
+# más O al perder target.
+var _alert_time_left: float = 0.0
+const _ALERT_DURATION_S: float = 15.0
+
 # Nameplate
 @export var display_name: String = ""
 @export var enemy_level: int = 1
@@ -240,6 +246,11 @@ func _physics_process(delta: float) -> void:
 
 	_tick_statuses(delta)
 	_apply_gravity(delta)
+	# Tickear alerta: si fue atacado hace poco, el flag persiste X segundos
+	# e ignora detection_range en _should_pursue. Al llegar a 0, vuelve a
+	# depender de la distancia normal.
+	if _alert_time_left > 0.0:
+		_alert_time_left = maxf(_alert_time_left - delta, 0.0)
 	_validate_target()
 
 	# Stun pausa AI (movement + attack). Gravedad + knockback siguen aplicando arriba.
@@ -384,7 +395,11 @@ func outgoing_damage_mult() -> float:
 
 
 ## Determina si este enemigo debería perseguir al jugador
+## Canon 2026-04-23: si está en alerta (recibió daño recientemente), persigue
+## SIN importar distance — ya sabe quién lo atacó y va a buscarlo.
 func _should_pursue(distance: float) -> bool:
+	if _alert_time_left > 0.0:
+		return true
 	if aggression == AggressionType.AGGRESSIVE:
 		return distance <= detection_range
 	# NEUTRAL: solo si fue provocado
@@ -499,9 +514,10 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 		is_provoked = true
 
 	# Aggro por daño — canon 2026-04-23. Si el attacker es un player válido
-	# (vivo, no downed, no stealth), fichar target inmediato. Sin esto, el
-	# enemy solo respondía a agro por distancia — el arquero podía dispararle
-	# desde lejos y el enemy no se enteraba.
+	# (vivo, no downed, no stealth), fichar target inmediato Y activar el flag
+	# de alerta para ignorar detection_range durante _ALERT_DURATION_S. Sin el
+	# flag, un arquero disparando desde 20m fichaba target pero _physics_process
+	# no perseguía porque distance > detection_range (15m).
 	if attacker != null and is_instance_valid(attacker) and attacker.is_in_group("player"):
 		var atk_dead: bool = attacker.get("is_dead") == true
 		var atk_downed: bool = attacker.get("is_downed") == true
@@ -509,6 +525,7 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 		var atk_stealth: bool = atk_stealth_v != null and atk_stealth_v == true
 		if not atk_dead and not atk_downed and not atk_stealth:
 			target = attacker
+			_alert_time_left = _ALERT_DURATION_S
 
 	health -= amount
 	_flash_damage()
