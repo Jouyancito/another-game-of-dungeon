@@ -322,8 +322,6 @@ func _draw_grid() -> void:
 
 		# Nombre del item (abreviado si no cabe)
 		var name_text: String = item_data.get("name", entry["item_id"])
-		if entry["quantity"] > 1:
-			name_text += " x%d" % entry["quantity"]
 		var font := ThemeDB.fallback_font
 		var font_size := 10
 		_grid_panel.draw_string(
@@ -335,6 +333,34 @@ func _draw_grid() -> void:
 			font_size,
 			Color(1, 1, 1, 1)
 		)
+
+		# Stack count label — esquina inf-derecha, 14px blanco con outline negro.
+		# D2/Metin2 style: solo número cuando quantity > 1.
+		var qty: int = entry["quantity"]
+		if qty > 1:
+			var qty_text: String = str(qty)
+			var qty_size: int = 14
+			var qty_pos := Vector2(rect.position.x + 3, rect.position.y + rect.size.y - 4)
+			var qty_width: float = rect.size.x - 6
+			_grid_panel.draw_string_outline(
+				font,
+				qty_pos,
+				qty_text,
+				HORIZONTAL_ALIGNMENT_RIGHT,
+				qty_width,
+				qty_size,
+				2,
+				Color(0, 0, 0, 1)
+			)
+			_grid_panel.draw_string(
+				font,
+				qty_pos,
+				qty_text,
+				HORIZONTAL_ALIGNMENT_RIGHT,
+				qty_width,
+				qty_size,
+				Color(1, 1, 1, 1)
+			)
 
 
 func _on_grid_input(event: InputEvent) -> void:
