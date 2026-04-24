@@ -28,6 +28,17 @@ var _target_hp_label: Label
 var _current_target: Node = null  # referencia al BaseEnemy apuntado
 var _target_hide_timer := 0.0     # se oculta 1.5s después de dejar de apuntar
 
+# Last breath — barra visible durante downed, countdown hasta muerte real
+var _last_breath_panel: PanelContainer
+var _last_breath_bar: ProgressBar
+var _last_breath_label: Label
+
+# Torch slot — panel visible al lado del hotbar con antorcha equipada + estado
+var _torch_slot_panel: PanelContainer
+var _torch_slot_icon: TextureRect
+var _torch_slot_placeholder: Label
+var _torch_slot_status: Label
+
 func _ready() -> void:
 	add_to_group("hud")
 	death_screen.visible = false
@@ -36,6 +47,9 @@ func _ready() -> void:
 	_build_pickup_hint()
 	_build_target_frame()
 	_wire_hotbar_slots()
+	_build_last_breath_bar()
+	_build_torch_slot()
+	set_process(true)
 
 
 # ── Hotbar drag&drop ─────────────────────────────────────────────────────────
@@ -224,6 +238,9 @@ func _build_target_frame() -> void:
 
 
 func _process(delta: float) -> void:
+	# Update tick para last-breath bar (durante downed) y estado del torch slot.
+	_update_last_breath_and_torch()
+
 	# Actualizar HP bar en vivo si hay un target
 	if _current_target != null:
 		if not is_instance_valid(_current_target) or _current_target.is_dead:
@@ -400,3 +417,170 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
 			get_tree().reload_current_scene()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Last Breath — barra de countdown visible durante downed
+# ──────────────────────────────────────────────────────────────────────
+
+func _build_last_breath_bar() -> void:
+	_last_breath_panel = PanelContainer.new()
+	_last_breath_panel.anchor_left = 0.5
+	_last_breath_panel.anchor_right = 0.5
+	_last_breath_panel.anchor_top = 0.0
+	_last_breath_panel.offset_left = -160.0
+	_last_breath_panel.offset_right = 160.0
+	_last_breath_panel.offset_top = 80.0
+	_last_breath_panel.offset_bottom = 130.0
+	_last_breath_panel.visible = false
+	_last_breath_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 2)
+	_last_breath_panel.add_child(vbox)
+
+	_last_breath_label = Label.new()
+	_last_breath_label.text = "ÚLTIMO ALIENTO"
+	_last_breath_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_last_breath_label.add_theme_font_size_override("font_size", 14)
+	_last_breath_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3, 1.0))
+	vbox.add_child(_last_breath_label)
+
+	_last_breath_bar = ProgressBar.new()
+	_last_breath_bar.custom_minimum_size = Vector2(280, 18)
+	_last_breath_bar.show_percentage = false
+	_last_breath_bar.max_value = 1.0
+	_last_breath_bar.value = 1.0
+	var bg_style := StyleBoxFlat.new()
+	bg_style.bg_color = Color(0.15, 0.0, 0.0, 0.85)
+	bg_style.corner_radius_top_left = 3
+	bg_style.corner_radius_top_right = 3
+	bg_style.corner_radius_bottom_left = 3
+	bg_style.corner_radius_bottom_right = 3
+	var fill_style := StyleBoxFlat.new()
+	fill_style.bg_color = Color(0.9, 0.15, 0.15, 1.0)
+	fill_style.corner_radius_top_left = 3
+	fill_style.corner_radius_top_right = 3
+	fill_style.corner_radius_bottom_left = 3
+	fill_style.corner_radius_bottom_right = 3
+	_last_breath_bar.add_theme_stylebox_override("background", bg_style)
+	_last_breath_bar.add_theme_stylebox_override("fill", fill_style)
+	vbox.add_child(_last_breath_bar)
+
+	add_child(_last_breath_panel)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Torch slot — icono al lado del hotbar con antorcha equipada + estado
+# ──────────────────────────────────────────────────────────────────────
+
+func _build_torch_slot() -> void:
+	_torch_slot_panel = PanelContainer.new()
+	_torch_slot_panel.custom_minimum_size = Vector2(50, 50)
+	_torch_slot_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_torch_slot_panel.tooltip_text = "Antorcha — [F] encender/apagar, click derecho para desequipar"
+
+	var bg_style := StyleBoxFlat.new()
+	bg_style.bg_color = Color(0.1, 0.1, 0.1, 0.8)
+	bg_style.border_width_top = 2
+	bg_style.border_width_bottom = 2
+	bg_style.border_width_left = 2
+	bg_style.border_width_right = 2
+	bg_style.border_color = Color(0.3, 0.25, 0.15, 1.0)
+	bg_style.corner_radius_top_left = 4
+	bg_style.corner_radius_top_right = 4
+	bg_style.corner_radius_bottom_left = 4
+	bg_style.corner_radius_bottom_right = 4
+	_torch_slot_panel.add_theme_stylebox_override("panel", bg_style)
+
+	_torch_slot_icon = TextureRect.new()
+	_torch_slot_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_torch_slot_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_torch_slot_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_torch_slot_panel.add_child(_torch_slot_icon)
+
+	# Placeholder cuando no hay antorcha equipada (texto "F").
+	_torch_slot_placeholder = Label.new()
+	_torch_slot_placeholder.text = "F"
+	_torch_slot_placeholder.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_torch_slot_placeholder.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_torch_slot_placeholder.add_theme_font_size_override("font_size", 22)
+	_torch_slot_placeholder.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.7))
+	_torch_slot_placeholder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_torch_slot_placeholder.anchor_right = 1.0
+	_torch_slot_placeholder.anchor_bottom = 1.0
+	_torch_slot_panel.add_child(_torch_slot_placeholder)
+
+	# Indicador pequeño de estado on/off (esquina superior-derecha).
+	_torch_slot_status = Label.new()
+	_torch_slot_status.text = ""
+	_torch_slot_status.add_theme_font_size_override("font_size", 10)
+	_torch_slot_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_torch_slot_status.anchor_left = 1.0
+	_torch_slot_status.anchor_right = 1.0
+	_torch_slot_status.offset_left = -20.0
+	_torch_slot_status.offset_top = 2.0
+	_torch_slot_status.offset_right = -2.0
+	_torch_slot_status.offset_bottom = 14.0
+	_torch_slot_panel.add_child(_torch_slot_status)
+
+	_torch_slot_panel.gui_input.connect(_on_torch_slot_gui_input)
+	hotbar_slots.add_child(_torch_slot_panel)
+
+
+func _on_torch_slot_gui_input(event: InputEvent) -> void:
+	if _player == null:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			# Click izq = toggle encender/apagar — equivalente a F.
+			if _player.has_method("toggle_torch"):
+				_player.toggle_torch()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			# Click der = desequipar y devolver al inventario.
+			if _player.has_method("unequip_slot"):
+				_player.unequip_slot("light")
+
+
+func _update_last_breath_and_torch() -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+
+	# Last breath bar — visible solo durante is_downed.
+	var downed: bool = _player.get("is_downed") == true
+	if downed:
+		var time_left: float = float(_player.get("_downed_time_left"))
+		var total: float = float(_player.get("downed_time_s"))
+		if total > 0.0:
+			_last_breath_bar.value = clampf(time_left / total, 0.0, 1.0)
+		_last_breath_label.text = "ÚLTIMO ALIENTO  %0.1fs" % maxf(time_left, 0.0)
+		_last_breath_panel.visible = true
+	else:
+		_last_breath_panel.visible = false
+
+	# Torch slot — icon, placeholder y estado encendido.
+	var equipment = _player.get("equipment")
+	var entry: Dictionary = {}
+	if equipment != null and equipment.has_method("get_slot"):
+		entry = equipment.get_slot("light")
+	var has_torch: bool = not entry.is_empty() and entry.get("item_id", "") != ""
+	if has_torch:
+		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
+		var icon: Texture2D = item_data.get("icon", null)
+		_torch_slot_icon.texture = icon
+		_torch_slot_icon.visible = icon != null
+		_torch_slot_placeholder.visible = icon == null
+		# On/off — leemos directo del player.
+		var lit: bool = _player.get("_torch_light") != null
+		if lit:
+			_torch_slot_status.text = "ON"
+			_torch_slot_status.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3, 1.0))
+		else:
+			_torch_slot_status.text = "OFF"
+			_torch_slot_status.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 1.0))
+	else:
+		_torch_slot_icon.texture = null
+		_torch_slot_icon.visible = false
+		_torch_slot_placeholder.visible = true
+		_torch_slot_status.text = ""

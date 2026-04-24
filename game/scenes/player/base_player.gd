@@ -86,8 +86,13 @@ var can_attack := true
 var is_dead := false
 # Downed state (canon MVP #5): el player entra acá ANTES de muerte real.
 # Si no revive en downed_time_s, _actual_die() se ejecuta y drop/loot se dispara.
+# Canon 2026-04-23: total 15s dividido en 3 tramos de arrastre — el player puede
+# crawlar hacia un aliado o lejos del peligro, pero se hace cada vez más lento.
+#   15s-5s restantes  → speed × 0.5 (arrastre normal, 10s)
+#   5s-2s restantes   → speed × 0.3 (agotándose, 3s)
+#   2s-0s restantes   → speed × 0.1 (apenas se mueve, 2s)
 var is_downed := false
-@export var downed_time_s: float = 30.0
+@export var downed_time_s: float = 15.0
 var _downed_time_left: float = 0.0
 var is_holding_attack := false
 var dash_locked := false  # PlayerSkills lo alza durante tween de Embestida — WASD y vel enemy overrides OFF.
@@ -564,12 +569,33 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	# Downed state — no moverse, no regen, tickear timer. Si se agota → muerte real.
+	# Downed state — tickear timer + permitir arrastre con speed decreciente.
+	# Ver constantes arriba (línea ~92) para los tramos canon del crawl.
 	if is_downed:
-		velocity = Vector3.ZERO
 		_downed_time_left -= delta
 		if _downed_time_left <= 0.0:
 			_actual_die()
+			return
+		var crawl_mult: float = 0.5
+		if _downed_time_left <= 2.0:
+			crawl_mult = 0.1
+		elif _downed_time_left <= 5.0:
+			crawl_mult = 0.3
+		# Gravedad simple (sin jump, sin knockback nuevo durante downed).
+		if not is_on_floor():
+			velocity.y -= gravity * delta
+		else:
+			velocity.y = 0.0
+		# WASD básico — el player puede arrastrarse hacia aliados/salida.
+		# NO sprint, NO crouch, NO jump.
+		var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+		var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+		if direction:
+			velocity.x = direction.x * speed * crawl_mult
+			velocity.z = direction.z * speed * crawl_mult
+		else:
+			velocity.x = 0.0
+			velocity.z = 0.0
 		move_and_slide()
 		return
 
