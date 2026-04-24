@@ -86,10 +86,9 @@ var can_attack := true
 var is_dead := false
 # Downed state (canon MVP #5): el player entra acá ANTES de muerte real.
 # Si no revive en downed_time_s, _actual_die() se ejecuta y drop/loot se dispara.
-# Canon 2026-04-23: total 15s dividido en 3 tramos de arrastre — el player puede
-# crawlar hacia un aliado o lejos del peligro, pero se hace cada vez más lento.
-#   15s-5s restantes  → speed × 0.5 (arrastre normal, 10s)
-#   5s-2s restantes   → speed × 0.3 (agotándose, 3s)
+# Canon 2026-04-23 v2: total 15s en 3 tramos de arrastre, más lento que v1.
+#   15s-5s restantes  → speed × 0.3 (arrastre normal, 10s)
+#   5s-2s restantes   → speed × 0.2 (agotándose, 3s)
 #   2s-0s restantes   → speed × 0.1 (apenas se mueve, 2s)
 var is_downed := false
 @export var downed_time_s: float = 15.0
@@ -582,11 +581,11 @@ func _physics_process(delta: float) -> void:
 		if _downed_time_left <= 0.0:
 			_actual_die()
 			return
-		var crawl_mult: float = 0.5
+		var crawl_mult: float = 0.3
 		if _downed_time_left <= 2.0:
 			crawl_mult = 0.1
 		elif _downed_time_left <= 5.0:
-			crawl_mult = 0.3
+			crawl_mult = 0.2
 		# Gravedad simple (sin jump, sin knockback nuevo durante downed).
 		if not is_on_floor():
 			velocity.y -= gravity * delta
@@ -931,14 +930,28 @@ func save_progress() -> void:
 # ── Torch System (Phase 1 — sin sombras) ─────────────────────────────────────
 # Phase 2 (futuro): agregar shadow_enabled como setting de calidad del shader system.
 
-## Toggle: si no hay antorcha activa, buscar una en inventario y activarla.
-## Si hay una activa, apagarla.
+## Toggle: si no hay antorcha activa, buscar una (primero equipada en slot "light",
+## después en inventario) y activarla. Si hay una activa, apagarla.
+## Canon 2026-04-23 UX: la F debe encender lo que está equipado sin importar que
+## el item ya no esté en la grilla del inventario.
 func toggle_torch() -> void:
 	if _torch_light != null:
 		_remove_torch()
 		return
 
-	# Buscar primer item de luz en inventario
+	# 1) Primero el slot equipado "light" — si hay antorcha equipada, esa es la
+	# que el user espera que se encienda al apretar F.
+	if equipment != null:
+		var equipped: Dictionary = equipment.get_slot("light")
+		if not equipped.is_empty():
+			var equipped_id: String = String(equipped.get("item_id", ""))
+			if equipped_id != "":
+				var equipped_data: Dictionary = ItemDatabase.get_item(equipped_id)
+				if not equipped_data.is_empty() and equipped_data.get("type", "") == "light":
+					_equip_torch_item(equipped_id, equipped_data)
+					return
+
+	# 2) Fallback — antorchas que quedaron en inventario sin equipar todavía.
 	if inventory == null:
 		return
 	for entry in inventory.items:

@@ -498,6 +498,18 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 	if aggression == AggressionType.NEUTRAL and not is_provoked:
 		is_provoked = true
 
+	# Aggro por daño — canon 2026-04-23. Si el attacker es un player válido
+	# (vivo, no downed, no stealth), fichar target inmediato. Sin esto, el
+	# enemy solo respondía a agro por distancia — el arquero podía dispararle
+	# desde lejos y el enemy no se enteraba.
+	if attacker != null and is_instance_valid(attacker) and attacker.is_in_group("player"):
+		var atk_dead: bool = attacker.get("is_dead") == true
+		var atk_downed: bool = attacker.get("is_downed") == true
+		var atk_stealth_v: Variant = attacker.get("is_in_stealth")
+		var atk_stealth: bool = atk_stealth_v != null and atk_stealth_v == true
+		if not atk_dead and not atk_downed and not atk_stealth:
+			target = attacker
+
 	health -= amount
 	_flash_damage()
 

@@ -594,9 +594,13 @@ func _update_last_breath_and_torch() -> void:
 	if equipment != null and equipment.has_method("get_slot"):
 		entry = equipment.get_slot("light")
 	var has_torch: bool = not entry.is_empty() and entry.get("item_id", "") != ""
+	var panel_style: StyleBoxFlat = _torch_slot_panel.get_theme_stylebox("panel") as StyleBoxFlat
 	if has_torch:
 		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
 		var icon: Texture2D = item_data.get("icon", null)
+		# Estado prendida/apagada dicta el look del slot entero — canon UX
+		# 2026-04-23: prendida = fondo dorado "iluminando", apagada = gris normal.
+		var lit: bool = _player.get("_torch_light") != null
 		if icon != null:
 			_torch_slot_icon.texture = icon
 			_torch_slot_icon.visible = true
@@ -607,12 +611,22 @@ func _update_last_breath_and_torch() -> void:
 			_torch_slot_icon.visible = false
 			var item_name: String = String(item_data.get("name", "?"))
 			_torch_slot_placeholder.text = item_name.substr(0, 1).to_upper() if item_name.length() > 0 else "?"
-			_torch_slot_placeholder.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4, 1.0))
+			if lit:
+				# Placeholder más brillante + negrita visual cuando prendida.
+				_torch_slot_placeholder.add_theme_color_override("font_color", Color(1.0, 0.95, 0.6, 1.0))
+			else:
+				_torch_slot_placeholder.add_theme_color_override("font_color", Color(0.7, 0.6, 0.35, 1.0))
 			_torch_slot_placeholder.visible = true
-		# On/off — leemos directo del player. Si hay timer de duración (>0s),
-		# mostramos segundos restantes en lugar de "ON" — así el user ve si
-		# le queda poco combustible.
-		var lit: bool = _player.get("_torch_light") != null
+		# Panel background: dorado semi-transparente cuando prendida (efecto
+		# de iluminación visible), oscuro normal cuando apagada.
+		if panel_style != null:
+			if lit:
+				panel_style.bg_color = Color(1.0, 0.75, 0.25, 0.55)
+				panel_style.border_color = Color(1.0, 0.9, 0.4, 1.0)
+			else:
+				panel_style.bg_color = Color(0.1, 0.1, 0.1, 0.8)
+				panel_style.border_color = Color(0.3, 0.25, 0.15, 1.0)
+		# Status — si hay timer de duración (>0s), mostramos countdown.
 		if lit:
 			var time_left_v: Variant = _player.get("_torch_time_remaining")
 			var time_left: float = float(time_left_v) if time_left_v != null else 0.0
@@ -620,7 +634,7 @@ func _update_last_breath_and_torch() -> void:
 				_torch_slot_status.text = "%ds" % int(time_left)
 			else:
 				_torch_slot_status.text = "ON"
-			_torch_slot_status.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3, 1.0))
+			_torch_slot_status.add_theme_color_override("font_color", Color(1.0, 0.95, 0.5, 1.0))
 		else:
 			_torch_slot_status.text = "OFF"
 			_torch_slot_status.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 1.0))
@@ -633,3 +647,7 @@ func _update_last_breath_and_torch() -> void:
 		_torch_slot_placeholder.visible = true
 		_torch_slot_status.text = ""
 		_torch_slot_hint.visible = false
+		# Sin torch — panel en estado neutro.
+		if panel_style != null:
+			panel_style.bg_color = Color(0.1, 0.1, 0.1, 0.8)
+			panel_style.border_color = Color(0.3, 0.25, 0.15, 1.0)
