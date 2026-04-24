@@ -348,6 +348,13 @@ func equip_item(item_id: String, inventory_pos: Vector2i) -> bool:
 	mana_changed.emit(mana, max_mana)
 	equipment_changed.emit()
 	_save_inventory()
+
+	# UX: al equipar una antorcha (o cualquier item de slot "light"), si no hay
+	# luz activa, prenderla inmediato — un solo gesto "equipar y encender".
+	# El usuario todavía puede apagar/prender con F.
+	if slot == "light" and _torch_light == null:
+		toggle_torch()
+
 	return true
 
 ## Desequipa un item de un slot y lo devuelve al inventario.
@@ -492,7 +499,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_tree().reload_current_scene()
 		return
 
-	if is_dead:
+	# Bloqueo total en dead/downed — no atacar, no recoger, no castear, no toggle.
+	# Canon downed (MVP #5): player caído espera revive, no puede actuar. En
+	# singleplayer sin aliados, el timer de downed_time_s agota y pasa a muerte
+	# real. Mientras, el HUD captura R para respawn temprano (ver hud.gd).
+	if is_dead or is_downed:
 		return
 
 	# Interactuar con E — recoger items o abrir cofres

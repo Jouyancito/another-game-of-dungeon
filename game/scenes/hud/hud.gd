@@ -292,6 +292,10 @@ func connect_to_player(player: Node) -> void:
 	player.mana_changed.connect(_on_mana_changed)
 	player.xp_changed.connect(_on_xp_changed)
 	player.player_died.connect(_on_player_died)
+	if player.has_signal("player_downed"):
+		player.player_downed.connect(_on_player_downed)
+	if player.has_signal("player_revived"):
+		player.player_revived.connect(_on_player_revived)
 	player.level_up.connect(_on_level_up)
 	_on_health_changed(player.health, player.max_health)
 	_on_mana_changed(player.mana, player.max_mana)
@@ -365,5 +369,34 @@ func _on_player_died() -> void:
 	crosshair.visible = false
 	death_screen.visible = true
 	stat_indicator.visible = false
+	death_label.text = "Has caído\n\nPresioná [R] para volver al punto de partida"
 	var tween = create_tween()
 	tween.tween_property(death_screen, "color", Color(0, 0, 0, 0.7), 1.0)
+
+
+func _on_player_downed(_player_ref: BasePlayer) -> void:
+	# Canon MVP #5 — player caído, aliados pueden revivir. En singleplayer
+	# sin aliados, el downed_time_s tickea y termina en player_died. Mientras,
+	# permitimos R para respawn temprano — el user no está forzado a esperar 30s.
+	death_screen.visible = true
+	death_label.text = "Estás caído\n\nEsperá a un aliado o presioná [R] para rendirte y volver al punto de partida"
+	var tween = create_tween()
+	tween.tween_property(death_screen, "color", Color(0.3, 0, 0, 0.5), 0.4)
+
+
+func _on_player_revived(_player_ref: BasePlayer, _healer: Node) -> void:
+	# Revive cancela el fade — limpiar UI.
+	death_screen.visible = false
+	death_screen.color = Color(0, 0, 0, 0)
+	death_label.text = ""
+	crosshair.visible = true
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Respawn temprano — R durante downed o dead recarga la escena actual.
+	# Canon futuro: revive ritual en ciudad/gremio reemplazará este flow.
+	if not death_screen.visible:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_R:
+			get_tree().reload_current_scene()
