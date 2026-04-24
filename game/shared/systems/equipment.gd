@@ -17,6 +17,9 @@ const SLOT_NAMES := {
 	"ring_2": "Anillo 2",
 	"amulet": "Amuleto",
 	"cape": "Capa",
+	# Slot "light" — antorchas y fuentes de luz. No aplica stats de combate,
+	# maneja iluminación vía base_player._torch_light / toggle_torch.
+	"light": "Luz",
 }
 
 # slot_key → {item_id, quantity} o {} si vacío

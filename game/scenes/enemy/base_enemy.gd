@@ -441,6 +441,12 @@ func _validate_target() -> void:
 	var stealth: Variant = target.get("is_in_stealth")
 	if stealth != null and stealth == true:
 		target = null
+		return
+	# Canon downed (2026-04-23): player caído ya no es objetivo — enemies dropean
+	# el agro y buscan otro. Al revivir, la adquisición normal lo ficha de nuevo.
+	var downed: Variant = target.get("is_downed")
+	if downed != null and downed == true:
+		target = null
 
 
 # Adquiere el primer player válido del grupo "player" — viv@, no-stealth, valid.
@@ -454,6 +460,8 @@ func _try_acquire_target() -> void:
 			continue
 		if p.get("is_dead") == true:
 			continue
+		if p.get("is_downed") == true:
+			continue  # canon 2026-04-23: downed NO es objetivo
 		var stealth: Variant = p.get("is_in_stealth")
 		if stealth != null and stealth == true:
 			continue

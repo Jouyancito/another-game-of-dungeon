@@ -326,6 +326,11 @@ func equip_item(item_id: String, inventory_pos: Vector2i) -> bool:
 	# Verificar si el slot tiene item equipado que necesitaría volver al inventario
 	# Usar el MISMO resolver que Equipment.equip() para evitar mismatch ring_1/ring_2
 	var resolved_slot: String = equipment.resolve_slot(item_data)
+	# Guard: slot no reconocido por Equipment.SLOT_NAMES → rechazar ANTES de tocar
+	# el inventario. Evita perder el ítem si el .gd de Equipment no conoce el slot.
+	if resolved_slot == "":
+		push_warning("equip_item: slot '%s' no reconocido para '%s' — item NO equipado, queda en inventario" % [slot, item_id])
+		return false
 	var would_displace: Dictionary = equipment.slots.get(resolved_slot, {})
 	if not would_displace.is_empty():
 		var displaced_id: String = would_displace.get("item_id", "")
@@ -1049,9 +1054,12 @@ func _actual_die() -> void:
 		return
 	is_dead = true
 	is_downed = false
-	_remove_torch()
-	if animation_controller != null:
-		animation_controller.set_dead(true)
-	if TitleTracker:
-		TitleTracker.on_player_death()
+	# Emitir el signal PRIMERO — si algo más abajo explota (anim, title tracker),
+	# el HUD ya se actualizó. Antes teníamos el emit al final y un silent error
+	# dejaba al player en limbo sin death_screen.
 	player_died.emit()
+	_remove_torch()
+	if animation_controller != null and animation_controller.has_method("set_dead"):
+		animation_controller.set_dead(true)
+	if TitleTracker and TitleTracker.has_method("on_player_death"):
+		TitleTracker.on_player_death()
