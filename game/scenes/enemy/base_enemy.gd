@@ -272,7 +272,10 @@ func _physics_process(delta: float) -> void:
 	var distance = global_position.distance_to(target.global_position)
 	var should_chase = _should_pursue(distance)
 
-	if should_chase and distance <= detection_range:
+	# _should_pursue ya gestiona detection_range + alert flag internamente.
+	# Antes teníamos un doble check `and distance <= detection_range` acá que
+	# reintroducía el límite incluso cuando había alert por daño.
+	if should_chase:
 		_look_at_target()
 
 		if distance > attack_range:
