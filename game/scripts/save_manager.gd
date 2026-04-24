@@ -79,6 +79,34 @@ func _migrate_characters() -> void:
 			if not c.has("highest_floor"):
 				c["highest_floor"] = 1
 			c["version"] = 4
+			cur_version = 4
+			changed = true
+		if cur_version < 5:
+			# Canon 2026-04-24: torch migró de slot "light" a slot "off_hand".
+			# Saves viejos con items en equipment["light"] deben moverse a off_hand
+			# (si off_hand está vacío). Si off_hand ya tiene algo, el light item
+			# vuelve al inventario — el user decide cuál equipar.
+			var equip: Dictionary = c.get("equipment", {})
+			if equip.has("light"):
+				var light_entry = equip.get("light", {})
+				if light_entry is Dictionary and not (light_entry as Dictionary).is_empty():
+					var off_entry = equip.get("off_hand", {})
+					var off_empty: bool = not (off_entry is Dictionary) or (off_entry as Dictionary).is_empty()
+					if off_empty:
+						equip["off_hand"] = light_entry
+					else:
+						# Off_hand ocupado — dejar el torch en inventario.
+						var inv: Dictionary = c.get("inventory", {})
+						var items_arr: Variant = inv.get("items", [])
+						if items_arr is Array:
+							(items_arr as Array).append({
+								"item_id": (light_entry as Dictionary).get("item_id", ""),
+								"quantity": int((light_entry as Dictionary).get("quantity", 1)),
+								"grid_pos": Vector2i(0, 0),
+							})
+				equip.erase("light")
+				c["equipment"] = equip
+			c["version"] = 5
 			changed = true
 		# Safety net: saves con version=N pero campos faltantes (edit manual, save custom,
 		# carga parcial). Garantiza schema completo independiente del path de migración.

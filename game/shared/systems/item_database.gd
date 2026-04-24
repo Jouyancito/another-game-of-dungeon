@@ -766,7 +766,10 @@ func _register_items() -> void:
 		"id": "torch_wood",
 		"name": "Antorcha de Madera",
 		"description": "Una rama con tela y brea. Arde bien pero no dura mucho.",
-		"type": "light", "subtype": "torch", "slot": "light",
+		# Canon 2026-04-24: torch va a off_hand (no slot "light" específico).
+		# Items con stats.light_range > 0 en off_hand auto-iluminan. El slot
+		# "light" queda reservado para un futuro quick_use_slot genérico.
+		"type": "light", "subtype": "torch", "slot": "off_hand",
 		"grid_size": Vector2i(1, 2), "rarity": "common",
 		"stats": {
 			"light_range": 6.0,

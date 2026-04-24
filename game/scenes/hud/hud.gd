@@ -560,9 +560,9 @@ func _on_torch_slot_gui_input(event: InputEvent) -> void:
 			if _player.has_method("toggle_torch"):
 				_player.toggle_torch()
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			# Click der = desequipar y devolver al inventario.
+			# Click der = desequipar off_hand (donde vive la antorcha ahora).
 			if _player.has_method("unequip_slot"):
-				_player.unequip_slot("light")
+				_player.unequip_slot("off_hand")
 
 
 func _update_last_breath_and_torch() -> void:
@@ -588,12 +588,20 @@ func _update_last_breath_and_torch() -> void:
 	else:
 		_last_breath_panel.visible = false
 
-	# Torch slot — icon, placeholder (inicial del item si no hay textura) + ON/OFF.
+	# Torch slot — lee lo equipado en off_hand y muestra solo si tiene light_range.
+	# Canon 2026-04-24: torch vive en off_hand, no en slot "light". El slot del
+	# HUD sigue existiendo al lado del hotbar y muestra la fuente de luz actual
+	# (si la hay). Si off_hand tiene espada u otro item sin light, el HUD slot
+	# queda vacío con placeholder "F".
 	var equipment = _player.get("equipment")
 	var entry: Dictionary = {}
 	if equipment != null and equipment.has_method("get_slot"):
-		entry = equipment.get_slot("light")
-	var has_torch: bool = not entry.is_empty() and entry.get("item_id", "") != ""
+		entry = equipment.get_slot("off_hand")
+	var has_torch: bool = false
+	if not entry.is_empty() and entry.get("item_id", "") != "":
+		var off_data: Dictionary = ItemDatabase.get_item(entry["item_id"])
+		if float(off_data.get("stats", {}).get("light_range", 0.0)) > 0.0:
+			has_torch = true
 	var panel_style: StyleBoxFlat = _torch_slot_panel.get_theme_stylebox("panel") as StyleBoxFlat
 	if has_torch:
 		var item_data: Dictionary = ItemDatabase.get_item(entry["item_id"])

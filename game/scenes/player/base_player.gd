@@ -358,11 +358,16 @@ func equip_item(item_id: String, inventory_pos: Vector2i) -> bool:
 	equipment_changed.emit()
 	_save_inventory()
 
-	# UX: al equipar una antorcha (o cualquier item de slot "light"), si no hay
-	# luz activa, prenderla inmediato — un solo gesto "equipar y encender".
-	# El usuario todavía puede apagar/prender con F.
-	if slot == "light" and _torch_light == null:
-		toggle_torch()
+	# UX: al equipar cualquier item en off_hand que tenga stats.light_range > 0,
+	# auto-prender la luz. Si había un item previo iluminando, primero apagar.
+	# Canon 2026-04-24: torch se equipa en off_hand (no en slot "light" dedicado).
+	# El user todavía puede apagar/prender con F.
+	if slot == "off_hand":
+		if _torch_light != null:
+			_remove_torch()
+		var new_stats: Dictionary = item_data.get("stats", {})
+		if float(new_stats.get("light_range", 0.0)) > 0.0:
+			_equip_torch_item(item_id, item_data)
 
 	return true
 
@@ -379,6 +384,11 @@ func unequip_slot(slot_key: String) -> bool:
 	# Verificar que hay espacio en el inventario
 	if not inventory.has_space_for(item_id):
 		return false
+
+	# Si desequipamos off_hand y era la fuente de luz activa, apagar.
+	# Canon 2026-04-24: torch vive en off_hand.
+	if slot_key == "off_hand" and _torch_light != null:
+		_remove_torch()
 
 	equipment.unequip(slot_key)
 	inventory.auto_place_item(item_id, 1)
@@ -933,31 +943,30 @@ func save_progress() -> void:
 # ── Torch System (Phase 1 — sin sombras) ─────────────────────────────────────
 # Phase 2 (futuro): agregar shadow_enabled como setting de calidad del shader system.
 
-## Toggle: si no hay antorcha activa, buscar una (primero equipada en slot "light",
-## después en inventario) y activarla. Si hay una activa, apagarla.
-## Canon 2026-04-23 UX: la F debe encender lo que está equipado sin importar que
-## el item ya no esté en la grilla del inventario.
+## Toggle: si no hay luz activa, prender el item de off_hand (si tiene light_range).
+## Si hay luz activa, apagarla. Canon 2026-04-24: torch vive en off_hand, no en
+## slot "light" dedicado. El slot "light" queda reservado para futuro quick_use.
 func toggle_torch() -> void:
 	if _torch_light != null:
 		_remove_torch()
 		return
 
-	# 1) Primero el slot equipado "light" — si hay antorcha equipada, esa es la
-	# que el user espera que se encienda al apretar F.
-	if equipment != null:
-		var equipped: Dictionary = equipment.get_slot("light")
-		if not equipped.is_empty():
-			var equipped_id: String = String(equipped.get("item_id", ""))
-			if equipped_id != "":
-				var equipped_data: Dictionary = ItemDatabase.get_item(equipped_id)
-				if not equipped_data.is_empty() and equipped_data.get("type", "") == "light":
-					_equip_torch_item(equipped_id, equipped_data)
-					return
-
-	# NO fallback a inventario — canon 2026-04-24: F solo enciende lo equipado.
-	# Antes había fallback que auto-equipaba la primera antorcha del inventario,
-	# resultado: F prendía luz aunque el user "no tuviera antorcha" (estaba en
-	# la grilla, no en el slot). Ahora requiere equip explícito primero.
+	# Buscar item con light_range en off_hand — el único slot que puede iluminar.
+	if equipment == null:
+		return
+	var equipped: Dictionary = equipment.get_slot("off_hand")
+	if equipped.is_empty():
+		return
+	var equipped_id: String = String(equipped.get("item_id", ""))
+	if equipped_id == "":
+		return
+	var equipped_data: Dictionary = ItemDatabase.get_item(equipped_id)
+	if equipped_data.is_empty():
+		return
+	var stats: Dictionary = equipped_data.get("stats", {})
+	if float(stats.get("light_range", 0.0)) <= 0.0:
+		return  # off_hand no es item lumínico (espada, escudo, etc.)
+	_equip_torch_item(equipped_id, equipped_data)
 
 func _equip_torch_item(item_id: String, item_data: Dictionary) -> void:
 	var stats: Dictionary = item_data.get("stats", {})
