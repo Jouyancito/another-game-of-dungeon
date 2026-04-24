@@ -38,6 +38,11 @@ signal skill_hit(skill_id: StringName, enemy: Node, hit_position: Vector3)
 @export var dash_tween_duration_s: float = 0.3
 @export var dash_fov_pulse_deg: float = 5.0
 
+# G4-fix (Auditor 2 CRITICAL 2026-04-24): mult de combo cacheado para INSTANT +
+# combo_consume_all. _execute pre-consume el recurso y deja el mult aquí; luego
+# _compute_damage lo lee una sola vez y lo resetea. Sentinel -1.0 = no hay cache.
+var _pending_combo_mult: float = -1.0
+
 
 func _ready() -> void:
 	# Inicializar 8 slots null
@@ -296,6 +301,22 @@ func _gen_resource(skill: SkillResource, amount: int) -> void:
 				class_resource.add(amount)
 
 
+## G4-fix: consume combo PRE-cálculo y cachea el mult en _pending_combo_mult.
+## Se llama en _execute para skills INSTANT + combo_consume_all. Si no hay
+## multipliers declarados o no hay class_resource, deja sentinel 1.0 (no bonus).
+## Si points == 0, mult queda en 1.0 igual (no hay combo activo, skill dispara sin bonus).
+func _pre_consume_combo(skill: SkillResource) -> void:
+	_pending_combo_mult = 1.0
+	if skill.combo_damage_multipliers.size() == 0 or class_resource == null:
+		return
+	var points: int = class_resource.get_current()
+	if points <= 0:
+		return
+	var idx: int = clampi(points - 1, 0, skill.combo_damage_multipliers.size() - 1)
+	_pending_combo_mult = skill.combo_damage_multipliers[idx]
+	class_resource.consume(points)
+
+
 func _class_resource_type_to_cost_type(ct: int) -> int:
 	match ct:
 		ClassResource.Type.RAGE: return SkillResource.ResourceCostType.RAGE
@@ -325,6 +346,12 @@ func _execute(skill: SkillResource) -> void:
 	# G9: invul frames (Danzante dashes) — abre ventana de invul al castear
 	if skill.invul_duration_s > 0.0 and _owner_player != null:
 		_owner_player.set_meta("invul_time_left", skill.invul_duration_s)
+	# G4-fix: pre-consume de combo para INSTANT + combo_consume_all (Danzante
+	# finishers). Cachea el mult ANTES de _compute_damage para que el recurso y
+	# el daño se sincronicen aunque _compute_damage se re-lea desde múltiples
+	# paths (single/cone/aoe/dash). Mismo patrón atómico que _activate_channeled.
+	if skill.cast_type == SkillResource.CastType.INSTANT and skill.combo_consume_all:
+		_pre_consume_combo(skill)
 	# G10: summon — si skill tiene summon_data, instancia antes del execute main
 	if skill.summon_data != null:
 		_execute_summon(skill)
@@ -748,9 +775,18 @@ func _compute_damage(skill: SkillResource) -> float:
 			SkillResource.DamageFormulaType.TRUE_DAMAGE:
 				base = float(skill.base_damage)
 	# G4: combo points damage multiplier (Danzante finishers).
-	# Si combo_damage_multipliers no vacío, lee current combo del class_resource.
-	# CHANNELED: usa mult cacheado en _activate_channeled (ya consumió combo al inicio del canal).
-	if skill.combo_damage_multipliers.size() > 0 and class_resource != null:
+	# Prioridad de paths (orden importa):
+	#  1) Pre-consume path (INSTANT + combo_consume_all) — C commit 7e0f575:
+	#     _execute ya cacheó mult en _pending_combo_mult y consumió recurso.
+	#     Leer una sola vez y resetear sentinel.
+	#  2) CHANNELED — commit 76b2873: mult cacheado en _activate_channeled al
+	#     inicio del canal. Mantiene el mult uniforme en todos los ticks.
+	#  3) Legacy path — otros casts (no INSTANT+consume_all, no CHANNELED):
+	#     lee current combo + consume inline.
+	if _pending_combo_mult >= 0.0:
+		base *= _pending_combo_mult
+		_pending_combo_mult = -1.0
+	elif skill.combo_damage_multipliers.size() > 0 and class_resource != null:
 		if skill.cast_type == SkillResource.CastType.CHANNELED and active_toggles.has(skill.id):
 			base *= float(active_toggles[skill.id].get("combo_mult_cached", 1.0))
 		else:
