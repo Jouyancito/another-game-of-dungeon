@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Halo sutil violeta (stealth activa) -->
+  <defs>
+    <radialGradient id="veilGlow" cx="50%" cy="55%" r="50%">
+      <stop offset="0%" stop-color="#4A1F6E" stop-opacity="0.5"/>
+      <stop offset="70%" stop-color="#1A0F2E" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#18181F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="36" r="26" fill="url(#veilGlow)"/>
+
+  <!-- Luna creciente arriba (noche / canon Hijos de la Noche Austral) -->
+  <path d="M 42 10
+           A 8 8 0 1 0 46 22
+           A 6 6 0 1 1 42 10 Z"
+        fill="#F0ECD8"
+        opacity="0.85"/>
+
+  <!-- Máscara / capucha central — silueta del Danzante bajo el velo -->
+  <!-- Capucha superior -->
+  <path d="M 20 26 Q 32 14 44 26 L 44 32 Q 32 36 20 32 Z"
+        fill="#1A0F2E"
+        stroke="#4A1F6E"
+        stroke-width="1.5"/>
+
+  <!-- Sombra de cara (solo ojos visibles) -->
+  <rect x="24" y="28" width="16" height="5" fill="#0A0515"/>
+  <!-- Ojos violetas brillando en la oscuridad -->
+  <circle cx="28" cy="30.5" r="1.5" fill="#B890FF"/>
+  <circle cx="36" cy="30.5" r="1.5" fill="#B890FF"/>
+
+  <!-- Humo/velo envolvente (5 wisps) -->
+  <g fill="#4A1F6E" opacity="0.7">
+    <path d="M 14 42 Q 18 36 22 40 Q 20 46 14 42 Z"/>
+    <path d="M 42 42 Q 46 36 50 40 Q 48 46 42 42 Z"/>
+    <path d="M 20 52 Q 24 46 28 50 Q 26 56 20 52 Z"/>
+    <path d="M 36 52 Q 40 46 44 50 Q 42 56 36 52 Z"/>
+    <path d="M 28 56 Q 32 50 36 54 Q 34 60 28 56 Z"/>
+  </g>
+
+  <!-- Partículas de humo dispersas -->
+  <g fill="#8A5FCB">
+    <circle cx="10" cy="34" r="1"/>
+    <circle cx="54" cy="34" r="1"/>
+    <circle cx="12" cy="50" r="0.8"/>
+    <circle cx="52" cy="50" r="0.8"/>
+  </g>
+</svg>
