@@ -250,6 +250,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if target == null:
+		# Re-scan: player pudo haber spawneado DESPUÉS del _ready del enemy
+		# (change_scene + instanciación diferida). Intentamos adquirir cada frame en idle.
+		_try_acquire_target()
+	if target == null:
 		_idle_behavior(delta)
 		move_and_slide()
 		return
@@ -437,6 +441,24 @@ func _validate_target() -> void:
 	var stealth: Variant = target.get("is_in_stealth")
 	if stealth != null and stealth == true:
 		target = null
+
+
+# Adquiere el primer player válido del grupo "player" — viv@, no-stealth, valid.
+# Se llama desde _physics_process cuando target == null para re-scan continuo.
+# Fix necesario para casos change_scene + spawn diferido donde el enemy hizo
+# _ready antes que el player existiera en el tree.
+func _try_acquire_target() -> void:
+	var players := get_tree().get_nodes_in_group("player")
+	for p in players:
+		if not is_instance_valid(p):
+			continue
+		if p.get("is_dead") == true:
+			continue
+		var stealth: Variant = p.get("is_in_stealth")
+		if stealth != null and stealth == true:
+			continue
+		target = p
+		return
 
 
 func _look_at_target() -> void:
