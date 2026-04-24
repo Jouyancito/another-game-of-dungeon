@@ -9,6 +9,15 @@ enum TargetType { SELF, SINGLE_ENEMY, AOE, CONE, LINE, SUMMON, DUAL_MODE }
 enum ResourceCostType { NONE, RAGE, FE, MP, COMBO, CONCENTRACION, VIDA }
 enum DamageFormulaType { NONE, PHYSICAL_V2, MAGIC_V2, HEAL, TRUE_DAMAGE }
 enum HpCostType { NONE, FIXED, PERCENT_MAX, DRAIN_PER_SECOND }
+# Canon damage delivery 2026-04-23 — 3 modelos de daño que convive en el juego:
+#   NONE    → la skill NO usa el sistema de marks (single-hit o AoE clásicos)
+#   APPLY   → la skill aplica una marca al target (stackable hasta mark_max_stacks)
+#   CONSUME → la skill consume marcas presentes en el target y las convierte en
+#             daño amplificado (mark_damage_bonus_per_stack × stacks)
+# Modelos combinan con TargetType: un APPLY puede ser SINGLE_ENEMY (Swift Cut)
+# o AOE (un debuff en cono). Un CONSUME similar. Las marcas viven en el enemy,
+# no en el skill — skill solo declara qué hace con ellas.
+enum MarkBehavior { NONE, APPLY, CONSUME }
 
 # ── Identidad ───────────────────────────────────────────────────────────────
 @export var id: StringName = ""
@@ -106,6 +115,16 @@ enum HpCostType { NONE, FIXED, PERCENT_MAX, DRAIN_PER_SECOND }
 # "control_campo" / etc). Strings canon viven en Art Direction Bible §2
 # y _skill_tree_spec.md §1.
 @export var general_group: StringName = &""
+
+# ── G12: Mark system (canon 2026-04-23) ─────────────────────────────────────
+# Reserved schema para Fase 2. Lógica de runtime aún NO implementada en
+# player_skills.gd — cuando un skill canon lo pida, se wirea el dispatch.
+# Skills Fase 1 (Warrior/Mage/Danzante) usan mark_behavior == NONE.
+@export var mark_behavior: MarkBehavior = MarkBehavior.NONE
+@export var mark_id: StringName = &""                 # identificador canon (ej: "bleed_shadow", "soul_fragment")
+@export var mark_max_stacks: int = 1                  # cap de stacks por target
+@export var mark_duration_s: float = 0.0              # tiempo que dura la marca sin refresh
+@export var mark_damage_bonus_per_stack: float = 0.0  # mult extra que CONSUME aplica por stack
 
 # level_effects: efectos cualitativos por nivel — cada entry Dict con
 # {level: int, description: String}. Se renderizan en tooltip spec §3
