@@ -84,6 +84,11 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 	_validate_target()
 
+	# Re-scan igual que BaseEnemy — este override no pasa por super, así que
+	# el re-acquire del fix del agro debe replicarse acá para que el archer
+	# también fichara al player spawneado tarde.
+	if target == null:
+		_try_acquire_target()
 	if target == null:
 		_idle_behavior(delta)
 		move_and_slide()

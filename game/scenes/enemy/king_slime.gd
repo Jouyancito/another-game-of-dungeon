@@ -445,6 +445,11 @@ func _physics_process(delta: float) -> void:
 	_validate_target()
 	_contact_aura_tick(delta)
 
+	# Re-scan igual que BaseEnemy — override completo de _physics_process implica
+	# replicar el re-acquire del fix del agro para que el boss tampoco quede
+	# colgado si el player spawneó después.
+	if target == null:
+		_try_acquire_target()
 	if target == null:
 		velocity.x = 0.0
 		velocity.z = 0.0
