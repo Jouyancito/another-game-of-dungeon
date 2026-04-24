@@ -509,12 +509,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_tree().reload_current_scene()
 		return
 
-	# Bloqueo total en dead/downed — no atacar, no recoger, no castear, no toggle.
-	# Canon downed (MVP #5): player caído espera revive, no puede actuar. En
-	# singleplayer sin aliados, el timer de downed_time_s agota y pasa a muerte
-	# real. Mientras, el HUD captura R para respawn temprano (ver hud.gd).
+	# Bloqueo de acciones en dead/downed — no atacar, no recoger, no castear.
+	# Canon downed (MVP #5): player caído espera revive. Mientras, el HUD
+	# captura R para respawn temprano (ver hud.gd).
+	# La cámara (mouse motion) SIGUE libre — el user puede mirar alrededor.
 	if is_dead or is_downed:
-		return
+		if not (event is InputEventMouseMotion):
+			return
 
 	# Interactuar con E — recoger items o abrir cofres
 	if event.is_action_pressed("interact"):

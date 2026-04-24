@@ -38,12 +38,15 @@ var _torch_slot_panel: PanelContainer
 var _torch_slot_icon: TextureRect
 var _torch_slot_placeholder: Label
 var _torch_slot_status: Label
+var _torch_slot_hint: Label
 
 func _ready() -> void:
 	add_to_group("hud")
 	death_screen.visible = false
 	stat_indicator.visible = false
 	level_up_label.visible = false
+	# Font del death_label más chico y claro (antes 48 desde tscn).
+	death_label.add_theme_font_size_override("font_size", 22)
 	_build_pickup_hint()
 	_build_target_frame()
 	_wire_hotbar_slots()
@@ -389,15 +392,15 @@ func _on_player_died() -> void:
 	# Transición inmediata — sin tween — para que el user vea el cambio claro.
 	# El tween previo era invisible si venía de _on_player_downed (ya era rojizo).
 	death_screen.color = Color(0, 0, 0, 0.85)
-	death_label.text = "HAS CAÍDO\n\nPresioná [R] para volver al punto de partida"
+	death_label.text = "HAS CAÍDO\n\n[R] para volver al punto de partida"
 
 
 func _on_player_downed(_player_ref: BasePlayer) -> void:
 	# Canon MVP #5 — player caído, aliados pueden revivir. En singleplayer
 	# sin aliados, el downed_time_s tickea y termina en player_died. Mientras,
-	# permitimos R para respawn temprano — el user no está forzado a esperar 30s.
+	# permitimos R para respawn temprano — el user no está forzado a esperar.
 	death_screen.visible = true
-	death_label.text = "Estás caído\n\nEsperá a un aliado o presioná [R] para rendirte y volver al punto de partida"
+	death_label.text = "ESTÁS CAÍDO\n\nEsperá a un aliado\no [R] para rendirte"
 	var tween = create_tween()
 	tween.tween_property(death_screen, "color", Color(0.3, 0, 0, 0.5), 0.4)
 
@@ -425,33 +428,33 @@ func _unhandled_input(event: InputEvent) -> void:
 # ──────────────────────────────────────────────────────────────────────
 
 func _build_last_breath_bar() -> void:
-	# Tamaño reducido + centrado abajo del centro (pedido user 2026-04-23).
+	# Barra grande arriba centrada (pedido user 2026-04-23 round 2).
 	_last_breath_panel = PanelContainer.new()
 	_last_breath_panel.anchor_left = 0.5
 	_last_breath_panel.anchor_right = 0.5
-	_last_breath_panel.anchor_top = 0.5
-	_last_breath_panel.anchor_bottom = 0.5
-	_last_breath_panel.offset_left = -90.0
-	_last_breath_panel.offset_right = 90.0
-	_last_breath_panel.offset_top = 60.0
-	_last_breath_panel.offset_bottom = 95.0
+	_last_breath_panel.anchor_top = 0.0
+	_last_breath_panel.anchor_bottom = 0.0
+	_last_breath_panel.offset_left = -180.0
+	_last_breath_panel.offset_right = 180.0
+	_last_breath_panel.offset_top = 40.0
+	_last_breath_panel.offset_bottom = 100.0
 	_last_breath_panel.visible = false
 	_last_breath_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_theme_constant_override("separation", 1)
+	vbox.add_theme_constant_override("separation", 3)
 	_last_breath_panel.add_child(vbox)
 
 	_last_breath_label = Label.new()
 	_last_breath_label.text = "ÚLTIMO ALIENTO"
 	_last_breath_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_last_breath_label.add_theme_font_size_override("font_size", 8)
+	_last_breath_label.add_theme_font_size_override("font_size", 14)
 	_last_breath_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3, 1.0))
 	vbox.add_child(_last_breath_label)
 
 	_last_breath_bar = ProgressBar.new()
-	_last_breath_bar.custom_minimum_size = Vector2(160, 10)
+	_last_breath_bar.custom_minimum_size = Vector2(320, 22)
 	_last_breath_bar.show_percentage = false
 	_last_breath_bar.max_value = 1.0
 	_last_breath_bar.value = 1.0
@@ -522,11 +525,27 @@ func _build_torch_slot() -> void:
 	_torch_slot_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_torch_slot_status.anchor_left = 1.0
 	_torch_slot_status.anchor_right = 1.0
-	_torch_slot_status.offset_left = -20.0
+	_torch_slot_status.offset_left = -24.0
 	_torch_slot_status.offset_top = 2.0
 	_torch_slot_status.offset_right = -2.0
 	_torch_slot_status.offset_bottom = 14.0
 	_torch_slot_panel.add_child(_torch_slot_status)
+
+	# Hint permanente abajo del slot — dice cómo desequipar. Solo visible
+	# cuando hay torch equipada (sino no hay qué quitar, es ruido visual).
+	_torch_slot_hint = Label.new()
+	_torch_slot_hint.text = "RMB=quitar"
+	_torch_slot_hint.add_theme_font_size_override("font_size", 7)
+	_torch_slot_hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 0.9))
+	_torch_slot_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_torch_slot_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_torch_slot_hint.anchor_left = 0.0
+	_torch_slot_hint.anchor_right = 1.0
+	_torch_slot_hint.anchor_top = 1.0
+	_torch_slot_hint.anchor_bottom = 1.0
+	_torch_slot_hint.offset_top = -10.0
+	_torch_slot_hint.visible = false
+	_torch_slot_panel.add_child(_torch_slot_hint)
 
 	_torch_slot_panel.gui_input.connect(_on_torch_slot_gui_input)
 	hotbar_slots.add_child(_torch_slot_panel)
@@ -549,6 +568,13 @@ func _on_torch_slot_gui_input(event: InputEvent) -> void:
 func _update_last_breath_and_torch() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
+
+	# Fallback defensivo: si el signal player_died no llegó al HUD por lo que
+	# sea (orden de init, reload a medias, error silencioso en _actual_die),
+	# este tick detecta is_dead y fuerza la transición a death_screen.
+	var dead: bool = _player.get("is_dead") == true
+	if dead and not death_screen.visible:
+		_on_player_died()
 
 	# Last breath bar — visible solo durante is_downed.
 	var downed: bool = _player.get("is_downed") == true
@@ -583,14 +609,22 @@ func _update_last_breath_and_torch() -> void:
 			_torch_slot_placeholder.text = item_name.substr(0, 1).to_upper() if item_name.length() > 0 else "?"
 			_torch_slot_placeholder.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4, 1.0))
 			_torch_slot_placeholder.visible = true
-		# On/off — leemos directo del player.
+		# On/off — leemos directo del player. Si hay timer de duración (>0s),
+		# mostramos segundos restantes en lugar de "ON" — así el user ve si
+		# le queda poco combustible.
 		var lit: bool = _player.get("_torch_light") != null
 		if lit:
-			_torch_slot_status.text = "ON"
+			var time_left_v: Variant = _player.get("_torch_time_remaining")
+			var time_left: float = float(time_left_v) if time_left_v != null else 0.0
+			if time_left > 0.0:
+				_torch_slot_status.text = "%ds" % int(time_left)
+			else:
+				_torch_slot_status.text = "ON"
 			_torch_slot_status.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3, 1.0))
 		else:
 			_torch_slot_status.text = "OFF"
 			_torch_slot_status.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55, 1.0))
+		_torch_slot_hint.visible = true
 	else:
 		_torch_slot_icon.texture = null
 		_torch_slot_icon.visible = false
@@ -598,3 +632,4 @@ func _update_last_breath_and_torch() -> void:
 		_torch_slot_placeholder.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 0.7))
 		_torch_slot_placeholder.visible = true
 		_torch_slot_status.text = ""
+		_torch_slot_hint.visible = false
