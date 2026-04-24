@@ -113,17 +113,19 @@ func _build_ui() -> void:
 	style.corner_radius_bottom_left  = 8
 	panel.add_theme_stylebox_override("panel", style)
 
-	# Posición: apoyado arriba del inventario, mismo borde derecho (estilo PoE)
-	# Inventario está en bottom-right con offset_top = -370, así que el equipment
-	# termina 4px arriba de eso y se extiende hacia arriba.
-	panel.anchor_left   = 1.0
+	# Posición canon 2026-04-24: pegado a la derecha del inventario (que ahora
+	# está en bottom-center sobre el hotbar). Mismo top/bottom que el inv para
+	# alinear visualmente — alto 360, ancho 300, gap 4px del borde derecho del inv.
+	# Inventario tiene anchor 0.5/1.0 con offset_left=-285 / offset_right=285 /
+	# offset_top=-450 / offset_bottom=-90. El equipment empieza en 285+4=289.
+	panel.anchor_left   = 0.5
 	panel.anchor_top    = 1.0
-	panel.anchor_right  = 1.0
+	panel.anchor_right  = 0.5
 	panel.anchor_bottom = 1.0
-	panel.offset_left   = -310.0
-	panel.offset_top    = -824.0
-	panel.offset_right  = -10.0
-	panel.offset_bottom = -374.0
+	panel.offset_left   = 289.0
+	panel.offset_top    = -450.0
+	panel.offset_right  = 589.0
+	panel.offset_bottom = -90.0
 	add_child(panel)
 
 	# --- Margin ---
