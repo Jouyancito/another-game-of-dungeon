@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/skills/skill_resource.gd" id="1_skres"]
+
+[resource]
+script = ExtResource("1_skres")
+id = &"archer_precise_shot"
+class_id = &"archer"
+display_name = "Disparo Preciso"
+description = "Proyectil flecha 40m. Headshot = crit ×1.5. Gen +3 Conc hit / +10 headshot / -5 miss. Canon archer.md §3 SKILL 1."
+cast_type = 0
+target_type = 1
+range_m = 40.0
+radius_m = 0.0
+cone_angle_deg = 0.0
+resource_cost = 0
+resource_type = 3
+secondary_resource_cost = 0
+secondary_resource_type = 0
+hp_cost_type = 0
+hp_cost_value = 0.0
+cooldown_s = 0.3
+damage_formula = 1
+base_damage = 12
+status_applied = Array[StringName]([])
+status_duration_s = 0.0
+resource_gen_on_hit = 3
+resource_gen_on_cast = 0
+resource_gen_per_target = 0
+resource_gen_type = 5
+unlock_level = 1
+max_skill_level = 15
+evolution_id = &"archer_true_eye"
+tags = Array[StringName]([&"physical", &"projectile", &"single", &"headshot"])
+dash_distance_m = 0.0
+tick_interval_s = 0.0
+tick_resource_cost = 0
+reactive_window_s = 0.0
+reflect_ratio = 0.0
+reactive_rage_on_success = 0
+ally_damage_bonus_pct = 0.0
+combo_consume_all = false
+combo_damage_multipliers = PackedFloat32Array()
+charge_max_seconds = 0.0
+charge_damage_multiplier_max = 1.0
+invul_duration_s = 0.0
+quest_gate = &""
