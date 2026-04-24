@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Explosión radial violeta (4s invul burst) -->
+  <defs>
+    <radialGradient id="burstGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#B890FF" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#6E3FA8" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1A0F2E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="28" fill="url(#burstGlow)"/>
+
+  <!-- 5 afterimages del Danzante en abanico (izq → der) -->
+  <!-- Afterimage 1 — extremo izq, más transparente -->
+  <g opacity="0.28">
+    <circle cx="10" cy="32" r="3" fill="#4A1F6E"/>
+    <path d="M 7 35 L 13 35 L 14 48 L 6 48 Z" fill="#4A1F6E"/>
+  </g>
+
+  <!-- Afterimage 2 -->
+  <g opacity="0.45">
+    <circle cx="19" cy="30" r="3.2" fill="#6E3FA8"/>
+    <path d="M 16 33 L 22 33 L 23 48 L 15 48 Z" fill="#6E3FA8"/>
+  </g>
+
+  <!-- Afterimage 3 — centro, más opaco (real o main image) -->
+  <g opacity="0.95">
+    <circle cx="32" cy="28" r="4" fill="#B890FF" stroke="#F0ECD8" stroke-width="1"/>
+    <path d="M 28 32 L 36 32 L 37 50 L 27 50 Z"
+          fill="#4A1F6E"
+          stroke="#B890FF"
+          stroke-width="1"/>
+    <!-- 2 armas cruzadas (dagas duales) -->
+    <path d="M 22 40 L 30 32 L 32 34 L 24 42 Z" fill="#F0ECD8" stroke="#1A0F2E" stroke-width="0.5"/>
+    <path d="M 42 40 L 34 32 L 32 34 L 40 42 Z" fill="#F0ECD8" stroke="#1A0F2E" stroke-width="0.5"/>
+  </g>
+
+  <!-- Afterimage 4 -->
+  <g opacity="0.45">
+    <circle cx="45" cy="30" r="3.2" fill="#6E3FA8"/>
+    <path d="M 42 33 L 48 33 L 49 48 L 41 48 Z" fill="#6E3FA8"/>
+  </g>
+
+  <!-- Afterimage 5 — extremo der -->
+  <g opacity="0.28">
+    <circle cx="54" cy="32" r="3" fill="#4A1F6E"/>
+    <path d="M 51 35 L 57 35 L 58 48 L 50 48 Z" fill="#4A1F6E"/>
+  </g>
+
+  <!-- Grid de trails de corte (líneas violeta erráticas) -->
+  <g stroke="#B890FF" stroke-width="1.2" stroke-linecap="round" opacity="0.8" fill="none">
+    <line x1="6" y1="20" x2="14" y2="16"/>
+    <line x1="50" y1="16" x2="58" y2="20"/>
+    <line x1="10" y1="56" x2="18" y2="52"/>
+    <line x1="46" y1="52" x2="54" y2="56"/>
+    <line x1="22" y1="14" x2="28" y2="18"/>
+    <line x1="36" y1="18" x2="42" y2="14"/>
+  </g>
+
+  <!-- Destellos blancos (hits simultáneos) -->
+  <g fill="#F0ECD8">
+    <circle cx="8" cy="18" r="1"/>
+    <circle cx="56" cy="18" r="1"/>
+    <circle cx="12" cy="54" r="0.8"/>
+    <circle cx="52" cy="54" r="0.8"/>
+  </g>
+</svg>

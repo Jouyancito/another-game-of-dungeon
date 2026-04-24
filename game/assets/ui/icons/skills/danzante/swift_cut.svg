@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Frame bg — canon toon: dark #18181F + stroke #3A3A42 rx6 -->
+  <rect x="2" y="2" width="60" height="60" rx="6" fill="#18181F" stroke="#3A3A42" stroke-width="2"/>
+
+  <!-- Glow violeta medianoche detrás de los cortes -->
+  <defs>
+    <radialGradient id="cutGlow" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#6E3FA8" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#1A0F2E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="24" fill="url(#cutGlow)"/>
+
+  <!-- 3 trails de corte en diagonal (cadena: los 2 primeros violeta, el 3ro rojo sangre bleed) -->
+  <!-- Corte 1 — violeta suave -->
+  <path d="M 10 50 Q 28 38 50 18"
+        stroke="#6E3FA8"
+        stroke-width="3"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.55"/>
+  <!-- Corte 2 — violeta medio, desplazado -->
+  <path d="M 14 54 Q 32 42 54 22"
+        stroke="#8A5FCB"
+        stroke-width="3"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.75"/>
+  <!-- Corte 3 — rojo sangre (bleed aplicado en 3er hit) -->
+  <path d="M 18 58 Q 36 46 58 26"
+        stroke="#C52A3E"
+        stroke-width="3.5"
+        stroke-linecap="round"
+        fill="none"/>
+
+  <!-- Hoja curva (kunai/cuchillo ritual) sobre el 3er corte -->
+  <path d="M 16 56 Q 34 44 50 28 L 52 32 Q 38 46 20 58 Z"
+        fill="#B890FF"
+        stroke="#F0ECD8"
+        stroke-width="1"
+        opacity="0.9"/>
+
+  <!-- Empuñadura -->
+  <path d="M 52 30 L 56 26 L 58 28 L 54 32 Z"
+        fill="#1A0F2E"
+        stroke="#3A3A42"
+        stroke-width="1"/>
+
+  <!-- Chispas del 3er corte (tono rojo-violeta) -->
+  <g stroke="#F0ECD8" stroke-width="1.5" stroke-linecap="round">
+    <line x1="48" y1="18" x2="52" y2="14"/>
+    <line x1="56" y1="24" x2="60" y2="22"/>
+    <line x1="44" y1="14" x2="46" y2="10"/>
+  </g>
+</svg>
