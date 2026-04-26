@@ -21,6 +21,9 @@ desktop.ini
 .dept-status/*.json
 !.dept-status/README.md
 
+# Claude Code coordination state (local per-worker)
+.claude/
+
 # Test artifacts
 .test-hook
 INFORME_PERSONAL.md
