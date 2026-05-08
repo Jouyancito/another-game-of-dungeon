@@ -4,8 +4,9 @@ extends BaseEnemy
 ## Vuela alto y deambula en círculos. Solo ataca si lo provocan.
 ## Ataque especial: agarra al jugador y lo suelta — daño base + 5 de caída.
 
-# Vuelo
-@export var fly_height := 5.0
+# Vuelo — canon fauna_spec.md Fase 1 (2026-05-07): halcón verdadero, alto 10m.
+# Fuera del range de arco normal en altura. Solo atacable durante DIVING (y<=1.5).
+@export var fly_height := 14.0
 @export var wander_radius := 8.0
 @export var wander_interval := 3.0
 @export var dive_speed := 12.0
@@ -29,16 +30,19 @@ func _on_enemy_ready() -> void:
 	spawn_position = global_position
 	spawn_position.y = fly_height
 	global_position.y = fly_height
+	dive_cooldown = 2.0  # Delay primer dive — da tiempo a circular cuando se provoca
 	_pick_wander_target()
 	mesh.visible = false
 	var old_beak: Node = get_node_or_null("Beak")
 	if old_beak:
 		old_beak.visible = false
+	# Mesh canon fauna_spec.md Fase 1 — escalado para que sea visible desde abajo a 10m.
+	# Body 0.35 (antes 0.2), alas 0.7 (antes 0.4), cola 0.4 (antes 0.25).
 	var model := EnemyModelBuilder.build_flyer(
 		default_color,
-		0.2,
-		0.4,
-		0.25
+		0.35,
+		0.7,
+		0.4
 	)
 	model.name = "Model"
 	add_child(model)
@@ -49,7 +53,13 @@ func _apply_gravity(_delta: float) -> void:
 	if state == HawkState.IDLE or state == HawkState.CIRCLING:
 		velocity.y = (fly_height - global_position.y) * 3.0
 	elif state == HawkState.RETREATING:
-		velocity.y = (fly_height - global_position.y) * 5.0
+		# Subida simétrica al dive — el descenso usa dive_speed*0.6 (~7 m/s),
+		# el lift debe ser ~7 m/s para sentirse natural, no más rápido que la picada.
+		velocity.y = (fly_height - global_position.y) * 0.5
+	elif state == HawkState.DIVING:
+		# Cerca del suelo, no clavarse — corta caída
+		if global_position.y <= 1.0:
+			velocity.y = maxf(velocity.y, 0.0)
 
 
 func _should_pursue(distance: float) -> bool:
@@ -126,11 +136,15 @@ func _move_toward_target(delta: float) -> void:
 				state = HawkState.DIVING
 
 		HawkState.DIVING:
-			# Picada directa hacia el jugador — más veloz que el ave común
+			# Picada directa hacia el jugador — descenso controlado (Y más lento que XZ)
 			var direction = (target.global_position - global_position).normalized()
 			velocity.x = direction.x * dive_speed
 			velocity.z = direction.z * dive_speed
-			velocity.y = direction.y * dive_speed
+			velocity.y = direction.y * dive_speed * 0.6
+
+			# Guard: cerca del suelo, no clavarse — frenar caída antes del hit
+			if global_position.y <= 1.5:
+				velocity.y = maxf(velocity.y, 0.0)
 
 			_look_at_target()
 
@@ -139,28 +153,61 @@ func _move_toward_target(delta: float) -> void:
 				if can_attack and target.has_method("take_damage"):
 					perform_attack()
 				state = HawkState.RETREATING
-				dive_cooldown = 2.0
+				dive_cooldown = 3.5  # tiempo de subir + circular antes próxima picada
+				# Despegarse del player — sino CharacterBody3D collision lo deja
+				# pegado al cuerpo y daño constante. Reset velocity x/z hacia AFUERA
+				# del player + teleport vertical para romper collision instantáneo.
+				var away: Vector3 = global_position - target.global_position
+				away.y = 0
+				if away.length() < 0.1:
+					away = Vector3.RIGHT
+				away = away.normalized()
+				velocity.x = away.x * dive_speed * 1.2
+				velocity.z = away.z * dive_speed * 1.2
 				velocity.y = 8.0  # Impulso fuerte hacia arriba (simula soltar)
+				# Teleport up 1.5m para romper collision con player CharacterBody3D.
+				global_position.y += 1.5
 
 		HawkState.RETREATING:
 			# Subiendo — _idle_behavior maneja la subida
 			pass
 
 
-## Agarre: daño base + 5 de daño de caída (dos hits separados)
+## Agarre: daño base + 5 de daño de caída (dos hits separados).
+## Push-back inmediato post-hit: base_enemy._physics_process pone velocity=0
+## ANTES de llamar perform_attack, así que setear vel hacia afuera DENTRO de
+## este método es la única forma de despegarse del player.
 func perform_attack() -> void:
 	can_attack = false
 	if is_instance_valid(target):
-		target.take_damage(damage)
+		target.take_damage(damage * outgoing_damage_mult(), "", self)
+		_retreat_push()
 		# Daño de caída — se aplica con pequeño delay, simula el drop
 		await get_tree().create_timer(0.15).timeout
 		if is_instance_valid(target):
-			target.take_damage(5.0)
+			target.take_damage(5.0, "", self)
 	await get_tree().create_timer(attack_cooldown).timeout
 	if not is_instance_valid(self):
 		return
 	if not is_dead:
 		can_attack = true
+
+
+func _retreat_push() -> void:
+	# Continuar la dirección del vuelo (forward) en vez de invertir hacia atrás.
+	# Realismo: un ave que pica no frena y vuelve por donde vino — atraviesa la presa
+	# y sigue el arco hacia adelante, ganando altura gradualmente.
+	state = HawkState.RETREATING
+	dive_cooldown = 3.5
+	var forward: Vector3 = -global_transform.basis.z
+	forward.y = 0
+	if forward.length() < 0.1:
+		forward = Vector3.FORWARD
+	forward = forward.normalized()
+	velocity.x = forward.x * dive_speed * 0.8
+	velocity.z = forward.z * dive_speed * 0.8
+	velocity.y = 3.0  # Impulso vertical menor — _apply_gravity hace el lift gradual
+	global_position.y += 1.5  # Romper collision con player CharacterBody3D
 
 
 func _pick_wander_target() -> void:

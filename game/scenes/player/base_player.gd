@@ -655,22 +655,38 @@ func _physics_process(delta: float) -> void:
 	head.position.y = lerpf(head.position.y, target_head_y, crouch_lerp_speed * delta)
 	collider.shape.height = lerpf(collider.shape.height, target_collider_h, crouch_lerp_speed * delta)
 
-	# Saltar (no agachado)
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching:
+	# Channel lock — durante una skill canalizada (Lluvia de Flechas) el player
+	# queda quieto: no salta, no sprintea, no se mueve. Cámara queda libre para
+	# apuntar el AoE con el cursor.
+	var channeling: bool = skills != null and skills.is_channeling()
+
+	# Fix 2026-05-08: knockback durante canal NO se silencia. Antes el branch
+	# `channeling` ponía velocity.x/z=0 después del knockback assign, dejando al
+	# enemy golem golpeando sin push real. Política: knockback ROMPE el canal,
+	# pierde el cast pero no hay drop silencioso.
+	if channeling and being_knocked and skills != null:
+		skills.clear_all_active_skills()
+		channeling = false  # re-evaluar branches abajo como no-canalizando
+
+	# Saltar (no agachado, no canalizando)
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not channeling:
 		velocity.y = jump_velocity
 
 	# Velocidad según estado
 	var current_speed := speed
 	if is_crouching:
 		current_speed = crouch_speed
-	elif Input.is_action_pressed("sprint"):
+	elif Input.is_action_pressed("sprint") and not channeling:
 		current_speed = sprint_speed
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	# Si está en knockback, el input NO manda — prevalece la velocidad del golpe
-	if not being_knocked:
+	if channeling:
+		# Lock x/z — gravity (velocity.y) sigue para no quedar suspendido en el aire.
+		velocity.x = 0.0
+		velocity.z = 0.0
+	elif not being_knocked:
 		if direction:
 			velocity.x = direction.x * current_speed
 			velocity.z = direction.z * current_speed

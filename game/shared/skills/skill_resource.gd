@@ -76,6 +76,10 @@ enum MarkBehavior { NONE, APPLY, CONSUME }
 # ── TOGGLE / CHANNELED (aura o canal recurrente) ────────────────────────────
 @export var tick_interval_s: float = 0.0
 @export var tick_resource_cost: int = 0
+# Duración máxima del canal (CHANNELED). 0 = sin límite (apaga por MP-out o user stop).
+# >0 = auto-stop después de N segundos. Previene que un canal sea la "skill única"
+# usada toda la pelea — fuerza al jugador a alternar herramientas.
+@export var channel_max_s: float = 0.0
 
 # ── REACTIVE (ventana parry/dodge) ──────────────────────────────────────────
 @export var reactive_window_s: float = 0.0

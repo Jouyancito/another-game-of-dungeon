@@ -501,11 +501,19 @@ func perform_attack() -> void:
 		# Weak reduce dmg saliente −25% (canon §2.3).
 		# Pasar self como attacker permite que el player gatille Bloqueo Perfecto reflejo.
 		target.take_damage(damage * outgoing_damage_mult(), "", self)
+		_on_post_attack_hit()
 	await get_tree().create_timer(attack_cooldown).timeout
 	if not is_instance_valid(self):
 		return
 	if not is_dead:
 		can_attack = true
+
+
+## Hook virtual — se llama justo después del take_damage exitoso de perform_attack().
+## Default no-op. Override en subclases (bird) para push-back, knockback custom, etc.
+## DRY-fix 2026-05-08: bird ya no necesita override perform_attack completo.
+func _on_post_attack_hit() -> void:
+	pass
 
 
 func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0, attacker_str := 0, attacker: Node = null, element: String = "physical", is_crit: bool = false) -> void:

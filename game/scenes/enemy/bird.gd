@@ -59,7 +59,9 @@ func _apply_gravity(_delta: float) -> void:
 	if state == BirdState.IDLE or state == BirdState.CIRCLING:
 		velocity.y = (_current_fly_y - global_position.y) * 3.0
 	elif state == BirdState.RETREATING:
-		velocity.y = (_current_fly_y - global_position.y) * 5.0
+		# Subida simétrica al dive. Bird usa dive_speed=8 sin multiplier en y, así
+		# que descenso ~6 m/s. Lift debe estar en mismo orden de magnitud.
+		velocity.y = (_current_fly_y - global_position.y) * 0.6
 
 
 func _should_pursue(distance: float) -> bool:
@@ -145,17 +147,41 @@ func _move_toward_target(delta: float) -> void:
 
 			_look_at_target()
 
-			# Si llegó al rango de ataque o tocó el suelo, atacar y retirarse
+			# Si llegó al rango de ataque o tocó el suelo, atacar.
+			# El push-back / state→RETREATING / teleport están en _on_post_attack_hit
+			# (hook canon BaseEnemy 2026-05-08). NO repetir inline acá: causaría
+			# doble teleport (y+=2.4) y velocity en direcciones que se pelean.
 			if distance_to_target <= attack_range or global_position.y <= 0.5:
 				if can_attack and target.has_method("take_damage"):
 					perform_attack()
-				state = BirdState.RETREATING
-				dive_cooldown = 2.5
-				velocity.y = 6.0  # Impulso hacia arriba
 
 		BirdState.RETREATING:
 			# Subiendo — no perseguir, _idle_behavior maneja la subida
 			pass
+
+
+## DRY-fix 2026-05-08: el daño + cooldown loop vive en BaseEnemy.perform_attack.
+## Bird solo necesita el push-back post-hit — _on_post_attack_hit es el hook canon.
+## Sin esto, base_enemy._physics_process ponía velocity=0 antes de perform_attack
+## y dejaba al ave pegada al player.
+func _on_post_attack_hit() -> void:
+	_retreat_push()
+
+
+func _retreat_push() -> void:
+	# Continuar dirección del vuelo (forward), no invertir hacia atrás.
+	# Las aves atraviesan la presa y siguen el arco — más natural.
+	state = BirdState.RETREATING
+	dive_cooldown = 2.5
+	var forward: Vector3 = -global_transform.basis.z
+	forward.y = 0
+	if forward.length() < 0.1:
+		forward = Vector3.FORWARD
+	forward = forward.normalized()
+	velocity.x = forward.x * dive_speed * 0.8
+	velocity.z = forward.z * dive_speed * 0.8
+	velocity.y = 2.5  # Impulso vertical menor — _apply_gravity hace el lift
+	global_position.y += 1.2  # Romper collision con player CharacterBody3D
 
 
 func _pick_wander_target() -> void:

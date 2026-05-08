@@ -43,6 +43,11 @@ signal skill_hit(skill_id: StringName, enemy: Node, hit_position: Vector3)
 # _compute_damage lo lee una sola vez y lo resetea. Sentinel -1.0 = no hay cache.
 var _pending_combo_mult: float = -1.0
 
+# Perf cache 2026-05-08: contar canales activos en O(1). Mantener sincro en
+# _activate_channeled (++) y _deactivate_toggle (-- si is_channeled). Reemplaza
+# scan dict en is_channeling() — evita iterar 8 toggles cada frame.
+var _channeling_active_count: int = 0
+
 
 func _ready() -> void:
 	# Inicializar 8 slots null
@@ -55,6 +60,31 @@ func setup(player: Node, resource: ClassResource = null) -> void:
 	# Defensive: resize aunque _ready todavía no haya corrido (tests, flujos alternos).
 	if hotbar.size() != HOTBAR_SIZE:
 		hotbar.resize(HOTBAR_SIZE)
+	# Cleanup hook 2026-05-08: si el player tiene player_died, limpiar todos los toggles
+	# activos (preview_node leak, hp drain rogue, etc) cuando el player muera real.
+	if _owner_player != null and _owner_player.has_signal("player_died"):
+		if not _owner_player.player_died.is_connected(_on_player_died):
+			_owner_player.player_died.connect(_on_player_died)
+
+
+## Limpieza al morir — apaga TODO toggle/canal activo, free de previews.
+## Evita el leak donde el preview_node sigue en la escena después de muerte
+## y la skill quedaba "fantasma" en active_toggles sin owner válido.
+func _on_player_died() -> void:
+	clear_all_active_skills()
+
+
+## Cierra todos los toggles/canales activos. Para canales aplica cooldown vía
+## stop_channel(); para toggles regulares simplemente desactiva. Se puede llamar
+## desde death, knockback que rompe canal, scene transitions, etc.
+func clear_all_active_skills() -> void:
+	# Iterar sobre copia de keys — _deactivate_toggle/stop_channel modifican active_toggles.
+	for id in active_toggles.keys():
+		var data: Dictionary = active_toggles.get(id, {})
+		if data.get("is_channeled", false):
+			stop_channel(id)
+		else:
+			_deactivate_toggle(id)
 
 
 ## Asigna una skill a un slot del hotbar (0-7). Reemplaza lo que había.
@@ -124,6 +154,12 @@ func cast_skill(skill: SkillResource) -> bool:
 		_deactivate_toggle(skill.id)
 		skill_cast.emit(skill.id, true, "toggle_off")
 		return true
+	# CHANNELED: re-apretar la misma key apaga el canal (UX hotbar TAP, no HOLD).
+	# Sin esto el canal queda atrapado hasta que se vacía MP. Inicia cooldown.
+	if skill.cast_type == SkillResource.CastType.CHANNELED and active_toggles.has(skill.id):
+		stop_channel(skill.id)
+		skill_cast.emit(skill.id, true, "channel_off")
+		return true
 	# Cooldown
 	if cooldowns.get(skill.id, 0.0) > 0.0:
 		skill_cast.emit(skill.id, false, "cooldown")
@@ -136,8 +172,9 @@ func cast_skill(skill: SkillResource) -> bool:
 	if not _pay_all_costs(skill):
 		skill_cast.emit(skill.id, false, "payment_failed")
 		return false
-	# Cooldown set
-	if skill.cooldown_s > 0.0:
+	# Cooldown set — para CHANNELED, el cooldown empieza al STOP (ver stop_channel),
+	# no al cast. Sino re-apretar la key reseteaba el CD a full.
+	if skill.cooldown_s > 0.0 and skill.cast_type != SkillResource.CastType.CHANNELED:
 		cooldowns[skill.id] = skill.cooldown_s
 	# G2: resource gen al castear (Fe pre-heal, Rage pre-charge, etc)
 	if skill.resource_gen_on_cast > 0:
@@ -487,17 +524,42 @@ func _enemies_in_cone(range_m: float, cone_deg: float) -> Array:
 	return result
 
 
-func _enemies_in_sphere(radius: float) -> Array:
+func _enemies_in_sphere(radius: float, center: Variant = null) -> Array:
 	var result: Array = []
 	if _owner_player == null:
 		return result
-	var origin: Vector3 = _owner_player.global_position
+	var origin: Vector3 = center if center is Vector3 else _owner_player.global_position
 	for e in _owner_player.get_tree().get_nodes_in_group("enemies"):
 		if not (e is Node3D) or ("is_dead" in e and e.is_dead):
 			continue
 		if origin.distance_to(e.global_position) <= radius:
 			result.append(e)
 	return result
+
+
+## Raycast desde la cámara del player hacia el ground (layer 1, world).
+## Retorna posición del hit o player.global_position si no hay hit.
+## Usado por skills CHANNELED+AOE (Lluvia de Flechas) para centrar sphere
+## donde el jugador apunta, no donde está parado.
+func _aim_target_pos(max_range: float = 50.0) -> Vector3:
+	if _owner_player == null:
+		return Vector3.ZERO
+	var cam: Camera3D = _get_player_camera()
+	if cam == null:
+		return _owner_player.global_position
+	var from: Vector3 = cam.global_position
+	var to: Vector3 = from + (-cam.global_basis.z) * max_range
+	var space: PhysicsDirectSpaceState3D = _owner_player.get_world_3d().direct_space_state
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
+	q.exclude = [_owner_player.get_rid()]
+	q.collision_mask = 1  # World
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		# No hit — proyectar al ground a max_range delante
+		var ground_pos: Vector3 = to
+		ground_pos.y = _owner_player.global_position.y
+		return ground_pos
+	return hit.position
 
 
 # ---------------------------------------------------------------------------
@@ -643,9 +705,56 @@ func _activate_toggle(skill: SkillResource) -> void:
 
 
 func _deactivate_toggle(skill_id: StringName) -> void:
+	# Limpiar preview circle si existe (channeled AoE).
+	if active_toggles.has(skill_id):
+		var data: Dictionary = active_toggles[skill_id]
+		var preview: Node3D = data.get("preview_node")
+		if preview != null and is_instance_valid(preview):
+			preview.queue_free()
+		# Perf cache 2026-05-08: decrementar counter ANTES de erase si era channeled.
+		if data.get("is_channeled", false):
+			_channeling_active_count = maxi(_channeling_active_count - 1, 0)
 	active_toggles.erase(skill_id)
 	_damage_buff_sources.erase(skill_id)
 	toggle_changed.emit(skill_id, false)
+
+
+## Crea un disco translúcido en el suelo que marca el área de un AoE channeled.
+## Caller responsable de setear global_position (snap to ground vía raycast).
+## Auto-cleanup en _deactivate_toggle.
+func _spawn_aoe_preview_circle(radius: float) -> Node3D:
+	if _owner_player == null or not _owner_player.is_inside_tree():
+		return null
+	var mesh_inst := MeshInstance3D.new()
+	# CylinderMesh chato = disco perfectamente circular en plano XZ. 64 segmentos
+	# para evitar verse poligonal en radius grandes.
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.height = 0.05
+	cyl.radial_segments = 64
+	mesh_inst.mesh = cyl
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.55, 0.1, 0.4)  # naranja translúcido
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Z-fight con terreno a 50m+ del origen (float precision). Solución:
+	#   - depth_draw_mode = DISABLED → no escribe al depth buffer (no z-fight con suelo)
+	#   - depth_test SIGUE on → no se ve a través del viewmodel del player ni geo intermedia
+	# Antes usábamos no_depth_test=true que rompía oclusión correcta (disco encima de
+	# las manos del player en first-person). Round 2 fix 2026-05-08.
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.render_priority = 1
+	mesh_inst.material_override = mat
+	# Sin collision — solo visual. Cast shadow OFF (es solo guía).
+	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Null-guard: tree.current_scene puede ser null en cleanup/transition frames.
+	var scene_root: Node = _owner_player.get_tree().current_scene
+	if scene_root == null:
+		return null
+	scene_root.add_child(mesh_inst)
+	return mesh_inst
 
 
 func _apply_aura_enemy_debuff(skill: SkillResource) -> void:
@@ -727,36 +836,46 @@ func is_toggle_active(skill_id: StringName) -> bool:
 	return active_toggles.has(skill_id)
 
 
+## True si hay alguna skill CHANNELED activa actualmente. Player consulta esto
+## para lockear movimiento (un canal AOE como Lluvia de Flechas requiere quietud).
+## Perf 2026-05-08: counter cacheado — antes iteraba el dict per-frame.
+func is_channeling() -> bool:
+	return _channeling_active_count > 0
+
+
 func is_reactive_open(skill_id: StringName) -> bool:
 	return active_reactives.has(skill_id)
 
 
 func _acquire_enemy_target(range_m: float) -> Node:
-	# Fase 0: usa el target frame del HUD (ya hay lógica en base_player._update_target_frame).
-	# Fallback: primer enemy del grupo "enemies" en range.
-	if _owner_player == null:
+	# Raycast DIRECTO desde el centro de la cámara (crosshair). Solo pega al enemy
+	# que está literalmente bajo la mira. NO usa HUD._current_target (cono amplio
+	# permitía pegar a quien NO apuntás directo). Bug 2026-05-08: mirar al techo y
+	# pegar igual a enemies alrededor → fix con raycast estricto.
+	if _owner_player == null or not (_owner_player is Node3D):
 		return null
-	var hud := _owner_player.get_tree().get_first_node_in_group("hud")
-	if hud != null and "_current_target" in hud:
-		var t: Node = hud._current_target
-		if t != null and is_instance_valid(t) and "is_dead" in t and not t.is_dead:
-			if _owner_player is Node3D and t is Node3D:
-				var dist: float = (_owner_player as Node3D).global_position.distance_to((t as Node3D).global_position)
-				if dist <= range_m:
-					return t
-	# Fallback por distancia
-	var closest: Node = null
-	var closest_dist: float = range_m
-	for e in _owner_player.get_tree().get_nodes_in_group("enemies"):
-		if not (e is Node3D):
-			continue
-		if "is_dead" in e and e.is_dead:
-			continue
-		var d: float = (_owner_player as Node3D).global_position.distance_to((e as Node3D).global_position)
-		if d < closest_dist:
-			closest = e
-			closest_dist = d
-	return closest
+	var cam: Camera3D = _get_player_camera()
+	if cam == null:
+		return null
+	var origin: Vector3 = cam.global_position
+	var forward: Vector3 = -cam.global_basis.z
+	var to: Vector3 = origin + forward * range_m
+	var space: PhysicsDirectSpaceState3D = (_owner_player as Node3D).get_world_3d().direct_space_state
+	var q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, to)
+	q.exclude = [(_owner_player as Node3D).get_rid()]
+	# Layers: World=1, Enemies=3. Mask = bit0 | bit2 = 1 | 4 = 5. World bloquea LOS.
+	q.collision_mask = 5
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return null
+	var collider = hit.collider
+	if collider == null or not is_instance_valid(collider):
+		return null
+	if not collider.is_in_group("enemies"):
+		return null  # impactó pared u otro objeto, no enemy
+	if "is_dead" in collider and collider.is_dead:
+		return null
+	return collider
 
 
 func _compute_damage(skill: SkillResource) -> float:
@@ -848,7 +967,13 @@ func _process(delta: float) -> void:
 				if _owner_player.has_signal("health_changed"):
 					_owner_player.health_changed.emit(_owner_player.health, _owner_player.max_health)
 	for id in hp_drain_to_stop:
-		_deactivate_toggle(id)
+		# Fix 2026-05-08: si la skill HP-drain es también CHANNELED, debe pasar por
+		# stop_channel para arrancar cooldown. _deactivate_toggle directo bypaseaba
+		# el CD y dejaba la skill re-cast-eable instant.
+		if active_toggles.has(id) and active_toggles[id].get("is_channeled", false):
+			stop_channel(id)
+		else:
+			_deactivate_toggle(id)
 
 	# G9: decrementar invul_time_left del player
 	if _owner_player != null and _owner_player.has_meta("invul_time_left"):
@@ -860,9 +985,57 @@ func _process(delta: float) -> void:
 
 	# Toggles + channeled — tick drain + efecto per-tick
 	var toggles_to_stop: Array = []
+	var channels_max_reached: Array = []  # auto-stop con cooldown (vía stop_channel)
 	for id in active_toggles.keys():
+		# Defensive .has() check — el HP-drain loop arriba pudo haber deactivado el id.
+		# .keys() retorna snapshot pre-mutation, sin guard accederíamos a un id que
+		# ya no existe en active_toggles → KeyError silente.
+		if not active_toggles.has(id):
+			continue
 		var data: Dictionary = active_toggles[id]
 		var skill: SkillResource = data["skill"]
+		# Channel duration cap — auto-stop después de skill.channel_max_s.
+		# Solo aplica a channeled. Va por stop_channel (aplica CD), no _deactivate_toggle.
+		if data.get("is_channeled", false) and skill.channel_max_s > 0.0:
+			var elapsed: float = float(data.get("channel_elapsed", 0.0)) + delta
+			if elapsed >= skill.channel_max_s:
+				channels_max_reached.append(id)
+				continue
+			data["channel_elapsed"] = elapsed
+		# Preview circle: re-aim para que el disco siga al cursor.
+		# Perf 2026-05-08: throttle a ~15Hz (cada 66ms) — antes corría raycast vertical
+		# + camera raycast cada frame (60Hz x 2 raycasts ≈ overkill para una guía visual).
+		# Snap al ground REAL via raycast vertical desde target.xz — sin esto el disco
+		# quedaba flotando a la altura del player y se veía deformado en perspectiva.
+		if data.get("is_channeled", false) and data.get("has_target_pos", false):
+			var throttle: float = float(data.get("preview_throttle", 0.0)) - delta
+			if throttle <= 0.0:
+				throttle = 0.066  # ~15Hz
+				var preview: Node3D = data.get("preview_node")
+				if preview != null and is_instance_valid(preview):
+					var raw_aim: Vector3 = _aim_target_pos(skill.range_m)
+					if _owner_player != null:
+						var p_pos: Vector3 = (_owner_player as Node3D).global_position
+						var to_aim: Vector3 = raw_aim - p_pos
+						to_aim.y = 0
+						if to_aim.length() > skill.range_m:
+							to_aim = to_aim.normalized() * skill.range_m
+						raw_aim.x = p_pos.x + to_aim.x
+						raw_aim.z = p_pos.z + to_aim.z
+						# Snap al ground exacto.
+						var space: PhysicsDirectSpaceState3D = _owner_player.get_world_3d().direct_space_state
+						var down_q: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+							Vector3(raw_aim.x, raw_aim.y + 50.0, raw_aim.z),
+							Vector3(raw_aim.x, raw_aim.y - 50.0, raw_aim.z)
+						)
+						down_q.collision_mask = 1  # World layer
+						var ground_hit: Dictionary = space.intersect_ray(down_q)
+						if not ground_hit.is_empty():
+							# Offset +0.10 (antes 0.03) — z-fight safety extra a 50m+ del origen
+							# donde float precision degrada. no_depth_test ya lo cubre, esto es belt+suspenders.
+							raw_aim.y = ground_hit.position.y + 0.10
+					preview.global_position = raw_aim
+			data["preview_throttle"] = throttle
 		var tt: float = float(data["tick_timer"]) - delta
 		if tt <= 0.0:
 			# Drain recurso (G5: tick_resource_cost para channeled + toggle)
@@ -892,6 +1065,9 @@ func _process(delta: float) -> void:
 		data["tick_timer"] = tt
 	for id in toggles_to_stop:
 		_deactivate_toggle(id)
+	# Channels que llegaron a channel_max_s — usar stop_channel para aplicar CD.
+	for id in channels_max_reached:
+		stop_channel(id)
 
 	# Reactive windows — decrementar, cerrar al expirar
 	var reactives_to_close: Array = []
@@ -917,6 +1093,12 @@ func get_cooldown(skill_id: StringName) -> float:
 # Fase 2 Mage refinará con hold-tracking (input release detection).
 # ---------------------------------------------------------------------------
 func _activate_channeled(skill: SkillResource) -> void:
+	# Cleanup pre-activate 2026-05-08: si ya había un toggle activo para esta skill
+	# (re-cast antes de stop_channel/_deactivate), limpiar primero — sino el
+	# preview viejo queda huérfano en escena y combo_mult_cached se pisa con valores
+	# stale.
+	if active_toggles.has(skill.id):
+		_deactivate_toggle(skill.id)
 	# Combo-mult cache: si el canal usa combo_damage_multipliers (ej Danza de Mil Sombras),
 	# capturamos el mult al INICIO y consumimos combo acá. Previene que solo el 1er tick
 	# aplique el mult (el resource se consumiría al primer _compute_damage) y asegura
@@ -929,12 +1111,37 @@ func _activate_channeled(skill: SkillResource) -> void:
 			combo_mult_cached = skill.combo_damage_multipliers[idx]
 		if skill.combo_consume_all:
 			class_resource.consume(points)
+	# Canon Lluvia de Flechas (2026-05-07): CHANNELED+AOE usa target_pos del cursor,
+	# no posición del player. Raycast desde cámara al ground; si no hay hit, fallback a
+	# player.global_position (sphere alrededor del caster). Se cachea al activar el canal,
+	# NO se reactualiza por tick — la lluvia cae donde apuntaste al castear.
+	var target_pos_cached: Vector3 = Vector3.ZERO
+	var has_target_pos: bool = false
+	if skill.target_type == SkillResource.TargetType.AOE:
+		# Fix 2026-05-08: usar skill.range_m (canon) — antes hardcoded 50.0 mientras
+		# _channeled_tick usaba range_m. Inconsistencia spawn vs tick.
+		target_pos_cached = _aim_target_pos(skill.range_m)
+		has_target_pos = true
+	# Spawn preview circular en el suelo si es AOE channeled — visible mientras canalizando,
+	# sigue al cursor cada tick. UX: el jugador VE dónde van a caer las flechas/efecto.
+	var preview_node: Node3D = null
+	if has_target_pos and _owner_player != null:
+		preview_node = _spawn_aoe_preview_circle(skill.radius_m if skill.radius_m > 0.0 else skill.range_m)
+		if preview_node != null:
+			preview_node.global_position = target_pos_cached
 	active_toggles[skill.id] = {
 		"skill": skill,
 		"tick_timer": skill.tick_interval_s,  # próximo tick
 		"is_channeled": true,
 		"combo_mult_cached": combo_mult_cached,
+		"target_pos": target_pos_cached,
+		"has_target_pos": has_target_pos,
+		"channel_elapsed": 0.0,  # acumulador para channel_max_s cap
+		"preview_node": preview_node,
+		"preview_throttle": 0.0,  # perf: re-aim/raycast cada ~66ms (~15Hz), no 60Hz
 	}
+	# Perf cache: incrementar counter de canales activos (is_channeling O(1)).
+	_channeling_active_count += 1
 	toggle_changed.emit(skill.id, true)
 
 
@@ -956,7 +1163,33 @@ func _channeled_tick(skill: SkillResource) -> void:
 		SkillResource.TargetType.CONE:
 			targets = _enemies_in_cone(skill.range_m, skill.cone_angle_deg)
 		SkillResource.TargetType.AOE:
-			targets = _enemies_in_sphere(skill.radius_m if skill.radius_m > 0.0 else skill.range_m)
+			# RE-aim cada tick: el target_pos cacheado al activar quedaba fijo,
+			# así que slimes que se movían (o player que se movía) salían del radius
+			# y los ticks no encontraban targets. Ahora siempre re-raycast cursor →
+			# el área del AoE sigue al cursor del jugador frame a frame.
+			# Clamp horizontal: target_pos no puede estar más lejos que range_m del
+			# player (sin esto, raycast a cielo proyectaba 50m en línea recta y daba
+			# rango infinito al apuntar al horizonte).
+			var data: Dictionary = active_toggles.get(skill.id, {})
+			# Fix 2026-05-08: si el dict está vacío (skill ya stop'd entre dispatch
+			# y tick) NO seguir — center=null colapsa el AoE al caster silencioso,
+			# golpeando enemies pegados al player que no debían recibir daño.
+			if data.is_empty():
+				return
+			var center: Variant = null
+			if data.get("has_target_pos", false):
+				var raw_aim: Vector3 = _aim_target_pos(skill.range_m)
+				if _owner_player != null:
+					var p_pos: Vector3 = _owner_player.global_position
+					var to_aim: Vector3 = raw_aim - p_pos
+					to_aim.y = 0
+					if to_aim.length() > skill.range_m:
+						to_aim = to_aim.normalized() * skill.range_m
+					raw_aim.x = p_pos.x + to_aim.x
+					raw_aim.z = p_pos.z + to_aim.z
+				center = raw_aim
+			var radius: float = skill.radius_m if skill.radius_m > 0.0 else skill.range_m
+			targets = _enemies_in_sphere(radius, center)
 		SkillResource.TargetType.SINGLE_ENEMY:
 			var t: Node = _acquire_enemy_target(skill.range_m)
 			if t != null:
