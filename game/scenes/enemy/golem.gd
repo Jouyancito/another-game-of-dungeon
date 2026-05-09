@@ -40,8 +40,8 @@ func _should_pursue(distance: float) -> bool:
 		if distance <= detection_range:
 			_awaken()
 		return false
-	# Una vez despierto, comportamiento NEUTRAL estándar
-	return is_provoked and distance <= detection_range
+	# Despierto: delega a BaseEnemy (respeta alert flag para aggro ranged)
+	return super._should_pursue(distance)
 
 
 func _awaken() -> void:

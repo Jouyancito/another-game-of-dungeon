@@ -58,4 +58,7 @@ func center_on_screen() -> void:
 func _clamp_to_screen() -> void:
 	var screen_size = get_viewport_rect().size
 	position.x = clampf(position.x, -size.x + 60, screen_size.x - 60)
-	position.y = clampf(position.y, 0, screen_size.y - 40)
+	# Reservar 80px del bottom para hotbar (52px alto + 28 margen).
+	# Si la ventana es más alta que el viewport disponible, max_y queda en 0.
+	var max_y: float = maxf(0.0, screen_size.y - size.y - 80.0)
+	position.y = clampf(position.y, 0, max_y)

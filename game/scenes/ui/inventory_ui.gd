@@ -93,7 +93,9 @@ func _on_title_drag_input(event: InputEvent) -> void:
 		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 		# Clampear al viewport para que no se pierda la ventana fuera de pantalla.
 		new_pos.x = clampf(new_pos.x, -_background.size.x + 80.0, viewport_size.x - 80.0)
-		new_pos.y = clampf(new_pos.y, 0.0, viewport_size.y - 40.0)
+		# Reservar 80px del bottom para hotbar (52px alto + 28 margen).
+		var max_y: float = maxf(0.0, viewport_size.y - _background.size.y - 80.0)
+		new_pos.y = clampf(new_pos.y, 0.0, max_y)
 		_background.global_position = new_pos
 
 
@@ -433,6 +435,9 @@ func _on_grid_mouse_exited() -> void:
 
 func _on_left_click(pos: Vector2i, event: InputEventMouseButton) -> void:
 	if event.double_click:
+		# Click 1 del doble-click ya agarró el item en _held_entry (click-to-toggle).
+		# Limpiar antes de equipar para evitar que el próximo click suelte un fantasma → duplicado.
+		_held_entry = {}
 		_on_double_click(pos)
 		return
 
