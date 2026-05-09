@@ -71,7 +71,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.4)
+color = Color(0, 0, 0, 0.0)
+mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -191,40 +192,48 @@ text = "XP: 0/100"
 [node name="Sep1" type="HSeparator" parent="Panel/Margin/VBox"]
 layout_mode = 2
 
-[node name="ScrollContainer" type="ScrollContainer" parent="Panel/Margin/VBox"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="Tabs" type="TabContainer" parent="Panel/Margin/VBox/ScrollContainer"]
+[node name="Tabs" type="TabContainer" parent="Panel/Margin/VBox"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="Stats" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
+[node name="Stats" type="Control" parent="Panel/Margin/VBox/Tabs"]
 layout_mode = 2
+
+[node name="StatsScroll" type="ScrollContainer" parent="Panel/Margin/VBox/Tabs/Stats"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="StatsContent" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
-[node name="StatsTitle" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="StatsTitle" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
 text = "— Atributos Base —"
 horizontal_alignment = 1
 
-[node name="StrRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="StrRow" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
 
-[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow"]
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/StrRow"]
 layout_mode = 2
 
-[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow/HBox"]
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/StrRow/HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "FUE"
 theme_override_font_sizes/font_size = 15
 
-[node name="StrValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow/HBox"]
+[node name="StrValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/StrRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -232,27 +241,27 @@ text = "5"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 16
 
-[node name="StrBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/StrRow/HBox"]
+[node name="StrBtn" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/StrRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 text = "+"
 theme_override_font_sizes/font_size = 16
 
-[node name="IntRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="IntRow" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
 
-[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow"]
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/IntRow"]
 layout_mode = 2
 
-[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow/HBox"]
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/IntRow/HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "INT"
 theme_override_font_sizes/font_size = 15
 
-[node name="IntValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow/HBox"]
+[node name="IntValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/IntRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -260,27 +269,27 @@ text = "5"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 16
 
-[node name="IntBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/IntRow/HBox"]
+[node name="IntBtn" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/IntRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 text = "+"
 theme_override_font_sizes/font_size = 16
 
-[node name="DexRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="DexRow" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
 
-[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow"]
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DexRow"]
 layout_mode = 2
 
-[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow/HBox"]
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DexRow/HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "DES"
 theme_override_font_sizes/font_size = 15
 
-[node name="DexValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow/HBox"]
+[node name="DexValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DexRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -288,27 +297,27 @@ text = "5"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 16
 
-[node name="DexBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DexRow/HBox"]
+[node name="DexBtn" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DexRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 text = "+"
 theme_override_font_sizes/font_size = 16
 
-[node name="DefRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="DefRow" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
 
-[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow"]
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DefRow"]
 layout_mode = 2
 
-[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow/HBox"]
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DefRow/HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "DEF"
 theme_override_font_sizes/font_size = 15
 
-[node name="DefValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow/HBox"]
+[node name="DefValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DefRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -316,27 +325,27 @@ text = "5"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 16
 
-[node name="DefBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DefRow/HBox"]
+[node name="DefBtn" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DefRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 text = "+"
 theme_override_font_sizes/font_size = 16
 
-[node name="VitRow" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="VitRow" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_stat_row")
 
-[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow"]
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/VitRow"]
 layout_mode = 2
 
-[node name="Name" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow/HBox"]
+[node name="Name" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/VitRow/HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "VIT"
 theme_override_font_sizes/font_size = 15
 
-[node name="VitValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow/HBox"]
+[node name="VitValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/VitRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -344,14 +353,14 @@ text = "5"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 16
 
-[node name="VitBtn" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/VitRow/HBox"]
+[node name="VitBtn" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/VitRow/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 text = "+"
 theme_override_font_sizes/font_size = 16
 
-[node name="StatDescLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="StatDescLabel" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 20)
@@ -359,31 +368,31 @@ theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.6, 0.6, 0.65, 1)
 horizontal_alignment = 1
 
-[node name="SepDerived" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="SepDerived" type="HSeparator" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 
-[node name="DerivedTitle" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="DerivedTitle" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
 text = "— Combate —"
 horizontal_alignment = 1
 
-[node name="DerivedPanel" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="DerivedPanel" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_derived")
 
-[node name="DerivedGrid" type="GridContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel"]
+[node name="DerivedGrid" type="GridContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel"]
 layout_mode = 2
 columns = 2
 
-[node name="PhysDmgName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="PhysDmgName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 text = "Daño Físico"
 
-[node name="PhysDmgValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="PhysDmgValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
@@ -391,13 +400,13 @@ theme_override_colors/font_color = Color(0.9, 0.6, 0.3, 1)
 text = "10"
 horizontal_alignment = 2
 
-[node name="MagicDmgName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="MagicDmgName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 text = "Daño Mágico"
 
-[node name="MagicDmgValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="MagicDmgValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
@@ -405,13 +414,13 @@ theme_override_colors/font_color = Color(0.5, 0.5, 0.95, 1)
 text = "10"
 horizontal_alignment = 2
 
-[node name="DexDmgName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="DexDmgName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 text = "Daño a Distancia"
 
-[node name="DexDmgValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="DexDmgValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
@@ -419,13 +428,13 @@ theme_override_colors/font_color = Color(0.3, 0.85, 0.4, 1)
 text = "10"
 horizontal_alignment = 2
 
-[node name="DefenseName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="DefenseName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 text = "Defensa"
 
-[node name="DefenseValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="DefenseValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
@@ -433,13 +442,13 @@ theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
 text = "5"
 horizontal_alignment = 2
 
-[node name="MoveSpeedName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="MoveSpeedName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 text = "Velocidad"
 
-[node name="MoveSpeedValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/DerivedPanel/DerivedGrid"]
+[node name="MoveSpeedValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/DerivedPanel/DerivedGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
@@ -447,61 +456,61 @@ theme_override_colors/font_color = Color(0.7, 0.7, 0.75, 1)
 text = "5.0"
 horizontal_alignment = 2
 
-[node name="SepEquip" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="SepEquip" type="HSeparator" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 
-[node name="EquipTitle" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="EquipTitle" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
 text = "— Bonos de Equipo —"
 horizontal_alignment = 1
 
-[node name="EquipBonusSection" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="EquipBonusSection" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="EquipPanel" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/EquipBonusSection"]
+[node name="EquipPanel" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/EquipBonusSection"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_equip")
 
-[node name="EquipLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/EquipBonusSection/EquipPanel"]
+[node name="EquipLabel" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/EquipBonusSection/EquipPanel"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.45, 0.45, 0.5, 1)
 text = "Sin equipo"
 horizontal_alignment = 1
 
-[node name="SepAdvanced" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="SepAdvanced" type="HSeparator" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 
-[node name="AdvancedToggle" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="AdvancedToggle" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "▼ Stats Avanzados"
 flat = true
 
-[node name="AdvancedSection" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="AdvancedSection" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 
-[node name="AdvancedPanel" type="PanelContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection"]
+[node name="AdvancedPanel" type="PanelContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_derived")
 
-[node name="AdvGrid" type="GridContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel"]
+[node name="AdvGrid" type="GridContainer" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel"]
 layout_mode = 2
 columns = 2
 
-[node name="ResFireName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResFireName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Res. Fuego"
 
-[node name="ResFireValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResFireValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -509,13 +518,13 @@ theme_override_colors/font_color = Color(0.95, 0.4, 0.2, 1)
 text = "0%"
 horizontal_alignment = 2
 
-[node name="ResIceName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResIceName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Res. Hielo"
 
-[node name="ResIceValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResIceValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -523,13 +532,13 @@ theme_override_colors/font_color = Color(0.3, 0.7, 0.95, 1)
 text = "0%"
 horizontal_alignment = 2
 
-[node name="ResLightningName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResLightningName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Res. Rayo"
 
-[node name="ResLightningValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResLightningValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -537,13 +546,13 @@ theme_override_colors/font_color = Color(0.95, 0.9, 0.3, 1)
 text = "0%"
 horizontal_alignment = 2
 
-[node name="HpRegenName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="HpRegenName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Regen HP"
 
-[node name="HpRegenValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="HpRegenValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -551,13 +560,13 @@ theme_override_colors/font_color = Color(0.85, 0.3, 0.3, 1)
 text = "0.5/s"
 horizontal_alignment = 2
 
-[node name="MpRegenName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="MpRegenName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Regen MP"
 
-[node name="MpRegenValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="MpRegenValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -565,13 +574,13 @@ theme_override_colors/font_color = Color(0.3, 0.5, 0.9, 1)
 text = "1.0/s"
 horizontal_alignment = 2
 
-[node name="ResPoisonName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResPoisonName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Res. Veneno"
 
-[node name="ResPoisonValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResPoisonValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -579,13 +588,13 @@ theme_override_colors/font_color = Color(0.4, 0.85, 0.3, 1)
 text = "0%"
 horizontal_alignment = 2
 
-[node name="ResVoidName" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResVoidName" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Res. Vacío"
 
-[node name="ResVoidValue" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection/AdvancedPanel/AdvGrid"]
+[node name="ResVoidValue" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection/AdvancedPanel/AdvGrid"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -593,7 +602,7 @@ theme_override_colors/font_color = Color(0.65, 0.3, 0.85, 1)
 text = "0%"
 horizontal_alignment = 2
 
-[node name="PlaceholderLabel" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats/AdvancedSection"]
+[node name="PlaceholderLabel" type="Label" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent/AdvancedSection"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.4, 0.4, 0.45, 1)
@@ -602,10 +611,10 @@ Bloqueo, Evasión, Golpe Crítico...
 (disponibles con equipo e ítems)"
 horizontal_alignment = 1
 
-[node name="SepRespec" type="HSeparator" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="SepRespec" type="HSeparator" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 layout_mode = 2
 
-[node name="RespecButton" type="Button" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Stats"]
+[node name="RespecButton" type="Button" parent="Panel/Margin/VBox/Tabs/Stats/StatsScroll/StatsContent"]
 unique_name_in_owner = true
 layout_mode = 2
 disabled = true
@@ -613,25 +622,37 @@ text = "Redistribuir Stats (ítem requerido)"
 theme_override_font_sizes/font_size = 12
 tooltip_text = "Próximamente — Piedra de Redistribución (ítem consumible MU-style)."
 
-[node name="Habilidades" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
+[node name="Habilidades" type="Control" parent="Panel/Margin/VBox/Tabs"]
 visible = false
 layout_mode = 2
+
+[node name="HabScroll" type="ScrollContainer" parent="Panel/Margin/VBox/Tabs/Habilidades"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HabContent" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Habilidades/HabScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="SkillsHeader" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+[node name="SkillsHeader" type="Label" parent="Panel/Margin/VBox/Tabs/Habilidades/HabScroll/HabContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
 text = "Arrastrá una skill al hotbar para asignarla (1–8)."
 horizontal_alignment = 1
 
-[node name="SkillListContainer" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+[node name="SkillListContainer" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Habilidades/HabScroll/HabContent"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="SkillsEmpty" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Habilidades"]
+[node name="SkillsEmpty" type="Label" parent="Panel/Margin/VBox/Tabs/Habilidades/HabScroll/HabContent"]
 unique_name_in_owner = true
 layout_mode = 2
 visible = false
@@ -640,23 +661,25 @@ theme_override_colors/font_color = Color(0.5, 0.5, 0.55, 1)
 text = "Aún no hay skills disponibles para esta clase."
 horizontal_alignment = 1
 
-[node name="Equipo" type="VBoxContainer" parent="Panel/Margin/VBox/ScrollContainer/Tabs"]
+[node name="Profesiones" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 8
 
-[node name="EquipoHint" type="Label" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Equipo"]
+[node name="ProfesionesHint" type="Label" parent="Panel/Margin/VBox/Tabs/Profesiones"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.55, 0.55, 0.6, 1)
-text = "Solo lectura. Usá TAB para equipar / desequipar con drag&drop."
+text = "Vidas paralelas — suben con uso, no bloquean combate. Ver professions_spec.md"
 horizontal_alignment = 1
+autowrap_mode = 2
 
-[node name="PaperDoll" type="Control" parent="Panel/Margin/VBox/ScrollContainer/Tabs/Equipo"]
+[node name="ProfesionesList" type="VBoxContainer" parent="Panel/Margin/VBox/Tabs/Profesiones"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(280, 440)
-size_flags_horizontal = 4
+theme_override_constants/separation = 6
+size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="CloseHint" type="Label" parent="Panel/Margin/VBox"]
 layout_mode = 2

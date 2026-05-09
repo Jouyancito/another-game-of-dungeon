@@ -55,18 +55,22 @@ var char_preview: CharacterPreview
 
 @onready var stat_desc_label: Label = %StatDescLabel
 
-# Tabs — Habilidades / Equipo
+# Tabs — Habilidades / Profesiones
 @onready var skill_list: VBoxContainer = %SkillListContainer
 @onready var skill_list_empty: Label = %SkillsEmpty
-@onready var paper_doll: Control = %PaperDoll
+@onready var profesiones_list: VBoxContainer = %ProfesionesList
 @onready var respec_btn: Button = %RespecButton
 
-# Paper doll (read-only, estilo EquipmentPanel pero sin drag/tooltip)
-const DOLL_SLOT_SIZE := Vector2(50.0, 50.0)
-const DOLL_COLOR_BG := Color(0.12, 0.12, 0.15, 1.0)
-const DOLL_COLOR_BORDER := Color(0.30, 0.30, 0.35, 1.0)
-const DOLL_COLOR_SILHOUETTE := Color(0.22, 0.22, 0.27, 1.0)
-const DOLL_COLOR_LABEL := Color(0.45, 0.45, 0.50, 1.0)
+# Profesiones placeholder (canon professions_spec.md Fase 0 — sin lógica de subida).
+# Lista de tuplas: [id, display_name, descripción tooltip].
+const PROFESIONES_PLACEHOLDER: Array = [
+	["mineria",    "Minería",     "Romper vetas en cuevas. Sube con uso."],
+	["pesca",      "Pesca",       "Pescar en ríos y lagos. Sube con uso."],
+	["caza",       "Caza",        "Trampas + skinning. Sube con uso."],
+	["percepcion", "Percepción",  "Detectar trampas, secretos. Sube pasivo."],
+	["linguistica","Lingüística", "Leer textos antiguos, runas."],
+	["observacion","Observación", "Aprender comportamiento mob (Saber)."],
+]
 
 # Class scene path → class_id (SkillResource.class_id canon).
 const CLASS_ID_BY_SCRIPT := {
@@ -128,8 +132,8 @@ func _ready() -> void:
 	# Respec button — stub hasta item consumible implementado.
 	respec_btn.pressed.connect(_on_respec_pressed)
 
-	# Paper doll custom draw
-	paper_doll.draw.connect(_draw_paper_doll)
+	# Profesiones placeholder — build una sola vez (sin lógica de subida todavía).
+	_build_profesiones_placeholder()
 
 	# Buscar player
 	await get_tree().process_frame
@@ -158,7 +162,6 @@ func _open() -> void:
 		return
 	_refresh_stats()
 	_populate_skills()
-	paper_doll.queue_redraw()
 	visible = true
 	# NUNCA pausar el juego — es coop/MMORPG, los demás jugadores siguen jugando.
 	# Solo liberamos el mouse para navegar la ventana.
@@ -268,7 +271,6 @@ func _on_equipment_changed() -> void:
 	# Refresca los stats mostrados cuando se equipa / desequipa algo con la ventana abierta
 	if visible:
 		_refresh_stats()
-		paper_doll.queue_redraw()
 
 
 # ── Habilidades tab ─────────────────────────────────────────────────────────
@@ -442,96 +444,79 @@ func _attach_drag_preview(preview: Control) -> void:
 		skill_list.set_drag_preview(preview)
 
 
-# ── Equipo tab (paper doll read-only) ───────────────────────────────────────
+# ── Profesiones tab (canon professions_spec.md Fase 0) ──────────────────────
 
-func _draw_paper_doll() -> void:
-	_draw_doll_silhouette()
-	_draw_doll_slots()
-
-
-func _draw_doll_silhouette() -> void:
-	var col := DOLL_COLOR_SILHOUETTE
-	var cx := 140.0
-	# Cabeza
-	var head_center := Vector2(cx, 55.0)
-	var head_r := 18.0
-	var pts: PackedVector2Array = []
-	for i in range(16):
-		var angle := (TAU / 16.0) * i
-		pts.append(head_center + Vector2(cos(angle), sin(angle)) * head_r)
-	paper_doll.draw_colored_polygon(pts, col)
-	# Cuello
-	paper_doll.draw_rect(Rect2(cx - 6, 73, 12, 12), col)
-	# Torso
-	paper_doll.draw_rect(Rect2(cx - 30, 85, 60, 85), col)
-	# Brazos
-	paper_doll.draw_rect(Rect2(cx - 55, 88, 22, 70), col)
-	paper_doll.draw_rect(Rect2(cx - 60, 158, 28, 18), col)
-	paper_doll.draw_rect(Rect2(cx + 33, 88, 22, 70), col)
-	paper_doll.draw_rect(Rect2(cx + 32, 158, 28, 18), col)
-	# Cadera + piernas + pies
-	paper_doll.draw_rect(Rect2(cx - 28, 170, 56, 22), col)
-	paper_doll.draw_rect(Rect2(cx - 28, 192, 24, 90), col)
-	paper_doll.draw_rect(Rect2(cx + 4, 192, 24, 90), col)
-	paper_doll.draw_rect(Rect2(cx - 33, 282, 32, 14), col)
-	paper_doll.draw_rect(Rect2(cx + 1, 282, 32, 14), col)
+func _build_profesiones_placeholder() -> void:
+	# 6 rows: nombre + barra placeholder + Lvl 0/100. Tooltip al hover.
+	# Sin lógica de subida — Fase 1 wirea hooks a actividades del mundo.
+	for child in profesiones_list.get_children():
+		child.queue_free()
+	for entry in PROFESIONES_PLACEHOLDER:
+		profesiones_list.add_child(_create_profesion_row(entry[0], entry[1], entry[2]))
 
 
-func _draw_doll_slots() -> void:
-	var font := ThemeDB.fallback_font
-	var font_size := 10
-	# Reuso constantes canon de EquipmentPanel (12 slots incluyendo off_hand
-	# — canon 2026-04-23: antorcha va a off_hand, NO crear slot "light" aparte).
-	var positions: Dictionary = EquipmentPanel.SLOT_POSITIONS
-	var names: Dictionary = EquipmentPanel.SLOT_NAMES
+func _create_profesion_row(_prof_id: String, prof_name: String, tooltip: String) -> PanelContainer:
+	var row := PanelContainer.new()
+	row.tooltip_text = tooltip
+	row.custom_minimum_size = Vector2(0, 42)
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var equipped: Dictionary = {}
-	if player != null and player.get("equipment") != null:
-		var eq = player.equipment
-		if "slots" in eq:
-			for k in eq.slots:
-				var entry: Dictionary = eq.slots[k]
-				if not entry.is_empty():
-					equipped[k] = entry.get("item_id", "")
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.13, 0.13, 0.16, 1.0)
+	style.border_color = Color(0.28, 0.28, 0.32, 1.0)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4
+	style.corner_radius_bottom_right = 4
+	style.content_margin_left = 10.0
+	style.content_margin_right = 10.0
+	style.content_margin_top = 6.0
+	style.content_margin_bottom = 6.0
+	row.add_theme_stylebox_override("panel", style)
 
-	for slot_key in positions.keys():
-		var center: Vector2 = positions[slot_key]
-		var rect := Rect2(center - DOLL_SLOT_SIZE * 0.5, DOLL_SLOT_SIZE)
-		paper_doll.draw_rect(rect, DOLL_COLOR_BG)
-		var border_col := DOLL_COLOR_BORDER
-		var item_id: String = equipped.get(slot_key, "")
-		var db = get_tree().get_root().get_node_or_null("ItemDatabase")
-		if item_id != "" and db != null and db.has_method("get_item"):
-			var item_data: Dictionary = db.get_item(item_id)
-			if not item_data.is_empty():
-				var rarity: String = item_data.get("rarity", "common")
-				if db.has_method("get_rarity_color"):
-					border_col = db.get_rarity_color(rarity)
-				var fill: Color = border_col
-				fill.a = 0.45
-				paper_doll.draw_rect(rect.grow(-3), fill)
-				var item_name: String = item_data.get("name", item_id)
-				paper_doll.draw_string(
-					font,
-					Vector2(rect.position.x + 3, rect.position.y + font_size + 3),
-					item_name,
-					HORIZONTAL_ALIGNMENT_LEFT,
-					rect.size.x - 6,
-					font_size,
-					Color(1, 1, 1, 0.9)
-				)
-		paper_doll.draw_rect(rect, border_col, false, 1.0)
-		# Label debajo
-		var label: String = names.get(slot_key, slot_key)
-		paper_doll.draw_string(
-			font,
-			Vector2(rect.position.x, rect.position.y + DOLL_SLOT_SIZE.y + font_size + 1),
-			label,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			DOLL_SLOT_SIZE.x,
-			font_size,
-			DOLL_COLOR_LABEL
-		)
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 12)
+	row.add_child(hbox)
+
+	# Nombre profesión (ancho fijo)
+	var name_lbl := Label.new()
+	name_lbl.text = prof_name
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.custom_minimum_size = Vector2(110, 0)
+	hbox.add_child(name_lbl)
+
+	# Lvl label
+	var level_lbl := Label.new()
+	level_lbl.text = "Lv 0"
+	level_lbl.add_theme_font_size_override("font_size", 12)
+	level_lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75, 1.0))
+	level_lbl.custom_minimum_size = Vector2(40, 0)
+	hbox.add_child(level_lbl)
+
+	# Barra de progreso
+	var bar := ProgressBar.new()
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.min_value = 0
+	bar.max_value = 100
+	bar.value = 0
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 16)
+	hbox.add_child(bar)
+
+	# XP label
+	var xp_lbl := Label.new()
+	xp_lbl.text = "0 / 100"
+	xp_lbl.add_theme_font_size_override("font_size", 11)
+	xp_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.6, 1.0))
+	xp_lbl.custom_minimum_size = Vector2(60, 0)
+	xp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hbox.add_child(xp_lbl)
+
+	return row
 
 
 # ── Respec button stub ──────────────────────────────────────────────────────
