@@ -23,6 +23,9 @@ desktop.ini
 
 # Claude Code coordination state (local per-worker)
 .claude/
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
 
 # Test artifacts
 .test-hook
@@ -33,3 +36,9 @@ INFORME_PERSONAL.md
 .env.*
 !.env.example
 !.env.*.example
+
+# Raw asset packs (CC0 zips/source) — keep originals local, commit only extracted assets
+game/assets/art/_raw/
+
+# Engram local state
+.engram/
