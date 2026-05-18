@@ -152,7 +152,7 @@ Documentar en wave4 doc per-class.
 
 ## 5. Weight class per clase — coordinación con art direction bible (C)
 
-Canon preliminar — revisar vs `_art_direction_bible.md` de C cuando mergee.
+Canon preliminar — revisar vs `_art_canon.md` §6.7 (animation weights table unified v2.0).
 
 | Clase | Weight class | Anim speed mult | Feel target |
 |-------|--------------|-----------------|-------------|
@@ -170,7 +170,7 @@ if animation_controller != null:
 ```
 `AnimationController3D` expone `anim_speed_mult` wave4 (no en wave3 — sin arte real no tiene sentido tunearlo).
 
-Si `_art_direction_bible.md` de C define weights distintos al mergear, **canon de art prevalece**. Este doc se actualiza en wave4.
+Si `_art_canon.md` §6.7 define weights distintos, **canon de art prevalece**. Este doc se actualiza en wave4.
 
 ## 6. Degrade gracefully — contrato fallback
 

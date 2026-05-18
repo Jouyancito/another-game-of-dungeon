@@ -282,5 +282,5 @@ Todo lo demás = **Kenney/Quaternius directo** con ajuste de material para match
 - Lista de assets: `p1_pradera.md`
 - Pipeline operativo: `../art_pipeline.md`
 - Catálogo shaders: `../shader_system.md`
-- Canon visual por piso: `../visual_bible.md`
+- Canon visual por piso: `_art_canon.md` §5
 - Tutoriales beginner: `../art_pipeline.md` §14

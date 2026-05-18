@@ -114,7 +114,7 @@ GUT addon instalado (`addons/gut/`). Tests existentes:
 
 ## Docs existentes (`game/docs/`)
 
-- `art_direction.md`, `visual_bible.md`, `shader_system.md`
+- `art/_art_canon.md` (unified v2.0, 2026-05-18 — was art_direction + visual_bible + _art_direction_bible), `shader_system.md`
 - `biome_prairie.md`, `prairie_living_world.md`
 - `enemy_tier_system.md`, `tier_1_pool.md`
 - `floor_transitions.md`, `tower_biome_system.md`

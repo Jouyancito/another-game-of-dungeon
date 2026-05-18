@@ -93,7 +93,7 @@ Por cada asset que se necesite (no copiar todo el pack):
 
 ### 4.1 Tier I canon — sin normal maps / PBR
 
-Por canon `visual_bible.md` §P1, baseline Tier I = **sin normal maps, sin PBR**. Quaternius packs incluyen normal maps grandes (ej. `BirchTree_Bark_Normal.png` = 22 MB). Workflow:
+Por canon `_art_canon.md` §5.2 (P1), baseline Tier I = **sin normal maps, sin PBR**. Quaternius packs incluyen normal maps grandes (ej. `BirchTree_Bark_Normal.png` = 22 MB). Workflow:
 
 - **Borrar** `*_Normal.png` post-extraction.
 - **Editar JSON** del `.gltf`: sacar `normalTexture` field del material, sacar la entry de `images[]` y `textures[]` correspondiente, renumerar índices.
@@ -126,5 +126,5 @@ Alternativa más limpia (cuando haya Blender): re-export como `.glb` binario con
 - README estructura: `game/assets/art/piso1_pradera/README.md`
 - Lista completa assets P1: `game/docs/art/p1_pradera.md`
 - Sourcing detallado (legacy, pre scope reset): `game/docs/art/p1_assets_sourcing.md`
-- Visual canon: `game/docs/art/_art_direction_bible.md` + `visual_bible.md` §P1
+- Visual canon: `game/docs/art/_art_canon.md` (unified v2.0)
 - Pipeline ops: `game/docs/art/_visual_pipeline.md`

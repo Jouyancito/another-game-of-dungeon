@@ -254,7 +254,7 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 - `game/docs/balance/_drop_ownership_canon.md` (v2.0, 2026-04-16)
 - `game/docs/balance/_mimic.md` (v1.0, 2026-04-16)
 - `game/docs/balance/p1_loot_table.md`
-- `game/docs/art_direction.md` + `game/docs/visual_bible.md` (art direction bible v1.0, 2026-04-21 — toon canon 6 clases + 5 pisos)
+- `game/docs/art/_art_canon.md` (v2.0 unified canon 2026-05-18 — merges art_direction + visual_bible + _art_direction_bible · adds LOTR/Metin2/Dark and Darker/SLF/Tensura refs · Kimetsu canon for skill VFX)
 
 **Specs en hold scope-reset** (revivir post-alpha): archivadas en `docs/_archive/post-alpha-specs/` (`_taverna_spec.md`, `_skill_tree_spec.md`, `professions_spec.md` + README con rationale). Ascendencia y evolución skill viven en `_system.md` v1.0 — siguen siendo canon, solo se posponen para implementación post-alpha.
 

@@ -6,7 +6,7 @@
 **Relación con otros docs**:
 - `GDD_DungeonParty.md` → el qué y el cómo técnico (mecánicas, stats, fórmulas).
 - `game/docs/tower_biome_system.md` → catálogo completo de los 25 biomas.
-- `game/docs/art_direction.md` → paleta, poly budget, atmósfera visual.
+- `game/docs/art/_art_canon.md` → paleta, poly budget, atmósfera visual, refs (v2.0 unified 2026-05-18).
 - **Este brief** → la **identidad**, el tono, la **gramática de diseño** y la arquitectura macro de la torre.
 
 Cuando el GDD y este brief entren en conflicto, **este brief gana en cuestiones de tono y dirección**; el GDD gana en cuestiones de mecánica.

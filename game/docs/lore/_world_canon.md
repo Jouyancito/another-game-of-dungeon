@@ -366,7 +366,7 @@ Cada piso está inspirado en una **cultura distinta del mundo real**. La mezcla 
 | `_fase1_spec_archer.md` | ⏸️ TODO-canon-update | Refs a NPCs legendarios chilenos (Huentelaf, etc.) |
 | `_fase1_spec_cleric.md` | ⏸️ TODO-canon-update | Refs a Tres Cumbres, etc. |
 | `_fase1_spec_necromancer.md` | ⏸️ TODO-canon-update | Refs a Caleuche, Kalku, etc. |
-| `_art_direction_bible.md` | ⏸️ TODO-canon-update | Paleta y referencias visuales |
+| `_art_canon.md` (unified v2.0) | ⏸️ TODO-canon-update paletas culturales | Paleta y referencias visuales — base shader/pipeline OK, paletas culturales chilenas DEPRECATED |
 | `_visual_pipeline.md` | ⏸️ TODO-canon-update | Referencias a pisos |
 | `skill_icons.md` | ⏸️ TODO-canon-update | Refs culturales a skills |
 

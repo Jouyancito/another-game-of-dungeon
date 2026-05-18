@@ -7,7 +7,7 @@ Assets del **Piso 1 (Pradera)**. Organizados por categoría.
 - `game/docs/art/p1_pradera.md` — lista completa de assets + paleta + moodboard.
 - `game/docs/art/p1_assets_sourcing.md` — sourcing detallado por asset (legacy pre scope reset, sigue válido para hero assets + AI gen).
 - `game/docs/art_pipeline.md` — pipeline operativo general.
-- `game/docs/visual_bible.md` §P1 — canon lighting + paleta.
+- `game/docs/art/_art_canon.md` §5.2 — canon lighting + paleta P1.
 - Skill `kenney-quaternius-sourcer` — índice CC0 oficial + naming convention.
 
 ---
@@ -84,7 +84,7 @@ piso1_pradera/
 4. **ÚLTIMO** Blender from scratch. Solo si Kenney/Quaternius no tienen + AI gen no da calidad + es pieza crítica gameplay.
 5. Renombrar siguiendo convención `{prefix}_{descripcion}.glb`.
 6. Colocar en subcarpeta correcta de `piso1_pradera/`.
-7. Import en Godot, verificar con lighting canon P1 (`visual_bible.md` §P1).
+7. Import en Godot, verificar con lighting canon P1 (`_art_canon.md` §5.2).
 8. Commit: `art(p1): add <prefix>_<nombre>`.
 
 ---

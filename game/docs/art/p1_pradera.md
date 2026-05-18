@@ -2,7 +2,7 @@
 
 **Estado**: Draft v1 — 2026-04-13
 **Dept**: Art (worktree D — `dept/art/p1-pradera`)
-**Base canon**: `game/docs/visual_bible.md` §P1, `game/docs/biome_prairie.md`, `game/docs/art_direction.md`, `game/docs/refs/p1_prairie/canon_main.jpg`
+**Base canon**: `game/docs/art/_art_canon.md` §5.2 (P1 unified), `game/docs/biome_prairie.md`, `game/docs/refs/p1_prairie/canon_main.jpg`
 **Pipeline**: `game/docs/art_pipeline.md` (asset-first híbrido)
 
 > Este doc junta **moodboard + paleta + lista completa de assets** de P1 en un solo lugar para que cualquiera (vos mañana, QA, otro dept) sepa qué se necesita fabricar. El **sourcing concreto** (links Kenney, qué va a AI, qué a Blender) vive en `p1_assets_sourcing.md`.
@@ -29,7 +29,7 @@ Referencias externas de estilo (buscar en Google/Pinterest con estos keywords pa
 - **Ragnarok Online — Prontera Fields** — flores dispersas, densidad media.
 - **Metin2 — Map1** — caminos de tierra, outpost de madera.
 - **Risk of Rain 2** — shape language low-poly + lectura instantánea a distancia.
-- **Kimetsu no Yaiba (anime)** — luz volumétrica cálida + shape organicidad (filosofía visual del proyecto, ver `art_direction.md`).
+- **Kimetsu no Yaiba (anime)** — luz volumétrica cálida + shape organicidad (filosofía visual del proyecto, ver `_art_canon.md` §2.4).
 
 **NO copiar**: cielo abierto con nubes. Acá el "cielo" es techo de roca + diamante + cristales emisivos.
 
@@ -298,7 +298,7 @@ Un asset está "listo" cuando:
 
 ## 9. Links cruzados
 
-- Filosofía visual: `game/docs/art_direction.md`
+- Filosofía visual: `game/docs/art/_art_canon.md`
 - Pipeline operativo (cómo fabricar): `game/docs/art_pipeline.md`
 - Shaders catálogo: `game/docs/shader_system.md`
 - Transiciones entre pisos: `game/docs/floor_transitions.md`

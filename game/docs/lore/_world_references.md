@@ -440,7 +440,7 @@ Cómo cada referencia **canon aprobada** influye en decisiones de diseño activa
 - **Mimic canon**: `_mimic.md` (Frieren reference)
 - **Framework audit**: `_framework_audit.md` (32 evolution items pendientes drop source — relevante para Monster Feast drops)
 - **GDD**: `GDD_DungeonParty.md` (pilares + estructura + §9.1 voice chat proximidad)
-- **Visual bible**: `game/docs/visual_bible.md` (paleta + silhouettes)
+- **Art canon**: `game/docs/art/_art_canon.md` (paleta + silhouettes + refs unified v2.0)
 
 ---
 
