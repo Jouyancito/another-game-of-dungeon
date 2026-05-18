@@ -4,6 +4,18 @@ Dungeon crawler cooperativo en primera persona, 1-6 jugadores. Torre de 5 pisos 
 
 **Repo**: https://github.com/Jouyancito/another-game-of-dungeon (privado)
 
+## ⚠️ Scope Reset 2026-05-18
+
+Plan post-reinicio acordado en `juego dungeon.md` (Desktop). Filtro vigente para TODA decisión:
+
+> "¿Esto acerca o aleja de los 5 mapas publicables?"
+
+**Stop**: specs nuevas (professions, ascendencia, evolución skill, taverna v2), más clases pulidas, workflow meta nuevo, canon expansion.
+**Start**: vertical slice 10 min grabado · MVP reducido (1 mapa, 3 clases Warrior/Mage/Archer, 1 boss, ~15 enemies, lvl cap 15) · Steam wishlist · demo itch.io 30 días.
+**Construcción**: incremental tipo Valheim / Hades / Vampire Survivors early access.
+
+Las 6 clases siguen siendo canon de lanzamiento — el recorte a 3 es solo alpha demo.
+
 ## Stack
 
 - **Engine**: Godot 4.6
@@ -39,23 +51,31 @@ game/
 └── scripts/                       # Vacío — futuro: utilidades
 ```
 
-## Estado Actual — Fase de Prototipo
+## Estado Actual — Alpha early-access (post scope reset 2026-05-18)
 
 ### Implementado
 
-- **Herencia de clases**: BasePlayer → Warrior/Mage (código compartido sin duplicar)
+- **Herencia de clases**: BasePlayer → Warrior / Mage / Archer / Cleric / Necromancer / Danzante de Sombras (6 clases, Fase 1 con skills .tres canon)
+- **Skills Fase 1 cableadas**: Warrior + Mage + ACN parity (Archer/Cleric/Necromancer con class_mult + ClassResource) + Danzante (combo points + 4 skills + stealth)
 - **Movimiento**: WASD + mouse look, salto, gravedad, sprint (Shift), agacharse (Ctrl)
-- **Guerrero**: puñetazo pesado (click, 35 dmg base) + combo rápido (mantener, 15 dmg base)
-- **Mago**: bolita de energía (click, 25 dmg base, gratis) + rayo canalizado (mantener, 8 dmg/tick, gasta maná)
-- **Sistema de stats**: STR, INT, DEX, DEF, VIT con valores base por clase
-- **Fórmulas de daño**: físico = base + (STR×2), mágico = base + (INT×2)
+- **Sistema de stats**: STR, INT, DEX, DEF, VIT con valores base por clase (ver canon `balance_v2.md`)
+- **Fórmulas de daño**: migradas a canon v2 (`game/shared/stats/damage_formula.gd` + `progression.gd`)
 - **Defensa**: DEF reduce daño físico (mínimo 1), resistencias elementales cap 75%
-- **HP/MP calculados**: HP = base + (VIT×5), MP = base + (INT×3)
-- **Regeneración**: vida fuera de combate (15s delay), maná siempre
-- **3 stat points por nivel** + función assign_stat() lista para UI
-- **Enemigo básico**: cubos rojos, 100 HP, IA con detección 15m, ataque 2m, 30 XP
+- **Regeneración**: vida fuera de combate, maná siempre
+- **Downed state**: crawl + last breath bar + revive (R respawn fallback)
+- **Torch**: slot off_hand, F encender/apagar, auto-on al equipar
+- **15+ enemigos**: bandit, slime + mini_slime, golem, wolf, bird, fox, mimic, etc.
+- **Loot completo**: drops + chests + loot table + drop ownership canon v2 (party-first, timers, bind items, seeded RNG)
+- **Inventory/Equipment**: drag&drop, stack count label, context menu unequip, RichTextLabel tooltip, paper-doll D2-style
+- **Character window**: tabs stats / habilidades / equipo
+- **Character select**: D2-style con preview 3D + highest_floor
+- **Quest system**: QuestCatalog autoload + SkillResource §12.2 schema
+- **Audio + damage numbers + camera shake + hit stop + cooldown swipe** (feel MMO)
+- **Visual pipeline tier1**: toon shader + env_pradera + lightmap + materials preset
+- **Animation pipeline**: AnimationTree programático + FootIK
 - **HUD**: barras vida/maná/XP, hotbar 8 slots, crosshair, pantalla de muerte
-- **Respawn**: tecla R recarga la escena (temporal para prototipo)
+- **Save system**: JSON local
+- **GUT testing addon** + tests (warrior skills, danzante combo, damage formulas)
 
 ### Stats Base por Clase
 
@@ -169,12 +189,17 @@ Métodos override por clase: `_on_class_ready()`, `_on_attack_pressed()`, `_on_a
 
 Ver https://github.com/Jouyancito/another-game-of-dungeon/issues
 
-## Próximos Pasos
+## Próximos Pasos (plan post-reinicio 2026-05-18)
 
-- Probar refactor (BasePlayer herencia) — verificar que todo funcione igual
-- Selector de clase (issue #1)
-- Ventana de personaje para asignar stat points (issue #2)
-- Más tipos de enemigos (issue #4)
+Orden estricto, antes de tocar código nuevo:
+
+1. ✅ Sync `CLAUDE.md` a canon vigente (este edit).
+2. Archivar specs huérfanas (taverna, skill tree, professions) a `docs/_archive/` con nota "revivir post-alpha".
+3. Cerrar/relabelar issues #1, #2, #4, #5 (features ya implementadas, issue tracker desactualizado).
+4. Definir EXPLÍCITAMENTE los 5 mapas alpha (cuáles biomas, qué enemies, qué boss). Doc corto, 1 página.
+5. Grabar primer vertical slice 10 min del piso 1 actual para baseline.
+
+Vigilancia: ante tentación de meta-trabajo (más agentes, retros, canon), preguntar: *"¿Esto sale en el video de 10 min del demo?"* Si no → posponer.
 
 ## Departamentos — Status Tracking (DESACTIVADO 2026-05-09)
 
@@ -204,20 +229,33 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 - **2026-04-17**: Class lore canon (#47 — 6 docs lore + identidad cultural, órdenes preexistentes). World canon chileno central (`_world_canon.md`) + naming chileno (Pire-Mapu/Nahuelbuta/Lota/San Pedro de Atacama/Tres Cumbres volcanes/Quicaví-Caleuche) + Necromancer rewrite DARK (excepción tonal canon — pisa "moralmente gris" anterior).
 - **2026-04-18**: Tag `v0.5` — mergeadas 3 ramas: C `refs-approved-monster-feast` (world_references v1.1 + framework_audit v1.0 con 11 gaps schema), B `skills-schema-p0-fix` (SkillResource schema P0/P1 completo + 430L tests + 4 warrior .tres re-wired), D `mage-skill-icons` (4 SVG canon Fase 2 prep). Playtest reveló 3 gaps polish Fase 1: VFX faltantes (issue #63), embestida teletransporte (issue #64), no skill tree UI (issue #65). 3 ramas dept/* nuevas asignadas en paralelo: `dept/art/warrior-vfx-fase1`, `dept/gameplay/warrior-skills-polish`, `dept/design/skill-tree-ui-spec`.
 - **2026-04-18 (sesión 2, dept C)**: Judgment Day gap-filling — 4 per-class Fase 1 specs + taverna spec. Creados: `_fase1_spec_archer.md` (4 skills canon + Concentración recurso + schema P0/P1 completo), `_fase1_spec_cleric.md` (4 skills canon + Fe recurso + excepción 3 ramas), `_fase1_spec_necromancer.md` (4 skills canon + Vida-recurso + SummonResource skeleton_base spec + framing DARK), `_fase1_spec_danzante.md` (4 skills FROM SCRATCH — única clase sin .gd/.tscn, spec completa con nota arquitectura Combo Points), `_taverna_spec.md` (layout ASCII + 3 NPCs canon: Millaray/Kutrán/Mensajera Lefkén + save integration + transiciones). Rama: `dept/design/fase1-specs-wave2`.
+- **2026-04-18 (wave 3)**: Warrior VFX Fase 1 (charge / war_cry / punch_impact / perfect_block) + vfx_canon doc · audio + damage numbers + camera shake + hit stop + cooldown swipe (feel MMO) · migración fórmulas a `balance_v2` canon · fix embestida wall raycast + war_cry exploit · Mage Fase 1 4 skills .tres + hotbar default + VFX hooks · downed state stub.
+- **2026-04-21**: Visual pipeline tier1 — toon shader + env_pradera + lightmap + materials preset · tier 2 animation pipeline (AnimationTree programático + FootIK) · art direction bible v1.0 (6 clases + 5 pisos + toon canon) · skills §12 reconciliación schema con P0/P1 wave2.
+- **2026-04-22**: QuestCatalog autoload + SkillResource §12.2 schema fields + naming canon quests.
+- **2026-04-23**: **World canon v2.0 REWRITE — hub planetario multicultural** (descarta v1.0 chilena). Character_select D2-style con preview 3D + highest_floor · Danzante Fase 1 (combo points + stealth + 4 skills canon) · downed crawl + last breath bar + torch slot UI · MarkBehavior schema reserve · enemy alert / aggro fixes wave1.
+- **2026-04-24**: ACN parity (Archer/Cleric/Necromancer class_mult + ClassResource + 13 skills .tres Fase 1) · character_window tabs (stats / habilidades / equipo) · 4 SVG icons Danzante (toon canon) · stack count label inventory (D2 esquina inf-der) · refactor torch → off_hand slot (reserva `light` para quick_use) · pre-consume combo atomic + VFX Danzante TODO.
+- **2026-04-25 → 04-26**: Track Godot 4 `.uid` metadata · ignore `.claude/` coordination state · ignore `.env` files.
+- **2026-05-08**: Batch playtest fixes — skills + enemy + ui (JD-cleared).
+- **2026-05-09**: Inventory clamp Y + dup-on-doubleclick + golem aggro super fix · Professions tab DRAFT (PAUSADO scope reset) · **Dept multi-worktree DESACTIVADO** — archivo `docs/_archive/dept-workflow/`.
+- **2026-05-18 (scope reset)**: Retrospectiva 60 días. Diagnóstico: construyendo engine RPG profundo, no juego publicable. Decisiones: Godot 4.6 stay · alpha = 5 mapas · MVP demo = 1 mapa / 3 clases (W/M/A) / 1 boss / 15 enemies / lvl cap 15 · objetivo Steam wishlist + itch.io 30 días. Plan completo en `juego dungeon.md` (Desktop). Sync `CLAUDE.md` ejecutado hoy.
 
 ## Canon de Design Vigente
 
 **Siempre consultar antes de refactorizar sistemas de skills, stats, loot, o lore/worldbuilding:**
 
-- `game/docs/lore/_world_canon.md` (world canon central + naming chileno + Necromancer DARK, 2026-04-17)
-- `game/docs/lore/_class_lore_{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (lore per-class v2.0 naming chileno, 2026-04-17 — Necromancer v2.0 DARK)
-- `game/docs/skills/_system.md` (skills system v1.0, 2026-04-14)
+- `game/docs/lore/_world_canon.md` (**v2.0 hub planetario multicultural, 2026-04-23 — REWRITE completo, descarta v1.0 chilena**)
+- `game/docs/lore/_class_lore_*.md` (**PAUSADOS** — esperan realineación con world_canon v2.0 post-alpha)
+- `game/docs/skills/_system.md` (skills system v1.0, 2026-04-14) + §12 schema reconciliation (2026-04-21)
 - `game/docs/skills/{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (per-class v2.0, 2026-04-16)
+- `game/docs/skills/_fase1_spec_{archer,cleric,necromancer,danzante}.md` (Fase 1 specs implementadas)
 - `game/docs/skills/_synergies.md` (combos cross-class, 2026-04-16)
 - `game/docs/skills/_status_effects.md`
-- `game/docs/balance_v2.md` (curvas + fórmulas compound)
+- `game/docs/balance_v2.md` (curvas + fórmulas compound — fuente de damage_formula.gd + progression.gd)
 - `game/docs/balance/_drop_ownership_canon.md` (v2.0, 2026-04-16)
 - `game/docs/balance/_mimic.md` (v1.0, 2026-04-16)
 - `game/docs/balance/p1_loot_table.md`
+- `game/docs/art_direction.md` + `game/docs/visual_bible.md` (art direction bible v1.0, 2026-04-21 — toon canon 6 clases + 5 pisos)
 
-**ESTADO COMPLETO DEL PROYECTO en `PROJECT_STATE.md`** (snapshot 2026-04-12, parcialmente desactualizado por skills/mimic post 14-16).
+**Specs en hold scope-reset** (revivir post-alpha): `professions_spec.md`, `_taverna_spec.md`, skill tree UI spec, ascendencia, evolución skill.
+
+**ESTADO COMPLETO DEL PROYECTO en `PROJECT_STATE.md`** (snapshot 2026-04-12, desactualizado — `CLAUDE.md` es la fuente de verdad hasta nuevo snapshot).
