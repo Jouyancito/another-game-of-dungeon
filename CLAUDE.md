@@ -256,6 +256,6 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 - `game/docs/balance/p1_loot_table.md`
 - `game/docs/art_direction.md` + `game/docs/visual_bible.md` (art direction bible v1.0, 2026-04-21 — toon canon 6 clases + 5 pisos)
 
-**Specs en hold scope-reset** (revivir post-alpha): `professions_spec.md`, `_taverna_spec.md`, skill tree UI spec, ascendencia, evolución skill.
+**Specs en hold scope-reset** (revivir post-alpha): archivadas en `docs/_archive/post-alpha-specs/` (`_taverna_spec.md`, `_skill_tree_spec.md`, `professions_spec.md` + README con rationale). Ascendencia y evolución skill viven en `_system.md` v1.0 — siguen siendo canon, solo se posponen para implementación post-alpha.
 
 **ESTADO COMPLETO DEL PROYECTO en `PROJECT_STATE.md`** (snapshot 2026-04-12, desactualizado — `CLAUDE.md` es la fuente de verdad hasta nuevo snapshot).
