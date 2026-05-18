@@ -3,8 +3,9 @@
 Assets del **Piso 1 (Pradera)**. Organizados por categoría.
 
 **Docs de referencia**:
+- **`game/docs/art/_alpha_asset_packs.md`** — **CANON ALPHA**: 5 packs CC0 (opción C 2026-05-18) que cubren piso 1. Empezar acá.
 - `game/docs/art/p1_pradera.md` — lista completa de assets + paleta + moodboard.
-- `game/docs/art/p1_assets_sourcing.md` — de dónde sale cada asset (Kenney / Quaternius / AI / Blender).
+- `game/docs/art/p1_assets_sourcing.md` — sourcing detallado por asset (legacy pre scope reset, sigue válido para hero assets + AI gen).
 - `game/docs/art_pipeline.md` — pipeline operativo general.
 - `game/docs/visual_bible.md` §P1 — canon lighting + paleta.
 - Skill `kenney-quaternius-sourcer` — índice CC0 oficial + naming convention.
