@@ -9,7 +9,9 @@
 
 ---
 
-## 1. Los 5 packs
+## 1. Los packs canon
+
+### Packs originales (alpha core, descargados 2026-05-18)
 
 | # | Pack | URL | Cubre |
 |---|------|-----|-------|
@@ -19,8 +21,26 @@
 | 4 | Kenney Fantasy Town Kit | https://kenney.nl/assets/fantasy-town-kit | Casas medievales 3D, muros, torres, props outpost. 100+. (Reemplaza "Medieval Kit" que no existe en Kenney actual). |
 | 5 | Kenney Particle Pack | https://kenney.nl/assets/particle-pack | Sprites VFX (fuego, humo, magic, charge, projectiles). 100+ PNG sprites Kimetsu-feel. |
 
-**Licencia**: los 5 son CC0 (uso comercial sin atribución). Donar opcional si monetizamos.
-**Formato**: todos `.glb` (Kenney también ofrece `.fbx` / `.obj` — usar GLB, Godot 4 carga nativo).
+### Batch 2 — alpha expand (descargados 2026-05-25)
+
+| # | Pack | URL | Cubre |
+|---|------|-----|-------|
+| 6 | Quaternius Universal Animation Library | https://quaternius.itch.io/universal-animation-library | 45 anims free (locomotion 8-dir + combat + emotes) Mixamo-compatible. **Wire en player + enemies para fluidez.** |
+| 7 | Quaternius Stylized Nature Megakit | https://quaternius.itch.io/stylized-nature-megakit | 68 .gltf — 40 trees (CommonTree/DeadTree/NormalTree/TwistedTree) + 35 plants/flowers/clovers + 27 rocks. Ghibli-feel. Upgrade del Ultimate Stylized Nature. |
+| 8 | Quaternius Medieval Village Megakit | https://quaternius.itch.io/medieval-village-megakit | 176 .gltf modular — balconies/corners/walls/doors/roofs. **Outpost+village expand**. |
+| 9 | Quaternius Fantasy Props Megakit | https://quaternius.com/packs/fantasypropsmegakit.html | 94 .gltf — weapons/tools/vegetables/potions/market stalls/chests/breakables. **Loot visuals + dungeon decoration**. 4 shared texture sets. |
+| 10 | Kenney Retro Textures Fantasy | https://kenney.nl/assets/retro-textures-fantasy | 117 PNG textures — doors + floor_ground_grass/dirt/sand/water + floor_stone variants. **Ground tile replace + dungeon floors pisos 2-5**. |
+| 11 | BinBun3D Hit FX | https://binbun3d.itch.io/hit-fx | Godot 4.x scenes (.tscn) — 6 hit/magic preset effects free. **Reemplazo VFX placeholder**. |
+| 12 | BinBun3D Electric FX | https://binbun3d.itch.io/electric-fx | Godot 4.x scenes — 2 lightning/electricity preset effects free. **Mage rayo + Cleric divine zap**. |
+| 13 | Foozle RPG UI Set 1 | https://foozlecc.itch.io/rpg-ui-set-1 | ~50 PNG sprites Diablo-style — buttons/coins/chests/panels. **HUD upgrade**. |
+
+**Licencia**: TODOS CC0 (uso comercial sin atribución). Donar opcional.
+**Formato**: GLB/GLTF (Godot 4 nativo) + PNG (textures/UI) + .tscn (BinBun Godot scenes).
+**Total raw**: ~830 MB extraídos en `_raw/` (gitignored).
+
+### Auxiliares (no descargados, refs evaluación)
+
+Ver `_asset_refs_inbox.md` para entries pendientes (KayKit Dungeon Pack #R01, Poly Haven HDRI #R02, KayKit Adventurers #R03, KayKit Skeletons #R04).
 
 ---
 
