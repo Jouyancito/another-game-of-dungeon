@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://floor1_prairie"]
+[gd_scene load_steps=43 format=3 uid="uid://floor1_prairie"]
 
 [ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://crystal_ceiling" path="res://scenes/levels/components/crystal_ceiling.tscn" id="2_ceiling"]
@@ -6,6 +6,48 @@
 [ext_resource type="PackedScene" uid="uid://ambient_butterfly" path="res://scenes/fauna/butterfly.tscn" id="4_butterfly"]
 [ext_resource type="PackedScene" uid="uid://ambient_bird" path="res://scenes/fauna/bird.tscn" id="5_bird"]
 [ext_resource type="PackedScene" uid="uid://ambient_rabbit" path="res://scenes/fauna/rabbit.tscn" id="6_rabbit"]
+
+; ── Vegetation: 5 birch variants + 3 maple + 1 dead tree ──────────────────────
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf" id="7_birch_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf" id="8_birch_02"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_03.gltf" id="9_birch_03"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_04.gltf" id="10_birch_04"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_05.gltf" id="11_birch_05"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf" id="12_maple_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf" id="13_maple_02"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf" id="14_maple_03"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf" id="15_dead_01"]
+
+; ── Bushes + flowers + grass ──────────────────────────────────────────────────
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf" id="16_bush_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf" id="17_bush_large_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowers_01.gltf" id="18_bush_flowers_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/bush/env_bush_small_flowers_01.gltf" id="19_bush_small_flowers_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_01.gltf" id="20_flower_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_02.gltf" id="21_flower_02"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_03.gltf" id="22_flower_03"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/terrain/env_terrain_grass_patch_01.gltf" id="23_grass_patch"]
+
+; ── Rocks ──────────────────────────────────────────────────────────────────────
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb" id="24_rock_large"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb" id="25_rock_small"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/rocks/prop_rock_wide_01.glb" id="26_rock_wide"]
+
+; ── Outpost props (Kenney Fantasy Town Kit) ───────────────────────────────────
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fountain_round_01.glb" id="27_fountain"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_lantern_01.glb" id="28_lantern"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_cart_01.glb" id="29_cart"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_pillar_wood_01.glb" id="30_pillar"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_planks_01.glb" id="31_planks"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_chimney_01.glb" id="32_chimney"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_chimney_top_01.glb" id="33_chimney_top"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fence_01.glb" id="34_fence"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fence_broken_01.glb" id="35_fence_broken"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fence_gate_01.glb" id="36_fence_gate"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_hedge_01.glb" id="37_hedge"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_hedge_curved_01.glb" id="38_hedge_curved"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_banner_green_01.glb" id="39_banner_green"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_banner_red_01.glb" id="40_banner_red"]
 
 ; ── Sky / Environment ──────────────────────────────────────────────────────────
 
@@ -83,3 +125,132 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -20)
 creature_scene = ExtResource("6_rabbit")
 count = 4
 spawn_radius = 12.0
+
+; ── Vegetation scatter (2026-05-24 visual integration bloque A+B) ─────────────
+
+[node name="Vegetation" type="Node3D" parent="."]
+
+[node name="Birch1" parent="Vegetation" instance=ExtResource("7_birch_01")]
+transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, 15, 0, 12)
+
+[node name="Birch2" parent="Vegetation" instance=ExtResource("8_birch_02")]
+transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, -18, 0, 8)
+
+[node name="Birch3" parent="Vegetation" instance=ExtResource("9_birch_03")]
+transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, -22, 0, -15)
+
+[node name="Birch4" parent="Vegetation" instance=ExtResource("10_birch_04")]
+transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, 20, 0, -10)
+
+[node name="Birch5" parent="Vegetation" instance=ExtResource("11_birch_05")]
+transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, 12, 0, -25)
+
+[node name="Maple1" parent="Vegetation" instance=ExtResource("12_maple_01")]
+transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, -8, 0, 18)
+
+[node name="Maple2" parent="Vegetation" instance=ExtResource("13_maple_02")]
+transform = Transform3D(0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, 10, 0, 22)
+
+[node name="Maple3" parent="Vegetation" instance=ExtResource("14_maple_03")]
+transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, -15, 0, -5)
+
+[node name="DeadTree1" parent="Vegetation" instance=ExtResource("15_dead_01")]
+transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, 5, 0, -12)
+
+[node name="Bush1" parent="Vegetation" instance=ExtResource("16_bush_01")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 6)
+
+[node name="BushLarge1" parent="Vegetation" instance=ExtResource("17_bush_large_01")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 4)
+
+[node name="BushFlowers1" parent="Vegetation" instance=ExtResource("18_bush_flowers_01")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -8)
+
+[node name="BushSmallFlowers1" parent="Vegetation" instance=ExtResource("19_bush_small_flowers_01")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 9)
+
+[node name="FlowerClump1" parent="Vegetation" instance=ExtResource("20_flower_01")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+
+[node name="FlowerClump2" parent="Vegetation" instance=ExtResource("21_flower_02")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -3)
+
+[node name="FlowerClump3" parent="Vegetation" instance=ExtResource("22_flower_03")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -2)
+
+[node name="GrassPatch1" parent="Vegetation" instance=ExtResource("23_grass_patch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 2)
+
+[node name="GrassPatch2" parent="Vegetation" instance=ExtResource("23_grass_patch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 3)
+
+[node name="GrassPatch3" parent="Vegetation" instance=ExtResource("23_grass_patch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 1)
+
+[node name="GrassPatch4" parent="Vegetation" instance=ExtResource("23_grass_patch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, -5)
+
+[node name="GrassPatch5" parent="Vegetation" instance=ExtResource("23_grass_patch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 1)
+
+[node name="GrassPatch6" parent="Vegetation" instance=ExtResource("23_grass_patch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -1)
+
+; ── Rocks scatter ─────────────────────────────────────────────────────────────
+
+[node name="Rocks" type="Node3D" parent="."]
+
+[node name="RockLarge1" parent="Rocks" instance=ExtResource("24_rock_large")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 10)
+
+[node name="RockWide1" parent="Rocks" instance=ExtResource("26_rock_wide")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -3)
+
+[node name="RockSmall1" parent="Rocks" instance=ExtResource("25_rock_small")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 8)
+
+; ── Outpost cluster (mini-camp NE de spawn, ~25m radius 4m) ───────────────────
+
+[node name="Outpost" type="Node3D" parent="."]
+
+[node name="Fountain" parent="Outpost" instance=ExtResource("27_fountain")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 0)
+
+[node name="Lantern" parent="Outpost" instance=ExtResource("28_lantern")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 2)
+
+[node name="Cart" parent="Outpost" instance=ExtResource("29_cart")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 1)
+
+[node name="Pillar" parent="Outpost" instance=ExtResource("30_pillar")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 3)
+
+[node name="Planks" parent="Outpost" instance=ExtResource("31_planks")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, 3)
+
+[node name="Chimney" parent="Outpost" instance=ExtResource("32_chimney")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -3)
+
+[node name="ChimneyTop" parent="Outpost" instance=ExtResource("33_chimney_top")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 2.5, -3)
+
+[node name="Fence1" parent="Outpost" instance=ExtResource("34_fence")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 0, 0)
+
+[node name="FenceBroken1" parent="Outpost" instance=ExtResource("35_fence_broken")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 0, -2)
+
+[node name="FenceGate1" parent="Outpost" instance=ExtResource("36_fence_gate")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -3)
+
+[node name="Hedge1" parent="Outpost" instance=ExtResource("37_hedge")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 3)
+
+[node name="HedgeCurved1" parent="Outpost" instance=ExtResource("38_hedge_curved")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 3)
+
+[node name="BannerGreen" parent="Outpost" instance=ExtResource("39_banner_green")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 2.5)
+
+[node name="BannerRed" parent="Outpost" instance=ExtResource("40_banner_red")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -3)
