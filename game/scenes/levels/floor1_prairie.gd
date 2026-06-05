@@ -1004,73 +1004,134 @@ func _build_pond(poi: POISystem.POI) -> void:
 			Vector3(_rng.randf_range(0.6, 1.2), 0.5, _rng.randf_range(0.6, 1.2)),
 			COLOR_ROCK, true)
 
-# ── Vegetation (MultiMesh — 1 draw call por tipo) ────────────────────────────
+# ── Vegetation (gltf scatter — assets reales CC0) ────────────────────────────
+# Pools de assets reales para scatter procedural. Reemplaza el viejo BoxMesh
+# placeholder: el mapa entero se puebla con los gltf integrados, no cajas planas.
+
+const POOL_TREES: Array[PackedScene] = [
+	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_03.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_04.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_05.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf"),
+]
+const POOL_BUSHES: Array[PackedScene] = [
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowers_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_small_flowers_01.gltf"),
+]
+const POOL_ROCKS: Array[PackedScene] = [
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_wide_01.glb"),
+	preload("res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"),
+]
+const POOL_GROUND: Array[PackedScene] = [
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_02.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_03.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf"),
+]
 
 func _generate_vegetation(pois: Array) -> void:
-	# Recolectar transforms de cada tipo, luego crear un MultiMesh por tipo
-	var trunk_transforms: Array[Transform3D] = []
-	var canopy_transforms: Array[Transform3D] = []
-	var canopy_dark_transforms: Array[Transform3D] = []
-	var rock_transforms: Array[Transform3D] = []
-	var rock_dark_transforms: Array[Transform3D] = []
-	var grass_transforms: Array[Transform3D] = []
+	var container := Node3D.new()
+	container.name = "VegetationScatter"
+	add_child(container)
 
-	for i in range(TREE_COUNT):
-		var tree_pos: Vector3 = _random_open_pos(pois, 20.0)
-		if tree_pos == Vector3.INF:
+	# ── 1. Biome clusters anclados a POIs (placement curado) ──────────────────
+	# Cada POI temático se viste con su bioma: el estanque con árboles al borde,
+	# la arena del boss con un acantilado rocoso, el árbol gigante con bosque denso.
+	# Crea "lugares" con intención en vez de scatter uniforme.
+	for poi in pois:
+		var p: POISystem.POI = poi as POISystem.POI
+		var c: Vector3 = p.position
+		var r: float = p.size.x * 0.5
+		match p.type:
+			"pond":
+				# Estanque: anillo de árboles + flores/juncos pegados al agua
+				_scatter_cluster(POOL_TREES, 16, c, r + 2.0, r + 12.0, 0.5, 0.85, container)
+				_scatter_cluster(POOL_GROUND, 24, c, r - 1.0, r + 6.0, 0.8, 1.5, container)
+				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.8, 1.4, container)
+			"boss":
+				# Acantilado: cúmulo de rocas grandes rodeando la arena
+				_scatter_cluster(POOL_ROCKS, 28, c, r + 2.0, r + 18.0, 1.2, 2.6, container)
+			"giant_tree":
+				# Bosque denso alrededor del árbol gigante
+				_scatter_cluster(POOL_TREES, 30, c, r * 0.4, r + 16.0, 0.5, 0.9, container)
+				_scatter_cluster(POOL_BUSHES, 12, c, r * 0.4, r + 14.0, 0.8, 1.5, container)
+			"entrance":
+				# Grove de bienvenida: pocos árboles enmarcando, claro abierto al centro
+				_scatter_cluster(POOL_TREES, 10, c, r + 4.0, r + 18.0, 0.55, 0.9, container)
+				_scatter_cluster(POOL_GROUND, 16, c, r, r + 12.0, 0.8, 1.6, container)
+			"ruins":
+				# Escombros: rocas dispersas + arbustos invasores
+				_scatter_cluster(POOL_ROCKS, 14, c, r * 0.5, r + 8.0, 0.8, 1.8, container)
+				_scatter_cluster(POOL_BUSHES, 10, c, r * 0.5, r + 6.0, 0.8, 1.4, container)
+			"camp":
+				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.8, 1.3, container)
+			"altar", "well":
+				_scatter_cluster(POOL_GROUND, 12, c, r, r + 6.0, 0.8, 1.5, container)
+
+	# ── 2. Tejido conectivo ralo entre clusters (transiciones abiertas) ───────
+	# Scatter uniforme REDUCIDO: no satura, deja respirar el espacio entre lugares.
+	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.45), pois, 20.0, 0.5, 0.85, container)
+	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.4), pois, 12.0, 0.8, 1.8, container)
+	_scatter_pool(POOL_BUSHES, int(ROCK_COUNT * 0.3), pois, 10.0, 0.8, 1.4, container)
+	_scatter_pool(POOL_GROUND, int(TALL_GRASS_COUNT * 0.6), pois, 8.0, 0.8, 1.5, container)
+
+## Esparce instancias en un anillo (inner_r..outer_r) alrededor de `center`.
+## Es el placement temático: rodea un POI con su bioma característico.
+func _scatter_cluster(
+	pool: Array, count: int, center: Vector3,
+	inner_r: float, outer_r: float, scale_min: float, scale_max: float, parent: Node3D
+) -> void:
+	if pool.is_empty():
+		return
+	for i in range(count):
+		var angle: float = _rng.randf() * TAU
+		var dist: float = _rng.randf_range(inner_r, outer_r)
+		var pos: Vector3 = center + Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
+		if not _is_inside_border(pos):
 			continue
-		# Ajustar al terreno
-		tree_pos.y = get_terrain_height(tree_pos.x, tree_pos.z)
-		var trunk_h: float = _rng.randf_range(2.5, 5.0)
-		var trunk_r: float = _rng.randf_range(0.15, 0.35)
-		var canopy_size: float = _rng.randf_range(2.5, 5.0)
+		pos.y = get_terrain_height(pos.x, pos.z)
+		_place_instance(pool, pos, scale_min, scale_max, parent)
 
-		# Trunk transform (cilindro → usamos box escalado)
-		var t_pos: Vector3 = tree_pos + Vector3(0, trunk_h * 0.5, 0)
-		var t_scale: Vector3 = Vector3(trunk_r * 2, trunk_h, trunk_r * 2)
-		trunk_transforms.append(Transform3D(Basis.IDENTITY.scaled(t_scale), t_pos))
-
-		# Canopy transform
-		var c_pos: Vector3 = tree_pos + Vector3(0, trunk_h + canopy_size * 0.4, 0)
-		var c_scale: Vector3 = Vector3(canopy_size, canopy_size * 0.8, canopy_size)
-		if _rng.randf() > 0.3:
-			canopy_transforms.append(Transform3D(Basis.IDENTITY.scaled(c_scale), c_pos))
-		else:
-			canopy_dark_transforms.append(Transform3D(Basis.IDENTITY.scaled(c_scale), c_pos))
-
-	for i in range(ROCK_COUNT):
-		var rock_pos: Vector3 = _random_open_pos(pois, 12.0)
-		if rock_pos == Vector3.INF:
+## Scatter uniforme por el mapa abierto, evitando POIs (tejido conectivo).
+func _scatter_pool(
+	pool: Array, count: int, pois: Array,
+	min_poi_dist: float, scale_min: float, scale_max: float, parent: Node3D
+) -> void:
+	if pool.is_empty():
+		return
+	for i in range(count):
+		var pos: Vector3 = _random_open_pos(pois, min_poi_dist)
+		if pos == Vector3.INF:
 			continue
-		rock_pos.y = get_terrain_height(rock_pos.x, rock_pos.z)
-		var rs: Vector3 = Vector3(
-			_rng.randf_range(0.6, 2.5),
-			_rng.randf_range(0.4, 1.5),
-			_rng.randf_range(0.6, 2.0)
-		)
-		var r_pos: Vector3 = rock_pos + Vector3(0, rs.y * 0.5, 0)
-		if _rng.randf() > 0.3:
-			rock_transforms.append(Transform3D(Basis.IDENTITY.scaled(rs), r_pos))
-		else:
-			rock_dark_transforms.append(Transform3D(Basis.IDENTITY.scaled(rs), r_pos))
+		pos.y = get_terrain_height(pos.x, pos.z)
+		_place_instance(pool, pos, scale_min, scale_max, parent)
 
-	for i in range(TALL_GRASS_COUNT):
-		var gpos: Vector3 = _random_open_pos(pois, 8.0)
-		if gpos == Vector3.INF:
-			continue
-		gpos.y = get_terrain_height(gpos.x, gpos.z)
-		var gh: float = _rng.randf_range(0.8, 1.8)
-		var gs: Vector3 = Vector3(_rng.randf_range(1.0, 3.0), gh, _rng.randf_range(1.0, 3.0))
-		var g_pos: Vector3 = gpos + Vector3(0, gh * 0.5, 0)
-		grass_transforms.append(Transform3D(Basis.IDENTITY.scaled(gs), g_pos))
-
-	# Crear MultiMeshes
-	_create_multimesh_box("TreeTrunks", trunk_transforms, COLOR_TRUNK)
-	_create_multimesh_box("TreeCanopies", canopy_transforms, COLOR_CANOPY)
-	_create_multimesh_box("TreeCanopiesDark", canopy_dark_transforms, COLOR_CANOPY_DARK)
-	_create_multimesh_box("Rocks", rock_transforms, COLOR_ROCK)
-	_create_multimesh_box("RocksDark", rock_dark_transforms, COLOR_ROCK_DARK)
-	_create_multimesh_box("TallGrass", grass_transforms, COLOR_TALL_GRASS)
+## Instancia un PackedScene random del pool con rotación Y + escala random.
+func _place_instance(
+	pool: Array, pos: Vector3, scale_min: float, scale_max: float, parent: Node3D
+) -> void:
+	var scene: PackedScene = pool[_rng.randi() % pool.size()]
+	var inst: Node3D = scene.instantiate() as Node3D
+	if inst == null:
+		return
+	var s: float = _rng.randf_range(scale_min, scale_max)
+	var rot_y: float = _rng.randf() * TAU
+	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
+	parent.add_child(inst)
 
 func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 	for _t in range(30):
@@ -1090,31 +1151,6 @@ func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 		if valid:
 			return candidate
 	return Vector3.INF
-
-func _create_multimesh_box(mm_name: String, transforms: Array[Transform3D], color: Color) -> void:
-	if transforms.is_empty():
-		return
-
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3.ONE  # Tamaño base 1x1x1 — el transform escala
-
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mesh.material = mat
-
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = transforms.size()
-
-	for i in range(transforms.size()):
-		mm.set_instance_transform(i, transforms[i])
-
-	var mmi := MultiMeshInstance3D.new()
-	mmi.name = mm_name
-	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	add_child(mmi)
 
 # ── Enemy spawning ────────────────────────────────────────────────────────────
 

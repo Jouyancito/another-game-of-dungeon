@@ -1,4 +1,4 @@
-[gd_scene load_steps=43 format=3 uid="uid://floor1_prairie"]
+[gd_scene load_steps=58 format=3 uid="uid://floor1_prairie"]
 
 [ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://crystal_ceiling" path="res://scenes/levels/components/crystal_ceiling.tscn" id="2_ceiling"]
@@ -28,6 +28,15 @@
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_03.gltf" id="22_flower_03"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/terrain/env_terrain_grass_patch_01.gltf" id="23_grass_patch"]
 
+; ── Vegetation expand 2026-05-25 (Quaternius Stylized Nature Megakit) ─────────
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf" id="41_common_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf" id="42_common_02"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf" id="43_common_03"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf" id="44_mushroom_common"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf" id="45_mushroom_laeti"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf" id="46_clover_01"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf" id="47_pebble_01"]
+
 ; ── Rocks ──────────────────────────────────────────────────────────────────────
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb" id="24_rock_large"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb" id="25_rock_small"]
@@ -48,6 +57,16 @@
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_hedge_curved_01.glb" id="38_hedge_curved"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_banner_green_01.glb" id="39_banner_green"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_banner_red_01.glb" id="40_banner_red"]
+
+; ── Outpost extras 2026-05-25 (Quaternius Fantasy Props Megakit) ─────────────
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_barrel_01.gltf" id="48_barrel"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_barrel_apples_01.gltf" id="49_barrel_apples"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_crate_wooden_01.gltf" id="50_crate_wood"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_chest_wood_01.gltf" id="51_chest_wood"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_anvil_01.gltf" id="52_anvil"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_anvil_log_01.gltf" id="53_anvil_log"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_bench_01.gltf" id="54_bench"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost_extras/prop_book_small_01.gltf" id="55_book"]
 
 ; ── Sky / Environment ──────────────────────────────────────────────────────────
 
@@ -196,6 +215,28 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 1)
 [node name="GrassPatch6" parent="Vegetation" instance=ExtResource("23_grass_patch")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -1)
 
+; ── Vegetation expand batch 2026-05-25 ──────────────────────────────────────
+[node name="CommonTree1" parent="Vegetation" instance=ExtResource("41_common_01")]
+transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, -28, 0, 5)
+
+[node name="CommonTree2" parent="Vegetation" instance=ExtResource("42_common_02")]
+transform = Transform3D(0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, 28, 0, -5)
+
+[node name="CommonTree3" parent="Vegetation" instance=ExtResource("43_common_03")]
+transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, 0, 0, 30)
+
+[node name="MushroomCommon1" parent="Vegetation" instance=ExtResource("44_mushroom_common")]
+transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, 6, 0, 14)
+
+[node name="MushroomLaetiporus1" parent="Vegetation" instance=ExtResource("45_mushroom_laeti")]
+transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, -10, 0, -2)
+
+[node name="Clover1" parent="Vegetation" instance=ExtResource("46_clover_01")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -7)
+
+[node name="Pebble1" parent="Vegetation" instance=ExtResource("47_pebble_01")]
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, -7, 0, 4)
+
 ; ── Rocks scatter ─────────────────────────────────────────────────────────────
 
 [node name="Rocks" type="Node3D" parent="."]
@@ -254,3 +295,28 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 2.5)
 
 [node name="BannerRed" parent="Outpost" instance=ExtResource("40_banner_red")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -3)
+
+; ── Outpost extras batch 2026-05-25 (Fantasy Props Megakit) ──────────────────
+[node name="Anvil" parent="Outpost" instance=ExtResource("52_anvil")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 0, 4)
+
+[node name="AnvilLog" parent="Outpost" instance=ExtResource("53_anvil_log")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30.5, 0, 5)
+
+[node name="Bench" parent="Outpost" instance=ExtResource("54_bench")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 5)
+
+[node name="Barrel" parent="Outpost" instance=ExtResource("48_barrel")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29, 0, -1)
+
+[node name="BarrelApples" parent="Outpost" instance=ExtResource("49_barrel_apples")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 29, 0, -2)
+
+[node name="CrateWooden" parent="Outpost" instance=ExtResource("50_crate_wood")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 4)
+
+[node name="ChestWood" parent="Outpost" instance=ExtResource("51_chest_wood")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -5)
+
+[node name="BookSmall" parent="Outpost" instance=ExtResource("55_book")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.5, 0, 5.5)
