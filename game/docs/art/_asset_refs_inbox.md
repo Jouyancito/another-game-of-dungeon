@@ -186,47 +186,82 @@ Política Dungeon Party: **NO AI-generated audio**. Solo human-made + CC0.
 |---|------|-----|--------|-----------|
 | #017 | Liminal Space Free Horror SFX | https://liminal-space-dev.itch.io/free-horror-sfx-sounds | ⏸ deferred (pisos 4-5) | CC0 ✅, MP3 format, 2 volumes (13+9.2 MB). Content: footsteps multi-surface (concrete/carpet/metal) + wind ambience + monster growls + creaky doors. **Use case Joan 2026-05-25: ambientes de tensión + mobs psicóticos pisos 4-5 (Tormenta/Dimensión Rota)**. ⚠️ **AI-generated audio** (disclosed by author) — sin issue legal CC0 pero flag de honestidad para Steam page disclosure si aplica. |
 
-### BlendSwap — bulk entry crítico
+### BlendSwap — eval terminado 2026-05-25 (agente curl-bypaseó 403)
 
-#### #018-#057 — 40 URLs BlendSwap individuales
+Status global: 42 IDs evaluados · 39 CC0 · 3 CC-BY rejected · 10 style-fit alpha + 4 borderline + 25 mood-board-only.
 
-**RIESGO MAYOR**: BlendSwap permite varias licencias por upload (CC0 / CC-BY / CC-BY-NC / GPL). **Cada blend file tiene SU PROPIA license** — algunos NO son CC0.
+**Bajada técnica**: BlendSwap requiere account + click manual ("Download" button). NO `curl` directo. **Joan baja manual** los aprobados → drop `.zip` en `game/assets/art/_raw/blendswap/{id}/` → yo unzip + extract + integrate.
 
-**Eval pendiente per file**:
-- /28541, /26504, /31530, /16674, /13382, /2156, /29973, /11798, /30773, /27027
-- /28835, /28068, /31075, /22951, /16370, /29737, /30014, /29591, /19861, /26664
-- /21988, /27773, /27967, /2429, /1922, /18408, /27158, /16382, /31010, /19742
-- /30728, /17684, /23549, /16032, /19383, /4979, /16698, /19503, /15767, /8857
-- /10651, /1592
+#### Alpha P0 — Joan descargar manual (uso en piso 1 prairie)
 
-**Status**: 🔴 risk-license + 🟡 unknown-style — needs per-file fetch para:
-1. License check (must be CC0 — descartar CC-BY-NC / GPL)
-2. Style fit (low-poly chunky cartoon — descartar photoreal/anime/realistic)
-3. Format (Blender .blend → necesita export a .glb antes de Godot)
+| # | URL | Title | Use case alpha | Status |
+|---|-----|-------|----------------|--------|
+| #018 | https://www.blendswap.com/blend/19742 | Low Quality Weapon Pack (24 weapons) | Inventory loot Warrior melee | 🟡 manual-pending |
+| #019 | https://www.blendswap.com/blend/2429 | Low Poly Hand (rigged) | FPS view player first-person | 🟡 manual-pending |
+| #020 | https://www.blendswap.com/blend/31010 | Mushroom Character | Enemy prairie candidato | 🟡 manual-pending |
+| #021 | https://www.blendswap.com/blend/10651 | Simple Monster (rigged) | Enemy genérico — verify style al unzip | 🟡 manual-pending |
+| #022 | https://www.blendswap.com/blend/19503 | Fatty (humanoid chunky) | Bandit/NPC variant | 🟡 manual-pending |
+| #023 | https://www.blendswap.com/blend/26664 | Bird animated | Fauna prairie — verify low-poly | 🟡 manual-pending |
 
-**Recomendación**: NO descargar batch. Joan dame:
-- ¿Por qué estos 40? (qué viste en cada uno o pasaste todos los recent featured?)
-- Querés que evalúe los 10 con mejor look basado en search/preview? Te muestro shortlist, vos confirmás.
-- O preferís darme criterio (ej. "todos los que sean weapons" / "props dungeon") y yo filtro?
+#### Post-alpha defer (recovery cuando hagamos piso 2-5 o si alpha necesita más variedad)
+
+| # | URL | Title | Por qué defer | Recovery condición |
+|---|-----|-------|---------------|---------------------|
+| #024 | https://www.blendswap.com/blend/4979 | Ogre Creature (rigged) | Boss tier, no piso 1 | Si necesitamos boss piso 1 backup o pisos 3-5 |
+| #025 | https://www.blendswap.com/blend/28068 | Medieval House Tavern | Hub futuro — taverna spec ARCHIVED post-alpha | Si revivimos taverna post-alpha |
+| #026 | https://www.blendswap.com/blend/11798 | Rope Knots (stylized) | Props decoración baja prioridad | Si dungeon dressing pide variedad |
+| #027 | https://www.blendswap.com/blend/28541 | Rigged Knight in Armor | Warrior reskin — alpha usa Quaternius | Si Quaternius Modular Men no convence visual |
+| #028 | https://www.blendswap.com/blend/8857 | Chupacabra | Creature biome unclear | Si necesitamos creature mid-tier |
+| #029 | https://www.blendswap.com/blend/29737 | Long Sword (hand-painted) | Borderline style — weapon pack #018 ya cubre | Si curated weapon individual hace falta |
+| #030 | https://www.blendswap.com/blend/1592 | The Vamp Suzanne | Vampire — no canon piso 1 | Si pisos 4-5 dimensión rota pide vampires |
+| #031 | https://www.blendswap.com/blend/23549 | Hellknight (Doom3-inspired) | Style dark, palette no canon | Boss dimensión rota o ref armor |
+
+#### Mood board only (25 — no descargar, refs visuales para estudiar)
+
+VFX/shader refs: #22951 (Toon EEVEE shader), #28835 (Procedural flame), #29591 (Eye shader), #30773 (Flesh material), #16370 (Volume clouds), #27967 (Lightning ball).
+
+Environment refs: #2156 (Forest dense), #31530 (Cave), #30014 (Mossy rock photoscan), #19861 (Stone pack), #13382 (Medieval village), #18408 (Wild grass), #16032 (Forest Monster), #17684 (Lagoon/atoll), #27027 (Water sim), #31075 (Tree photoscan), #16382 (Desert material).
+
+Tech refs: #27773 (Curve physics), #30728 (Auto exposure), #26504 (Rigged book).
+
+Creature refs: #16674 (Grass+trees mixed), #21988 (NPR anime tree), #27158 (Tiger/lion rig), #19383 (Werewolf), #29973 (Insects), #26664 (Bird — also P0 if low-poly).
+
+#### Rejected — CC-BY (incompatible CC0-only policy)
+
+| # | URL | Title | Razón |
+|---|-----|-------|-------|
+| Rej-1 | https://www.blendswap.com/blend/1922 | Praying mantis (erik90mx) | CC-BY (requiere atribución) |
+| Rej-2 | https://www.blendswap.com/blend/16698 | Little Goblin | CC-BY |
+| Rej-3 | https://www.blendswap.com/blend/15767 | Troll King | CC-BY |
 
 ---
 
-## Resumen batch 2026-05-25
+## Resumen batch 2026-05-25 (post BlendSwap eval)
 
-**Approved (bajar P0)**: 7 packs
-- #007 Quaternius Universal Animation Library
-- #008 Quaternius Stylized Nature Megakit
-- #009 Quaternius Medieval Village Megakit
-- #010 Quaternius Fantasy Props Megakit
-- #013 BinBun3D Hit FX
-- #014 BinBun3D Electric FX
-- #016 Foozle RPG UI Set 1
+**Approved + descargados ✅** (en `_raw/` listos para integrar):
+- Kenney: fantasy-town-kit, particle-pack, retro-textures-fantasy (#011)
+- Quaternius: fantasy-props-megakit (#010), medieval-village-megakit (#009), stylized-nature-megakit (#008), ultimate-stylized-nature, ultimate-modular-men, ultimate-monsters, universal-animation-library (#007)
+- BinBun3D: hit-fx (#013), electric-fx (#014)
+- Foozle: rpg-ui-set-1 (#016)
 
-**Pending verify**: 3 packs (#011, #015, #017)
+**Approved manual-pending (Joan baja)**:
+- BlendSwap #018-#023 (6 files alpha P0)
 
-**Risk / needs decision**: TheBaseMesh + 40 BlendSwap files (#012, #018-#057)
+**Defer post-alpha (recovery rápido — entries arriba)**:
+- KayKit Adventurers (#R03) — alternativa a Quaternius Modular Men
+- KayKit Skeletons (#R04) — Necromancer summons + enemies pisos 3-5
+- BlendSwap #024-#031 (8 files)
+- #015 Screaming Brain Planet BG (bioma orgánico futuro)
+- #017 Liminal Space Horror SFX (AI-rejected, no recovery)
 
-**Mood board only**: 4 Poly Haven gallery renders (#003-006) — necesito tu comentario por imagen para que sean accionables
+**Rejected**:
+- Poly Haven 3D models (photoreal, no pivot)
+- BlendSwap CC-BY (Rej-1/2/3)
+- Liminal Space (AI-generated)
+
+**Mood board (no descargar, refs visuales)**:
+- 4 Poly Haven gallery renders (#003-006)
+- 25 BlendSwap refs (lista arriba)
 
 ---
 
@@ -237,4 +272,25 @@ Cuando inbox tenga muchas entries, decidir:
 2. Cuáles defer post-alpha
 3. Cuáles rechazar
 
-Mantener inbox <20 entries activos para no fragmentar atención (actualmente 57+ → consolidar pronto).
+Mantener inbox <20 entries activos para no fragmentar atención.
+
+## Recovery post-alpha — cheat sheet
+
+Si alpha pega bien y empezamos pisos 2-5 / contenido extra:
+1. KayKit Adventurers + Skeletons (chars + summons) — entries #R03/#R04
+2. BlendSwap defer #024-#031 (boss tier, tavern, props extra)
+3. #015 Planet BG (bioma orgánico Dimensión Rota)
+4. Re-eval Poly Haven HDRIs aspiracionales (#003-006) cuando Joan describa qué le gusta de cada uno
+
+---
+
+## #058 — Ammo Boxes (extra batch 2026-05-25)
+
+- **Source**: download desconocida (Joan no aclaró ID/source). Probablemente BlendSwap o Kenney/itch.
+- **Status**: ⏸ deferred-postalpha
+- **Tipo**: 3D props ammo crates
+- **Use case canon (Joan 2026-05-25)**: **piso parodia post-alpha** + **hidden weapon floors** (pisos secretos donde se pueden encontrar/usar armas de fuego que requieren munición).
+- **Scope alpha**: NO — alpha demo solo melee + magic + arquería. Pólvora/firearms = post-alpha feature.
+- **Location**: `game/assets/art/_raw/blendswap/_extra_ammo_boxes/Ammo Boxes.zip`
+- **TODO Joan**: confirmar source + license cuando se reviva post-alpha. Re-classify a `_raw/{source}/` con ID correcto.
+- **Recovery condición**: cuando spec hidden floors o parodia floor entre en backlog post-alpha.
