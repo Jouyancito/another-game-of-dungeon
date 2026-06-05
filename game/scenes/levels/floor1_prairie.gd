@@ -1056,38 +1056,49 @@ func _generate_vegetation(pois: Array) -> void:
 		var p: POISystem.POI = poi as POISystem.POI
 		var c: Vector3 = p.position
 		var r: float = p.size.x * 0.5
+		# Rangos de escala AMPLIOS (con sesgo de edad en _age_scale): conviven
+		# árboles recién crecidos, medianos y patriarcas añosos. Da profundidad.
+		# El "halo" de transición deshilacha cada cluster hacia el campo (conexión).
+		# Escala de árboles calibrada a proporción real: nativo birch 5.45m /
+		# common 7.26m / maple 6.64m. Rango 0.8-1.7 → mayoría 3-5x el player (1.8m),
+		# con jóvenes ~2.5x y patriarcas añosos ~6x (el sesgo de _age_scale reparte).
 		match p.type:
 			"pond":
 				# Estanque: anillo de árboles + flores/juncos pegados al agua
-				_scatter_cluster(POOL_TREES, 16, c, r + 2.0, r + 12.0, 0.5, 0.85, container)
-				_scatter_cluster(POOL_GROUND, 24, c, r - 1.0, r + 6.0, 0.8, 1.5, container)
-				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.8, 1.4, container)
+				_scatter_cluster(POOL_TREES, 16, c, r + 2.0, r + 12.0, 0.85, 1.6, container)
+				_scatter_cluster(POOL_GROUND, 24, c, r - 1.0, r + 6.0, 0.7, 1.6, container)
+				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.6, 1.6, container)
+				_scatter_cluster(POOL_TREES, 12, c, r + 12.0, r + 32.0, 0.7, 1.15, container)  # halo
 			"boss":
 				# Acantilado: cúmulo de rocas grandes rodeando la arena
-				_scatter_cluster(POOL_ROCKS, 28, c, r + 2.0, r + 18.0, 1.2, 2.6, container)
+				_scatter_cluster(POOL_ROCKS, 28, c, r + 2.0, r + 18.0, 0.7, 2.9, container)
+				_scatter_cluster(POOL_ROCKS, 16, c, r + 18.0, r + 40.0, 0.4, 1.4, container)  # halo
 			"giant_tree":
-				# Bosque denso alrededor del árbol gigante
-				_scatter_cluster(POOL_TREES, 30, c, r * 0.4, r + 16.0, 0.5, 0.9, container)
-				_scatter_cluster(POOL_BUSHES, 12, c, r * 0.4, r + 14.0, 0.8, 1.5, container)
+				# Bosque denso alrededor del árbol gigante + halo que se deshilacha
+				_scatter_cluster(POOL_TREES, 30, c, r * 0.4, r + 16.0, 0.85, 1.7, container)
+				_scatter_cluster(POOL_BUSHES, 12, c, r * 0.4, r + 14.0, 0.6, 1.7, container)
+				_scatter_cluster(POOL_TREES, 22, c, r + 16.0, r + 48.0, 0.7, 1.2, container)  # halo
 			"entrance":
 				# Grove de bienvenida: pocos árboles enmarcando, claro abierto al centro
-				_scatter_cluster(POOL_TREES, 10, c, r + 4.0, r + 18.0, 0.55, 0.9, container)
-				_scatter_cluster(POOL_GROUND, 16, c, r, r + 12.0, 0.8, 1.6, container)
+				_scatter_cluster(POOL_TREES, 10, c, r + 4.0, r + 18.0, 0.85, 1.6, container)
+				_scatter_cluster(POOL_GROUND, 16, c, r, r + 12.0, 0.7, 1.7, container)
+				_scatter_cluster(POOL_TREES, 12, c, r + 18.0, r + 38.0, 0.7, 1.15, container)  # halo
 			"ruins":
 				# Escombros: rocas dispersas + arbustos invasores
-				_scatter_cluster(POOL_ROCKS, 14, c, r * 0.5, r + 8.0, 0.8, 1.8, container)
-				_scatter_cluster(POOL_BUSHES, 10, c, r * 0.5, r + 6.0, 0.8, 1.4, container)
+				_scatter_cluster(POOL_ROCKS, 14, c, r * 0.5, r + 8.0, 0.6, 2.0, container)
+				_scatter_cluster(POOL_BUSHES, 10, c, r * 0.5, r + 6.0, 0.6, 1.5, container)
 			"camp":
-				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.8, 1.3, container)
+				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.6, 1.4, container)
 			"altar", "well":
-				_scatter_cluster(POOL_GROUND, 12, c, r, r + 6.0, 0.8, 1.5, container)
+				_scatter_cluster(POOL_GROUND, 12, c, r, r + 6.0, 0.7, 1.6, container)
 
-	# ── 2. Tejido conectivo ralo entre clusters (transiciones abiertas) ───────
-	# Scatter uniforme REDUCIDO: no satura, deja respirar el espacio entre lugares.
-	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.45), pois, 20.0, 0.5, 0.85, container)
-	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.4), pois, 12.0, 0.8, 1.8, container)
-	_scatter_pool(POOL_BUSHES, int(ROCK_COUNT * 0.3), pois, 10.0, 0.8, 1.4, container)
-	_scatter_pool(POOL_GROUND, int(TALL_GRASS_COUNT * 0.6), pois, 8.0, 0.8, 1.5, container)
+	# ── 2. Tejido conectivo entre clusters (cose los mini-biomas) ─────────────
+	# Subido respecto al ralo anterior: llena los huecos muertos entre lugares
+	# para que el mapa se lea continuo, no como islas sueltas. Escala amplia.
+	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container)
+	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container)
+	_scatter_pool(POOL_BUSHES, int(ROCK_COUNT * 0.4), pois, 9.0, 0.6, 1.6, container)
+	_scatter_pool(POOL_GROUND, int(TALL_GRASS_COUNT * 0.7), pois, 7.0, 0.7, 1.6, container)
 
 ## Esparce instancias en un anillo (inner_r..outer_r) alrededor de `center`.
 ## Es el placement temático: rodea un POI con su bioma característico.
@@ -1120,7 +1131,7 @@ func _scatter_pool(
 		pos.y = get_terrain_height(pos.x, pos.z)
 		_place_instance(pool, pos, scale_min, scale_max, parent)
 
-## Instancia un PackedScene random del pool con rotación Y + escala random.
+## Instancia un PackedScene random del pool con rotación Y + escala por edad.
 func _place_instance(
 	pool: Array, pos: Vector3, scale_min: float, scale_max: float, parent: Node3D
 ) -> void:
@@ -1128,10 +1139,20 @@ func _place_instance(
 	var inst: Node3D = scene.instantiate() as Node3D
 	if inst == null:
 		return
-	var s: float = _rng.randf_range(scale_min, scale_max)
+	var s: float = _age_scale(scale_min, scale_max)
 	var rot_y: float = _rng.randf() * TAU
 	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
 	parent.add_child(inst)
+
+## Escala con sesgo de "edad" en vez de uniforme: ~45% jóvenes (chicas),
+## ~35% medianas, ~20% añosas (grandes). Da los tres grupos visibles y profundidad.
+func _age_scale(smin: float, smax: float) -> float:
+	var roll: float = _rng.randf()
+	if roll < 0.45:
+		return _rng.randf_range(smin, lerpf(smin, smax, 0.4))
+	elif roll < 0.8:
+		return _rng.randf_range(lerpf(smin, smax, 0.4), lerpf(smin, smax, 0.75))
+	return _rng.randf_range(lerpf(smin, smax, 0.75), smax)
 
 func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 	for _t in range(30):
@@ -1172,12 +1193,34 @@ func _spawn_poi_enemies(pois: Array) -> void:
 			add_child(enemy)
 			enemy.global_position = p.position + offset
 
+## Devuelve una posición en el anillo alrededor de un POI del tipo dado (si existe),
+## o Vector3.INF si no hay ninguno. Para spawn ecológico: criaturas que PERTENECEN
+## a un lugar (slimes junto al agua, lobos en el bosque) en vez de scatter uniforme.
+func _pos_near_poi_type(pois: Array, poi_type: String, spread: float) -> Vector3:
+	var matches: Array = []
+	for poi in pois:
+		var p: POISystem.POI = poi as POISystem.POI
+		if p.type == poi_type:
+			matches.append(p)
+	if matches.is_empty():
+		return Vector3.INF
+	var chosen: POISystem.POI = matches[_rng.randi() % matches.size()] as POISystem.POI
+	var r0: float = chosen.size.x * 0.5
+	var angle: float = _rng.randf() * TAU
+	var dist: float = _rng.randf_range(r0, r0 + spread)
+	return chosen.position + Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
+
 func _spawn_field_enemies(_pois: Array, _player_pos: Vector3 = Vector3.ZERO) -> void:
 	# ═══ Sub-tier A: fauna básica — abundante, variada ═══
 
-	# Slimes: 8 packs (3-5 full, 2-3 medianos, 1-2 sueltos)
+	# Slimes: 8 packs. Ecología Axlin — la mitad se agrupa junto al agua (pond),
+	# donde se alimentan de la bioluminiscencia de los cristales. Resto disperso.
 	for _pack in range(8):
-		var center: Vector3 = _random_open_pos(_pois, 20.0)
+		var center: Vector3 = Vector3.INF
+		if _pack < 4:
+			center = _pos_near_poi_type(_pois, "pond", 10.0)
+		if center == Vector3.INF:
+			center = _random_open_pos(_pois, 20.0)
 		if center == Vector3.INF:
 			continue
 		var pack_size: int = _rng.randi_range(1, 5)  # 1 suelto, 2-3 medio, 4-5 full
@@ -1252,9 +1295,12 @@ func _spawn_field_enemies(_pois: Array, _player_pos: Vector3 = Vector3.ZERO) -> 
 			add_child(fox)
 			fox.global_position = center + offset
 
-	# Lobos: 3 manadas (1 alfa + 1-3 pack)
+	# Lobos: 3 manadas (1 alfa + 1-3 pack). Ecología — cazan desde la cobertura
+	# del bosque denso (giant_tree), no en campo abierto. Su presencia marca la zona.
 	for _pack in range(3):
-		var center: Vector3 = _random_open_pos(_pois, 30.0)
+		var center: Vector3 = _pos_near_poi_type(_pois, "giant_tree", 14.0)
+		if center == Vector3.INF:
+			center = _random_open_pos(_pois, 30.0)
 		if center == Vector3.INF:
 			continue
 		var alpha: CharacterBody3D = SCENE_WOLF.instantiate()
