@@ -31,7 +31,27 @@ Antes de las semillas, lo que la visión confirmó como accionable YA para el Pi
 
 ## 🌱 Semillas estacionadas
 
-### 1. Guardián-cuervo "El Que Recuerda" (boss-gate con memoria)
+### 0. MODELO MACRO DE MUNDO — descubrimiento → conquista → civilización (2026-06-05)
+Sistema que unifica casi todas las semillas de abajo. Inspiración declarada: **Valheim** (world-state que avanza por trofeos de jefes + upgrade de mundo).
+
+**Las 3 fases de una zona/torre:**
+1. **Descubrimiento** (estado default, y el del alfa): salvaje puro. Sin civilización, sin caminos guiados. Explorás a ciegas. Transición ecológica natural entre biomas (lo que sí aplica al Piso 1 hoy).
+2. **Conquista**: cada zona tiene su **jefe de zona** (el dueño local). Cada **bloque de pisos** (Joan piensa en grupos de ~5) culmina en un **jefe de Rango** — gate mayor, más complejo que los de zona (ej. el cuervo, ver #1).
+3. **Civilización**: cuando un tramo ya te quedó **muy fácil** (delay de ~**5-10 pisos por encima**), la civilización entra y coloniza: construye **carreteras directas que EVITAN los jefes de zona ya vencidos**. Lo conquistado se vuelve tránsito seguro y guiado (recién acá aparecen los senderos estilo MMORPG).
+
+**World-state colectivo (estilo Valheim):** el avance del mundo es propiedad del **SERVER/mundo** y progresa según los **logros colectivos** de quienes entran (trofeos de jefes → upgrade de mundo). Consecuencia de diseño deseada: existen **servers en distintos estados de avance** — unos vírgenes (todo descubrimiento), otros colonizados (carreteras, civilización extendida). Da replayability, identidad de comunidad por server, y razón para múltiples mundos.
+
+**Jerarquía de bosses:**
+- **Jefe de zona**: por zona/piso, dueño local (ej. **King Slime = jefe de zona del Piso 1**, ya implementado).
+- **Jefe de Rango**: cada bloque (~5 pisos), gate mayor con mecánica especial (ej. cuervo "El Que Recuerda", memoria persistente). Mucho más complejo.
+
+**⚠️ Implicación netcode (CLAVE):** el world-state persistente por server toca directo la **TOPOLOGÍA de red** (hoy P2P GodotSteam co-op; pivot futuro a server/MMO). Esta decisión NO se toma en un doc de feel — cuando se vaya a implementar, **consultar al `netcode-architect`**. La persistencia de world-state colectivo es arquitectura grande, no un detalle.
+
+**Gradiente de REALIDAD (Joan 2026-06-05):** otra dimensión del descenso, además de civilización y dificultad. Los **pisos bajos = mundo MMORPG familiar**: físicas reales, proporciones reales, lógica conocida (el jugador se ancla en lo familiar). A medida que se avanza, **cambian las leyes**: mundos más mágicos, físicas diferentes, estructuras amorfas/raras/imposibles, cosas nuevas por descubrir. Refuerza la cosmología de capas (#3) y el límite humano: la realidad se vuelve cada vez más ajena hasta volverse insoportable. Implica un eje de diseño "lo normal → lo surreal" que justifica por qué P5 (Dimensión Rota) puede romper toda regla.
+
+**Scope:** TODO esto es post-alfa. Lo ÚNICO que define para el alfa: el Piso 1 está en fase **descubrimiento** (salvaje, King Slime como jefe de zona) → **NO meter sendero/civilización ahora** (todavía no entró). Y el Piso 1 es el **ancla de familiaridad**: físicas reales, proporciones reales (árboles 3-5x el player, escala humana) — todo lo raro viene después. La transición ecológica + variación de tamaños + escala realista que ya se tocó hoy es exactamente lo correcto para esta fase.
+
+### 1. Guardián-cuervo "El Que Recuerda" — jefe de RANGO (boss-gate con memoria)
 Monstruo **inmortal** en un punto de paso obligado, visual tipo cuervo gigante. Mecánica de **memoria persistente por jugador**: primera vez = pelea/boss; si ya lo venciste = pasivo, te reconoce y te deja pasar (rito de paso). Refuerza el pilar GDD "tu dungeon, tu historia".
 - **Costo:** ALTO — persistencia cross-run + 2 estados de IA + arte nuevo. **Compite con el King Slime** que ya es el boss-gate del Piso 1.
 - **Gaps abiertos:** ¿reemplaza o complementa al King Slime? ¿persistencia individual o por party? En co-op, si uno lo venció y otro no, ¿pelea o pasa? ¿"inmortal" = nunca se mata o revive pasivo?
