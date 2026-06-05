@@ -1,15 +1,10 @@
-[gd_scene format=3 uid="uid://slime001"]
+[gd_scene load_steps=3 format=3 uid="uid://slime001"]
 
 [ext_resource type="Script" path="res://scenes/enemy/slime.gd" id="1_slime"]
-[ext_resource type="ShaderMaterial" uid="uid://toon_enemy_slime" path="res://assets/art/materials/toon_enemy_slime.tres" id="2_toon_slime"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/enemies/slime/enemy_slime_green.gltf" id="2_slime_mesh"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_001"]
 radius = 0.65
-
-[sub_resource type="SphereMesh" id="SphereMesh_001"]
-radius = 0.65
-height = 0.75
-material = ExtResource("2_toon_slime")
 
 [node name="Slime" type="CharacterBody3D" groups=["enemies"]]
 script = ExtResource("1_slime")
@@ -29,5 +24,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
 shape = SubResource("SphereShape3D_001")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.6, 0, 0, 0, 1, 0, 0.4, 0)
-mesh = SubResource("SphereMesh_001")
+
+[node name="SlimeMesh" parent="." instance=ExtResource("2_slime_mesh")]
+transform = Transform3D(-0.6, 0, 0, 0, 0.6, 0, 0, 0, -0.6, 0, 0, 0)
