@@ -29,26 +29,40 @@ Las 6 clases siguen siendo canon de lanzamiento — el recorte a 3 es solo alpha
 game/
 ├── project.godot                  # Config: 1920x1080, windowed, input maps
 ├── scenes/
-│   ├── main/main.tscn            # Arena 20x20, 4 paredes, luz direccional, 3 enemigos
+│   ├── main/main.tscn            # Arena 20x20 legacy (prototipo inicial)
 │   ├── player/
-│   │   ├── base_player.gd        # ~190 líneas — clase base: movimiento, stats, regen, daño
-│   │   ├── player.gd             # ~65 líneas — Guerrero: melee pesado + combo
-│   │   ├── player.tscn           # CharacterBody3D: cápsula + cámara + head
-│   │   ├── mage.gd              # ~110 líneas — Mago: proyectil + rayo canalizado
-│   │   └── mage.tscn            # CharacterBody3D: cápsula azul + cámara + head
+│   │   ├── base_player.gd        # Clase base: movimiento, stats, regen, skills dispatch
+│   │   ├── player.gd             # Warrior: melee pesado + combo + rage
+│   │   ├── player.tscn
+│   │   ├── mage.gd               # Mage: proyectil + rayo canalizado + 4 skills .tres
+│   │   ├── mage.tscn
+│   │   ├── archer.gd             # Archer: arco + Concentracion recurso
+│   │   ├── archer.tscn
+│   │   ├── cleric.gd             # Cleric: healer/buffer + Fe recurso
+│   │   ├── cleric.tscn
+│   │   ├── necromancer.gd        # Necromancer: debuffs + invocaciones + Vida recurso
+│   │   ├── necromancer.tscn
+│   │   ├── danzante.gd           # Danzante de Sombras: stealth + Combo Points
+│   │   └── danzante.tscn
 │   ├── projectile/
-│   │   ├── mage_projectile.gd    # Bolita de energía: viaja, impacta, daño
-│   │   └── mage_projectile.tscn  # Esfera blanca con emisión azulada
-│   ├── enemy/
-│   │   ├── enemy_basic.gd        # 108 líneas — IA: idle/pursue/attack
-│   │   └── enemy_basic.tscn      # CharacterBody3D: cubo rojo 0.8×1.6×0.8
+│   │   ├── mage_projectile.gd / .tscn
+│   │   ├── arrow_projectile.tscn
+│   │   └── necro_projectile.tscn
+│   ├── enemy/                     # 18 scenes: enemy_basic, slime, mini_slime, king_slime,
+│   │                              # bandit_archer, bandit_melee, golem, wolf, bird, hawk,
+│   │                              # fox, goat, rat, scorpion, snake, wasp, turtle, mimic_chest
 │   ├── hud/
-│   │   ├── hud.gd                # 50 líneas — barras, hotbar, muerte
-│   │   ├── hud.tscn              # CanvasLayer: vida/maná/XP, hotbar, crosshair
-│   │   └── crosshair.gd          # 20 líneas — 4 líneas + punto central
-│   └── levels/                    # Vacío — futuro: generación procedural
-├── assets/                        # models/, sounds/, textures/ — vacíos
-└── scripts/                       # Vacío — futuro: utilidades
+│   │   ├── hud.gd / hud.tscn     # Barras HP/MP/XP, hotbar 8 slots, target frame, crosshair
+│   │   └── crosshair.gd
+│   └── levels/
+│       ├── floor1_prairie.tscn   # Piso 1 Pradera — en desarrollo activo
+│       └── (pisos 2-5 pendientes)
+├── assets/
+│   └── art/piso1_pradera/        # 55+ assets (.gltf/.glb): vegetation, enemies, props, vfx, chars
+└── shared/
+    ├── stats/damage_formula.gd   # Formulas fisico/magico/defensa canon v2
+    ├── stats/progression.gd      # Curva XP piecewise + max HP/MP
+    └── classes/class_base_stats.gd  # Stats base DEFINITIVOS por clase (fuente de verdad)
 ```
 
 ## Estado Actual — Alpha early-access (post scope reset 2026-05-18)
@@ -79,19 +93,17 @@ game/
 
 ### Stats Base por Clase
 
-| Stat | Guerrero | Mago |
-|------|----------|------|
-| STR | 12 | 4 |
-| INT | 3 | 12 |
-| DEX | 6 | 5 |
-| DEF | 10 | 3 |
-| VIT | 10 | 5 |
-| HP base | 100 | 70 |
-| MP base | 80 | 120 |
-| HP total | 150 | 95 |
-| MP total | 89 | 156 |
-| Velocidad | 5 m/s | 4.5 m/s |
-| Sprint | 8 m/s | 7 m/s |
+Stats base fuente de verdad: `game/shared/classes/class_base_stats.gd` (ClassBaseStats.DEFAULTS).
+
+| Stat | Warrior | Mage | Archer | Cleric | Necromancer | Danzante |
+|------|---------|------|--------|--------|-------------|----------|
+| STR | 12 | 4 | 5 | 8 | 3 | 7 |
+| INT | 3 | 12 | 3 | 6 | 10 | 4 |
+| DEX | 6 | 5 | 12 | 4 | 4 | 13 |
+| DEF | 10 | 3 | 5 | 8 | 4 | 3 |
+| VIT | 10 | 5 | 7 | 9 | 6 | 5 |
+
+HP/MP totales en runtime: calculados por `progression.gd` usando formulas balance_v2. No hardcodear aqui.
 
 ### Layers de Física
 
@@ -105,7 +117,11 @@ game/
 ```
 BasePlayer (base_player.gd) — class_name BasePlayer
 ├── Warrior (player.gd) — extends BasePlayer
-└── Mage (mage.gd) — extends BasePlayer
+├── Mage (mage.gd) — extends BasePlayer
+├── Archer (archer.gd) — extends BasePlayer
+├── Cleric (cleric.gd) — extends BasePlayer
+├── Necromancer (necromancer.gd) — extends BasePlayer
+└── Danzante (danzante.gd) — extends BasePlayer
 ```
 
 Métodos override por clase: `_on_class_ready()`, `_on_attack_pressed()`, `_on_attack_released()`
@@ -166,13 +182,18 @@ Métodos override por clase: `_on_class_ready()`, `_on_attack_pressed()`, `_on_a
 - Muerte = pierde loot del run; inventario en taverna seguro
 
 ### Escalado de Enemigos por Piso
-| Piso | HP | Daño | DEF |
-|------|----|------|-----|
-| 1 - Pradera | 100 | 10 | 0 |
-| 2 - Bosque | 200 | 20 | 5 |
-| 3 - Hielo | 350 | 35 | 12 |
-| 4 - Tormenta | 500 | 50 | 20 |
-| 5 - Dimensión Rota | 700 | 70 | 30 |
+
+> **OBSOLETO** — tabla lineal v1 solo para referencia historica. El modelo vigente es compound (pisos 1-100) en `game/docs/balance_v2.md` §3. Usar esa fuente para cualquier decision de balance.
+
+| Piso | HP | Daño | DEF | Nota |
+|------|----|------|-----|------|
+| 1 - Pradera | 100 | 10 | 0 | legacy lineal v1 |
+| 2 - Bosque | 200 | 20 | 5 | legacy lineal v1 |
+| 3 - Hielo | 350 | 35 | 12 | legacy lineal v1 |
+| 4 - Tormenta | 500 | 50 | 20 | legacy lineal v1 |
+| 5 - Dimension Rota | 700 | 70 | 30 | legacy lineal v1 |
+
+Escalado vigente (Sub-tier A, piso 1): HP≈54, DMG≈5, DEF=1, XP≈11. Ver `balance_v2.md` §3.1 para la curva completa y multiplicadores por sub-tier.
 
 ### MVP (Fase 1)
 1. Movimiento first-person ✅
@@ -216,6 +237,17 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 - Grupos para identificar entidades
 - Explicar términos de Git con mini-definición entre paréntesis
 
+## Forma de trabajo con Claude
+
+Convenciones de proceso acordadas con Joan (2026-06-05):
+
+- **Develop-before-implement**: ante una idea abierta o interpretable (diseño, visual, feel), NO codear de entrada. Desarrollar + proponer interpretaciones + preguntar lo faltante ANTES de implementar. El trigger es la ambigüedad; tareas operativas claras (commit, fix puntual, mover archivo) van directo sin preguntar.
+- **World-first sobre systems-first**: empezar por el feel/identidad del mundo, no por los sistemas profundos. Los sistemas emergen del mundo, no al revés.
+- **Definir reglas/temas → el estilo emerge solo**: Joan define cosas lógicas/temáticas de a poco; Claude genera el estilo acorde a esas reglas (ver `_world_coherence.md`), sin que Joan dicte cada detalle visual.
+- **Investigar con datos antes de afirmar**: medir en código (alturas de gltf, bones, parámetros reales) en vez de adivinar o usar cifras del brief sin verificar.
+- **Ultracode / effort selectivo**: usar ultracode (orquestación multi-agente) SOLO para saltos grandes (retrospectivas, visión integral, auditorías, mapeos masivos de codebase). Para iteración fina o fixes puntuales, volver a `/effort high`. Ultracode consume muchos tokens — no dejarlo ON por default.
+- **Engram proactivo**: guardar decisiones, preferencias y descubrimientos en engram sin esperar que se pida. Cualquier decisión de diseño, bug raiz encontrado, o convención nueva se guarda inmediatamente.
+
 ## Notas de Sesión
 
 - **2026-04-07**: Prototipo inicial — movimiento, combate melee, enemigos, HUD.
@@ -238,12 +270,17 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 - **2026-05-08**: Batch playtest fixes — skills + enemy + ui (JD-cleared).
 - **2026-05-09**: Inventory clamp Y + dup-on-doubleclick + golem aggro super fix · Professions tab DRAFT (PAUSADO scope reset) · **Dept multi-worktree DESACTIVADO** — archivo `docs/_archive/dept-workflow/`.
 - **2026-05-18 (scope reset)**: Retrospectiva 60 días. Diagnóstico: construyendo engine RPG profundo, no juego publicable. Decisiones: Godot 4.6 stay · alpha = 5 mapas · MVP demo = 1 mapa / 3 clases (W/M/A) / 1 boss / 15 enemies / lvl cap 15 · objetivo Steam wishlist + itch.io 30 días. Plan completo en `juego dungeon.md` (Desktop). Sync `CLAUDE.md` ejecutado hoy.
+- **2026-05-18 (art/p1 batch inicial)**: Alpha asset packs canon establecido (`_alpha_asset_packs.md`, 5 packs CC0 opcion C). Art canon v2.0 unificado (`_art_canon.md` — merge de 3 docs + refs LOTR/Metin2/Dark and Darker/SLF/Tensura). Bulk import batch 1 — 25 assets (.gltf): 3 chars (warrior/mage/archer base), 12 enemies (slimes x3, blob x3, big x4, deco x2), 5 props (town), 2 vegetation, 5 vfx. Atlas Godot auto-extracted commiteados.
+- **2026-05-24/25**: Vegetation expand batch — 13 nuevos (4 birch _02/_03/_04/_05, 3 maple, 3 bush variants, 3 flowers). Bloques B+C+D batch — 28 nuevos (5 terrain/rocks, 8 enemies blob+flying+big, 15 props outpost_extras). Scatter visual integrado en floor1_prairie.tscn. Asset refs inbox tracking iniciado.
+- **2026-06-04**: Fix enemy — slime + mini_slime swapean placeholder mesh por gltf real (`enemy_slime_green.gltf`). floor1_prairie.tscn poblado con scatter gltf real + clusters por bioma. World seeds post-alpha guardadas en `_world_seeds_postalpha.md` + cierre evaluacion BlendSwap.
+- **2026-06-05 (sesion ideas Joan)**: Definicion modelo de mundo: Descubrimiento→Conquista→Civilizacion (3 capas temporales). World-state colectivo estilo Valheim (avance por servidor, trofeos de jefes). Guardian-Cuervo "El Que Recuerda" = jefe de Rango piso 5 (inmortal, memoria por jugador). Bestiario estilo "El bestiario de Axlin" (criterio curatoria endemica, no sistema adaptativo). Gradiente de realidad P1→P5 (familiar MMORPG → surreal imposible). Decision P1: mantener caverna-cristal, NO convertir a exterior. Reglas de coherencia ecologica documentadas (hidrologia, vegetacion, proporciones reales, spawns por nicho). Scatter ecologico con age-variation integrado a floor1_prairie. Docs escritos: `_world_coherence.md` v1.0, `_floor_sketches.md` v0.1-draft, `_world_seeds_postalpha.md` refinado.
 
 ## Canon de Design Vigente
 
 **Siempre consultar antes de refactorizar sistemas de skills, stats, loot, o lore/worldbuilding:**
 
 - `game/docs/lore/_world_canon.md` (**v2.0 hub planetario multicultural, 2026-04-23 — REWRITE completo, descarta v1.0 chilena**)
+- `game/docs/lore/_world_seeds_postalpha.md` (**semillas post-alpha — NO canon vigente**; modelo Descubrimiento→Conquista→Civilizacion, Guardian-Cuervo, bestiario endémico, gradiente de realidad P1→P5; 2026-06-05)
 - `game/docs/lore/_class_lore_*.md` (**PAUSADOS** — esperan realineación con world_canon v2.0 post-alpha)
 - `game/docs/skills/_system.md` (skills system v1.0, 2026-04-14) + §12 schema reconciliation (2026-04-21)
 - `game/docs/skills/{warrior,mage,archer,cleric,necromancer,danzante_sombras}.md` (per-class v2.0, 2026-04-16)

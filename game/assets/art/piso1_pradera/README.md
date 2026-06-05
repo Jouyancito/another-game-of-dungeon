@@ -107,7 +107,21 @@ Todos los packs CC0 (Kenney, Quaternius, Poly Pizza) permiten uso comercial sin 
 
 ## Estado actual
 
-🟡 **Vacío**. Estructura creada 2026-04-14. Pendiente:
-1. Descargar packs Kenney + Quaternius recomendados (`p1_assets_sourcing.md` §1).
-2. Primer asset de prueba: `env_tree_oak_01` import + screenshot con lighting canon.
-3. Iteración hero asset `prop_giant_diamond` (Meshy/Rodin).
+**En desarrollo activo** (2026-06-05). ~55+ assets importados en Godot.
+
+### Completado
+- ✅ Packs Kenney + Quaternius base descargados (`_alpha_asset_packs.md` canon).
+- ✅ Primer asset de prueba (`env_tree_birch_01`) integrado con lighting canon.
+- ✅ Vegetation: birch (x5), maple (x3), bush (x3), flowers (x3), grass, dead tree, clover, mushroom (x2), common (x3).
+- ✅ Enemies: slime (x3), big (x9 incluyendo boss_mushroom_king), blob (x3), flying (x3), deco (x2).
+- ✅ Props: town (x5), outpost_extras (x8).
+- ✅ Terrain: grass_patch, pebbles.
+- ✅ Chars base: warrior, mage, archer.
+- ✅ VFX: fire, flame, magic, muzzle, light.
+- ✅ floor1_prairie.tscn poblado con scatter + clusters ecologicos por bioma.
+
+### Pendiente
+- Hero asset `prop_giant_diamond` (techo-caverna) — pendiente Meshy/Rodin.
+- Terreno suelo (tiles modulares — grass/dirt/stone/rocky/sand/cliffs).
+- Skybox dome techo caverna con cristales.
+- Props: ceiling, water, ruins.

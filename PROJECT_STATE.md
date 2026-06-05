@@ -1,5 +1,7 @@
 # Dungeon Party — Estado Completo del Prototipo (2026-04-12)
 
+> **STALE SNAPSHOT** (2026-04-12) — No usar como referencia de estado actual. Fuente de verdad: `CLAUDE.md`. Este archivo se mantiene como archivo historico del prototipo inicial. Ref de refactor en §Refactor pendiente puede estar desactualizada vs. el scope reset 2026-05-18.
+
 Snapshot exhaustivo del proyecto para preservar contexto del prototipo inicial. Fuente de verdad para refactors/releases futuros. Complementa `CLAUDE.md` (convenciones) y `GDD_DungeonParty.md` (diseño).
 
 ## Snapshot git
