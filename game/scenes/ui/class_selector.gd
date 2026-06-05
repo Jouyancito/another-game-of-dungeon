@@ -45,7 +45,14 @@ const CLASSES: Array = [
 	},
 ]
 
+## Alpha demo: solo estas 3 clases visibles en el selector. Las 6 de arriba
+## siguen siendo canon de lanzamiento (CLAUDE.md) — esto es solo el recorte del
+## demo. Para revivir las 6: dejar ALPHA_ONLY = [] (vacío = mostrar todas).
+const ALPHA_ONLY: Array = ["Guerrero", "Mago", "Arquero"]
+
+var _classes: Array = []
 var current_index: int = 0
+var _preview: CharacterPreview = null
 
 @onready var class_icon: ColorRect = $VBoxContainer/CarouselRow/ClassDisplay/ClassIcon
 @onready var class_name_label: Label = $VBoxContainer/CarouselRow/ClassDisplay/ClassName
@@ -54,6 +61,7 @@ var current_index: int = 0
 
 
 func _ready() -> void:
+	_classes = _alpha_filtered_classes()
 	$VBoxContainer/CarouselRow/BtnLeft.pressed.connect(_on_prev)
 	$VBoxContainer/CarouselRow/BtnRight.pressed.connect(_on_next)
 	$VBoxContainer/ButtonRow/BtnCrear.pressed.connect(_on_crear)
@@ -65,27 +73,41 @@ func _ready() -> void:
 func _on_prev() -> void:
 	current_index -= 1
 	if current_index < 0:
-		current_index = CLASSES.size() - 1
+		current_index = _classes.size() - 1
 	_update_display()
 
 
 func _on_next() -> void:
 	current_index += 1
-	if current_index >= CLASSES.size():
+	if current_index >= _classes.size():
 		current_index = 0
 	_update_display()
 
 
 func _update_display() -> void:
-	var data: Dictionary = CLASSES[current_index]
-	class_icon.color = data["color"]
+	var data: Dictionary = _classes[current_index]
 	class_name_label.text = data["display"]
 	class_desc.text = data["desc"]
 	name_input.placeholder_text = "Nombre de tu %s..." % data["display"]
 
+	# Destruir preview anterior si existe
+	if _preview != null and is_instance_valid(_preview):
+		_preview.queue_free()
+		_preview = null
+
+	# Instanciar CharacterPreview 3D en lugar del ColorRect plano
+	_preview = CharacterPreview.new()
+	_preview.custom_minimum_size = Vector2(150, 150)
+	_preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	class_icon.get_parent().add_child(_preview)
+	class_icon.get_parent().move_child(_preview, class_icon.get_index())
+	_preview.setup_character(data["color"])
+	class_icon.visible = false
+
 
 func _on_crear() -> void:
-	var data: Dictionary = CLASSES[current_index]
+	var data: Dictionary = _classes[current_index]
 	var char_name: String = name_input.text.strip_edges()
 
 	if char_name.is_empty():
@@ -114,3 +136,15 @@ func _unique_character_name(display_name: String) -> String:
 		n += 1
 		candidate = "%s #%d" % [display_name, n]
 	return candidate
+
+
+## Devuelve las clases visibles en el selector. Si ALPHA_ONLY tiene keys,
+## filtra a esas (orden de CLASSES); si está vacío, devuelve las 6.
+func _alpha_filtered_classes() -> Array:
+	if ALPHA_ONLY.is_empty():
+		return CLASSES
+	var out: Array = []
+	for c: Dictionary in CLASSES:
+		if c["key"] in ALPHA_ONLY:
+			out.append(c)
+	return out

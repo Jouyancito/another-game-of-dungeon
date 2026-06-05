@@ -49,3 +49,16 @@ theme_override_font_sizes/font_size = 20
 custom_minimum_size = Vector2(250, 50)
 text = "Salir del Juego"
 theme_override_font_sizes/font_size = 20
+
+[node name="VersionLabel" type="Label" parent="."]
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -120.0
+offset_top = -36.0
+offset_right = -8.0
+offset_bottom = -8.0
+text = "v0.1-alpha"
+modulate = Color(1.0, 1.0, 1.0, 0.5)
+theme_override_font_sizes/font_size = 14
