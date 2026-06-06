@@ -1,0 +1,32 @@
+Foozle RPG UI Set 1 — UI textures used in Dungeon Party
+========================================================
+
+Source pack: "RPG UI Set 1 (1.0)" by Foozle (foozlecc)
+  https://foozlecc.itch.io/
+  https://www.youtube.com/c/FoozleCC
+
+The pack was assembled/sliced by Foozle from two CC0 OpenGameArt assets:
+  https://opengameart.org/content/rpg-game-ui
+  https://opengameart.org/content/fantasy-coin-set
+
+LICENSE: Creative Commons Zero (CC0 1.0 Universal — Public Domain Dedication)
+  http://creativecommons.org/publicdomain/zero/1.0/
+
+  "This content is free to use and modify for all projects, including
+   commercial projects. Attribution not required. If you would like to
+   support, consider a voluntary donation."
+
+Attribution (not required, included voluntarily): foozlecc — www.foozle.io
+
+Files copied into production (game/assets/art/ui/foozle/):
+  Button.png        — blank dark rounded button frame (nine-patch base for menu buttons)
+  Panel_1.png       — ornate dark panel with red accent (nine-patch base for panels)
+  Panel_2.png       — wide ornate panel strip
+  Corner.png        — decorative corner ornament
+  Main_Button_BG.png— circular dark button background (decorative)
+  bag.png           — inventory bag icon
+  Chest.png         — chest icon
+  Coin.png          — coin icon
+
+Original raw pack retained at:
+  game/assets/art/_raw/foozle/foozle_rpg-ui-set-1/

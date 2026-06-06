@@ -1,10 +1,13 @@
-[gd_scene format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/pause_menu.gd" id="1_pause"]
+[ext_resource type="Theme" uid="uid://dpartythemeui01" path="res://assets/art/ui/dungeon_party_theme.tres" id="2_theme"]
+[ext_resource type="FontFile" uid="uid://4y211z3zrs1o" path="res://assets/art/ui/fonts/Cinzel.ttf" id="3_titlefont"]
 
 [node name="PauseMenu" type="Control"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+theme = ExtResource("2_theme")
 script = ExtResource("1_pause")
 
 [node name="DimBackground" type="ColorRect" parent="."]
@@ -28,7 +31,9 @@ theme_override_constants/separation = 16
 [node name="Title" type="Label" parent="PanelContainer/VBoxContainer"]
 text = "Pausa"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 28
+theme_override_fonts/font = ExtResource("3_titlefont")
+theme_override_colors/font_color = Color(0.95, 0.82, 0.45, 1)
+theme_override_font_sizes/font_size = 32
 
 [node name="BtnContinuar" type="Button" parent="PanelContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 50)

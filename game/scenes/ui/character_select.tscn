@@ -1,16 +1,19 @@
-[gd_scene format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/character_select.gd" id="1_charselect"]
+[ext_resource type="Theme" uid="uid://dpartythemeui01" path="res://assets/art/ui/dungeon_party_theme.tres" id="2_theme"]
+[ext_resource type="FontFile" uid="uid://4y211z3zrs1o" path="res://assets/art/ui/fonts/Cinzel.ttf" id="3_titlefont"]
 
 [node name="CharacterSelect" type="Control"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+theme = ExtResource("2_theme")
 script = ExtResource("1_charselect")
 
 [node name="Background" type="ColorRect" parent="."]
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.08, 0.08, 0.1, 1.0)
+color = Color(0.06, 0.055, 0.07, 1.0)
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 anchor_right = 1.0
@@ -24,7 +27,9 @@ theme_override_constants/separation = 32
 [node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
 text = "Selecciona tu Personaje"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 36
+theme_override_fonts/font = ExtResource("3_titlefont")
+theme_override_colors/font_color = Color(0.95, 0.82, 0.45, 1)
+theme_override_font_sizes/font_size = 40
 
 [node name="CardContainer" type="HBoxContainer" parent="CenterContainer/VBoxContainer"]
 alignment = 1

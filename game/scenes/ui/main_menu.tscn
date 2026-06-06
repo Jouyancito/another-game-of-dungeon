@@ -1,16 +1,32 @@
-[gd_scene format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/main_menu.gd" id="1_mainmenu"]
+[ext_resource type="Theme" uid="uid://dpartythemeui01" path="res://assets/art/ui/dungeon_party_theme.tres" id="2_theme"]
+[ext_resource type="FontFile" uid="uid://4y211z3zrs1o" path="res://assets/art/ui/fonts/Cinzel.ttf" id="3_titlefont"]
+
+[sub_resource type="Gradient" id="Gradient_bg"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.09, 0.07, 0.06, 1, 0.05, 0.045, 0.055, 1, 0.02, 0.018, 0.025, 1)
+
+[sub_resource type="GradientTexture2D" id="GradTex_bg"]
+gradient = SubResource("Gradient_bg")
+width = 256
+height = 256
+fill_from = Vector2(0.5, 0)
+fill_to = Vector2(0.5, 1)
 
 [node name="MainMenu" type="Control"]
 anchor_right = 1.0
 anchor_bottom = 1.0
+theme = ExtResource("2_theme")
 script = ExtResource("1_mainmenu")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.08, 0.08, 0.1, 1.0)
+texture = SubResource("GradTex_bg")
+expand_mode = 1
+stretch_mode = 0
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 anchor_right = 1.0
@@ -22,15 +38,20 @@ size_flags_vertical = 4
 theme_override_constants/separation = 16
 
 [node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
-text = "Dungeon Party"
+text = "DUNGEON PARTY"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 48
+theme_override_colors/font_color = Color(0.96, 0.83, 0.46, 1)
+theme_override_colors/font_outline_color = Color(0.12, 0.07, 0.03, 1)
+theme_override_constants/outline_size = 8
+theme_override_fonts/font = ExtResource("3_titlefont")
+theme_override_font_sizes/font_size = 64
 
 [node name="Subtitle" type="Label" parent="CenterContainer/VBoxContainer"]
 text = "Another Game of Dungeon"
 horizontal_alignment = 1
+theme_override_fonts/font = ExtResource("3_titlefont")
 theme_override_font_sizes/font_size = 20
-modulate = Color(1.0, 1.0, 1.0, 0.6)
+modulate = Color(0.85, 0.78, 0.62, 0.7)
 
 [node name="Spacer" type="Control" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(0, 24)

@@ -1,0 +1,38 @@
+Fonts used in Dungeon Party UI
+==============================
+
+Both fonts are licensed under the SIL Open Font License, Version 1.1 (OFL-1.1).
+The OFL permits use, study, modification, and redistribution — including in
+commercial and bundled software products (such as a game executable).
+Full license text + FAQ: https://openfontlicense.org
+
+--------------------------------------------------------------------------
+1) Cinzel  (TITLE / display font)
+   File:        Cinzel.ttf  (variable, wght axis)
+   Copyright:   Copyright 2020 The Cinzel Project Authors
+                (https://github.com/NDISCOVER/Cinzel)
+   License:     SIL Open Font License, Version 1.1
+   Source URL:  https://github.com/google/fonts/raw/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf
+   License URL: https://github.com/google/fonts/raw/main/ofl/cinzel/OFL.txt
+   Use in game: titles / headings (epic Roman-inscription fantasy feel)
+
+--------------------------------------------------------------------------
+2) EB Garamond  (BODY font)
+   File:        EBGaramond.ttf  (variable, wght axis)
+   Copyright:   Copyright 2017 The EB Garamond Project Authors
+                (https://github.com/octaviopardo/EBGaramond12)
+   License:     SIL Open Font License, Version 1.1
+   Source URL:  https://github.com/google/fonts/raw/main/ofl/ebgaramond/EBGaramond%5Bwght%5D.ttf
+   License URL: https://github.com/google/fonts/raw/main/ofl/ebgaramond/OFL.txt
+   Use in game: body text / button labels / readable serif copy
+
+--------------------------------------------------------------------------
+OFL-1.1 conditions summary (see full license at the URLs above):
+  - You may bundle, embed, and ship these fonts with the game (commercial OK).
+  - You must not sell the fonts by themselves.
+  - Reserved Font Names ("Cinzel", "EB Garamond") must not be used on
+    modified versions of the fonts.
+  - This notice must travel with the font files.
+
+Downloaded from Google Fonts' open-source repository (github.com/google/fonts),
+ofl/ directory, on 2026-06-05. Both verified OFL-1.1 from their OFL.txt headers.
