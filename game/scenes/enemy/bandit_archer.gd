@@ -17,19 +17,34 @@ func _on_enemy_ready() -> void:
 	default_color = Color(0.4, 0.45, 0.3)
 	_strafe_direction = 1.0 if randf() > 0.5 else -1.0
 	mesh.visible = false
-	var model := EnemyModelBuilder.build_humanoid(
-		default_color,    # green-brown Color(0.4, 0.45, 0.3)
-		0.95,             # height_scale (slightly shorter)
-		0.9               # width_scale (thinner)
-	)
-	model.name = "Model"
-	add_child(model)
-	# Add a bow
+
+	# Load ninja gltf — the ninja's lean silhouette reads as an agile archer.
+	# The bow attachment is preserved exactly as before (parented to model root).
+	const NINJA_PATH := "res://assets/art/piso1_pradera/enemies/big/enemy_ninja.gltf"
+	var packed: PackedScene = load(NINJA_PATH) if ResourceLoader.exists(NINJA_PATH) else null
+	var model_root: Node3D
+	if packed != null:
+		model_root = packed.instantiate()
+		model_root.name = "Model"
+		model_root.rotation.y = PI  # Quaternius mira +Z; girar 180° (si no, de espaldas)
+		add_child(model_root)
+	else:
+		push_warning("BanditArcher: enemy_ninja.gltf not found, using proc mesh")
+		model_root = EnemyModelBuilder.build_humanoid(default_color, 0.95, 0.9)
+		model_root.name = "Model"
+		add_child(model_root)
+
+	# Bow attachment — preserved from original, parented to model root
 	var bow_mat := MannequinBuilder.create_material(Color(0.5, 0.3, 0.15))
 	var bow := MannequinBuilder.create_cylinder(0.02, 0.5, bow_mat)
 	bow.name = "Bow"
 	bow.position = Vector3(-0.25, 0.6, 0.1)
-	model.add_child(bow)
+	model_root.add_child(bow)
+
+
+## Returns the gltf model root so EnemyAnimator can find the AnimationPlayer.
+func _get_anim_model_root() -> Node3D:
+	return get_node_or_null("Model")
 
 
 ## Lógica de movimiento: huir, holdear, o acercarse según distancia
@@ -107,6 +122,10 @@ func _physics_process(delta: float) -> void:
 		_idle_behavior(delta)
 
 	move_and_slide()
+	# Drive animation state (no-op when _anim is nil — procedural fallback).
+	if _anim != null and not is_dead:
+		var hspeed := Vector2(velocity.x, velocity.z).length()
+		_anim.play_state(hspeed)
 
 
 ## Ataque a distancia — raycast simplificado (solo distancia)

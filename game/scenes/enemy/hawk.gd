@@ -26,6 +26,10 @@ var dive_cooldown := 0.0
 
 func _on_enemy_ready() -> void:
 	enemy_type = "hawk"
+	# Personalidad: cazador veloz. HUNTER_FAST activa detección amplia + persistencia alta.
+	# speed_mult de HUNTER_FAST NO aplica al hawk (su _move_toward_target es estado-máquina
+	# independiente con dive_speed propio). La detección y persistencia sí aplican.
+	personality = AggroPersonality.HUNTER_FAST
 	default_color = Color(0.7, 0.55, 0.25)
 	spawn_position = global_position
 	spawn_position.y = fly_height

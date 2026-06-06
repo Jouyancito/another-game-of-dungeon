@@ -18,9 +18,22 @@ var is_hopping := false
 var mini_slime_scene: PackedScene
 
 
+## Returns the gltf model root (embedded in .tscn as SlimeMesh).
+func _get_anim_model_root() -> Node3D:
+	return get_node_or_null("SlimeMesh")
+
+
 func _on_enemy_ready() -> void:
 	enemy_type = "mini_slime" if is_mini else "slime"
+	# Personalidad: curioso. Se acerca lentamente a investigar al jugador.
+	# Solo ataca si el jugador entra en rango cercano (attack_range*1.5) o provoca.
+	# Cuando está en rango de ataque, usa los saltos normales (_move_toward_target).
+	personality = AggroPersonality.CURIOUS
+	aggression = AggressionType.NEUTRAL
 	default_color = Color(0.2, 0.75, 0.2) if not is_mini else Color(0.3, 0.85, 0.3)
+	var _slime_mesh: Node3D = get_node_or_null("SlimeMesh")  # Quaternius mira +Z; girar 180° (si no, de espaldas)
+	if _slime_mesh != null:
+		_slime_mesh.rotation.y = PI
 	mass = 0.5 if not is_mini else 0.2
 	hop_timer = hop_interval
 	if not is_mini:
@@ -34,6 +47,9 @@ func _move_toward_target(delta: float) -> void:
 	if hop_timer <= 0.0 and is_on_floor():
 		hop_timer = hop_interval
 		is_hopping = true
+		# Trigger Jump animation at hop launch (no-op if no AnimationPlayer).
+		if _anim != null:
+			_anim.play_jump()
 
 		# Impulso hacia el jugador + hacia arriba
 		var direction = (target.global_position - global_position).normalized()
@@ -52,6 +68,9 @@ func _move_toward_target(delta: float) -> void:
 
 	if is_hopping and is_on_floor() and velocity.y <= 0:
 		is_hopping = false
+		# Return to idle after landing (no-op if no AnimationPlayer).
+		if _anim != null:
+			_anim.play_idle()
 
 
 func _idle_behavior(delta: float) -> void:

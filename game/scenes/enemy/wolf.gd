@@ -31,6 +31,11 @@ var patrol_timer := 0.0
 
 func _on_enemy_ready() -> void:
 	enemy_type = "wolf"
+	# Personalidad: cazador veloz en manada (HUNTER_FAST + is_pack).
+	# La lógica de pack (alpha/flee) ya existe en este script y no entra en conflicto.
+	personality = AggroPersonality.HUNTER_FAST
+	is_pack = true
+
 	if is_alpha:
 		default_color = Color(0.35, 0.35, 0.35)
 		health *= 1.2  # +20% HP → 108

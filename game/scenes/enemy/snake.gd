@@ -10,6 +10,8 @@ func _on_enemy_ready() -> void:
 	default_color = Color(0.35, 0.4, 0.2)
 	mass = 0.4
 	detection_range = 3.0
+	# Ambush predator — lurks in humid / water-edge niches (pond rims, damp hollows)
+	habitat_type = "water_edge"
 	mesh.visible = false
 	var model := EnemyModelBuilder.build_snake(
 		default_color,

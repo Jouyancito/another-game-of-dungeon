@@ -26,6 +26,11 @@ var _wander_dir := Vector3.ZERO
 
 func _on_enemy_ready() -> void:
 	enemy_type = "goat"
+	# Personalidad: esquivo/miedoso. Huye si el jugador se acerca a < 6m.
+	# Si acorralado (sin escape), lanza su carga única via perform_attack().
+	# Los estados internos _is_charging/_is_fleeing siguen activos en perform_attack.
+	personality = AggroPersonality.SKITTISH
+	aggression = AggressionType.NEUTRAL
 	default_color = Color(0.8, 0.8, 0.75)
 	mass = 0.9
 	spawn_position = global_position

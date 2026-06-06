@@ -4,6 +4,17 @@ extends CharacterBody3D
 ## Tipos de agresividad
 enum AggressionType { AGGRESSIVE, NEUTRAL }
 
+## Personalidad de aggro — define cómo reacciona ante el jugador.
+## DEFAULT reproduce el comportamiento original exacto (ningún cambio).
+enum AggroPersonality {
+	DEFAULT,         # Comportamiento original (todos los enemies existentes)
+	HUNTER_FAST,     # Cazador veloz: detection grande, speed alta, persistencia máxima (wolf, hawk)
+	JUGGERNAUT_SLOW, # Lento imparable: speed baja, jamás abandona la persecución (golem)
+	CURIOUS,         # Curioso: se acerca lento, solo ataca si el jugador entra en close_attack_range o provoca (slime, mini_slime)
+	SKITTISH,        # Esquivo: huye cuando el jugador se acerca, ataca solo si acorralado (fox, goat)
+	TERRITORIAL,     # Territorial: solo aggro dentro del territorio de spawn, leash de vuelta (scorpion)
+}
+
 ## Sub-tier dentro de un piso — define el rol del enemigo en el ecosistema
 enum SubTier { A, B, C, BOSS }
 
@@ -21,10 +32,35 @@ enum SubTier { A, B, C, BOSS }
 # Tier — define la peligrosidad y el badge en el target frame
 @export var enemy_tier: int = 1  # Tier = piso de procedencia (1-100)
 @export var sub_tier: SubTier = SubTier.A  # A=fauna, B=depredador, C=alfa, BOSS=jefe
+@export var habitat_type: String = "open_field"  # "open_field" | "water_edge" | "cave" | "aerial" | "boss_arena"
 
 # Knockback
 @export var mass := 1.0  # 0.5 = liviano (slime), 1.0 = normal, 5.0 = pesado (boss)
 @export var knockback_resistance := 0.0  # 0.0 = sin resistencia, 1.0 = inmune
+
+# ── Personalidad de aggro ─────────────────────────────────────────────────────
+# DEFAULT = sin cambios (todos los enemies existentes).
+# Los demás perfiles se resuelven en _apply_personality() durante _ready.
+@export var personality: AggroPersonality = AggroPersonality.DEFAULT
+
+# Multiplicadores y radios — _apply_personality() los inicializa según el perfil.
+# Son @export para permitir ajuste fino desde el inspector o subclases.
+@export var detection_mult := 1.0         # Multiplica detection_range efectivo
+@export var speed_mult := 1.0             # Multiplica speed efectivo en persecución
+@export var pursue_persistence := 0.0     # Distancia extra que persigue antes de abandonar (0 = solo detection_range)
+@export var flee_radius := 0.0            # SKITTISH: distancia a la que empieza a huir
+@export var territorial_radius := 0.0     # TERRITORIAL: radio desde spawn_home para agredir
+@export var curiosity_approach_speed := 0.5  # CURIOUS: fracción de speed para acercarse
+
+# Pack flag — composable con cualquier personalidad (wolf: HUNTER_FAST + is_pack)
+# No es un enum separado para evitar explosión de combinaciones.
+@export var is_pack := false
+
+# Estado interno de personalidad (no exportado — se calcula en runtime)
+var _home_position := Vector3.ZERO       # TERRITORIAL / SKITTISH: punto de referencia para leash
+var _is_fleeing_skittish := false        # SKITTISH: flag de huida activa
+var _cornered_timer := 0.0              # SKITTISH: tiempo sin poder huir → ataca
+const _CORNERED_TIMEOUT := 1.5          # segundos sin escapar → cornered
 
 # Estado
 var target: Node3D = null
@@ -55,6 +91,11 @@ const NAMEPLATE_AIM_RANGE := 30.0
 
 # Color original del mesh (cada hijo lo define)
 var default_color := Color(0.8, 0.2, 0.2)
+
+# Animation helper — null when no AnimationPlayer is found (procedural enemies).
+# Type is intentionally untyped (Variant) to avoid class_name load-order issues.
+# Subclasses expose a gltf model root via _get_anim_model_root(); base = null → no-op.
+var _anim = null  # EnemyAnimator or null
 
 # Nameplate nodes
 var _nameplate: Node3D
@@ -88,9 +129,14 @@ func _ready() -> void:
 		if players.size() > 0:
 			target = players[0]
 	_on_enemy_ready()
+	# Aplicar personalidad DESPUÉS de _on_enemy_ready para que subclases puedan
+	# sobreescribir stats (speed, detection_range) antes de que los multiplicadores se resuelven.
+	_apply_personality()
 	_max_health = health
 	if not is_preview:
 		_setup_nameplate()
+	# Set up animation after _on_enemy_ready so the model node exists.
+	_setup_anim()
 
 
 func get_tier_label() -> String:
@@ -107,6 +153,86 @@ func get_display_name() -> String:
 ## Override en subclases para setup específico
 func _on_enemy_ready() -> void:
 	pass
+
+
+## Override in subclasses that use a gltf model.
+## Return the Node3D that is the root of the imported gltf scene
+## (the node that CONTAINS an AnimationPlayer somewhere in its subtree).
+## Default returns null → EnemyAnimator is not created → all animation calls are no-ops.
+## Procedural enemies (wolf, fox, goat, etc.) must NOT override this.
+func _get_anim_model_root() -> Node3D:
+	return null
+
+
+## Called after _on_enemy_ready so the model node already exists in the tree.
+func _setup_anim() -> void:
+	var root: Node3D = _get_anim_model_root()
+	if root == null:
+		return
+	# Use load() to avoid a hard class_name reference at parse time
+	# (prevents load-order issues when base_enemy compiles before enemy_animator).
+	const ANIM_SCRIPT := "res://scenes/enemy/enemy_animator.gd"
+	var animator_class = load(ANIM_SCRIPT)
+	if animator_class == null:
+		push_warning("BaseEnemy: enemy_animator.gd not found — animations disabled")
+		return
+	_anim = animator_class.new(root)
+
+
+# ── Personalidad de aggro ─────────────────────────────────────────────────────
+
+## Resuelve los parámetros de comportamiento según el perfil asignado.
+## Llamado en _ready DESPUÉS de _on_enemy_ready — subclases pueden cambiar
+## stats en _on_enemy_ready y los multiplicadores se aplican correctamente.
+## DEFAULT: no modifica nada → comportamiento original intacto.
+func _apply_personality() -> void:
+	# Guardar posición home SIEMPRE — usada por TERRITORIAL y SKITTISH.
+	# _on_enemy_ready puede haber movido global_position (hawk sube a fly_height),
+	# así que leemos la posición real después de ese setup.
+	_home_position = global_position
+
+	match personality:
+		AggroPersonality.DEFAULT:
+			# Sin cambios — todos los parámetros quedan en sus valores export por defecto.
+			pass
+
+		AggroPersonality.HUNTER_FAST:
+			detection_mult = 1.8        # Detection 80% más grande
+			speed_mult = 1.4            # 40% más rápido en persecución
+			pursue_persistence = 30.0   # Persigue hasta 30m extra antes de rendirse
+			print("[AggroPersonality] %s → HUNTER_FAST (det×%.1f spd×%.1f persist=%.0fm)" % [
+				get_display_name(), detection_mult, speed_mult, pursue_persistence])
+
+		AggroPersonality.JUGGERNAUT_SLOW:
+			detection_mult = 0.9        # Detección ligeramente reducida (no vigila lejos)
+			speed_mult = 0.7            # 30% más lento
+			pursue_persistence = 999.0  # Jamás abandona (efectivamente infinito)
+			print("[AggroPersonality] %s → JUGGERNAUT_SLOW (det×%.1f spd×%.1f NEVER_GIVES_UP)" % [
+				get_display_name(), detection_mult, speed_mult])
+
+		AggroPersonality.CURIOUS:
+			detection_mult = 1.0        # Detection normal
+			speed_mult = 1.0
+			curiosity_approach_speed = 0.4   # Se acerca al 40% de la speed base
+			# CURIOUS solo ataca cuando el jugador entra en attack_range*1.5 o provoca.
+			# La lógica de ataque se mantiene en _physics_process vía is_provoked.
+			print("[AggroPersonality] %s → CURIOUS (approach=%.0f%% speed)" % [
+				get_display_name(), curiosity_approach_speed * 100.0])
+
+		AggroPersonality.SKITTISH:
+			detection_mult = 1.2        # Detección 20% mayor (nervioso, muy alerta)
+			speed_mult = 1.3            # 30% más rápido al huir
+			flee_radius = 6.0           # Huye si el jugador se acerca a < 6m
+			print("[AggroPersonality] %s → SKITTISH (flee_r=%.1fm spd×%.1f)" % [
+				get_display_name(), flee_radius, speed_mult])
+
+		AggroPersonality.TERRITORIAL:
+			detection_mult = 1.0
+			speed_mult = 1.0
+			territorial_radius = 12.0   # Territorio de 12m desde el spawn
+			pursue_persistence = 0.0    # No persigue fuera del territorio
+			print("[AggroPersonality] %s → TERRITORIAL (radius=%.1fm home=%s)" % [
+				get_display_name(), territorial_radius, str(_home_position)])
 
 
 func _setup_nameplate() -> void:
@@ -276,6 +402,28 @@ func _physics_process(delta: float) -> void:
 	# Antes teníamos un doble check `and distance <= detection_range` acá que
 	# reintroducía el límite incluso cuando había alert por daño.
 	if should_chase:
+		# ── SKITTISH: huir del jugador en lugar de perseguir ──────────────────
+		if personality == AggroPersonality.SKITTISH:
+			_process_skittish(delta, distance)
+			move_and_slide()
+			return
+
+		# ── CURIOUS: acercarse lento, atacar solo si muy cerca o provocado ────
+		if personality == AggroPersonality.CURIOUS:
+			_look_at_target()
+			var attack_threshold := attack_range * 1.5
+			if distance > attack_threshold and not is_provoked:
+				_move_toward_target_curious(delta)
+			elif distance > attack_range:
+				_move_toward_target(delta)
+			else:
+				velocity.x = 0
+				velocity.z = 0
+				if (is_provoked or distance <= attack_range) and can_attack and target.has_method("take_damage"):
+					perform_attack()
+			move_and_slide()
+			return
+
 		_look_at_target()
 
 		if distance > attack_range:
@@ -286,9 +434,18 @@ func _physics_process(delta: float) -> void:
 			if can_attack and target.has_method("take_damage"):
 				perform_attack()
 	else:
+		# ── TERRITORIAL: volver al home cuando el jugador sale del territorio ─
+		if personality == AggroPersonality.TERRITORIAL:
+			_process_territorial_leash(delta)
+			move_and_slide()
+			return
 		_idle_behavior(delta)
 
 	move_and_slide()
+	# Drive animation state from actual horizontal speed after physics step.
+	if _anim != null and not is_dead:
+		var hspeed := Vector2(velocity.x, velocity.z).length()
+		_anim.play_state(hspeed)
 
 
 # ---------------------------------------------------------------------------
@@ -400,9 +557,55 @@ func outgoing_damage_mult() -> float:
 ## Determina si este enemigo debería perseguir al jugador
 ## Canon 2026-04-23: si está en alerta (recibió daño recientemente), persigue
 ## SIN importar distance — ya sabe quién lo atacó y va a buscarlo.
+## DEFAULT path es idéntico al original — personalidades agregan sus propias reglas.
 func _should_pursue(distance: float) -> bool:
+	# Alerta por daño: override universal (incluye DEFAULT).
 	if _alert_time_left > 0.0:
 		return true
+
+	# ── Ramas de personalidad (no-DEFAULT) ────────────────────────────────────
+	match personality:
+		AggroPersonality.HUNTER_FAST:
+			var effective_range: float = detection_range * detection_mult
+			if aggression == AggressionType.NEUTRAL and not is_provoked:
+				return false
+			# Persiste mientras no supere detection_range + pursue_persistence
+			return distance <= effective_range + pursue_persistence
+
+		AggroPersonality.JUGGERNAUT_SLOW:
+			if aggression == AggressionType.NEUTRAL and not is_provoked:
+				return false
+			# pursuit_persistence = 999 → siempre persigue si alguna vez aggro
+			var effective_range: float = detection_range * detection_mult
+			return distance <= effective_range + pursue_persistence
+
+		AggroPersonality.CURIOUS:
+			# Solo ataca si está provocado (tomó daño) o el jugador está muy cerca.
+			# La aproximación lenta se maneja en _move_toward_target.
+			var effective_range: float = detection_range * detection_mult
+			if is_provoked:
+				return distance <= effective_range
+			# Acercarse a curiosear si está en rango pero sin aggro real
+			return distance <= effective_range
+
+		AggroPersonality.SKITTISH:
+			# SKITTISH no persigue — se aleja si el jugador se acerca.
+			# El "ataque" ocurre solo cuando está acorralado (_cornered_timer).
+			# Retornar true para que _physics_process ejecute el movimiento de huida
+			# (que overrideamos en _move_toward_target).
+			var effective_range: float = detection_range * detection_mult
+			return distance <= effective_range
+
+		AggroPersonality.TERRITORIAL:
+			# Solo aggro si el jugador está dentro del territorio.
+			if distance > territorial_radius:
+				# Si ya había aggro y salió del territorio, leash de vuelta.
+				return false
+			if aggression == AggressionType.NEUTRAL and not is_provoked:
+				return false
+			return distance <= detection_range * detection_mult
+
+	# ── DEFAULT: path original intacto ────────────────────────────────────────
 	if aggression == AggressionType.AGGRESSIVE:
 		return distance <= detection_range
 	# NEUTRAL: solo si fue provocado
@@ -416,8 +619,75 @@ func _idle_behavior(_delta: float) -> void:
 
 
 ## Movimiento hacia el target — override para movimiento custom (ej: saltos)
+## speed_mult se aplica aquí para HUNTER_FAST / JUGGERNAUT_SLOW.
+## DEFAULT (speed_mult=1.0) → idéntico al original.
 func _move_toward_target(_delta: float) -> void:
 	var direction = (target.global_position - global_position).normalized()
+	direction.y = 0
+	velocity.x = direction.x * speed * speed_mult
+	velocity.z = direction.z * speed * speed_mult
+
+
+## CURIOUS: acercarse lento para investigar (no en ataque todavía)
+func _move_toward_target_curious(_delta: float) -> void:
+	var direction = (target.global_position - global_position).normalized()
+	direction.y = 0
+	velocity.x = direction.x * speed * curiosity_approach_speed
+	velocity.z = direction.z * speed * curiosity_approach_speed
+
+
+## SKITTISH: huir del jugador o atacar si acorralado.
+## Se llama desde _physics_process cuando personality==SKITTISH y should_chase.
+func _process_skittish(delta: float, distance: float) -> void:
+	if distance <= flee_radius:
+		# Intentar huir en dirección opuesta al jugador
+		_is_fleeing_skittish = true
+		var away := (global_position - target.global_position).normalized()
+		away.y = 0
+		# Verificar si hay espacio: raycast hacia la dirección de huida
+		var can_flee := _has_escape_space(away)
+		if can_flee:
+			_cornered_timer = 0.0
+			_look_at_target()
+			velocity.x = away.x * speed * speed_mult
+			velocity.z = away.z * speed * speed_mult
+		else:
+			# Acorralado — atacar después del timeout
+			_cornered_timer += delta
+			if _cornered_timer >= _CORNERED_TIMEOUT:
+				_look_at_target()
+				velocity.x = 0
+				velocity.z = 0
+				if can_attack and target.has_method("take_damage"):
+					perform_attack()
+	else:
+		# Fuera del flee_radius — idle normal
+		_is_fleeing_skittish = false
+		_cornered_timer = 0.0
+		_idle_behavior(delta)
+
+
+## Verifica si hay espacio para escapar en la dirección dada (raycast 3m).
+func _has_escape_space(direction: Vector3) -> bool:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var ray_from := global_position + Vector3(0, 0.5, 0)
+	var ray_to := ray_from + direction * 3.0
+	var query := PhysicsRayQueryParameters3D.create(ray_from, ray_to)
+	query.exclude = [get_rid()]
+	query.collision_mask = 1  # Solo world geometry
+	var hit := space.intersect_ray(query)
+	return hit.is_empty()  # sin obstáculo = puede escapar
+
+
+## TERRITORIAL: volver al home cuando el jugador salió del territorio.
+func _process_territorial_leash(delta: float) -> void:
+	var dist_from_home := global_position.distance_to(_home_position)
+	if dist_from_home < 1.5:
+		# Ya en casa — idle normal
+		_idle_behavior(delta)
+		return
+	# Marchar de vuelta al home
+	var direction := (_home_position - global_position).normalized()
 	direction.y = 0
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
@@ -497,6 +767,9 @@ func perform_attack() -> void:
 	if has_status(&"stun"):
 		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	can_attack = false
+	# Telegraph the attack with an animation (no-op when _anim is nil).
+	if _anim != null:
+		_anim.play_attack()
 	if is_instance_valid(target):
 		# Weak reduce dmg saliente −25% (canon §2.3).
 		# Pasar self como attacker permite que el player gatille Bloqueo Perfecto reflejo.
@@ -602,6 +875,14 @@ func die() -> void:
 
 	_spawn_loot()
 	_on_death()
+	# Play death animation if available (no-op when _anim is nil).
+	# The shrink tween is delayed slightly so the death clip is visible before
+	# the enemy shrinks away. 0.6s covers most death clips without feeling slow.
+	if _anim != null and _anim.is_valid():
+		_anim.play_death()
+		await get_tree().create_timer(0.6).timeout
+		if not is_instance_valid(self):
+			return
 	var tween = create_tween()
 	tween.tween_property(self, "scale", Vector3(0.1, 0.1, 0.1), 0.5)
 	tween.tween_callback(queue_free)

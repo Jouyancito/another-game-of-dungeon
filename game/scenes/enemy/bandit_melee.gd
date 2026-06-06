@@ -17,25 +17,46 @@ var _strafe_direction := 1.0
 var _strafe_timer := 0.0
 var _strafe_interval := 1.5
 
+# Reference to the visual model node — used by _attack_charged_heavy for the
+# telegraph tween (previously used mesh, which is hidden; now points at Model).
+var _model_root: Node3D = null
+
 
 func _on_enemy_ready() -> void:
 	enemy_type = "bandit"
 	default_color = Color(0.55, 0.35, 0.2)
 	_strafe_direction = 1.0 if randf() > 0.5 else -1.0
 	mesh.visible = false
-	var model := EnemyModelBuilder.build_humanoid(
-		default_color,    # brown Color(0.55, 0.35, 0.2)
-		1.0,              # height_scale (normal human)
-		1.0               # width_scale
-	)
-	model.name = "Model"
-	add_child(model)
-	# Add a weapon box (sword) in right hand area
+
+	# Load ninja gltf — humanoid clothed figure that reads as a person.
+	# The ninja silhouette is agile and clearly human, much more readable
+	# than a capsule. We keep the sword attachment as before.
+	const NINJA_PATH := "res://assets/art/piso1_pradera/enemies/big/enemy_ninja.gltf"
+	var packed: PackedScene = load(NINJA_PATH) if ResourceLoader.exists(NINJA_PATH) else null
+	if packed != null:
+		var model: Node3D = packed.instantiate()
+		model.name = "Model"
+		model.rotation.y = PI  # Quaternius mira +Z; girar 180° (si no, de espaldas)
+		add_child(model)
+		_model_root = model
+	else:
+		push_warning("BanditMelee: enemy_ninja.gltf not found, using proc mesh")
+		var model := EnemyModelBuilder.build_humanoid(default_color, 1.0, 1.0)
+		model.name = "Model"
+		add_child(model)
+		_model_root = model
+
+	# Sword attachment — preserved from original, parented to model root
 	var weapon_mat := MannequinBuilder.create_material(Color(0.6, 0.6, 0.6))
 	var sword := MannequinBuilder.create_box(Vector3(0.04, 0.5, 0.04), weapon_mat)
 	sword.name = "Sword"
 	sword.position = Vector3(0.25, 0.5, 0.15)
-	model.add_child(sword)
+	_model_root.add_child(sword)
+
+
+## Returns the gltf model root so EnemyAnimator can find the AnimationPlayer.
+func _get_anim_model_root() -> Node3D:
+	return _model_root
 
 
 func _physics_process(delta: float) -> void:
@@ -131,11 +152,12 @@ func _attack_shield_bash() -> void:
 func _attack_charged_heavy() -> void:
 	_is_charging = true
 
-	# Telegraph visual — escalar mesh hacia arriba
-	if is_instance_valid(mesh):
+	# Telegraph visual — escalar el model root (no mesh, que está oculto)
+	var tween_target: Node3D = _model_root if is_instance_valid(_model_root) else null
+	if tween_target != null:
 		var tween = create_tween()
-		tween.tween_property(mesh, "scale", Vector3(1.3, 1.3, 1.3), 0.4)
-		tween.tween_property(mesh, "scale", Vector3(1.0, 1.0, 1.0), 0.2)
+		tween.tween_property(tween_target, "scale", Vector3(1.3, 1.3, 1.3), 0.4)
+		tween.tween_property(tween_target, "scale", Vector3(1.0, 1.0, 1.0), 0.2)
 
 	await get_tree().create_timer(1.0).timeout
 

@@ -15,6 +15,10 @@ var throw_range := 10.0
 
 func _on_enemy_ready() -> void:
 	enemy_type = "golem"
+	# Personalidad: lento imparable. Una vez despierto, jamás abandona la persecución.
+	# speed_mult=0.7 lo hace más lento. JUGGERNAUT_SLOW + NEUTRAL + is_provoked (set en _awaken)
+	# → el golem persigue hasta 999m de distancia desde que despertó.
+	personality = AggroPersonality.JUGGERNAUT_SLOW
 	default_color = Color(0.5, 0.5, 0.5)
 	mass = 3.0
 	knockback_resistance = 0.7
@@ -23,14 +27,38 @@ func _on_enemy_ready() -> void:
 	var old_head: Node = get_node_or_null("Head")
 	if old_head:
 		old_head.visible = false
-	var model := EnemyModelBuilder.build_humanoid(
-		default_color,
-		1.5,    # height_scale (tall golem, 2.5m)
-		1.4     # width_scale (wide, stocky)
-	)
-	model.name = "Model"
-	add_child(model)
-	# Dormant: aplastado como roca
+
+	# Load the orc gltf as the golem visual — the orc silhouette reads as a
+	# heavy humanoid creature, which sells "stone golem" better than a BoxMesh.
+	# We override the material at runtime with a stone/gray tint so it reads
+	# as rock, not a green orc. Scale is exaggerated (1.5× width, 1.6× height)
+	# to give the golem its heavy, stocky proportions.
+	const ORC_PATH := "res://assets/art/piso1_pradera/enemies/big/enemy_orc.gltf"
+	var packed: PackedScene = load(ORC_PATH) if ResourceLoader.exists(ORC_PATH) else null
+	if packed != null:
+		var model: Node3D = packed.instantiate()
+		model.name = "Model"
+		# Stone tint: desaturated warm grey, slightly rougher than skin
+		var stone_mat := StandardMaterial3D.new()
+		stone_mat.albedo_color = Color(0.58, 0.56, 0.52)   # warm stone grey
+		stone_mat.roughness = 0.92
+		stone_mat.metallic = 0.0
+		# Apply to every MeshInstance3D child of the imported scene
+		for child in model.get_children():
+			if child is MeshInstance3D:
+				child.material_override = stone_mat
+		# Golem proportions: wider and taller than a normal orc
+		model.scale = Vector3(1.5, 1.6, 1.5)
+		model.rotation.y = PI  # Quaternius mira +Z; look_at apunta -Z → girar 180° (si no, camina de espaldas)
+		add_child(model)
+	else:
+		# Fallback: procedural humanoid (graceful degradation)
+		push_warning("Golem: enemy_orc.gltf not found, using proc mesh")
+		var model := EnemyModelBuilder.build_humanoid(default_color, 1.5, 1.4)
+		model.name = "Model"
+		add_child(model)
+
+	# Dormant: aplastado como roca — tween re-points to self.scale (unchanged)
 	scale = Vector3(1.2, 0.5, 1.2)
 
 
@@ -61,12 +89,17 @@ func _idle_behavior(_delta: float) -> void:
 	velocity.z = 0
 
 
-## Movimiento lento y deliberado — sin cambios sobre la base
+## Movimiento lento y deliberado — respeta speed_mult de JUGGERNAUT_SLOW (0.7×).
 func _move_toward_target(_delta: float) -> void:
 	var direction = (target.global_position - global_position).normalized()
 	direction.y = 0
-	velocity.x = direction.x * speed
-	velocity.z = direction.z * speed
+	velocity.x = direction.x * speed * speed_mult
+	velocity.z = direction.z * speed * speed_mult
+
+
+## Returns the gltf model root so EnemyAnimator can find the AnimationPlayer.
+func _get_anim_model_root() -> Node3D:
+	return get_node_or_null("Model")
 
 
 ## Override take_damage: si duerme, despertar antes de recibir daño

@@ -11,6 +11,11 @@ var _strafe_dir := 1.0          # 1 o -1: sentido del circle-strafe
 
 func _on_enemy_ready() -> void:
 	enemy_type = "fox"
+	# Personalidad: esquivo/miedoso. Huye si el jugador se acerca a < 6m.
+	# Solo ataca si está acorralado (sin espacio para escapar).
+	# El circle-strafe y weaving siguen activos en idle (movimiento de ronda).
+	personality = AggroPersonality.SKITTISH
+	aggression = AggressionType.NEUTRAL
 	default_color = Color(0.85, 0.45, 0.15)
 	mass = 0.6
 	spawn_position = global_position

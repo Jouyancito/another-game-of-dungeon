@@ -14,9 +14,15 @@ var _use_sting_next := false  # alterna entre pinch y sting
 
 func _on_enemy_ready() -> void:
 	enemy_type = "scorpion"
+	# Personalidad: territorial. Sólo aggro si el jugador entra en el territorio (12m del spawn).
+	# Cuando el jugador escapa, el escorpión vuelve a su home (_process_territorial_leash).
+	# El ABANDON_RANGE (15m) en _should_pursue override coexiste: la base TERRITORIAL
+	# bloquea a 12m, y el override agrega 15m de seguridad. Efectivo = 12m.
+	personality = AggroPersonality.TERRITORIAL
 	default_color = Color(0.4, 0.25, 0.15)
 	mass = 0.5
-
+	# Territorial in dry, exposed terrain — hunts in open rocky fields
+	habitat_type = "open_field"
 	mesh.visible = false
 	var model := EnemyModelBuilder.build_arthropod(
 		default_color,
