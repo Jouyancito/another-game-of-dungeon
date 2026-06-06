@@ -6,9 +6,62 @@ extends Node3D
 
 @export var world_seed: int = 12345
 
+# ── Proc-lab parameterization (defaults preserve the curated demo map EXACTLY) ──
+# The alpha demo (floor1_prairie.tscn) is ONE curated deterministic map. With
+# proc_bounds = (600, 600) and all active_layers true, every value below resolves
+# to the historical constants and the map renders byte-identical to before.
+# The dev harness (proc_lab) overrides these to iterate small cells fast.
+
+## Bounds del mundo procedural en metros. Default (600, 600) = mapa demo.
+## proc_lab usa celdas chicas (~120x120) para iterar rápido.
+@export var proc_bounds: Vector2 = Vector2(600.0, 600.0)
+
+## Capas activas. Permite generar solo lo que interesa al iterar.
+## TODO true = pipeline completo (idéntico al demo).
+@export var active_layers: Dictionary = {
+	"ceiling": true,
+	"crystals": true,
+	"pillars": true,
+	"border": true,
+	"terrain": true,
+	"pois": true,
+	"vegetation": true,
+	"grass": true,
+	"player": true,
+	"enemies": true,
+	"hud": true,
+}
+
+## Multiplicador de densidad del tapiz de hierba. 1.0 = presupuesto nominal (≤120k blades a 600m).
+## Reduce para iterar más rápido o en hardware débil.
+## Default 1.0 = ~120k blades en el mapa completo (70m cull makes rendered count ~13k max).
+@export var grass_density: float = 1.0
+
+## Distancia de culling de la hierba en metros. Los MultiMeshInstance3D de hierba usan
+## visibility_range_end = este valor con fade SELF para que desaparezcan suavemente.
+@export var grass_cull_distance: float = 70.0
+
+## Si true, omite el setup de UI compartida (pausa/inventario/etc).
+## proc_lab lo desactiva: es un banco de pruebas visual, no una partida.
+@export var skip_game_ui: bool = false
+
+## ── Crystal glass material tweaks ────────────────────────────────────────────
+## Alpha 0-1: 0 = invisible, 1 = opaque. ~0.65 = translucent gem look (Danmachi F18).
+@export var crystal_alpha: float = 0.65
+## Emission energy multiplier for crystal MultiMeshes. 2.0 = vivid inner glow.
+@export var crystal_emission_energy: float = 2.0
+
 # ── Map dimensions ────────────────────────────────────────────────────────────
+# MAP_SIZE conservado como const de referencia histórica (600x600 base de calibración).
+# El código vivo usa proc_bounds; con default == MAP_SIZE no hay cambio de comportamiento.
 const MAP_SIZE: Vector2 = Vector2(600.0, 600.0)
 const MAP_CENTER: Vector3 = Vector3.ZERO
+
+## Factor de escala respecto al mapa demo de 600m. 1.0 en el demo, <1 en proc_lab.
+## Escala las constantes geométricas absolutas (borde, vía de cristales, POIs) para
+## que la celda chica de proc_lab no quede con el borde o los cristales fuera de cuadro.
+func _proc_scale() -> float:
+	return proc_bounds.x / MAP_SIZE.x
 
 # Border
 const BORDER_RADIUS_BASE: float = 250.0
@@ -26,8 +79,8 @@ const CRYSTAL_SCATTER_WIDTH: float = 60.0    # ancho de dispersión lateral
 const CRYSTAL_MIN_HEIGHT: float = 32.0       # altura mínima (cuelgan del techo)
 const CRYSTAL_MAX_HEIGHT: float = 42.0
 const CRYSTAL_LIGHT_RANGE: float = 80.0      # rango grande — menos luces, más cobertura
-const CRYSTAL_LIGHT_ENERGY: float = 0.9
-const CRYSTAL_AMBIENT_ENERGY: float = 0.25   # ambient global para que se sienta pradera
+const CRYSTAL_LIGHT_ENERGY: float = 1.1      # subido (0.9→1.1) para que los charcos lean contra la oscuridad
+const CRYSTAL_AMBIENT_ENERGY: float = 0.25   # legacy — ya no se usa (flood gigante eliminado; fill en WorldEnv)
 const CRYSTAL_MONARCH_COUNT: int = 3         # cristales gigantes "príncipe"
 const CRYSTAL_LIGHTS_EVERY: int = 3          # luz real cada N clusters (reduce OmniLights)
 const CEILING_BIOLUM_PATCHES: int = 50       # parches bioluminiscentes en el techo
@@ -77,6 +130,17 @@ const COLOR_ALTAR: Color       = Color(0.700, 0.650, 0.550)
 const COLOR_GIANT_TRUNK: Color = Color(0.300, 0.200, 0.100)
 const COLOR_GIANT_CANOPY: Color = Color(0.130, 0.300, 0.080)
 
+# ── Cavern key light (direccional con sombras — BRILLANTE, da forma/profundidad) ──
+@export var key_light_energy: float = 0.9
+@export var key_light_pitch: float = -52.0
+@export var key_light_yaw: float = -35.0
+@export var key_light_color: Color = Color(0.72, 0.78, 0.92)
+
+# ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
+@export var monarch_shadows: bool = true       # false = apaga sombra (perf co-op pesado)
+@export var monarch_light_energy: float = 1.5
+@export var monarch_spot_angle: float = 52.0
+
 # ── Scene references ──────────────────────────────────────────────────────────
 var SCENE_PLAYER: PackedScene
 const SCENE_ENEMY_BASIC: PackedScene = preload("res://scenes/enemy/enemy_basic.tscn")
@@ -106,6 +170,29 @@ var _terrain_noise: FastNoiseLite
 var _terrain_heights: PackedFloat32Array
 var _terrain_stride: int = 0  # TERRAIN_RESOLUTION + 1
 
+# Scaled geometry (resueltos en generate() a partir de proc_bounds).
+# En el demo (scale 1.0) coinciden con las constantes históricas.
+var _scale: float = 1.0
+var _border_radius_base: float = BORDER_RADIUS_BASE
+
+# Snapshot de hijos pre-generación: lo que NO está acá se considera generado
+# y se libera en regenerate() para un reseed limpio.
+var _baseline_children: Array[Node] = []
+
+## Cavern key light — UN DirectionalLight tenue con sombras. Sin él la penumbra
+## queda plana/negra. No es un sol: luz de relleno con dirección, tintada fría como
+## filtrada por cristal. Perf: es el ÚNICO shadow-caster permitido (red-line #2).
+func _build_key_light() -> void:
+	var key := DirectionalLight3D.new()
+	key.name = "CavernKeyLight"
+	key.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
+	key.light_color = key_light_color
+	key.light_energy = key_light_energy
+	key.shadow_enabled = true
+	key.shadow_bias = 0.04
+	add_child(key)
+
+
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
@@ -128,68 +215,116 @@ func _ready() -> void:
 		class_path = "res://scenes/player/player.tscn"
 	SCENE_PLAYER = load(class_path)
 
+	# Snapshot de los hijos declarados en el .tscn (techo de cristal, fauna ambiental,
+	# vegetación curada, props). Todo lo que generate() agregue queda FUERA de este set
+	# y por tanto se puede liberar limpio en regenerate() sin tocar la escena base.
+	_baseline_children = get_children()
+
+	generate()
+
+
+## Pipeline de generación completo. Idempotente: regenerate() lo re-invoca tras limpiar.
+## Cada fase está protegida por active_layers para que proc_lab itere subconjuntos.
+func generate() -> void:
 	_rng.seed = world_seed
+	_scale = _proc_scale()
+	_border_radius_base = BORDER_RADIUS_BASE * _scale
 	_precalculate_border()
 	_setup_terrain_noise()
+	_build_key_light()
 
 	# 1. Atmósfera
-	_build_ceiling()
-	_build_crystal_field()
-	_build_landmark_pillars()
+	if active_layers.get("ceiling", true):
+		_build_ceiling()
+	if active_layers.get("crystals", true):
+		_build_crystal_field()
+	if active_layers.get("pillars", true):
+		_build_landmark_pillars()
 
 	# 2. Borde orgánico
-	_build_organic_border()
+	if active_layers.get("border", true):
+		_build_organic_border()
 
-	# 2.5. Terreno con relieve
-	_generate_terrain_mesh()
-	_hide_flat_ground()
+	# 2.5. Terreno con relieve — siempre se genera (todo lo demás lee su altura).
+	if active_layers.get("terrain", true):
+		_generate_terrain_mesh()
+		_hide_flat_ground()
 
 	# 3. POIs — ajustar al terreno antes de construir
-	var poi_system: POISystem = POISystem.new()
-	var pois: Array = poi_system.generate_pois(world_seed, MAP_SIZE, _is_inside_border)
-
-	for poi in pois:
-		var p: POISystem.POI = poi as POISystem.POI
-		p.position.y = get_terrain_height(p.position.x, p.position.z)
-		match p.type:
-			"entrance":   _build_entrance(p)
-			"ruins":      _build_ruins(p)
-			"boss":       _build_boss_arena(p)
-			"camp":       _build_camp(p)
-			"giant_tree": _build_giant_tree(p)
-			"altar":      _build_altar(p)
-			"well":       _build_well(p)
-			"pond":       _build_pond(p)
+	var pois: Array = []
+	if active_layers.get("pois", true):
+		var poi_system: POISystem = POISystem.new()
+		pois = poi_system.generate_pois(world_seed, proc_bounds, _is_inside_border)
+		for poi in pois:
+			var p: POISystem.POI = poi as POISystem.POI
+			p.position.y = get_terrain_height(p.position.x, p.position.z)
+			match p.type:
+				"entrance":   _build_entrance(p)
+				"ruins":      _build_ruins(p)
+				"boss":       _build_boss_arena(p)
+				"camp":       _build_camp(p)
+				"giant_tree": _build_giant_tree(p)
+				"altar":      _build_altar(p)
+				"well":       _build_well(p)
+				"pond":       _build_pond(p)
 
 	# 4. Vegetación
-	_generate_vegetation(pois)
+	if active_layers.get("vegetation", true):
+		_generate_vegetation(pois)
+
+	# 4.5. Tapiz de hierba densa — MultiMeshInstance3D chunkeado (S3 perf red-line #3)
+	if active_layers.get("grass", true):
+		_build_grass_carpet()
 
 	# 5. Jugador — ajustar a la altura del terreno
 	var entrance_pos: Vector3 = _find_entrance_pos(pois)
 	entrance_pos.y = get_terrain_height(entrance_pos.x, entrance_pos.z)
-	var player: CharacterBody3D = SCENE_PLAYER.instantiate() as CharacterBody3D
-	add_child(player)
-	player.global_position = entrance_pos + Vector3(0, 2.0, 0)
+	if active_layers.get("player", true):
+		var player: CharacterBody3D = SCENE_PLAYER.instantiate() as CharacterBody3D
+		add_child(player)
+		player.global_position = entrance_pos + Vector3(0, 2.0, 0)
+
+		# 7. HUD — depende del player
+		if active_layers.get("hud", true):
+			var hud: CanvasLayer = SCENE_HUD.instantiate() as CanvasLayer
+			add_child(hud)
+			if hud.has_method("connect_to_player"):
+				hud.connect_to_player(player)
 
 	# 6. Enemigos
-	_spawn_poi_enemies(pois)
-	_spawn_field_enemies(pois, entrance_pos)
+	if active_layers.get("enemies", true):
+		_spawn_poi_enemies(pois)
+		_spawn_field_enemies(pois, entrance_pos)
 
 	# 6.5. Ajustar todos los enemigos y vegetación al terreno
 	_snap_all_to_terrain()
 
-	# 7. HUD
-	var hud: CanvasLayer = SCENE_HUD.instantiate() as CanvasLayer
-	add_child(hud)
-	if hud.has_method("connect_to_player"):
-		hud.connect_to_player(player)
+	# 8 + 9. UI compartida — starter items + pausa/inventario/diario.
+	# proc_lab la omite: es banco de pruebas visual, no una partida.
+	if not skip_game_ui:
+		GameUISetup.grant_starter_items(GameManager.selected_class_scene)
+		# Va DESPUÉS del player y starter items porque inventory_ui usa GameManager.player_inventory
+		GameUISetup.setup_ui(self)
 
-	# 8. Starter items si el personaje es nuevo (inventario vacío)
-	GameUISetup.grant_starter_items(GameManager.selected_class_scene)
 
-	# 9. UI compartida — pausa, ventana de personaje, diario, inventario
-	# Va DESPUÉS del player y starter items porque inventory_ui usa GameManager.player_inventory
-	GameUISetup.setup_ui(self)
+## Limpia los nodos generados (todo lo que no estaba en el .tscn) y regenera con
+## una nueva semilla. Usado por proc_lab (hotkey R) para ver variaciones en segundos.
+func regenerate(new_seed: int = -1) -> void:
+	if new_seed >= 0:
+		world_seed = new_seed
+	# Liberar SOLO los hijos generados; preservar los declarados en el .tscn.
+	for child in get_children():
+		if child in _baseline_children:
+			continue
+		child.queue_free()
+	# Reset de acumuladores de cristales (se rellenan de cero en cada generate).
+	_crystal_warm_transforms.clear()
+	_crystal_cool_transforms.clear()
+	_crystal_rose_transforms.clear()
+	# queue_free es diferido: esperar un frame para que el árbol quede limpio
+	# antes de re-poblar (evita nombres duplicados y dobles colisiones).
+	await get_tree().process_frame
+	generate()
 
 # ── Border system ─────────────────────────────────────────────────────────────
 
@@ -202,14 +337,15 @@ func _precalculate_border() -> void:
 			sin(angle_rad * BORDER_NOISE_FREQ * 2.3 + 1.7) * 0.3 +
 			sin(angle_rad * BORDER_NOISE_FREQ * 0.7 + 3.1) * 0.2
 		)
-		_border_noise_offsets.append(noise_val * BORDER_NOISE_AMP)
+		# La amplitud del ruido también escala con el mundo; en demo (_scale 1.0) idéntico.
+		_border_noise_offsets.append(noise_val * BORDER_NOISE_AMP * _scale)
 
 func _get_border_radius_at_angle(angle_deg: float) -> float:
 	var idx: int = wrapi(int(angle_deg), 0, 360)
 	var idx_next: int = wrapi(idx + 1, 0, 360)
 	var frac: float = angle_deg - floor(angle_deg)
 	var noise: float = lerp(_border_noise_offsets[idx], _border_noise_offsets[idx_next], frac)
-	return BORDER_RADIUS_BASE + noise
+	return _border_radius_base + noise
 
 func _is_inside_border(pos: Variant) -> bool:
 	var world_pos: Vector3
@@ -231,7 +367,10 @@ func _setup_terrain_noise() -> void:
 	_terrain_noise = FastNoiseLite.new()
 	_terrain_noise.seed = world_seed
 	_terrain_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	_terrain_noise.frequency = TERRAIN_NOISE_FREQ
+	# Frecuencia inversa a la escala: en una celda chica subimos la frecuencia para
+	# que el relieve conserve detalle (si no, 80m de mapa quedan casi planos).
+	# En el demo (_scale 1.0) == TERRAIN_NOISE_FREQ, idéntico.
+	_terrain_noise.frequency = TERRAIN_NOISE_FREQ / maxf(_scale, 0.0001)
 	_terrain_noise.fractal_octaves = TERRAIN_NOISE_OCTAVES
 	_terrain_noise.fractal_lacunarity = 2.0
 	_terrain_noise.fractal_gain = 0.5
@@ -247,11 +386,11 @@ func _compute_height_at(x: float, z: float) -> float:
 
 	# 2. Distancia al centro (normalizada 0..1)
 	var dist_center: float = sqrt(x * x + z * z)
-	var max_r: float = BORDER_RADIUS_BASE
+	var max_r: float = _border_radius_base
 	var t: float = clampf(dist_center / max_r, 0.0, 1.0)
 
 	# 3. Flatten en el centro (radio 50m) para que la entrada sea plana
-	var flat_radius: float = 50.0
+	var flat_radius: float = 50.0 * _scale
 	if dist_center < flat_radius:
 		var flat_t: float = dist_center / flat_radius
 		h = lerpf(0.0, h, smoothstep(0.0, 1.0, flat_t))
@@ -269,8 +408,8 @@ func _precompute_terrain_heights() -> void:
 	_terrain_heights = PackedFloat32Array()
 	_terrain_heights.resize(_terrain_stride * _terrain_stride)
 
-	var step: float = MAP_SIZE.x / float(TERRAIN_RESOLUTION)
-	var half: float = MAP_SIZE.x * 0.5
+	var step: float = proc_bounds.x / float(TERRAIN_RESOLUTION)
+	var half: float = proc_bounds.x * 0.5
 	for ix in range(_terrain_stride):
 		for iz in range(_terrain_stride):
 			var wx: float = -half + float(ix) * step
@@ -283,8 +422,8 @@ func _precompute_terrain_heights() -> void:
 func get_terrain_height(x: float, z: float) -> float:
 	if _terrain_heights.is_empty():
 		return 0.0
-	var half: float = MAP_SIZE.x * 0.5
-	var step: float = MAP_SIZE.x / float(TERRAIN_RESOLUTION)
+	var half: float = proc_bounds.x * 0.5
+	var step: float = proc_bounds.x / float(TERRAIN_RESOLUTION)
 	var fx: float = (x + half) / step
 	var fz: float = (z + half) / step
 	var ix: int = clampi(int(fx), 0, TERRAIN_RESOLUTION - 1)
@@ -308,8 +447,8 @@ func _generate_terrain_mesh() -> void:
 	var st: SurfaceTool = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var step: float = MAP_SIZE.x / float(TERRAIN_RESOLUTION)
-	var half: float = MAP_SIZE.x * 0.5
+	var step: float = proc_bounds.x / float(TERRAIN_RESOLUTION)
+	var half: float = proc_bounds.x * 0.5
 
 	for ix in range(TERRAIN_RESOLUTION):
 		for iz in range(TERRAIN_RESOLUTION):
@@ -370,13 +509,16 @@ func _generate_terrain_mesh() -> void:
 
 func _height_to_color(h: float) -> Color:
 	var t: float = clampf(h / TERRAIN_MAX_HEIGHT, 0.0, 1.0)
-	# Bajo: verde oscuro pradera — Medio: verde claro — Alto: marrón/gris roca
+	# Verdes DESATURADOS (oliva/apagado) — descansan la vista y respetan el
+	# principio Kimetsu del _art_canon: bioma desaturado para que las skills
+	# (color saturado) resalten. Evita la fatiga/after-images del verde chillón.
+	# Bajo: verde-oliva pradera — Medio: oliva claro — Alto: tierra/roca.
 	if t < 0.4:
-		return Color(0.18, 0.38, 0.12).lerp(Color(0.29, 0.48, 0.18), t / 0.4)
+		return Color(0.22, 0.31, 0.17).lerp(Color(0.31, 0.39, 0.23), t / 0.4)
 	elif t < 0.75:
-		return Color(0.29, 0.48, 0.18).lerp(Color(0.42, 0.45, 0.22), (t - 0.4) / 0.35)
+		return Color(0.31, 0.39, 0.23).lerp(Color(0.40, 0.41, 0.28), (t - 0.4) / 0.35)
 	else:
-		return Color(0.42, 0.45, 0.22).lerp(Color(0.45, 0.40, 0.30), (t - 0.75) / 0.25)
+		return Color(0.40, 0.41, 0.28).lerp(Color(0.44, 0.40, 0.32), (t - 0.75) / 0.25)
 
 
 func _hide_flat_ground() -> void:
@@ -388,8 +530,27 @@ func _hide_flat_ground() -> void:
 			old.call("set_use_collision", false)
 
 
-## Ajusta la Y de todos los enemigos al terreno.
-## Los voladores (pájaros, halcones, avispas) mantienen su offset vertical actual.
+# Tipos de fauna que vuelan: su offset vertical es intencional, NO se aplastan al suelo.
+const AERIAL_ENEMY_SCRIPTS: Array[String] = ["bird.gd", "hawk.gd", "wasp.gd"]
+
+
+## Clasifica una entidad de combate como aérea (vuela) según su script.
+func _is_aerial_enemy(node: Node) -> bool:
+	var scr: Script = node.get_script()
+	if scr == null:
+		return false
+	var path: String = str(scr.resource_path)
+	for aerial in AERIAL_ENEMY_SCRIPTS:
+		if path.ends_with(aerial):
+			return true
+	return false
+
+
+## Ajusta la Y de todos los enemigos al terreno y los etiqueta por intención.
+## La ARITMÉTICA de snap se conserva idéntica al demo (offset > 2.5 = volador) para
+## no mover ni un cm el mapa curado. ENCIMA se añade tagging semántico: fauna que
+## vuela (bird/hawk/wasp, por script) → grupo "aerial"; el resto → "grounded".
+## Ese tag es la señal que consulta GroundSnapUtility (no adivina por altura).
 func _snap_all_to_terrain() -> void:
 	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
 	for node: Node in enemies:
@@ -399,9 +560,13 @@ func _snap_all_to_terrain() -> void:
 		if body == null:
 			continue
 		var terrain_y: float = get_terrain_height(body.global_position.x, body.global_position.z)
-		# Conservar offset vertical para voladores
+		# Tagging por intención (no altera la posición).
+		if _is_aerial_enemy(body):
+			body.add_to_group("aerial")
+		else:
+			body.add_to_group("grounded")
+		# Snap — math intacta respecto al demo.
 		var existing_offset: float = body.global_position.y
-		# Si ya estaba alto (aire), mantener altura relativa
 		if existing_offset > 2.5:
 			body.global_position.y = terrain_y + existing_offset
 		else:
@@ -437,7 +602,7 @@ func _build_organic_border() -> void:
 func _build_ceiling() -> void:
 	var ceiling: CSGBox3D = CSGBox3D.new()
 	ceiling.name = "CavernCeiling"
-	ceiling.size = Vector3(MAP_SIZE.x + 100, 2.0, MAP_SIZE.y + 100)
+	ceiling.size = Vector3(proc_bounds.x + 100, 2.0, proc_bounds.y + 100)
 	ceiling.position = Vector3(0, CEILING_HEIGHT, 0)
 	ceiling.use_collision = false
 	ceiling.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -452,16 +617,9 @@ func _build_ceiling() -> void:
 	add_child(ceiling)
 
 func _build_crystal_field() -> void:
-	# Ambient general — pradera debe sentirse abierta, no mazmorra
-	var ambient: OmniLight3D = OmniLight3D.new()
-	ambient.name = "CrystalAmbient"
-	ambient.light_color = Color(0.75, 0.8, 0.9)
-	ambient.light_energy = CRYSTAL_AMBIENT_ENERGY
-	ambient.omni_range = 350.0
-	ambient.omni_attenuation = 0.5
-	ambient.shadow_enabled = false
-	ambient.position = Vector3(0, CEILING_HEIGHT - 5.0, 0)
-	add_child(ambient)
+	# NOTE: el flood OmniLight gigante (omni_range=350, CRYSTAL_AMBIENT_ENERGY) fue ELIMINADO (2026-06-06).
+	# Era el anti-patrón raíz del lighting plano/quemado. Fill global ahora viene del WorldEnvironment
+	# ambient_light_energy (0.13 cool tint) — oscuridad domina, cristales son los héroes de luz.
 
 	var crystal_colors: Array[Color] = [COLOR_CRYSTAL_WARM, COLOR_CRYSTAL_COOL, COLOR_CRYSTAL_ROSE]
 
@@ -469,8 +627,8 @@ func _build_crystal_field() -> void:
 	var monarch_positions: Array[Vector3] = []
 	for m in range(CRYSTAL_MONARCH_COUNT):
 		var t: float = float(m + 1) / float(CRYSTAL_MONARCH_COUNT + 1)
-		var mx: float = lerp(-160.0, 160.0, t) + _rng.randf_range(-30.0, 30.0)
-		var mz: float = sin(t * PI * 1.6 + 0.3) * 110.0 + _rng.randf_range(-20.0, 20.0)
+		var mx: float = lerp(-160.0 * _scale, 160.0 * _scale, t) + _rng.randf_range(-30.0, 30.0) * _scale
+		var mz: float = sin(t * PI * 1.6 + 0.3) * 110.0 * _scale + _rng.randf_range(-20.0, 20.0) * _scale
 		if not _is_inside_border(Vector3(mx, 0, mz)):
 			continue
 
@@ -510,15 +668,20 @@ func _build_crystal_field() -> void:
 			_spawn_crystal_shard("Monarch%d_Frag%d" % [m, f], fpos, monarch_color,
 				0.2, 1.5, 0.1, 0.4)
 
-		# Luz potente para los monarcas — ilumina mucho más
-		var ml: OmniLight3D = OmniLight3D.new()
+		# Luz del monarca — SPOTLIGHT hacia abajo (la luz BAJA del cristal del techo).
+		# Sombra dinámica SOLO en los 3 monarcas: spot = 1 shadow map (barato vs el
+		# cubemap de un omni). monarch_shadows=false la apaga para co-op pesado.
+		var ml: SpotLight3D = SpotLight3D.new()
 		ml.name = "MonarchLight%d" % m
 		ml.light_color = Color(monarch_color.r, monarch_color.g * 0.95, monarch_color.b * 0.9)
-		ml.light_energy = 1.5
-		ml.omni_range = 80.0
-		ml.omni_attenuation = 1.5
-		ml.shadow_enabled = false
+		ml.light_energy = monarch_light_energy
+		ml.spot_range = CEILING_HEIGHT + 25.0
+		ml.spot_angle = monarch_spot_angle
+		ml.spot_attenuation = 1.2
+		ml.shadow_enabled = monarch_shadows
+		ml.shadow_bias = 0.05
 		ml.position = Vector3(mx, CEILING_HEIGHT - 8.0, mz)
+		ml.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 		add_child(ml)
 
 		# (sin luz up secundaria — el techo ya tiene emisión propia)
@@ -527,10 +690,10 @@ func _build_crystal_field() -> void:
 	for i in range(CRYSTAL_PATH_CLUSTERS):
 		var t: float = float(i) / float(CRYSTAL_PATH_CLUSTERS - 1)
 
-		var path_x: float = lerp(-200.0, 200.0, t)
-		var path_z: float = sin(t * PI * 1.6 + 0.3) * 130.0
-		path_x += _rng.randf_range(-25.0, 25.0)
-		path_z += _rng.randf_range(-CRYSTAL_SCATTER_WIDTH * 0.5, CRYSTAL_SCATTER_WIDTH * 0.5)
+		var path_x: float = lerp(-200.0 * _scale, 200.0 * _scale, t)
+		var path_z: float = sin(t * PI * 1.6 + 0.3) * 130.0 * _scale
+		path_x += _rng.randf_range(-25.0, 25.0) * _scale
+		path_z += _rng.randf_range(-CRYSTAL_SCATTER_WIDTH * 0.5, CRYSTAL_SCATTER_WIDTH * 0.5) * _scale
 
 		var cluster_pos: Vector3 = Vector3(path_x, 0, path_z)
 		if not _is_inside_border(cluster_pos):
@@ -616,7 +779,7 @@ func _build_ceiling_bioluminescence() -> void:
 
 	for i in range(CEILING_BIOLUM_PATCHES):
 		var angle: float = _rng.randf() * TAU
-		var dist: float = _rng.randf_range(10.0, BORDER_RADIUS_BASE - 40.0)
+		var dist: float = _rng.randf_range(10.0 * _scale, _border_radius_base - 40.0 * _scale)
 		var bx: float = cos(angle) * dist
 		var bz: float = sin(angle) * dist
 
@@ -673,16 +836,19 @@ func _spawn_crystal_shard(_shard_name: String, center: Vector3, base_color: Colo
 
 
 func _flush_crystal_multimeshes() -> void:
+	# emission_energy arg is ignored when gem_mode=true (uses crystal_emission_energy export).
 	_create_multimesh_emissive("CrystalsWarm", _crystal_warm_transforms,
-		COLOR_CRYSTAL_WARM, 1.2)
+		COLOR_CRYSTAL_WARM, 1.2, true)
 	_create_multimesh_emissive("CrystalsCool", _crystal_cool_transforms,
-		COLOR_CRYSTAL_COOL, 1.2)
+		COLOR_CRYSTAL_COOL, 1.2, true)
 	_create_multimesh_emissive("CrystalsRose", _crystal_rose_transforms,
-		COLOR_CRYSTAL_ROSE, 1.2)
+		COLOR_CRYSTAL_ROSE, 1.2, true)
 
 
+## gem_mode=true: aplica material vidrio/gema translucente + emisivo (cristales).
+## gem_mode=false (default): opaco con emisión (biolum patches, etc).
 func _create_multimesh_emissive(mm_name: String, transforms: Array[Transform3D],
-		color: Color, emission_energy: float) -> void:
+		color: Color, emission_energy: float, gem_mode: bool = false) -> void:
 	if transforms.is_empty():
 		return
 
@@ -690,10 +856,24 @@ func _create_multimesh_emissive(mm_name: String, transforms: Array[Transform3D],
 	mesh.size = Vector3.ONE
 
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = Color(color.r * 0.95, color.g * 0.9, color.b * 0.85)
-	mat.emission_energy_multiplier = emission_energy
+	if gem_mode:
+		# Translucent gem / crystal glass — Danmachi Floor 18 style.
+		# TRANSPARENCY_ALPHA enables alpha blending; alpha ~0.65 = see-through but
+		# clearly present. CULL_DISABLED shows back faces through the front face,
+		# giving the "solid glass block" look. Low roughness = glassy specular.
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(color.r, color.g, color.b, crystal_alpha)
+		mat.roughness = 0.12
+		mat.metallic = 0.05
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.emission_enabled = true
+		mat.emission = Color(color.r * 0.95, color.g * 0.9, color.b * 0.85)
+		mat.emission_energy_multiplier = crystal_emission_energy
+	else:
+		mat.albedo_color = color
+		mat.emission_enabled = true
+		mat.emission = Color(color.r * 0.95, color.g * 0.9, color.b * 0.85)
+		mat.emission_energy_multiplier = emission_energy
 	mesh.material = mat
 
 	var mm := MultiMesh.new()
@@ -713,7 +893,7 @@ func _create_multimesh_emissive(mm_name: String, transforms: Array[Transform3D],
 func _build_landmark_pillars() -> void:
 	for i in range(PILLAR_COUNT):
 		var angle: float = (float(i) / float(PILLAR_COUNT)) * TAU + _rng.randf_range(-0.2, 0.2)
-		var dist: float = _rng.randf_range(100.0, 200.0)
+		var dist: float = _rng.randf_range(100.0 * _scale, 200.0 * _scale)
 		var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 		if not _is_inside_border(pos):
 			continue
@@ -972,9 +1152,9 @@ func _build_well(poi: POISystem.POI) -> void:
 	water.radius = 0.8
 	water.height = 0.05
 	water.use_collision = false
-	var water_mat: StandardMaterial3D = StandardMaterial3D.new()
-	water_mat.albedo_color = COLOR_WATER
-	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var water_mat: ShaderMaterial = ShaderMaterial.new()
+	water_mat.shader = load("res://scenes/levels/water_toon.gdshader")
+	water_mat.set_shader_parameter("water_color", COLOR_WATER)
 	water.material_override = water_mat
 	water.position = pos + Vector3(0, 0.3, 0)
 	add_child(water)
@@ -989,9 +1169,9 @@ func _build_pond(poi: POISystem.POI) -> void:
 	water.height = 0.1
 	water.sides = 16
 	water.use_collision = false
-	var water_mat: StandardMaterial3D = StandardMaterial3D.new()
-	water_mat.albedo_color = COLOR_WATER
-	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var water_mat: ShaderMaterial = ShaderMaterial.new()
+	water_mat.shader = load("res://scenes/levels/water_toon.gdshader")
+	water_mat.set_shader_parameter("water_color", COLOR_WATER)
 	water.material_override = water_mat
 	water.position = pos + Vector3(0, -0.05, 0)
 	add_child(water)
@@ -1042,6 +1222,193 @@ const POOL_GROUND: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf"),
 ]
+
+## ── Grass carpet (S3) ────────────────────────────────────────────────────────
+## Dense ground-cover layer via chunked MultiMeshInstance3D.
+## Perf contract (red-line §3): ≤13k visible blades, hard-cull grass_cull_distance,
+## ≤40m chunk tiles, no per-blade Node3D, SHADOW_CASTING_SETTING_OFF.
+##
+## Mesh source: res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf
+## (already imported as PackedScene). We instantiate it, find the MeshInstance3D child,
+## and extract its Mesh resource so MultiMesh can use it.
+## If extraction fails we fall back to a simple crossed-quad blade mesh.
+##
+## Density scales with map area (_scale²): at proc_bounds=(120,120) → _scale=0.2 →
+## ~192 total blades vs ~12 000 at the full 600m map.
+func _build_grass_carpet() -> void:
+	# ── 1. Resolve mesh ────────────────────────────────────────────────────────
+	var blade_mesh: Mesh = _extract_grass_mesh()
+	if blade_mesh == null:
+		push_warning("[GrassCarpet] gltf mesh extraction failed — using fallback blade mesh")
+		blade_mesh = _make_fallback_blade_mesh()
+
+	# ── 2. Shared material — desaturated olive/tan palette (cavern biome) ───────
+	# Grass must NOT compete with skill VFX (Kimetsu canon). Desaturated and dark.
+	var grass_mat := StandardMaterial3D.new()
+	grass_mat.albedo_color = Color(0.34, 0.38, 0.22)   # desaturated sage-olive
+	grass_mat.roughness = 0.9
+	grass_mat.metallic = 0.0
+	# Billboard is not used (tufts look fine in 3D); shadows off for perf
+	blade_mesh.surface_set_material(0, grass_mat)
+
+	# ── 3. Budget calculation ──────────────────────────────────────────────────
+	# Max instances at full 600m map (scale=1.0). Scales quadratically with area.
+	# 120 000 total at scale=1.0 is fine: visibility_range_end=70m culls to ~13k
+	# rendered blades at any given moment (MultiMesh draws only visible instances).
+	# At proc_lab scale=0.2 (120m cell): 120000 * 0.04 ≈ 4800 blades — dense but fast.
+	const MAX_INSTANCES_BASE: int = 120000
+	var total_budget: int = int(float(MAX_INSTANCES_BASE) * _scale * _scale * grass_density)
+	total_budget = clampi(total_budget, 0, MAX_INSTANCES_BASE)
+	if total_budget == 0:
+		return
+
+	# ── 4. Chunk grid ─────────────────────────────────────────────────────────
+	# Each chunk = CHUNK_SIZE × CHUNK_SIZE metres. Keeps triangle count per draw
+	# call low and allows per-chunk visibility_range culling.
+	const CHUNK_SIZE: float = 40.0
+	var half_x: float = proc_bounds.x * 0.5
+	var half_z: float = proc_bounds.y * 0.5
+	var chunks_x: int = ceili(proc_bounds.x / CHUNK_SIZE)
+	var chunks_z: int = ceili(proc_bounds.y / CHUNK_SIZE)
+
+	# Playable area ≈ circle; estimate fraction of each chunk that is inside border
+	# to distribute budget proportionally. We sample the chunk center.
+	var chunk_data: Array[Array] = []  # each entry: [world_x_min, world_z_min]
+	for cx in range(chunks_x):
+		for cz in range(chunks_z):
+			var wx: float = -half_x + cx * CHUNK_SIZE
+			var wz: float = -half_z + cz * CHUNK_SIZE
+			var cx_center: Vector3 = Vector3(wx + CHUNK_SIZE * 0.5, 0.0, wz + CHUNK_SIZE * 0.5)
+			# Only create MMI for chunks whose CENTER is inside the border.
+			# Chunks on the edge will partially overlap but that's acceptable.
+			if _is_inside_border(cx_center):
+				chunk_data.append([wx, wz])
+
+	if chunk_data.is_empty():
+		return
+
+	# Distribute budget evenly across valid chunks
+	var instances_per_chunk: int = maxi(1, total_budget / chunk_data.size())
+
+	# ── 5. Build one MultiMeshInstance3D per chunk ────────────────────────────
+	var container := Node3D.new()
+	container.name = "GrassCarpet"
+	add_child(container)
+
+	# Save RNG state so grass does not disturb the deterministic sequence of
+	# later passes (enemies, etc.) — we restore it after.
+	var rng_state: int = _rng.state
+
+	for chunk_entry in chunk_data:
+		var wx_min: float = chunk_entry[0]
+		var wz_min: float = chunk_entry[1]
+
+		var transforms: Array[Transform3D] = []
+		transforms.resize(0)
+
+		for _i in range(instances_per_chunk):
+			var x: float = _rng.randf_range(wx_min, wx_min + CHUNK_SIZE)
+			var z: float = _rng.randf_range(wz_min, wz_min + CHUNK_SIZE)
+			var sample: Vector3 = Vector3(x, 0.0, z)
+			if not _is_inside_border(sample):
+				continue
+			var y: float = get_terrain_height(x, z)
+			# Random Y rotation + slight scale variation (0.8–1.2)
+			var rot_y: float = _rng.randf() * TAU
+			# Slight forward tilt (−10°..+10°) for organic look
+			var tilt: float = _rng.randf_range(-0.17, 0.17)  # ~±10°
+			var basis: Basis = Basis.from_euler(Vector3(tilt, rot_y, 0.0))
+			var s: float = _rng.randf_range(0.8, 1.2)
+			basis = basis.scaled(Vector3(s, s, s))
+			transforms.append(Transform3D(basis, Vector3(x, y, z)))
+
+		if transforms.is_empty():
+			continue
+
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = blade_mesh
+		mm.instance_count = transforms.size()
+		for i in range(transforms.size()):
+			mm.set_instance_transform(i, transforms[i])
+
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "GrassCarpet_chunk_%d_%d" % [int(wx_min + half_x), int(wz_min + half_z)]
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Cull grass beyond grass_cull_distance — fade SELF so the transition
+		# is smooth and doesn't pop. This is the primary perf protection.
+		mmi.visibility_range_end = grass_cull_distance
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		container.add_child(mmi)
+
+	# Restore RNG so subsequent passes stay deterministic
+	_rng.state = rng_state
+
+	# Summary log (useful in proc_lab to verify instance counts)
+	var total_placed: int = 0
+	for child in container.get_children():
+		var mmi2: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if mmi2 != null:
+			total_placed += mmi2.multimesh.instance_count
+	print("[GrassCarpet] %d chunks × ~%d = %d blades placed (budget=%d, scale=%.2f)" % [
+		container.get_child_count(), instances_per_chunk, total_placed, total_budget, _scale])
+
+
+## Extracts the Mesh from the first MeshInstance3D child of the imported grass gltf.
+## Returns null if the file cannot be loaded or has no MeshInstance3D.
+func _extract_grass_mesh() -> Mesh:
+	const GRASS_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf"
+	if not ResourceLoader.exists(GRASS_PATH):
+		return null
+	var packed: PackedScene = load(GRASS_PATH)
+	if packed == null:
+		return null
+	var root: Node = packed.instantiate()
+	if root == null:
+		return null
+	var mesh_inst: MeshInstance3D = null
+	# gltf roots typically have MeshInstance3D as direct child (or ARE one)
+	if root is MeshInstance3D:
+		mesh_inst = root as MeshInstance3D
+	else:
+		for child in root.get_children():
+			if child is MeshInstance3D:
+				mesh_inst = child as MeshInstance3D
+				break
+	var result: Mesh = null
+	if mesh_inst != null and mesh_inst.mesh != null:
+		result = mesh_inst.mesh
+	root.queue_free()
+	return result
+
+
+## Fallback: two crossed quad planes forming a simple blade tuft.
+## Used when the gltf mesh cannot be extracted at runtime.
+## Each blade is ~0.4m wide × 0.6m tall; crossing gives volume from all angles.
+func _make_fallback_blade_mesh() -> Mesh:
+	var arr_mesh := ArrayMesh.new()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Two quads rotated 90° around Y — each 0.4w × 0.6h
+	for rot_deg in [0.0, 90.0]:
+		var r: float = deg_to_rad(rot_deg)
+		var rx: float = cos(r) * 0.2
+		var rz: float = sin(r) * 0.2
+		# quad: bottom-left, bottom-right, top-right, top-left (two tris)
+		var v0 := Vector3(-rx, 0.0, -rz)
+		var v1 := Vector3( rx, 0.0,  rz)
+		var v2 := Vector3( rx, 0.6,  rz)
+		var v3 := Vector3(-rx, 0.6, -rz)
+		st.set_uv(Vector2(0, 1)); st.add_vertex(v0)
+		st.set_uv(Vector2(1, 1)); st.add_vertex(v1)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(v2)
+		st.set_uv(Vector2(0, 1)); st.add_vertex(v0)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(v2)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(v3)
+	st.generate_normals()
+	return st.commit()
+
 
 func _generate_vegetation(pois: Array) -> void:
 	var container := Node3D.new()
@@ -1142,6 +1509,10 @@ func _place_instance(
 	var s: float = _age_scale(scale_min, scale_max)
 	var rot_y: float = _rng.randf() * TAU
 	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
+	# Marca de intención: toda la vegetación (árboles, rocas, arbustos, flora de suelo)
+	# DEBE apoyarse en el terreno. El detector de flotantes (GroundSnapUtility) sólo
+	# considera nodos del grupo "grounded"; cristales y fauna aérea quedan excluidos.
+	inst.add_to_group("grounded")
 	parent.add_child(inst)
 
 ## Escala con sesgo de "edad" en vez de uniforme: ~45% jóvenes (chicas),
@@ -1157,7 +1528,7 @@ func _age_scale(smin: float, smax: float) -> float:
 func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 	for _t in range(30):
 		var angle: float = _rng.randf() * TAU
-		var dist: float = _rng.randf_range(20.0, BORDER_RADIUS_BASE - 30.0)
+		var dist: float = _rng.randf_range(20.0 * _scale, _border_radius_base - 30.0 * _scale)
 		var candidate: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 		if not _is_inside_border(candidate):
 			continue

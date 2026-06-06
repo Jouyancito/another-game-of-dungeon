@@ -1,4 +1,4 @@
-[gd_scene load_steps=58 format=3 uid="uid://floor1_prairie"]
+[gd_scene load_steps=60 format=3 uid="uid://floor1_prairie"]
 
 [ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://crystal_ceiling" path="res://scenes/levels/components/crystal_ceiling.tscn" id="2_ceiling"]
@@ -6,6 +6,8 @@
 [ext_resource type="PackedScene" uid="uid://ambient_butterfly" path="res://scenes/fauna/butterfly.tscn" id="4_butterfly"]
 [ext_resource type="PackedScene" uid="uid://ambient_bird" path="res://scenes/fauna/bird.tscn" id="5_bird"]
 [ext_resource type="PackedScene" uid="uid://ambient_rabbit" path="res://scenes/fauna/rabbit.tscn" id="6_rabbit"]
+[ext_resource type="PackedScene" uid="uid://ambient_firefly" path="res://scenes/fauna/firefly.tscn" id="56_firefly"]
+[ext_resource type="Script" path="res://scenes/levels/components/music_player.gd" id="57_music_player"]
 
 ; ── Vegetation: 5 birch variants + 3 maple + 1 dead tree ──────────────────────
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf" id="7_birch_01"]
@@ -72,11 +74,14 @@
 
 [sub_resource type="Environment" id="env_resource"]
 background_mode = 1
-background_color = Color(0.08, 0.07, 0.06, 1)
-ambient_light_source = 1
-ambient_light_color = Color(0.8, 0.78, 0.7, 1)
-ambient_light_energy = 0.5
+background_color = Color(0.13, 0.13, 0.14, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.72, 0.78, 0.92, 1)
+ambient_light_energy = 0.33
 reflected_light_source = 1
+tonemap_mode = 3
+tonemap_exposure = 1.0
+tonemap_white = 1.1
 glow_enabled = false
 ssao_enabled = false
 ssil_enabled = false
@@ -86,7 +91,8 @@ sdfgi_enabled = false
 ; ── Floor material ────────────────────────────────────────────────────────────
 
 [sub_resource type="StandardMaterial3D" id="mat_floor"]
-albedo_color = Color(0.290, 0.478, 0.180, 1)
+albedo_color = Color(0.255, 0.305, 0.185, 1)
+roughness = 1.0
 
 ; ── Scene Root ─────────────────────────────────────────────────────────────────
 
@@ -320,3 +326,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, -5)
 
 [node name="BookSmall" parent="Outpost" instance=ExtResource("55_book")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.5, 0, 5.5)
+
+; ── Sprint 1 — Music + Firefly fauna ──────────────────────────────────────────
+
+[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
+script = ExtResource("57_music_player")
+
+[node name="FireflySpawner_Pool" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -8)
+creature_scene = ExtResource("56_firefly")
+count = 4
+spawn_radius = 14.0
