@@ -36,6 +36,7 @@ var _fleeing: bool = false
 
 func _ready() -> void:
 	spawner_origin = global_position
+	add_to_group("ambient")
 	_start_freeze()
 
 

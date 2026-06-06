@@ -33,6 +33,7 @@ var _time: float = 0.0
 
 func _ready() -> void:
 	spawner_origin = global_position
+	add_to_group("ambient")
 	_pick_flight_target()
 
 
