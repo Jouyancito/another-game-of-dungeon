@@ -1,0 +1,45 @@
+[gd_scene load_steps=4 format=3 uid="uid://proc_lab_dev"]
+
+[ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_floor"]
+[ext_resource type="Script" path="res://scenes/dev/proc_lab.gd" id="2_controller"]
+
+[sub_resource type="Environment" id="env_proc_lab"]
+background_mode = 1
+background_color = Color(0.13, 0.13, 0.14, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.72, 0.78, 0.92, 1)
+ambient_light_energy = 0.33
+reflected_light_source = 1
+tonemap_mode = 3
+tonemap_exposure = 1.0
+tonemap_white = 1.1
+
+; ── Root: un Floor1Prairie con celda CHICA y sin UI de partida ────────────────
+; proc_bounds = celda de 120m  ·  skip_game_ui = true (banco visual, no partida)
+; active_layers: todo activo salvo que el usuario apague con [F]/edición.
+
+[node name="ProcLab" type="Node3D"]
+script = ExtResource("1_floor")
+world_seed = 12345
+proc_bounds = Vector2(120, 120)
+skip_game_ui = true
+active_layers = {
+"border": true,
+"ceiling": true,
+"crystals": true,
+"enemies": false,
+"hud": true,
+"pillars": true,
+"player": true,
+"pois": false,
+"terrain": true,
+"vegetation": true
+}
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env_proc_lab")
+
+[node name="ProcLabController" type="Node3D" parent="."]
+script = ExtResource("2_controller")
+cell_size = 120.0
+start_seed = 12345
