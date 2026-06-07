@@ -19,6 +19,8 @@ emission = Color(0.35, 0.15, 0.5, 1)
 emission_energy_multiplier = 0.4
 
 [node name="Danzante" type="CharacterBody3D" groups=["player"]]
+collision_layer = 2
+collision_mask = 5
 script = ExtResource("1_danzante")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

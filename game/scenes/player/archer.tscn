@@ -14,6 +14,8 @@ height = 1.8
 albedo_color = Color(0.2, 0.6, 0.3, 1)
 
 [node name="Archer" type="CharacterBody3D" groups=["player"]]
+collision_layer = 2
+collision_mask = 5
 script = ExtResource("1_archer")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
