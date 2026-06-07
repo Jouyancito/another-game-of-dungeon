@@ -1050,10 +1050,18 @@ func _build_boss_arena(poi: POISystem.POI) -> void:
 			push_error("floor1_prairie: no se pudo cargar king_slime.tscn")
 			return
 		var king: Node3D = king_scene.instantiate()
-		king.global_position = spawn_center
-		add_child(king)
+		# body_entered corre en flush de física: diferir add_child + posición juntos
+		# evita "flushing queries" y el is_inside_tree del global_position pre-árbol.
+		_spawn_king_deferred.call_deferred(king, spawn_center)
 		trigger.set_deferred("monitoring", false)
 	)
+
+func _spawn_king_deferred(king: Node3D, pos: Vector3) -> void:
+	if not is_instance_valid(king):
+		return
+	add_child(king)
+	king.global_position = pos
+
 
 func _build_camp(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
@@ -1858,8 +1866,8 @@ func _debug_spawn_king_slime() -> void:
 	var king: Node3D = king_scene.instantiate()
 	var fwd: Vector3 = -player.global_transform.basis.z
 	fwd.y = 0.0
-	king.global_position = player.global_position + fwd.normalized() * 6.0 + Vector3(0, 1.5, 0)
 	add_child(king)
+	king.global_position = player.global_position + fwd.normalized() * 6.0 + Vector3(0, 1.5, 0)
 	print("DEBUG: King Slime spawned at ", king.global_position)
 
 

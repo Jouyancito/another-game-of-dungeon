@@ -116,11 +116,23 @@ func _spawn_mini_slimes() -> void:
 		var spawn_angle = randf() * TAU
 		var spawn_radius = randf_range(0.4, 1.0)
 		var offset = Vector3(cos(spawn_angle) * spawn_radius, 0.3, sin(spawn_angle) * spawn_radius)
-		mini.global_position = global_position + offset
-		scene_root.call_deferred("add_child", mini)
+		var spawn_pos = global_position + offset
 
 		# Impulso independiente del spawn — dirección random, fuerza variable
 		var explode_angle = randf() * TAU
 		var explode_force = randf_range(3.0, 8.0)
-		mini.knockback_velocity = Vector3(cos(explode_angle), 0, sin(explode_angle)) * explode_force
-		mini.knockback_velocity.y = randf_range(2.5, 6.0)
+		var kb = Vector3(cos(explode_angle), 0, sin(explode_angle)) * explode_force
+		kb.y = randf_range(2.5, 6.0)
+
+		# _on_death() corre dentro del flush de física (die() se invoca tras un hit que
+		# puede venir de un body_entered de proyectil). Diferir add_child + la posición
+		# JUNTOS evita "flushing queries" y el is_inside_tree del global_position pre-árbol.
+		_add_mini_deferred.call_deferred(scene_root, mini, spawn_pos, kb)
+
+
+func _add_mini_deferred(parent: Node, mini: Node, spawn_pos: Vector3, kb: Vector3) -> void:
+	if not is_instance_valid(parent) or not is_instance_valid(mini):
+		return
+	parent.add_child(mini)
+	mini.global_position = spawn_pos
+	mini.knockback_velocity = kb
