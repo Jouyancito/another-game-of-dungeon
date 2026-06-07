@@ -60,7 +60,7 @@ func _create_character_card(character: Dictionary, index: int) -> PanelContainer
 	preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(preview)
-	preview.setup_character(class_color)
+	preview.setup_character(class_color, class_key)
 
 	var name_label := Label.new()
 	name_label.text = character.get("name", "???")

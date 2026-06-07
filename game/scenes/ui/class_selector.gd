@@ -102,7 +102,7 @@ func _update_display() -> void:
 	_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	class_icon.get_parent().add_child(_preview)
 	class_icon.get_parent().move_child(_preview, class_icon.get_index())
-	_preview.setup_character(data["color"])
+	_preview.setup_character(data["color"], data["key"])
 	class_icon.visible = false
 
 

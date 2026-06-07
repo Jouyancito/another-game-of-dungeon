@@ -199,7 +199,7 @@ func _refresh_stats() -> void:
 	class_label.text = char_data.get("class_name", "") if not char_data.is_empty() else ""
 
 	if char_preview and not char_preview._model:
-		char_preview.setup_character(player.get_class_color())
+		char_preview.setup_character(player.get_class_color(), char_data.get("class_name", ""))
 
 	# Header
 	level_label.text = "Nivel %d" % player.level
