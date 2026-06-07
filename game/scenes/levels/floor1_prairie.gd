@@ -220,6 +220,11 @@ func _ready() -> void:
 	# y por tanto se puede liberar limpio en regenerate() sin tocar la escena base.
 	_baseline_children = get_children()
 
+	# Seed del mundo elegido en el world select (modelo Valheim). Si no hay mundo
+	# activo (world_seed < 0), se conserva el world_seed por defecto del .tscn.
+	if GameManager.world_seed >= 0:
+		world_seed = GameManager.world_seed
+
 	generate()
 
 

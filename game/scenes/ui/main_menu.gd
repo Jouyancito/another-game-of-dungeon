@@ -12,11 +12,13 @@ func _ready() -> void:
 
 func _on_btn_jugar_pressed() -> void:
 	GameManager.target_scene = "res://scenes/levels/floor1_prairie.tscn"
+	GameManager.requires_world_select = true
 	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
 
 
 func _on_btn_arena_pressed() -> void:
 	GameManager.target_scene = "res://scenes/main/main.tscn"
+	GameManager.requires_world_select = false
 	get_tree().change_scene_to_file("res://scenes/ui/character_select.tscn")
 
 

@@ -176,7 +176,12 @@ func _on_btn_jugar_pressed() -> void:
 		return
 	GameManager.selected_class_scene = character.get("class_scene", "")
 	GameManager.selected_character_index = selected_index
-	get_tree().change_scene_to_file(GameManager.target_scene)
+	# Los niveles procedurales pasan por el world select (elegir/crear mundo + seed).
+	# La arena legacy entra directo. El menú setea el flag según el destino.
+	if GameManager.requires_world_select:
+		get_tree().change_scene_to_file("res://scenes/ui/world_select.tscn")
+	else:
+		get_tree().change_scene_to_file(GameManager.target_scene)
 
 
 func _on_btn_eliminar_pressed() -> void:
