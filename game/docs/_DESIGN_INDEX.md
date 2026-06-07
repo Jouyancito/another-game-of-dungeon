@@ -18,7 +18,8 @@ Abrí este archivo primero cuando retomés el trabajo.
 
 | Archivo | Qué contiene |
 |---|---|
-| [`ui/_charselect_diablo2_spec.md`](ui/_charselect_diablo2_spec.md) | Spec de la pantalla de selección de personaje estilo Diablo 2: layout, flujo, preview 3D, data de clase |
+| [`ui/_onboarding_flow.md`](ui/_onboarding_flow.md) | **Flujo de inicio completo** (2026-06-06): menú → character select estilo Blade & Soul (navegación por clase-bioma) → world select Valheim (local + seed). Supersede el modelo D2 como pantalla principal. Decisiones D1-D5 registradas |
+| [`ui/_charselect_diablo2_spec.md`](ui/_charselect_diablo2_spec.md) | Spec de la pantalla de selección de personaje estilo Diablo 2: layout, flujo, preview 3D, data de clase. ⚠️ **Superseded** por `_onboarding_flow.md` como modelo principal — su aporte vive como el atajo de lista izquierda + lección de performance (no N SubViewports) |
 | [`ui/_design_package.md`](ui/_design_package.md) | **Paquete de diseño UI completo** — HUD (globos D2 vs barras, mockups ASCII, implementación), Inventario/Skills (grid, tooltip, miniaturas, hotbar), Personajes/siluetas (geometría procedural, attachment points armas, transmog post-alfa). Cada ítem etiquetado [ALFA-NICE] / [POST-ALFA] con assets a conseguir |
 
 ---
