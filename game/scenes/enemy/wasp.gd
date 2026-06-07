@@ -21,11 +21,29 @@ var _buzz_timer := 0.0
 const BUZZ_INTERVAL := 0.08
 
 
+## Raycast down to get terrain Y at pos, returns terrain_y + offset.
+func _terrain_fly_y_at(pos: Vector3, offset: float) -> float:
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		return pos.y + offset
+	var ray_from := Vector3(pos.x, pos.y + 100.0, pos.z)
+	var ray_to := Vector3(pos.x, pos.y - 100.0, pos.z)
+	var query := PhysicsRayQueryParameters3D.create(ray_from, ray_to)
+	query.collision_mask = 1  # Layer World only
+	query.exclude = [get_rid()]
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return pos.y + offset
+	return hit.position.y + offset
+
+
 func _on_enemy_ready() -> void:
 	enemy_type = "wasp"
 	default_color = Color(0.9, 0.8, 0.1)
 	nest_position = global_position
-	fly_height = randf_range(1.5, 2.5)
+	# fly_height offset is relative; compute absolute Y from terrain under spawn.
+	var height_offset: float = randf_range(1.5, 2.5)
+	fly_height = _terrain_fly_y_at(global_position, height_offset)
 	global_position.y = fly_height
 	mesh.visible = false
 	var model := EnemyModelBuilder.build_arthropod(
@@ -79,6 +97,7 @@ func _idle_behavior(delta: float) -> void:
 		var angle = randf() * TAU
 		var dist = randf_range(0.5, 3.0)
 		var wander_pos = nest_position + Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+		# Target the current fly_height (terrain-relative absolute Y set at spawn).
 		wander_pos.y = fly_height
 		var dir = (wander_pos - global_position).normalized()
 		_buzz_offset = dir * speed * 0.4
@@ -109,9 +128,11 @@ func _move_toward_target(delta: float) -> void:
 
 ## Picadura: daño base + 2 ticks de veneno de 1 DMG c/u
 func perform_attack() -> void:
+	if has_status(&"stun"):
+		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	can_attack = false
 	if is_instance_valid(target):
-		target.take_damage(damage)
+		target.take_damage(damage * outgoing_damage_mult())
 		# Tick 1 de veneno
 		await get_tree().create_timer(0.5).timeout
 		if is_instance_valid(target) and not target.get("is_dead"):

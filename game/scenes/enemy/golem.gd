@@ -43,10 +43,11 @@ func _on_enemy_ready() -> void:
 		stone_mat.albedo_color = Color(0.58, 0.56, 0.52)   # warm stone grey
 		stone_mat.roughness = 0.92
 		stone_mat.metallic = 0.0
-		# Apply to every MeshInstance3D child of the imported scene
-		for child in model.get_children():
-			if child is MeshInstance3D:
-				child.material_override = stone_mat
+		# Apply to every MeshInstance3D in the full subtree — gltf models are
+		# SKINNED so the mesh nodes live under a Skeleton3D, not as direct
+		# children.  find_children recurses the whole tree.
+		for child in model.find_children("*", "MeshInstance3D", true, false):
+			child.material_override = stone_mat
 		# Golem proportions: wider and taller than a normal orc
 		model.scale = Vector3(1.5, 1.6, 1.5)
 		model.rotation.y = PI  # Quaternius mira +Z; look_at apunta -Z → girar 180° (si no, camina de espaldas)
@@ -136,7 +137,7 @@ func _attack_punch() -> void:
 	if not is_instance_valid(target):
 		return
 	if target.has_method("take_damage"):
-		target.take_damage(damage)
+		target.take_damage(damage * outgoing_damage_mult())
 	if target.has_method("apply_knockback"):
 		var direction = (target.global_position - global_position).normalized()
 		target.apply_knockback(direction, 12.0)
@@ -150,7 +151,7 @@ func _attack_stomp() -> void:
 			continue
 		var dist = global_position.distance_to(player.global_position)
 		if dist <= stomp_range and player.has_method("take_damage"):
-			player.take_damage(damage * 0.8)
+			player.take_damage(damage * 0.8 * outgoing_damage_mult())
 
 
 ## Lanzar roca: daño a rango, sin proyectil — hit directo simplificado
@@ -159,7 +160,7 @@ func _attack_rock_throw() -> void:
 		return
 	var dist = global_position.distance_to(target.global_position)
 	if dist <= throw_range and target.has_method("take_damage"):
-		target.take_damage(damage * 0.6)
+		target.take_damage(damage * 0.6 * outgoing_damage_mult())
 
 
 ## Muerte: sin efecto extra por ahora

@@ -109,6 +109,8 @@ func _move_toward_target(delta: float) -> void:
 
 ## Override de perform_attack: lanza la carga en lugar de daño simple
 func perform_attack() -> void:
+	if has_status(&"stun"):
+		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	if has_charged or _is_charging:
 		return
 	can_attack = false
@@ -126,9 +128,9 @@ func _start_charge() -> void:
 	velocity.x = direction.x * speed * CHARGE_SPEED_MULTIPLIER
 	velocity.z = direction.z * speed * CHARGE_SPEED_MULTIPLIER
 
-	# Daño + knockback al momento del impacto
+	# Daño + knockback al momento del impacto (respeta Weak debuff)
 	if is_instance_valid(target) and target.has_method("take_damage"):
-		target.take_damage(damage * CHARGE_DAMAGE_MULTIPLIER)
+		target.take_damage(damage * CHARGE_DAMAGE_MULTIPLIER * outgoing_damage_mult())
 		# Knockback si el target lo soporta
 		if target.has_method("apply_knockback"):
 			var hit_dir := (target.global_position - global_position).normalized()

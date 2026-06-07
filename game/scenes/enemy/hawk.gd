@@ -6,7 +6,8 @@ extends BaseEnemy
 
 # Vuelo — canon fauna_spec.md Fase 1 (2026-05-07): halcón verdadero, alto 10m.
 # Fuera del range de arco normal en altura. Solo atacable durante DIVING (y<=1.5).
-@export var fly_height := 14.0
+# fly_height is terrain-relative offset (set in _on_enemy_ready via raycast).
+@export var fly_height := 14.0  # meters above local terrain
 @export var wander_radius := 8.0
 @export var wander_interval := 3.0
 @export var dive_speed := 12.0
@@ -23,6 +24,27 @@ var spawn_position := Vector3.ZERO
 var circle_angle := 0.0
 var dive_cooldown := 0.0
 
+# Absolute Y the hawk tries to maintain at runtime.
+# fly_height remains the constant terrain-relative OFFSET and is NEVER overwritten.
+# _fly_target_y is set once at spawn and updated per wander target via _terrain_fly_y_at.
+var _fly_target_y: float = 0.0
+
+
+## Raycast down to find terrain Y, then return terrain_y + fly_height (absolute).
+func _terrain_fly_y_at(pos: Vector3) -> float:
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		return pos.y + fly_height
+	var ray_from := Vector3(pos.x, pos.y + 200.0, pos.z)
+	var ray_to := Vector3(pos.x, pos.y - 200.0, pos.z)
+	var query := PhysicsRayQueryParameters3D.create(ray_from, ray_to)
+	query.collision_mask = 1  # Layer World only
+	query.exclude = [get_rid()]
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return pos.y + fly_height
+	return hit.position.y + fly_height
+
 
 func _on_enemy_ready() -> void:
 	enemy_type = "hawk"
@@ -32,8 +54,11 @@ func _on_enemy_ready() -> void:
 	personality = AggroPersonality.HUNTER_FAST
 	default_color = Color(0.7, 0.55, 0.25)
 	spawn_position = global_position
-	spawn_position.y = fly_height
-	global_position.y = fly_height
+	# fly_height stays as the constant terrain-relative OFFSET — never overwrite it.
+	# Compute the absolute Y once at spawn and store in _fly_target_y.
+	_fly_target_y = _terrain_fly_y_at(global_position)
+	spawn_position.y = _fly_target_y
+	global_position.y = _fly_target_y
 	dive_cooldown = 2.0  # Delay primer dive — da tiempo a circular cuando se provoca
 	_pick_wander_target()
 	mesh.visible = false
@@ -55,11 +80,11 @@ func _on_enemy_ready() -> void:
 func _apply_gravity(_delta: float) -> void:
 	# Solo mantener altura en idle y circling
 	if state == HawkState.IDLE or state == HawkState.CIRCLING:
-		velocity.y = (fly_height - global_position.y) * 3.0
+		velocity.y = (_fly_target_y - global_position.y) * 3.0
 	elif state == HawkState.RETREATING:
 		# Subida simétrica al dive — el descenso usa dive_speed*0.6 (~7 m/s),
 		# el lift debe ser ~7 m/s para sentirse natural, no más rápido que la picada.
-		velocity.y = (fly_height - global_position.y) * 0.5
+		velocity.y = (_fly_target_y - global_position.y) * 0.5
 	elif state == HawkState.DIVING:
 		# Cerca del suelo, no clavarse — corta caída
 		if global_position.y <= 1.0:
@@ -76,7 +101,7 @@ func _should_pursue(distance: float) -> bool:
 func _idle_behavior(delta: float) -> void:
 	if state == HawkState.RETREATING:
 		# Subiendo después del agarre — volver a circling cuando llega arriba
-		if global_position.y >= fly_height - 0.3:
+		if global_position.y >= _fly_target_y - 0.3:
 			state = HawkState.CIRCLING if is_provoked else HawkState.IDLE
 		velocity.x = move_toward(velocity.x, 0.0, speed * delta * 3.0)
 		velocity.z = move_toward(velocity.z, 0.0, speed * delta * 3.0)
@@ -120,14 +145,14 @@ func _move_toward_target(delta: float) -> void:
 			)
 
 		HawkState.CIRCLING:
-			# Circular alrededor del jugador a fly_height
+			# Circular alrededor del jugador a la altura absoluta de vuelo
 			circle_angle += circle_speed * delta
 			var target_pos = target.global_position + Vector3(
 				cos(circle_angle) * circle_radius,
 				0,
 				sin(circle_angle) * circle_radius
 			)
-			target_pos.y = fly_height
+			target_pos.y = _fly_target_y
 
 			var direction = (target_pos - global_position).normalized()
 			velocity.x = direction.x * speed
@@ -218,7 +243,11 @@ func _pick_wander_target() -> void:
 	var angle = randf() * TAU
 	var dist = randf_range(2.0, wander_radius)
 	wander_target = spawn_position + Vector3(cos(angle) * dist, 0, sin(angle) * dist)
-	wander_target.y = fly_height
+	# Terrain-relative: recalculate absolute fly Y for this wander position.
+	var new_fly_y: float = _terrain_fly_y_at(wander_target)
+	wander_target.y = new_fly_y
+	# Update runtime absolute target so _apply_gravity tracks the new terrain height.
+	_fly_target_y = new_fly_y
 
 
 func _on_death() -> void:

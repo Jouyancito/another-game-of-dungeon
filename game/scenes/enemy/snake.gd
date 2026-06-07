@@ -47,10 +47,12 @@ func _move_toward_target(delta: float) -> void:
 
 ## Override: mordisco + veneno (3 ticks de 2 dmg, 1s de separación)
 func perform_attack() -> void:
+	if has_status(&"stun"):
+		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	can_attack = false
 
 	if is_instance_valid(target):
-		target.take_damage(damage)
+		target.take_damage(damage * outgoing_damage_mult())
 		_apply_poison_dot(target)
 
 	await get_tree().create_timer(attack_cooldown).timeout

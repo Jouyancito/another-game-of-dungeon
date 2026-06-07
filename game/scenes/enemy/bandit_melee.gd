@@ -127,7 +127,7 @@ func perform_attack() -> void:
 ## Ataque 1 — Slash horizontal (daño base)
 func _attack_slash() -> void:
 	if is_instance_valid(target) and target.has_method("take_damage"):
-		target.take_damage(damage)
+		target.take_damage(damage * outgoing_damage_mult())
 
 
 ## Ataque 2 — Shield bash: knockback + stun breve (0.8s sin atacar)
@@ -136,7 +136,7 @@ func _attack_shield_bash() -> void:
 		return
 
 	if target.has_method("take_damage"):
-		target.take_damage(damage * 0.6)
+		target.take_damage(damage * 0.6 * outgoing_damage_mult())
 
 	# Knockback al jugador
 	if target.has_method("apply_knockback"):
@@ -166,7 +166,7 @@ func _attack_charged_heavy() -> void:
 		return
 
 	if is_instance_valid(target) and target.has_method("take_damage"):
-		target.take_damage(damage * 1.5)
+		target.take_damage(damage * 1.5 * outgoing_damage_mult())
 
 	_is_charging = false
 

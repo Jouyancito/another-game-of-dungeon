@@ -92,6 +92,10 @@ const NAMEPLATE_AIM_RANGE := 30.0
 # Color original del mesh (cada hijo lo define)
 var default_color := Color(0.8, 0.2, 0.2)
 
+# Re-entrancy guard for _flash_damage — prevents overlapping flashes from
+# saving the red tint as the "original" material (stuck-red regression).
+var _is_flashing := false
+
 # Animation helper — null when no AnimationPlayer is found (procedural enemies).
 # Type is intentionally untyped (Variant) to avoid class_name load-order issues.
 # Subclasses expose a gltf model root via _get_anim_model_root(); base = null → no-op.
@@ -832,20 +836,60 @@ func take_damage(amount: float, hit_direction := Vector3.ZERO, knockback_force :
 
 
 func _flash_damage() -> void:
-	if not mesh or not mesh.mesh:
+	# Re-entrancy guard: a 2nd call during the 0.2s await would snapshot the
+	# red material as "original" → enemy stuck red permanently.
+	if _is_flashing:
 		return
-	var material = mesh.get_surface_override_material(0)
-	if material == null:
-		material = mesh.mesh.surface_get_material(0)
-		if material:
-			material = material.duplicate()
-			mesh.set_surface_override_material(0, material)
-	if material and material is StandardMaterial3D:
-		material.albedo_color = Color(1, 0, 0)
-		await get_tree().create_timer(0.2).timeout
-		if not is_instance_valid(self) or is_dead:
-			return
-		material.albedo_color = default_color
+	_is_flashing = true
+
+	# Flash the procedural mesh (enemies without a gltf Model subtree).
+	# Skip when mesh.visible == false (golem/bandits hide the proc mesh) to
+	# avoid a wasted 0.2s await before the gltf flash below.
+	if mesh and mesh.mesh and mesh.visible:
+		var material = mesh.get_surface_override_material(0)
+		if material == null:
+			material = mesh.mesh.surface_get_material(0)
+			if material:
+				material = material.duplicate()
+				mesh.set_surface_override_material(0, material)
+		if material and material is StandardMaterial3D:
+			material.albedo_color = Color(1, 0, 0)
+			await get_tree().create_timer(0.2).timeout
+			if not is_instance_valid(self) or is_dead:
+				_is_flashing = false
+				return
+			material.albedo_color = default_color
+
+	# Flash the gltf Model subtree (golem, bandits, slimes, and any enemy using
+	# a loaded .gltf).  gltf models are SKINNED — MeshInstance3D nodes live under
+	# a generated Skeleton3D, NOT as direct children of the model root.
+	# find_children("*", "MeshInstance3D", true, false) recurses the full subtree.
+	var model_root: Node3D = _get_anim_model_root()
+	if model_root == null:
+		_is_flashing = false
+		return
+	var mesh_nodes: Array = model_root.find_children("*", "MeshInstance3D", true, false)
+	if mesh_nodes.is_empty():
+		_is_flashing = false
+		return
+	# Save originals and apply red tint via material_override.
+	# Originals are captured here (once, while _is_flashing guards re-entry) so
+	# a concurrent call cannot overwrite them with the red material.
+	var originals: Array = []
+	for mi: MeshInstance3D in mesh_nodes:
+		originals.append(mi.material_override)
+		var red_mat := StandardMaterial3D.new()
+		red_mat.albedo_color = Color(1.0, 0.2, 0.2)
+		mi.material_override = red_mat
+	await get_tree().create_timer(0.2).timeout
+	if not is_instance_valid(self) or is_dead:
+		_is_flashing = false
+		return
+	# Restore originals (null = no override, correct to restore too).
+	for i in range(mesh_nodes.size()):
+		if is_instance_valid(mesh_nodes[i]):
+			mesh_nodes[i].material_override = originals[i]
+	_is_flashing = false
 
 
 func die() -> void:

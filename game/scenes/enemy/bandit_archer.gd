@@ -96,8 +96,18 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
+	_tick_statuses(delta)  # bleed/weak/stun ticking — mirrors BaseEnemy._physics_process
 	_apply_gravity(delta)
+	if _alert_time_left > 0.0:
+		_alert_time_left = maxf(_alert_time_left - delta, 0.0)
 	_validate_target()
+
+	# Stun pauses AI movement and attack (canon _status_effects.md §2.2)
+	if has_status(&"stun"):
+		velocity.x = 0
+		velocity.z = 0
+		move_and_slide()
+		return
 
 	# Re-scan igual que BaseEnemy — este override no pasa por super, así que
 	# el re-acquire del fix del agro debe replicarse acá para que el archer
@@ -131,6 +141,8 @@ func _physics_process(delta: float) -> void:
 ## Ataque a distancia — raycast simplificado (solo distancia)
 ## No instancia proyectil por ahora; aplica daño directo si hay línea de visión clara
 func perform_attack() -> void:
+	if has_status(&"stun"):
+		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	can_attack = false
 
 	if is_instance_valid(target):
@@ -147,7 +159,7 @@ func perform_attack() -> void:
 
 			# Si el rayo no golpeó nada (o golpeó al jugador), hay línea de visión
 			if result.is_empty() or result.collider == target:
-				target.take_damage(damage)
+				target.take_damage(damage * outgoing_damage_mult())
 
 	await get_tree().create_timer(attack_cooldown).timeout
 	if not is_instance_valid(self) or is_dead:

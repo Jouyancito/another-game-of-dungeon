@@ -74,16 +74,19 @@ func _move_toward_target(delta: float) -> void:
 
 ## Alterna entre pinch y sting
 func perform_attack() -> void:
+	if has_status(&"stun"):
+		return  # stun pausa ataque (canon _status_effects.md §2.2)
 	can_attack = false
 
 	if is_instance_valid(target):
+		var mult: float = outgoing_damage_mult()
 		if _use_sting_next:
 			# Sting — picadura con veneno
-			target.take_damage(damage * 0.5)
+			target.take_damage(damage * 0.5 * mult)
 			_apply_poison_dot(target)
 		else:
 			# Pinch — daño base
-			target.take_damage(damage)
+			target.take_damage(damage * mult)
 
 		_use_sting_next = not _use_sting_next
 
