@@ -63,11 +63,15 @@ void fragment() {
 	float t = TIME * time_scale;
 	vec2 grad = _ripple_normal(UV, t);
 
-	// Build smooth normal: scale gradient by normal_strength (gentle, not sandpaper)
+	// Build tangent-space normal and write via NORMAL_MAP (correct for Godot 4 spatial).
+	// NORMAL_MAP expects [0,1] encoded tangent-space normals; the renderer converts to view-space.
+	// Writing directly to NORMAL would require a world-to-view transform — NORMAL_MAP is idiomatic.
 	vec3 n = normalize(vec3(grad.x * normal_strength, 1.0, grad.y * normal_strength));
-	NORMAL = n;
+	NORMAL_MAP = n * 0.5 + 0.5;
 
-	float fresnel = pow(1.0 - abs(dot(VIEW, NORMAL)), 2.0);
+	// Fresnel using the pre-transform surface normal (VIEW is in view-space; use vec3(0,0,1) as
+	// a proxy for the fragment normal before NORMAL_MAP is applied — sufficient for the toon look).
+	float fresnel = pow(1.0 - abs(dot(VIEW, vec3(0.0, 0.0, 1.0))), 2.0);
 
 	// Base color (dark cavern water) + tiny animated shimmer
 	ALBEDO = water_color + vec3(sin(t * 0.5) * 0.03 + 0.02) * 0.08;
