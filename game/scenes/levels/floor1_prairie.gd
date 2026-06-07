@@ -137,7 +137,7 @@ const COLOR_GIANT_CANOPY: Color = Color(0.130, 0.300, 0.080)
 @export var key_light_color: Color = Color(0.72, 0.78, 0.92)
 
 # ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
-@export var monarch_shadows: bool = true       # false = apaga sombra (perf co-op pesado)
+@export var monarch_shadows: bool = false      # true = sombra dinámica (perf red-line; off by default)
 @export var monarch_light_energy: float = 1.5
 @export var monarch_spot_angle: float = 52.0
 
@@ -565,10 +565,12 @@ func _snap_all_to_terrain() -> void:
 			body.add_to_group("aerial")
 		else:
 			body.add_to_group("grounded")
-		# Snap — math intacta respecto al demo.
-		var existing_offset: float = body.global_position.y
-		if existing_offset > 2.5:
-			body.global_position.y = terrain_y + existing_offset
+		# Snap — aerials keep their spawn height; ground enemies land on terrain.
+		# Branch on the aerial tag already set above (semantic, not heuristic height).
+		if _is_aerial_enemy(body):
+			# Preserve the absolute spawn offset set in _on_enemy_ready (e.g. fly_height).
+			# The enemy's own _apply_gravity keeps it at that height at runtime.
+			pass  # no ground snap for aerial enemies
 		else:
 			body.global_position.y = terrain_y + 1.0
 

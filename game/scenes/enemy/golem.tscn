@@ -28,6 +28,8 @@ size = Vector3(0.4, 0.4, 0.4)
 material = SubResource("ShaderMaterial_head")
 
 [node name="Golem" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
 script = ExtResource("1_golem")
 speed = 2.0
 health = 160.0

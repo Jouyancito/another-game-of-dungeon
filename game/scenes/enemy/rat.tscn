@@ -13,6 +13,8 @@ size = Vector3(0.3, 0.2, 0.5)
 material = SubResource("StandardMaterial3D_001")
 
 [node name="Rat" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
 script = ExtResource("1_rat")
 speed = 5.0
 health = 30.0

@@ -16,6 +16,8 @@ height = 0.15
 material = SubResource("StandardMaterial3D_body")
 
 [node name="Wasp" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 2
 script = ExtResource("1_wasp")
 speed = 6.0
 health = 25.0
