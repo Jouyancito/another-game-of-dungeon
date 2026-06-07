@@ -6,8 +6,8 @@ var selected_class_scene: String = "res://scenes/player/mage.tscn"
 # Índice del personaje activo (apunta a SaveManager.characters)
 var selected_character_index: int = -1
 
-# Escena destino después del character select (arena o nivel real)
-var target_scene: String = "res://scenes/main/main.tscn"
+# Escena destino después del character select (el menú la setea según el botón).
+var target_scene: String = "res://scenes/levels/floor1_prairie.tscn"
 
 # Mundo activo elegido en el world select (modelo Valheim: seed → mundo).
 # world_seed < 0 = sin mundo elegido; el nivel usa su seed por defecto.
