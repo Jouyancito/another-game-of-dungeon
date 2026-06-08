@@ -1,4 +1,4 @@
-[gd_scene load_steps=60 format=3 uid="uid://floor1_prairie"]
+[gd_scene load_steps=58 format=3 uid="uid://floor1_prairie"]
 
 [ext_resource type="Script" path="res://scenes/levels/floor1_prairie.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://crystal_ceiling" path="res://scenes/levels/components/crystal_ceiling.tscn" id="2_ceiling"]
@@ -55,8 +55,8 @@
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fence_01.glb" id="34_fence"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fence_broken_01.glb" id="35_fence_broken"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_fence_gate_01.glb" id="36_fence_gate"]
-[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_hedge_01.glb" id="37_hedge"]
-[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_hedge_curved_01.glb" id="38_hedge_curved"]
+; FIX #3: prop_hedge_01 and prop_hedge_curved_01 removed — manicured hedges are
+; incoherent in a pre-civilization cave. Replaced with env_bush_large_01 (id="17_bush_large_01").
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_banner_green_01.glb" id="39_banner_green"]
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/props/outpost/prop_banner_red_01.glb" id="40_banner_red"]
 
@@ -98,7 +98,7 @@ fog_sun_scatter = 0.1
 adjustment_enabled = true
 adjustment_brightness = 1.0
 adjustment_contrast = 1.05
-adjustment_saturation = 1.35
+adjustment_saturation = 1.1
 ssao_enabled = false
 ssil_enabled = false
 ssr_enabled = false
@@ -121,6 +121,7 @@ script = ExtResource("1_script")
 bioma = "pradera"
 size = Vector2(120, 120)
 height = 25.0
+show_ceiling_plane = false
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env_resource")
@@ -306,10 +307,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 0, -2)
 [node name="FenceGate1" parent="Outpost" instance=ExtResource("36_fence_gate")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -3)
 
-[node name="Hedge1" parent="Outpost" instance=ExtResource("37_hedge")]
+; FIX #3: Replaced prop_hedge_01 with env_bush_large_01 (woodland shrub — coherent)
+[node name="BushLarge_ExHedge1" parent="Outpost" instance=ExtResource("17_bush_large_01")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 3)
 
-[node name="HedgeCurved1" parent="Outpost" instance=ExtResource("38_hedge_curved")]
+; FIX #3: Replaced prop_hedge_curved_01 with env_bush_large_01
+[node name="BushLarge_ExHedge2" parent="Outpost" instance=ExtResource("17_bush_large_01")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 0, 3)
 
 [node name="BannerGreen" parent="Outpost" instance=ExtResource("39_banner_green")]

@@ -332,6 +332,8 @@ func regenerate(new_seed: int = -1) -> void:
 	_crystal_warm_transforms.clear()
 	_crystal_cool_transforms.clear()
 	_crystal_rose_transforms.clear()
+	# Reset tree positions (refilled during _generate_vegetation for understory fungi).
+	_tree_positions.clear()
 	# queue_free es diferido: esperar un frame para que el árbol quede limpio
 	# antes de re-poblar (evita nombres duplicados y dobles colisiones).
 	await get_tree().process_frame
@@ -605,7 +607,8 @@ func _build_organic_border() -> void:
 		wall.name = "BorderWall%d" % i
 		wall.size = Vector3(seg_len + 0.5, BORDER_WALL_HEIGHT, 3.0)
 		wall.use_collision = true
-		wall.material_override = _make_material(COLOR_BORDER)
+		# FIX #5: cave stone material — roughness + triplanar noise instead of flat color
+		wall.material_override = _make_cave_material(COLOR_BORDER)
 		wall.position = mid + Vector3(0, BORDER_WALL_HEIGHT * 0.5, 0)
 		wall.rotation.y = -seg_angle
 		add_child(wall)
@@ -784,8 +787,12 @@ func _build_crystal_field() -> void:
 	# ── 3. Flush cristales acumulados a MultiMesh ────────────────────────────
 	_flush_crystal_multimeshes()
 
-	# ── 4. Bioluminiscencia del techo — parches que brillan ──────────────────
-	_build_ceiling_bioluminescence()
+	# ── 4. Bioluminiscencia del techo — DISABLED ────────────────────────────
+	# Rendered as flat parallelograms floating 1.5-4m BELOW the ceiling, reading as
+	# "random floating tiles" rather than glow on the roof. Removed per art direction;
+	# ceiling interest comes from the crystal shards. Re-enable FLUSH to the ceiling
+	# (drop_h = 0) if a proper glowing-roof effect is wanted later.
+	# _build_ceiling_bioluminescence()
 
 func _build_ceiling_bioluminescence() -> void:
 	var biolum_transforms: Array[Transform3D] = []
@@ -811,6 +818,10 @@ func _build_ceiling_bioluminescence() -> void:
 
 	_create_multimesh_emissive("BiolumPatches", biolum_transforms,
 		CEILING_BIOLUM_COLOR, 1.0)
+
+# World-space base positions of every placed tree trunk — filled by _place_instance
+# ("trunk") and consumed by _scatter_understory_mushrooms() to grow fungi in shade.
+var _tree_positions: Array[Vector3] = []
 
 # Acumuladores de cristales — se flushean con _flush_crystal_multimeshes()
 var _crystal_warm_transforms: Array[Transform3D] = []
@@ -958,6 +969,7 @@ func _build_ruins(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
 	var sz: Vector2 = poi.size
 
+	# Ground slab — thin, stays flat color (it's a floor, not a wall)
 	_add_csg_box("RuinsGround", pos + Vector3(0, 0.02, 0),
 		Vector3(sz.x, 0.04, sz.y), COLOR_RUIN, false)
 
@@ -970,7 +982,8 @@ func _build_ruins(poi: POISystem.POI) -> void:
 		var wd: float = _rng.randf_range(0.5, 1.0)
 		if _rng.randf() > 0.5:
 			var tmp: float = ww; ww = wd; wd = tmp
-		_add_csg_box("RuinWall%d" % i, pos + Vector3(ox, wh * 0.5, oz),
+		# FIX #5: ruins walls → cave stone material
+		_add_cave_csg_box("RuinWall%d" % i, pos + Vector3(ox, wh * 0.5, oz),
 			Vector3(ww, wh, wd), COLOR_RUIN, true)
 
 	var well: CSGCylinder3D = CSGCylinder3D.new()
@@ -978,7 +991,8 @@ func _build_ruins(poi: POISystem.POI) -> void:
 	well.radius = 1.2
 	well.height = 1.2
 	well.use_collision = true
-	well.material_override = _make_material(COLOR_ROCK)
+	# FIX #5: well → cave stone material
+	well.material_override = _make_cave_material(COLOR_ROCK)
 	well.position = pos + Vector3(0, 0.6, 0)
 	add_child(well)
 
@@ -986,7 +1000,8 @@ func _build_ruins(poi: POISystem.POI) -> void:
 		var rx: float = _rng.randf_range(-sz.x * 0.3, sz.x * 0.3)
 		var rz: float = _rng.randf_range(-sz.y * 0.3, sz.y * 0.3)
 		var rs: float = _rng.randf_range(0.8, 1.8)
-		_add_csg_box("RuinsRock%d" % i,
+		# FIX #5: ruins rock rubble → cave stone material
+		_add_cave_csg_box("RuinsRock%d" % i,
 			pos + Vector3(rx, rs * 0.5, rz),
 			Vector3(rs * 1.2, rs, rs), COLOR_ROCK_DARK, true)
 
@@ -998,32 +1013,35 @@ func _build_boss_arena(poi: POISystem.POI) -> void:
 	var wall_h: float = 6.0
 	var wall_t: float = 1.2
 
+	# Ground slab — flat color OK (it's a floor surface)
 	_add_csg_box("BossGround", pos + Vector3(0, 0.02, 0),
 		Vector3(sz.x, 0.04, sz.y), COLOR_BOSS_WALL, false)
 
-	_add_csg_box("BossWallN", pos + Vector3(0, wall_h * 0.5, -hd),
+	# FIX #5: boss arena walls → cave stone material (not blockout flat gray)
+	_add_cave_csg_box("BossWallN", pos + Vector3(0, wall_h * 0.5, -hd),
 		Vector3(sz.x, wall_h, wall_t), COLOR_BOSS_WALL, true)
-	_add_csg_box("BossWallS", pos + Vector3(0, wall_h * 0.5, hd),
+	_add_cave_csg_box("BossWallS", pos + Vector3(0, wall_h * 0.5, hd),
 		Vector3(sz.x, wall_h, wall_t), COLOR_BOSS_WALL, true)
-	_add_csg_box("BossWallE", pos + Vector3(hw, wall_h * 0.5, 0),
+	_add_cave_csg_box("BossWallE", pos + Vector3(hw, wall_h * 0.5, 0),
 		Vector3(wall_t, wall_h, sz.y), COLOR_BOSS_WALL, true)
 
 	var gate_w: float = 12.0
 	var side_len: float = (sz.y - gate_w) * 0.5
-	_add_csg_box("BossWallW_N",
+	_add_cave_csg_box("BossWallW_N",
 		pos + Vector3(-hw, wall_h * 0.5, -(gate_w * 0.5 + side_len * 0.5)),
 		Vector3(wall_t, wall_h, side_len), COLOR_BOSS_WALL, true)
-	_add_csg_box("BossWallW_S",
+	_add_cave_csg_box("BossWallW_S",
 		pos + Vector3(-hw, wall_h * 0.5, gate_w * 0.5 + side_len * 0.5),
 		Vector3(wall_t, wall_h, side_len), COLOR_BOSS_WALL, true)
-	_add_csg_box("BossWallW_Top",
+	_add_cave_csg_box("BossWallW_Top",
 		pos + Vector3(-hw, wall_h - 0.75, 0),
 		Vector3(wall_t, 1.5, gate_w), COLOR_BOSS_WALL, true)
 
 	for i in range(5):
 		var rx: float = _rng.randf_range(-hw * 0.6, hw * 0.6)
 		var rz: float = _rng.randf_range(-hd * 0.6, hd * 0.6)
-		_add_csg_box("BossRubble%d" % i,
+		# FIX #5: rubble in boss arena → cave stone material
+		_add_cave_csg_box("BossRubble%d" % i,
 			pos + Vector3(rx, 0.5, rz),
 			Vector3(_rng.randf_range(2.0, 4.0), 1.0, _rng.randf_range(1.5, 3.0)),
 			COLOR_BOSS_WALL, true)
@@ -1209,20 +1227,34 @@ func _build_pond(poi: POISystem.POI) -> void:
 # Pools de assets reales para scatter procedural. Reemplaza el viejo BoxMesh
 # placeholder: el mapa entero se puebla con los gltf integrados, no cajas planas.
 
+## FIX #4 (MEDIUM) — Birch is shade-intolerant (pioneer species); reduced from 5 slots
+## to 2. Dead tree removed from pool (now via _scatter_dead_trees() for FIX #2).
+## 4 freed slots → maple (understory-tolerant). Pool size stays 12:
+##   Before: 5 birch / 3 maple / 3 common / 1 dead = 12
+##   After:  2 birch / 7 maple / 3 common / 0 dead = 12
+## See _coherence_target_sheet.md §BREAK #4.
 const POOL_TREES: Array[PackedScene] = [
+	# 2 birch (down from 5) — sparse, near crystal-spotlight zones by chance
 	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_03.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_04.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_05.gltf"),
+	# 7 maple (up from 3) — best-fit understory tree for dim cavern
 	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
+	# 3 common broadleaf (unchanged)
 	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf"),
 ]
+
+## Dead tree scene — managed separately so laetiporus can attach at spawn time.
+## FIX #2: placed via _scatter_dead_trees(), not in POOL_TREES.
+const SCENE_DEAD_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf")
+
 const POOL_BUSHES: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
@@ -1235,14 +1267,28 @@ const POOL_ROCKS: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_wide_01.glb"),
 	preload("res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"),
 ]
+## FIX #1 (CRITICAL) — flower_clump_01/02/03 removed from general scatter.
+## Full-sun wildflowers are incoherent in a dim cavern. Their weight replaced with
+## extra mushroom_common slots so density stays equivalent.
+## See _coherence_target_sheet.md §BREAK #1.
+##
+## FIX #2 (HIGH) — mushroom_laetiporus_01 removed from ground scatter.
+## Laetiporus is a bracket fungus that grows FROM dead wood, not bare soil.
+## It is now spawned at the base of dead-tree instances in _generate_vegetation().
+## See _coherence_target_sheet.md §BREAK #2.
+## SHADE FIX — mushrooms removed from this open-field pool. Fungi need shade, not
+## full open ground, so they are now placed at tree bases by _scatter_understory_
+## mushrooms() instead of scattered uniformly. POOL_GROUND is low ground cover only.
 const POOL_GROUND: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_clump_03.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf"),
 ]
+
+## The laetiporus scene — spawned at base of dead trees only (see _generate_vegetation).
+const SCENE_LAETIPORUS: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf")
+
+## Common mushroom — spawned in the SHADE at the base of trees (see
+## _scatter_understory_mushrooms), never in open field.
+const SCENE_MUSHROOM_COMMON: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf")
 
 ## ── Grass carpet (S3) ────────────────────────────────────────────────────────
 ## Dense ground-cover layer via chunked MultiMeshInstance3D.
@@ -1485,27 +1531,27 @@ func _generate_vegetation(pois: Array) -> void:
 		match p.type:
 			"pond":
 				# Estanque: anillo de árboles + flores/juncos pegados al agua
-				_scatter_cluster(POOL_TREES, 16, c, r + 2.0, r + 12.0, 0.85, 1.6, container)
+				_scatter_cluster(POOL_TREES, 16, c, r + 2.0, r + 12.0, 0.85, 1.6, container, "trunk")
 				_scatter_cluster(POOL_GROUND, 24, c, r - 1.0, r + 6.0, 0.7, 1.6, container)
 				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.6, 1.6, container)
-				_scatter_cluster(POOL_TREES, 12, c, r + 12.0, r + 32.0, 0.7, 1.15, container)  # halo
+				_scatter_cluster(POOL_TREES, 12, c, r + 12.0, r + 32.0, 0.7, 1.15, container, "trunk")  # halo
 			"boss":
 				# Acantilado: cúmulo de rocas grandes rodeando la arena
-				_scatter_cluster(POOL_ROCKS, 28, c, r + 2.0, r + 18.0, 0.7, 2.9, container)
-				_scatter_cluster(POOL_ROCKS, 16, c, r + 18.0, r + 40.0, 0.4, 1.4, container)  # halo
+				_scatter_cluster(POOL_ROCKS, 28, c, r + 2.0, r + 18.0, 0.7, 2.9, container, "rock")
+				_scatter_cluster(POOL_ROCKS, 16, c, r + 18.0, r + 40.0, 0.4, 1.4, container, "rock")  # halo
 			"giant_tree":
 				# Bosque denso alrededor del árbol gigante + halo que se deshilacha
-				_scatter_cluster(POOL_TREES, 30, c, r * 0.4, r + 16.0, 0.85, 1.7, container)
+				_scatter_cluster(POOL_TREES, 30, c, r * 0.4, r + 16.0, 0.85, 1.7, container, "trunk")
 				_scatter_cluster(POOL_BUSHES, 12, c, r * 0.4, r + 14.0, 0.6, 1.7, container)
-				_scatter_cluster(POOL_TREES, 22, c, r + 16.0, r + 48.0, 0.7, 1.2, container)  # halo
+				_scatter_cluster(POOL_TREES, 22, c, r + 16.0, r + 48.0, 0.7, 1.2, container, "trunk")  # halo
 			"entrance":
 				# Grove de bienvenida: pocos árboles enmarcando, claro abierto al centro
-				_scatter_cluster(POOL_TREES, 10, c, r + 4.0, r + 18.0, 0.85, 1.6, container)
+				_scatter_cluster(POOL_TREES, 10, c, r + 4.0, r + 18.0, 0.85, 1.6, container, "trunk")
 				_scatter_cluster(POOL_GROUND, 16, c, r, r + 12.0, 0.7, 1.7, container)
-				_scatter_cluster(POOL_TREES, 12, c, r + 18.0, r + 38.0, 0.7, 1.15, container)  # halo
+				_scatter_cluster(POOL_TREES, 12, c, r + 18.0, r + 38.0, 0.7, 1.15, container, "trunk")  # halo
 			"ruins":
 				# Escombros: rocas dispersas + arbustos invasores
-				_scatter_cluster(POOL_ROCKS, 14, c, r * 0.5, r + 8.0, 0.6, 2.0, container)
+				_scatter_cluster(POOL_ROCKS, 14, c, r * 0.5, r + 8.0, 0.6, 2.0, container, "rock")
 				_scatter_cluster(POOL_BUSHES, 10, c, r * 0.5, r + 6.0, 0.6, 1.5, container)
 			"camp":
 				_scatter_cluster(POOL_BUSHES, 8, c, r + 1.0, r + 8.0, 0.6, 1.4, container)
@@ -1515,16 +1561,32 @@ func _generate_vegetation(pois: Array) -> void:
 	# ── 2. Tejido conectivo entre clusters (cose los mini-biomas) ─────────────
 	# Subido respecto al ralo anterior: llena los huecos muertos entre lugares
 	# para que el mapa se lea continuo, no como islas sueltas. Escala amplia.
-	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container)
-	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container)
+	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container, "trunk")
+	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container, "rock")
 	_scatter_pool(POOL_BUSHES, int(ROCK_COUNT * 0.4), pois, 9.0, 0.6, 1.6, container)
 	_scatter_pool(POOL_GROUND, int(TALL_GRASS_COUNT * 0.7), pois, 7.0, 0.7, 1.6, container)
 
+	# ── 3. Dead trees — separate pass so laetiporus can attach at base ────────
+	# FIX #2: ~5-8% of total tree count as dead snags. 40% chance each gets
+	# a laetiporus bracket fungus at its trunk base (ecologically correct substrate).
+	# Dead trees are excluded from POOL_TREES — this pass is their only source.
+	var dead_count: int = max(3, int(TREE_COUNT * 0.06))
+	_scatter_dead_trees(dead_count, pois, container)
+
+	# ── 4. Understory mushrooms — fungi in the SHADE at tree bases (coherent). ──
+	# Replaces the old uniform open-field mushroom scatter. Wrapped in RNG save/restore
+	# so adding this pass does NOT shift later passes (enemy placement) for a seed.
+	var rng_state_um: int = _rng.state
+	_scatter_understory_mushrooms(container)
+	_rng.state = rng_state_um
+
 ## Esparce instancias en un anillo (inner_r..outer_r) alrededor de `center`.
 ## Es el placement temático: rodea un POI con su bioma característico.
+## collider_kind: "" = none, "trunk" = CapsuleShape3D for trees, "rock" = BoxShape3D for rocks.
 func _scatter_cluster(
 	pool: Array, count: int, center: Vector3,
-	inner_r: float, outer_r: float, scale_min: float, scale_max: float, parent: Node3D
+	inner_r: float, outer_r: float, scale_min: float, scale_max: float, parent: Node3D,
+	collider_kind: String = ""
 ) -> void:
 	if pool.is_empty():
 		return
@@ -1535,12 +1597,14 @@ func _scatter_cluster(
 		if not _is_inside_border(pos):
 			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
-		_place_instance(pool, pos, scale_min, scale_max, parent)
+		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)
 
 ## Scatter uniforme por el mapa abierto, evitando POIs (tejido conectivo).
+## collider_kind: "" = none, "trunk" = CapsuleShape3D for trees, "rock" = BoxShape3D for rocks.
 func _scatter_pool(
 	pool: Array, count: int, pois: Array,
-	min_poi_dist: float, scale_min: float, scale_max: float, parent: Node3D
+	min_poi_dist: float, scale_min: float, scale_max: float, parent: Node3D,
+	collider_kind: String = ""
 ) -> void:
 	if pool.is_empty():
 		return
@@ -1549,11 +1613,89 @@ func _scatter_pool(
 		if pos == Vector3.INF:
 			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
-		_place_instance(pool, pos, scale_min, scale_max, parent)
+		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)
+
+## FIX #2 — Scatter dead trees as open-field connective tissue, then attach
+## laetiporus bracket fungus at the trunk base with 40% probability.
+## This keeps the fungus on its correct substrate (dead wood) without ever
+## placing it on bare ground. RNG calls are deterministic (same seed = same result).
+func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
+	for i in range(count):
+		var pos: Vector3 = _random_open_pos(pois, 14.0)
+		if pos == Vector3.INF:
+			continue
+		pos.y = get_terrain_height(pos.x, pos.z)
+
+		# Instantiate dead tree
+		var tree: Node3D = SCENE_DEAD_TREE.instantiate() as Node3D
+		if tree == null:
+			continue
+		var s: float = _age_scale(0.8, 1.5)
+		var rot_y: float = _rng.randf() * TAU
+		tree.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
+		tree.add_to_group("grounded")
+		parent.add_child(tree)
+		# Trunk collider — same shape as POOL_TREES instances (no extra _rng calls).
+		var dt_body := StaticBody3D.new()
+		dt_body.collision_layer = 1
+		dt_body.collision_mask  = 0
+		var dt_col := CollisionShape3D.new()
+		var dt_cap := CapsuleShape3D.new()
+		dt_cap.radius = 0.35 * s
+		dt_cap.height = 2.5 * s
+		dt_col.shape = dt_cap
+		dt_col.position = Vector3(0.0, 1.25 * s, 0.0)
+		dt_body.add_child(dt_col)
+		parent.add_child(dt_body)
+		dt_body.global_position = pos
+
+		# 40% chance: attach laetiporus at trunk base (local origin = base of tree)
+		if _rng.randf() < 0.4:
+			var fungus: Node3D = SCENE_LAETIPORUS.instantiate() as Node3D
+			if fungus != null:
+				# Place at world base of tree, slight random offset to side of trunk
+				var fx: float = _rng.randf_range(-0.3, 0.3)
+				var fz: float = _rng.randf_range(-0.3, 0.3)
+				var fungus_scale: float = _rng.randf_range(0.5, 0.9)
+				var fungus_rot: float = _rng.randf() * TAU
+				fungus.transform = Transform3D(
+					Basis(Vector3.UP, fungus_rot).scaled(Vector3(fungus_scale, fungus_scale, fungus_scale)),
+					pos + Vector3(fx, 0.0, fz)
+				)
+				fungus.add_to_group("grounded")
+				parent.add_child(fungus)
+
+## Grows common mushrooms in the SHADE at the base of recorded trees. Fungi belong
+## on shaded ground near trees — never the open field — so this replaces the old
+## uniform mushroom scatter. ~35% of trees get a small clump of 1-3 mushrooms.
+func _scatter_understory_mushrooms(parent: Node3D) -> void:
+	for tree_pos in _tree_positions:
+		if _rng.randf() > 0.35:
+			continue
+		var clump: int = _rng.randi_range(1, 3)
+		for _m in range(clump):
+			var off := Vector3(_rng.randf_range(-1.2, 1.2), 0.0, _rng.randf_range(-1.2, 1.2))
+			var mpos: Vector3 = tree_pos + off
+			mpos.y = get_terrain_height(mpos.x, mpos.z)
+			var inst: Node3D = SCENE_MUSHROOM_COMMON.instantiate() as Node3D
+			if inst == null:
+				continue
+			var s: float = _rng.randf_range(0.5, 1.0)
+			var rot_y: float = _rng.randf() * TAU
+			inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), mpos)
+			inst.add_to_group("grounded")
+			parent.add_child(inst)
+
 
 ## Instancia un PackedScene random del pool con rotación Y + escala por edad.
+## collider_kind: "" = no collider (bushes/grass/ground cover)
+##   "trunk" → CapsuleShape3D (radius 0.35*s, height 2.5*s) blocking the trunk only.
+##   "rock"  → BoxShape3D (1.0*s cube) centered 0.5*s above base.
+## CRITICAL: no _rng calls inside collider creation — scale s is already computed,
+## so deterministic RNG sequence for later passes is fully preserved.
 func _place_instance(
-	pool: Array, pos: Vector3, scale_min: float, scale_max: float, parent: Node3D
+	pool: Array, pos: Vector3, scale_min: float, scale_max: float, parent: Node3D,
+	collider_kind: String = ""
 ) -> void:
 	var scene: PackedScene = pool[_rng.randi() % pool.size()]
 	var inst: Node3D = scene.instantiate() as Node3D
@@ -1567,6 +1709,53 @@ func _place_instance(
 	# considera nodos del grupo "grounded"; cristales y fauna aérea quedan excluidos.
 	inst.add_to_group("grounded")
 	parent.add_child(inst)
+	# ── Cheap primitive collision for solid props ──────────────────────────────
+	# StaticBody3D on Layer 1 (World), mask 0 (only player/enemies test against us).
+	# All dimensions derived from already-computed `s` — zero extra _rng calls.
+	if collider_kind != "":
+		var body := StaticBody3D.new()
+		body.collision_layer = 1   # World layer
+		body.collision_mask  = 0   # passive — others query us, we don't query
+		var col := CollisionShape3D.new()
+		match collider_kind:
+			"trunk":
+				# Capsule covers the trunk only, not the canopy.
+				# radius 0.35*s, total height 2.5*s, center at 1.25*s (half-height up).
+				var cap := CapsuleShape3D.new()
+				cap.radius = 0.35 * s
+				cap.height = 2.5 * s
+				col.shape = cap
+				# CapsuleShape3D center is its geometric center; offset up so base = pos.
+				col.position = Vector3(0.0, 1.25 * s, 0.0)
+				# Record trunk base so understory mushrooms grow in tree shade (coherent
+				# fungi placement) — consumed by _scatter_understory_mushrooms().
+				_tree_positions.append(pos)
+			"rock":
+				# Convex hull from the rock's OWN mesh — follows the real silhouette
+				# (incl. tiered/stepped profiles) far better than an AABB box, while
+				# staying a single cheap convex shape (no trimesh cost). The shape is
+				# in mesh-local space, so apply the SAME rot_y + scale s as the visual
+				# `inst` to keep collider and model aligned.
+				var rock_mesh: Mesh = null
+				var rfound: Array[Node] = inst.find_children("*", "MeshInstance3D", true, false)
+				if not rfound.is_empty():
+					rock_mesh = (rfound[0] as MeshInstance3D).mesh
+				if rock_mesh != null:
+					col.shape = rock_mesh.create_convex_shape()
+					col.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), Vector3.ZERO)
+				else:
+					# Fallback: box cube if the gltf has no extractable mesh.
+					var box := BoxShape3D.new()
+					box.size = Vector3(1.0 * s, 1.0 * s, 1.0 * s)
+					col.shape = box
+					col.position = Vector3(0.0, 0.5 * s, 0.0)
+		body.add_child(col)
+		# Add at world position (pos) with no extra transform — body is a sibling,
+		# not a child of inst, so inst's scaled transform doesn't affect the collider.
+		# add_child FIRST, then set global_position (global_position before the node is
+		# in the tree is unreliable — would leave the collider at the container origin).
+		parent.add_child(body)
+		body.global_position = pos
 
 ## Escala con sesgo de "edad" en vez de uniforme: ~45% jóvenes (chicas),
 ## ~35% medianas, ~20% añosas (grandes). Da los tres grupos visibles y profundidad.
@@ -1865,9 +2054,60 @@ func _add_csg_box(node_name: String, world_pos: Vector3, size: Vector3, color: C
 	add_child(box)
 	return box
 
+## FIX #5 — Variant of _add_csg_box that applies _make_cave_material() instead of the
+## flat-color material. Used for structural stone surfaces (walls, pillars, rubble) in
+## the border, boss arena, and ruins so they read as carved stone rather than blockout.
+func _add_cave_csg_box(node_name: String, world_pos: Vector3, size: Vector3, color: Color, with_collision: bool) -> CSGBox3D:
+	var box: CSGBox3D = CSGBox3D.new()
+	box.name = node_name
+	box.size = size
+	box.use_collision = with_collision
+	box.material_override = _make_cave_material(color)
+	box.position = world_pos
+	add_child(box)
+	return box
+
 func _make_material(color: Color) -> StandardMaterial3D:
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = color
+	return mat
+
+
+## FIX #5 (MEDIUM) — Cave stone material for structural CSG surfaces (border walls,
+## boss arena, ruins). Adds roughness + a procedural triplanar noise detail so the
+## flat-color blockout look is replaced by believable wet stone.
+## No external texture files needed — NoiseTexture2D + FastNoiseLite are built-in.
+## Applied INSTEAD of _make_material() for border/boss/ruins surfaces only.
+## Plain props (ground slabs, rocks, ceiling) keep _make_material() as-is.
+func _make_cave_material(color: Color) -> StandardMaterial3D:
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.85
+	mat.metallic = 0.0
+
+	# Triplanar noise detail — gives wet-stone veining without any texture file.
+	# detail_albedo texture modulates the base color multiplicatively (Godot 4 blend).
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.18   # coarse rock-vein scale
+	noise.fractal_octaves = 3
+
+	var noise_tex: NoiseTexture2D = NoiseTexture2D.new()
+	noise_tex.noise = noise
+	noise_tex.width = 128
+	noise_tex.height = 128
+	noise_tex.seamless = true
+
+	mat.detail_enabled = true
+	mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	mat.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2  # ignored when triplanar is on
+	mat.detail_albedo = noise_tex
+
+	# Triplanar mapping so the noise aligns with world-space (no UV stretching on CSG)
+	mat.uv1_triplanar = true
+	mat.uv1_triplanar_sharpness = 4.0
+	mat.uv1_scale = Vector3(0.3, 0.3, 0.3)   # tile size ≈ 3m per noise period
+
 	return mat
 
 
