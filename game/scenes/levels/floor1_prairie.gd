@@ -48,8 +48,9 @@ extends Node3D
 ## ── Crystal glass material tweaks ────────────────────────────────────────────
 ## Alpha 0-1: 0 = invisible, 1 = opaque. ~0.65 = translucent gem look (Danmachi F18).
 @export var crystal_alpha: float = 0.65
-## Emission energy multiplier for crystal MultiMeshes. 2.0 = vivid inner glow.
-@export var crystal_emission_energy: float = 2.0
+## Emission energy multiplier for crystal MultiMeshes. Lowered 2.0->0.8: at 2.0 the
+## glow + env bloom blew the crystals to pure white and the per-color tint was lost.
+@export var crystal_emission_energy: float = 0.8
 
 # ── Map dimensions ────────────────────────────────────────────────────────────
 # MAP_SIZE conservado como const de referencia histórica (600x600 base de calibración).
