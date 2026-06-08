@@ -284,6 +284,11 @@ func generate() -> void:
 
 	# 5. Jugador — ajustar a la altura del terreno
 	var entrance_pos: Vector3 = _find_entrance_pos(pois)
+	# Defensive: a procedural entrance can land out of bounds (or terrain may be
+	# absent), which spawns the player into the void. Never trust it blindly — fall
+	# back to the always-safe, flattened map center so a new world is always playable.
+	if _terrain_heights.is_empty() or not _is_inside_border(entrance_pos):
+		entrance_pos = MAP_CENTER
 	entrance_pos.y = get_terrain_height(entrance_pos.x, entrance_pos.z)
 	if active_layers.get("player", true):
 		var player: CharacterBody3D = SCENE_PLAYER.instantiate() as CharacterBody3D
@@ -1252,20 +1257,23 @@ const POOL_GROUND: Array[PackedScene] = [
 ## Density scales with map area (_scale²): at proc_bounds=(120,120) → _scale=0.2 →
 ## ~192 total blades vs ~12 000 at the full 600m map.
 func _build_grass_carpet() -> void:
-	# ── 1. Resolve mesh ────────────────────────────────────────────────────────
-	var blade_mesh: Mesh = _extract_grass_mesh()
-	if blade_mesh == null:
-		push_warning("[GrassCarpet] gltf mesh extraction failed — using fallback blade mesh")
-		blade_mesh = _make_fallback_blade_mesh()
+	# ── 1. Resolve meshes — mix several ground-cover gltf for variety ──────────
+	var blade_meshes: Array[Mesh] = _extract_grass_meshes()
+	if blade_meshes.is_empty():
+		push_warning("[GrassCarpet] no gltf grass meshes loaded — using fallback blade mesh")
+		blade_meshes = [_make_fallback_blade_mesh()]
 
 	# ── 2. Shared material — desaturated olive/tan palette (cavern biome) ───────
 	# Grass must NOT compete with skill VFX (Kimetsu canon). Desaturated and dark.
+	# Applied to every variant so the mixed carpet reads as one cohesive palette.
 	var grass_mat := StandardMaterial3D.new()
 	grass_mat.albedo_color = Color(0.34, 0.38, 0.22)   # desaturated sage-olive
 	grass_mat.roughness = 0.9
 	grass_mat.metallic = 0.0
 	# Billboard is not used (tufts look fine in 3D); shadows off for perf
-	blade_mesh.surface_set_material(0, grass_mat)
+	for bm in blade_meshes:
+		for si in range(bm.get_surface_count()):
+			bm.surface_set_material(si, grass_mat)
 
 	# ── 3. Budget calculation ──────────────────────────────────────────────────
 	# Max instances at full 600m map (scale=1.0). Scales quadratically with area.
@@ -1319,8 +1327,11 @@ func _build_grass_carpet() -> void:
 		var wx_min: float = chunk_entry[0]
 		var wz_min: float = chunk_entry[1]
 
-		var transforms: Array[Transform3D] = []
-		transforms.resize(0)
+		# One transform bucket per mesh variant — each instance is randomly assigned
+		# a variant so every chunk mixes all grass types (one MMI per variant below).
+		var buckets: Array = []
+		for _m in blade_meshes:
+			buckets.append([])
 
 		for _i in range(instances_per_chunk):
 			var x: float = _rng.randf_range(wx_min, wx_min + CHUNK_SIZE)
@@ -1336,27 +1347,33 @@ func _build_grass_carpet() -> void:
 			var basis: Basis = Basis.from_euler(Vector3(tilt, rot_y, 0.0))
 			var s: float = _rng.randf_range(0.8, 1.2)
 			basis = basis.scaled(Vector3(s, s, s))
-			transforms.append(Transform3D(basis, Vector3(x, y, z)))
+			var variant: int = _rng.randi() % blade_meshes.size()
+			buckets[variant].append(Transform3D(basis, Vector3(x, y, z)))
 
-		if transforms.is_empty():
-			continue
+		# Emit one MultiMeshInstance3D per non-empty variant bucket. Total instance
+		# count across buckets == instances_per_chunk, so the perf budget is unchanged;
+		# only the draw-call count grows (× variant count), still within the red-line.
+		for variant in range(blade_meshes.size()):
+			var transforms: Array = buckets[variant]
+			if transforms.is_empty():
+				continue
 
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = blade_mesh
-		mm.instance_count = transforms.size()
-		for i in range(transforms.size()):
-			mm.set_instance_transform(i, transforms[i])
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = blade_meshes[variant]
+			mm.instance_count = transforms.size()
+			for i in range(transforms.size()):
+				mm.set_instance_transform(i, transforms[i])
 
-		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "GrassCarpet_chunk_%d_%d" % [int(wx_min + half_x), int(wz_min + half_z)]
-		mmi.multimesh = mm
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		# Cull grass beyond grass_cull_distance — fade SELF so the transition
-		# is smooth and doesn't pop. This is the primary perf protection.
-		mmi.visibility_range_end = grass_cull_distance
-		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-		container.add_child(mmi)
+			var mmi := MultiMeshInstance3D.new()
+			mmi.name = "GrassCarpet_chunk_%d_%d_v%d" % [int(wx_min + half_x), int(wz_min + half_z), variant]
+			mmi.multimesh = mm
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# Cull grass beyond grass_cull_distance — fade SELF so the transition
+			# is smooth and doesn't pop. This is the primary perf protection.
+			mmi.visibility_range_end = grass_cull_distance
+			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			container.add_child(mmi)
 
 	# Restore RNG so subsequent passes stay deterministic
 	_rng.state = rng_state
@@ -1371,27 +1388,47 @@ func _build_grass_carpet() -> void:
 		container.get_child_count(), instances_per_chunk, total_placed, total_budget, _scale])
 
 
-## Extracts the Mesh from the first MeshInstance3D child of the imported grass gltf.
-## Returns null if the file cannot be loaded or has no MeshInstance3D.
-func _extract_grass_mesh() -> Mesh:
-	const GRASS_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf"
-	if not ResourceLoader.exists(GRASS_PATH):
+## Ground-cover gltf mixed into the carpet for variety. All must be ALREADY
+## imported (have a .import sibling); a path that fails to load is skipped, so
+## adding a not-yet-imported entry degrades gracefully to the rest.
+## env_grass_small = short tufts. Add biome-COHERENT variants here (dim cavern-
+## prairie: pale grasses, moss, ferns — NOT aquatic/lily plants). Each new entry
+## must pass the coherence intake (_coherence_target_sheet.md) before being added.
+## NOTE: env_clover was tried here but read as aquatic lily-pads at carpet density
+## in a dry cavern — removed as a coherence break.
+const GRASS_MESH_PATHS: Array[String] = [
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf",
+]
+
+
+## Loads every mesh in GRASS_MESH_PATHS (skipping any that fail). Returns a
+## DUPLICATED Mesh per entry so the carpet's material override does not mutate
+## the shared imported resource that scatter pools also use (e.g. clover).
+func _extract_grass_meshes() -> Array[Mesh]:
+	var meshes: Array[Mesh] = []
+	for path in GRASS_MESH_PATHS:
+		var m: Mesh = _extract_mesh_from_gltf(path)
+		if m != null:
+			meshes.append(m.duplicate(true))
+	return meshes
+
+
+## Extracts the first MeshInstance3D's Mesh from an imported gltf (recursive, so
+## nested/skinned meshes are found too). Returns null if it can't be loaded.
+func _extract_mesh_from_gltf(path: String) -> Mesh:
+	if not ResourceLoader.exists(path):
 		return null
-	var packed: PackedScene = load(GRASS_PATH)
+	var packed: PackedScene = load(path)
 	if packed == null:
 		return null
 	var root: Node = packed.instantiate()
 	if root == null:
 		return null
-	var mesh_inst: MeshInstance3D = null
-	# gltf roots typically have MeshInstance3D as direct child (or ARE one)
-	if root is MeshInstance3D:
-		mesh_inst = root as MeshInstance3D
-	else:
-		for child in root.get_children():
-			if child is MeshInstance3D:
-				mesh_inst = child as MeshInstance3D
-				break
+	var mesh_inst: MeshInstance3D = root as MeshInstance3D
+	if mesh_inst == null:
+		var found: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+		if not found.is_empty():
+			mesh_inst = found[0] as MeshInstance3D
 	var result: Mesh = null
 	if mesh_inst != null and mesh_inst.mesh != null:
 		result = mesh_inst.mesh

@@ -61,6 +61,14 @@ func generate_pois(p_seed: int, map_size: Vector2, border_func: Callable = Calla
 		0.0,
 		entrance_z
 	)
+	# The organic border varies per seed; this west-edge entrance was placed WITHOUT
+	# validating it (unlike the boss/major/minor POIs below), so for some seeds it
+	# landed outside the playable terrain and the player spawned into the void.
+	# Pull it toward center until it is inside — center is always inside → terminates.
+	var pull_tries: int = 0
+	while not _is_inside_border(entrance_pos, border_func) and pull_tries < 64:
+		entrance_pos = entrance_pos.lerp(Vector3.ZERO, 0.1)
+		pull_tries += 1
 	var entrance: POI = POI.new("entrance", entrance_size, entrance_pos)
 	entrance.is_entrance = true
 	entrance.enemy_count = entrance_def["enemy_count"]
