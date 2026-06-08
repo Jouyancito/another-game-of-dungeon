@@ -296,6 +296,10 @@ func generate() -> void:
 	# channels read as existing waterways the POIs are situated around.
 	if active_layers.get("terrain", true):
 		_build_stream_ribbons()
+		# Fix 2: Riparian bank scatter — wet-edge environment just outside stream channel.
+		# Gated on vegetation layer so it toggles with the rest of scatter.
+		if active_layers.get("vegetation", true):
+			_scatter_stream_banks()
 
 	# 3. POIs — ajustar al terreno antes de construir
 	var pois: Array = []
@@ -1631,6 +1635,182 @@ func _build_pond(poi: POISystem.POI) -> void:
 			Vector3(_rng.randf_range(0.6, 1.2), 0.5, _rng.randf_range(0.6, 1.2)),
 			COLOR_ROCK, true)
 
+## Fix 2 — Riparian bank scatter.
+## Along every stream polyline, in the band [STREAM_HALF_WIDTH .. STREAM_HALF_WIDTH+4m]
+## from the centreline, scatter a wet-edge environment:
+##   - prop_rock_small_01  (small rocks, with convex collider via _place_instance "rock")
+##   - env_pebble_round_01 (pebbles, no collider, tiny scale)
+##   - env_grass_small_01 scaled tall as reed proxy (no dedicated reed asset)
+##   - env_bush_small variants (wetland tufts)
+## Placement is deterministic through _rng — fully wrapped in state save/restore so
+## the enemy-placement RNG sequence is unaffected.
+## No colliders on pebbles or reeds; small rocks get one via _place_instance.
+## Shadows off, visibility_range on all detail via _detail_apply_geo_flags.
+func _scatter_stream_banks() -> void:
+	if _stream_polylines.is_empty():
+		return
+
+	# Load assets — graceful degradation if a file isn't imported yet.
+	const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"
+	const SMALL_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"
+	const REED_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf"
+	const BUSH_PATHS: Array[String] = [
+		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_small_flowers_01.gltf",
+		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf",
+	]
+
+	var pebble_scene: PackedScene = load(PEBBLE_PATH) if ResourceLoader.exists(PEBBLE_PATH) else null
+	var small_rock_scene: PackedScene = load(SMALL_ROCK_PATH) if ResourceLoader.exists(SMALL_ROCK_PATH) else null
+	var reed_scene: PackedScene = load(REED_PATH) if ResourceLoader.exists(REED_PATH) else null
+	var bush_scenes: Array[PackedScene] = []
+	for bp in BUSH_PATHS:
+		if ResourceLoader.exists(bp):
+			bush_scenes.append(load(bp))
+
+	var container := Node3D.new()
+	container.name = "RiparianBanks"
+	add_child(container)
+
+	# Riparian band parameters
+	const BAND_INNER: float = STREAM_HALF_WIDTH        # start just outside channel rim
+	const BAND_OUTER: float = STREAM_HALF_WIDTH + 4.0  # 4m wide wet-edge band
+	const SAMPLES_PER_SEG: int = 8  # candidate points per polyline segment
+
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH
+
+	# RNG save/restore — this pass must be invisible to enemy placement
+	var rng_state_banks: int = _rng.state
+
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+
+			# Perpendicular directions to the segment (both sides of the bank)
+			var seg_dx: float = b2.x - a2.x
+			var seg_dz: float = b2.y - a2.y
+			var seg_len: float = sqrt(seg_dx * seg_dx + seg_dz * seg_dz)
+			if seg_len < 0.001:
+				continue
+			var inv_len: float = 1.0 / seg_len
+			var perp_x: float = -seg_dz * inv_len   # left perpendicular
+			var perp_z: float =  seg_dx * inv_len
+
+			for _sp in range(SAMPLES_PER_SEG):
+				# Random t along segment
+				var t_seg: float = _rng.randf()
+				var cx_s: float = lerpf(a2.x, b2.x, t_seg)
+				var cz_s: float = lerpf(a2.y, b2.y, t_seg)
+
+				# Skip if inside spawn bowl
+				var dc: float = sqrt(cx_s * cx_s + cz_s * cz_s)
+				if dc < spawn_safe_r:
+					# Burn the draws below to stay RNG-neutral
+					_rng.randf()   # side
+					_rng.randf_range(BAND_INNER, BAND_OUTER)  # dist
+					_rng.randf()   # item roll
+					_rng.randf_range(0.0, TAU)  # rot_y
+					_rng.randf()   # scale/type draw
+					continue
+
+				# Random side (left or right bank) + radial offset within band
+				var side: float = 1.0 if _rng.randf() > 0.5 else -1.0
+				var dist_from_center: float = _rng.randf_range(BAND_INNER, BAND_OUTER)
+				var px: float = cx_s + perp_x * dist_from_center * side
+				var pz: float = cz_s + perp_z * dist_from_center * side
+
+				# Guard: must still be within the playable area
+				if not _is_inside_border(Vector3(px, 0.0, pz)):
+					_rng.randf()   # item roll
+					_rng.randf_range(0.0, TAU)  # rot_y
+					_rng.randf()   # scale draw
+					continue
+
+				var terrain_y: float = get_terrain_height(px, pz)
+
+				# Determine what to place: 40% pebble, 30% small rock, 20% reed, 10% bush
+				var item_roll: float = _rng.randf()
+				var rot_y: float = _rng.randf_range(0.0, TAU)
+				var scale_draw: float = _rng.randf()  # consumed regardless of branch
+
+				if item_roll < 0.40 and pebble_scene != null:
+					# Pebble — no collider, tiny scale, shadow off
+					var inst: Node3D = pebble_scene.instantiate() as Node3D
+					if inst != null:
+						var s: float = lerpf(0.15, 0.45, scale_draw)
+						inst.transform = Transform3D(
+							Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+							Vector3(px, terrain_y, pz)
+						)
+						_detail_apply_geo_flags(inst, 50.0)
+						container.add_child(inst)
+
+				elif item_roll < 0.70 and small_rock_scene != null:
+					# Small rock — use _place_instance "rock" path for convex collider.
+					# _place_instance consumes 3 _rng draws (randi() + _age_scale roll×2 + randf()).
+					# We already consumed 3 draws above (item_roll, rot_y, scale_draw) before
+					# arriving here, so we call _place_instance directly but must note it will
+					# consume additional draws. Because this entire pass is wrapped in RNG save/
+					# restore, the total draw count variation is absorbed — enemy placement is
+					# protected by the restore at the end of this function.
+					var s: float = lerpf(0.3, 0.8, scale_draw)
+					var rock_inst: Node3D = small_rock_scene.instantiate() as Node3D
+					if rock_inst != null:
+						rock_inst.transform = Transform3D(
+							Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+							Vector3(px, terrain_y, pz)
+						)
+						rock_inst.add_to_group("grounded")
+						container.add_child(rock_inst)
+						# Cheap box collider (no extra _rng needed)
+						var body := StaticBody3D.new()
+						body.collision_layer = 1
+						body.collision_mask = 0
+						var col := CollisionShape3D.new()
+						var box := BoxShape3D.new()
+						box.size = Vector3(s, s, s)
+						col.shape = box
+						col.position = Vector3(0.0, s * 0.5, 0.0)
+						body.add_child(col)
+						container.add_child(body)
+						body.global_position = Vector3(px, terrain_y, pz)
+
+				elif item_roll < 0.90 and reed_scene != null:
+					# Reed proxy — env_grass_small scaled tall (1.5–2.5×), no collider
+					var inst: Node3D = reed_scene.instantiate() as Node3D
+					if inst != null:
+						var sx: float = lerpf(0.6, 1.0, scale_draw)
+						var sy: float = lerpf(1.5, 2.5, scale_draw)  # taller than normal grass
+						inst.transform = Transform3D(
+							Basis(Vector3.UP, rot_y).scaled(Vector3(sx, sy, sx)),
+							Vector3(px, terrain_y, pz)
+						)
+						_detail_apply_geo_flags(inst, 50.0)
+						container.add_child(inst)
+
+				elif not bush_scenes.is_empty():
+					# Wetland tuft (small bush variant) — no collider, shadow off
+					var bscene: PackedScene = bush_scenes[int(scale_draw * bush_scenes.size()) % bush_scenes.size()]
+					var inst: Node3D = bscene.instantiate() as Node3D
+					if inst != null:
+						var s: float = lerpf(0.3, 0.7, scale_draw)
+						inst.transform = Transform3D(
+							Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+							Vector3(px, terrain_y, pz)
+						)
+						_detail_apply_geo_flags(inst, 55.0)
+						container.add_child(inst)
+
+	# Restore RNG — enemy placement sequence is unaffected
+	_rng.state = rng_state_banks
+	print("[RiparianBanks] %d bank objects placed" % container.get_child_count())
+
+
 ## Round-B: Build water ribbon + optional dry-watercourse pebble line for each stream.
 ## Streams 0 and 1 get a toon-water ribbon sitting partway up the carved trench.
 ## Stream 2 is left DRY — only a pebble line follows the channel.
@@ -1700,6 +1880,18 @@ func _build_stream_ribbons() -> void:
 			st.generate_normals()
 			var ribbon_mesh: ArrayMesh = st.commit()
 
+			# Fix 3: compute average stream direction (start → end) for flow_dir uniform.
+			# Use the polyline start/end points for a stable, smooth direction.
+			# Normalise; if degenerate (zero-length stream), fall back to (1, 0).
+			var p_start: Vector2 = poly[0] as Vector2
+			var p_end:   Vector2 = poly[poly.size() - 1] as Vector2
+			var fdir: Vector2 = (p_end - p_start)
+			var fdir_len: float = fdir.length()
+			if fdir_len > 0.0001:
+				fdir = fdir / fdir_len
+			else:
+				fdir = Vector2(1.0, 0.0)
+
 			# Reuse water_toon.gdshader — same approach as _build_pond / _build_well.
 			var water_mat: ShaderMaterial = ShaderMaterial.new()
 			water_mat.shader = load("res://scenes/levels/water_toon.gdshader")
@@ -1708,6 +1900,9 @@ func _build_stream_ribbons() -> void:
 			var stream_water_color: Color = Color(0.25, 0.42, 0.55)
 			water_mat.set_shader_parameter("water_color", stream_water_color)
 			water_mat.set_shader_parameter("base_transparency", 0.55)
+			# Flow direction: xz world vector → shader vec2. Shader uniform hint_range is on
+			# individual components; pass as Vector2 which Godot sends as vec2.
+			water_mat.set_shader_parameter("flow_dir", fdir)
 
 			var ribbon_mi := MeshInstance3D.new()
 			ribbon_mi.name = "StreamWater%d" % si
@@ -1866,9 +2061,20 @@ func _scatter_ground_detail(pois: Array) -> void:
 	if ResourceLoader.exists(CLOVER_PATH):
 		clover_scene = load(CLOVER_PATH)
 
-	# Count scales with map area; at demo scale (1.0) → 180 pebbles + 60 clover clumps.
-	var pebble_count: int = int(180.0 * _scale * _scale)
-	var clover_count: int = int(60.0 * _scale * _scale)
+	# Fix 4: rock_large scene for outcrop-zone anchors + mushroom for debris clumps
+	var rock_large_scene: PackedScene = null
+	const LARGE_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"
+	if ResourceLoader.exists(LARGE_ROCK_PATH):
+		rock_large_scene = load(LARGE_ROCK_PATH)
+
+	# Fix 4: Count scales with map area.
+	# Was: 180 pebbles + 60 clover. Now: 380 pebbles + 100 clover + 40 large outcrop rocks.
+	# All capped by _rng save/restore → enemy placement unaffected.
+	# Perf note: no colliders on any detail, shadows off, visibility_range 45m → rendered
+	# count stays low. At 600m map the player sees ~few dozen at any time in the cull radius.
+	var pebble_count: int = int(380.0 * _scale * _scale)
+	var clover_count: int = int(100.0 * _scale * _scale)
+	var outcrop_rock_count: int = int(40.0 * _scale * _scale)  # Fix 4: outcrop-biased large rocks
 
 	# ── Pebbles / small rocks ────────────────────────────────────────────────
 	if not detail_scenes.is_empty():
@@ -1876,6 +2082,15 @@ func _scatter_ground_detail(pois: Array) -> void:
 			var pos: Vector3 = _random_open_pos(pois, 4.0)   # small clearance — tiny props
 			if pos == Vector3.INF:
 				continue
+			# Fix 1: skip ground-cover inside stream channel (same guard as grass).
+			if not _stream_polylines.is_empty():
+				var sd_gc: Array = _dist_sq_to_streams(pos.x, pos.z)
+				if sd_gc[0] < STREAM_HALF_WIDTH * STREAM_HALF_WIDTH:
+					# Burn the draws that _would_ have been consumed so RNG stays neutral.
+					_rng.randi()               # scene selection
+					_rng.randf_range(0.25, 0.7)  # s
+					_rng.randf()               # rot_y
+					continue
 			pos.y = get_terrain_height(pos.x, pos.z)
 			var scene: PackedScene = detail_scenes[_rng.randi() % detail_scenes.size()]
 			var inst: Node3D = scene.instantiate() as Node3D
@@ -1894,6 +2109,13 @@ func _scatter_ground_detail(pois: Array) -> void:
 			var pos: Vector3 = _random_open_pos(pois, 5.0)
 			if pos == Vector3.INF:
 				continue
+			# Fix 1: skip clover inside stream channel.
+			if not _stream_polylines.is_empty():
+				var sd_cl: Array = _dist_sq_to_streams(pos.x, pos.z)
+				if sd_cl[0] < STREAM_HALF_WIDTH * STREAM_HALF_WIDTH:
+					_rng.randf_range(0.5, 1.1)  # s
+					_rng.randf()                # rot_y
+					continue
 			pos.y = get_terrain_height(pos.x, pos.z)
 			var inst: Node3D = clover_scene.instantiate() as Node3D
 			if inst == null:
@@ -1904,9 +2126,53 @@ func _scatter_ground_detail(pois: Array) -> void:
 			_detail_apply_geo_flags(inst, 35.0)
 			container.add_child(inst)
 
+	# ── Fix 4: Outcrop-biased large rocks + debris ───────────────────────────
+	# Anchors the painted terrain to 3D geology: large rocks appear where the
+	# outcrop noise is highest (same threshold as terrain geometry bumps).
+	# No colliders, shadows off — purely visual depth cues.
+	var flat_radius_gd: float = FLAT_RADIUS_BASE * _scale
+	if rock_large_scene != null and _outcrop_noise != null:
+		const OUTCROP_DETAIL_THRESHOLD: float = 0.60  # wider than geometry threshold → visible halo
+		var placed_oc: int = 0
+		var attempts_oc: int = 0
+		var max_attempts_oc: int = outcrop_rock_count * 8
+		while placed_oc < outcrop_rock_count and attempts_oc < max_attempts_oc:
+			attempts_oc += 1
+			var pos: Vector3 = _random_open_pos(pois, 6.0)
+			if pos == Vector3.INF:
+				continue
+			# Skip stream channel (Fix 1 guard)
+			if not _stream_polylines.is_empty():
+				var sd_or: Array = _dist_sq_to_streams(pos.x, pos.z)
+				if sd_or[0] < STREAM_HALF_WIDTH * STREAM_HALF_WIDTH:
+					continue
+			# Only on outcrop ridges outside spawn bowl
+			if sqrt(pos.x * pos.x + pos.z * pos.z) < flat_radius_gd:
+				continue
+			var on_oc: float = _outcrop_noise.get_noise_2d(pos.x, pos.z)
+			on_oc = (on_oc + 1.0) * 0.5
+			if on_oc < OUTCROP_DETAIL_THRESHOLD:
+				continue
+			pos.y = get_terrain_height(pos.x, pos.z)
+			# Scale varies with outcrop strength: stronger ridge → slightly larger rock
+			var ramp_oc: float = (on_oc - OUTCROP_DETAIL_THRESHOLD) / (1.0 - OUTCROP_DETAIL_THRESHOLD)
+			var s_oc: float = _rng.randf_range(0.3, 0.6 + ramp_oc * 0.5)
+			var rot_oc: float = _rng.randf() * TAU
+			var inst: Node3D = rock_large_scene.instantiate() as Node3D
+			if inst == null:
+				continue
+			inst.transform = Transform3D(
+				Basis(Vector3.UP, rot_oc).scaled(Vector3(s_oc, s_oc, s_oc)),
+				pos
+			)
+			inst.add_to_group("grounded")
+			_detail_apply_geo_flags(inst, 55.0)
+			container.add_child(inst)
+			placed_oc += 1
+
 	# Restore RNG — enemy placement sequence unchanged
 	_rng.state = rng_state
-	print("[GroundDetail] pebbles+rocks budget=%d clover=%d placed=%d" % [pebble_count, clover_count, container.get_child_count()])
+	print("[GroundDetail] pebbles+rocks budget=%d clover=%d outcrop_rocks=%d placed=%d" % [pebble_count, clover_count, outcrop_rock_count, container.get_child_count()])
 
 
 ## Applies SHADOW_CASTING_SETTING_OFF + visibility_range_end to all MeshInstance3D
@@ -2068,6 +2334,18 @@ void fragment() {
 			var sample: Vector3 = Vector3(x, 0.0, z)
 			if not _is_inside_border(sample):
 				continue
+			# Fix 1: skip grass inside the stream channel (grows ON TOP of water otherwise).
+			# Guard: only test when polylines exist (no cost when no streams).
+			if not _stream_polylines.is_empty():
+				var sd: Array = _dist_sq_to_streams(x, z)
+				if sd[0] < STREAM_HALF_WIDTH * STREAM_HALF_WIDTH:
+					# Consume the same _rng draws that would have happened if not skipped,
+					# so the RNG sequence after this blade is unchanged.
+					_rng.randf()   # rot_y
+					_rng.randf_range(-0.17, 0.17)  # tilt
+					_rng.randf_range(0.8, 1.2)     # s
+					_rng.randi()   # variant
+					continue
 			var y: float = get_terrain_height(x, z)
 			# Random Y rotation + slight scale variation (0.8–1.2)
 			var rot_y: float = _rng.randf() * TAU

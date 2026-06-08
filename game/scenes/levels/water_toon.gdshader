@@ -15,6 +15,10 @@ uniform vec3  water_color    : source_color = vec3(0.10, 0.22, 0.36); // darkene
 uniform float base_transparency : hint_range(0.3, 1.0) = 0.7;
 uniform vec3  crystal_emission : source_color = vec3(0.85, 0.90, 1.00); // cool-crystal glow tint
 uniform float emission_strength : hint_range(0.0, 0.3) = 0.06;  // subtle — catches crystal light
+// Flow direction in world XZ (normalised). Default (1,0) = world +X.
+// Set per stream ribbon so water scrolls ALONG the channel, not uniformly in world X.
+// Ponds/wells leave this at default (1,0) — no visible difference for symmetric geometry.
+uniform vec2  flow_dir = vec2(1.0, 0.0);
 
 // ── Smooth value noise helpers ────────────────────────────────────────────────
 // Hash at integer lattice (returns [-1, 1])
@@ -54,14 +58,27 @@ vec2 _ripple_normal(vec2 uv, float t) {
 }
 
 void vertex() {
-	float w = sin(VERTEX.x * wave_frequency + TIME * time_scale) * wave_amplitude;
-	w += sin(VERTEX.z * wave_frequency * 0.7 + TIME * time_scale * 0.8) * wave_amplitude * 0.5;
+	// Project world-space XZ onto flow_dir so displacement travels along the channel.
+	// flow_dir is the normalised stream direction set per ribbon (default (1,0) for ponds).
+	// dot(VERTEX.xz, flow_dir) is the "along-channel" coordinate — equivalent to world X
+	// for the default direction, so ponds/wells are unaffected.
+	float along = dot(VERTEX.xz, flow_dir);
+	float cross_ = dot(VERTEX.xz, vec2(-flow_dir.y, flow_dir.x)); // perp component
+	float w = sin(along * wave_frequency + TIME * time_scale) * wave_amplitude;
+	w += sin(cross_ * wave_frequency * 0.7 + TIME * time_scale * 0.8) * wave_amplitude * 0.5;
 	VERTEX.y += w;
 }
 
 void fragment() {
 	float t = TIME * time_scale;
-	vec2 grad = _ripple_normal(UV, t);
+	// Rotate UV so the ripple scrolls along the channel (UV.x is along-polyline in ribbon).
+	// flow_dir.x maps to UV.x (along), flow_dir.y maps to UV.y (across).
+	// For symmetric water (pond/well, default flow_dir=(1,0)) this is identity.
+	vec2 flow_uv = vec2(
+		UV.x * flow_dir.x + UV.y * flow_dir.y,
+		UV.x * (-flow_dir.y) + UV.y * flow_dir.x
+	);
+	vec2 grad = _ripple_normal(flow_uv, t);
 
 	// Build tangent-space normal and write via NORMAL_MAP (correct for Godot 4 spatial).
 	// NORMAL_MAP expects [0,1] encoded tangent-space normals; the renderer converts to view-space.
