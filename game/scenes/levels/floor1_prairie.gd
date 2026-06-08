@@ -109,6 +109,16 @@ const TERRAIN_NOISE_OCTAVES: int = 3
 const TERRAIN_EDGE_RISE: float = 6.0     # subida hacia los bordes (acantilados)
 const FLAT_RADIUS_BASE: float = 50.0     # spawn-bowl flatten radius (pre-scale) — single source
 
+# ── Round-B: Streams ──────────────────────────────────────────────────────────
+# 3 stream channels carved deterministically from world_seed (no _rng — pure math).
+# Each stream is a polyline of control points (Vector2 xz); the channel is
+# a smoothstep-sided trench STREAM_DEPTH deep, STREAM_HALF_WIDTH either side.
+# SPAWN BOWL SACRED: carve is clamped to dist_center > FLAT_RADIUS_BASE * _scale + STREAM_HALF_WIDTH.
+const STREAM_COUNT: int = 3
+const STREAM_HALF_WIDTH: float = 4.0    # metres either side of centreline (8m channel > 6.25m grid step → carve reliably lands on vertices)
+const STREAM_DEPTH: float = 0.8         # max depth at channel floor (shallow → walkable)
+const STREAM_SEGMENTS: int = 5          # control points per stream (interpolated)
+
 # ── Colors ────────────────────────────────────────────────────────────────────
 const COLOR_FLOOR: Color       = Color(0.290, 0.478, 0.180)
 const COLOR_TRUNK: Color       = Color(0.361, 0.227, 0.118)
@@ -181,6 +191,12 @@ var _outcrop_noise: FastNoiseLite
 ## Dedicated low-frequency noise for broad terrain swells (Feature Round-A #3).
 ## Frequency 0.0015 — one full wave ≈ 667 m, so at 600m we get gentle rolls (not flat disc).
 var _swell_noise: FastNoiseLite
+## Round-B: micro-jitter for stream centrelines. Low frequency so curves are gentle,
+## not jagged. Seeded from world_seed+71 to stay independent of all other noise layers.
+var _stream_jitter_noise: FastNoiseLite
+## Precomputed stream polylines (xz pairs). Built once by _build_stream_polylines()
+## which is called from _setup_terrain_noise(). Each stream is an Array[Vector2].
+var _stream_polylines: Array = []
 var _terrain_heights: PackedFloat32Array
 var _terrain_stride: int = 0  # TERRAIN_RESOLUTION + 1
 
@@ -275,6 +291,12 @@ func generate() -> void:
 		_generate_terrain_mesh()
 		_hide_flat_ground()
 
+	# 2.6. Round-B: Stream water ribbons + dry-channel pebble scatter.
+	# Placed after terrain so get_terrain_height is valid; before POIs so the
+	# channels read as existing waterways the POIs are situated around.
+	if active_layers.get("terrain", true):
+		_build_stream_ribbons()
+
 	# 3. POIs — ajustar al terreno antes de construir
 	var pois: Array = []
 	if active_layers.get("pois", true):
@@ -360,6 +382,8 @@ func regenerate(new_seed: int = -1) -> void:
 	_tree_positions.clear()
 	# Reset cave material cache — new generation allocates fresh materials.
 	_cave_mat_cache.clear()
+	# Reset stream polylines — rebuilt by _setup_terrain_noise() → _build_stream_polylines().
+	_stream_polylines.clear()
 	# queue_free es diferido: esperar un frame para que el árbol quede limpio
 	# antes de re-poblar (evita nombres duplicados y dobles colisiones).
 	await get_tree().process_frame
@@ -447,6 +471,105 @@ func _setup_terrain_noise() -> void:
 	_swell_noise.fractal_lacunarity = 2.0
 	_swell_noise.fractal_gain = 0.5
 
+	# Round-B: Stream jitter noise — gentle lateral perturbation of stream centrelines.
+	# Low frequency (0.008) = ~125m wave, so curves look organic but not jagged.
+	# seed=world_seed+71 is independent of all terrain/color/outcrop/swell noises.
+	_stream_jitter_noise = FastNoiseLite.new()
+	_stream_jitter_noise.seed = world_seed + 71
+	_stream_jitter_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_stream_jitter_noise.frequency = 0.008
+	_stream_jitter_noise.fractal_octaves = 1
+	_stream_jitter_noise.fractal_lacunarity = 2.0
+	_stream_jitter_noise.fractal_gain = 0.5
+
+	# Build stream polylines ONCE here, so _compute_height_at can use them without
+	# any _rng calls. polylines reference only _stream_jitter_noise + world_seed hashes.
+	_build_stream_polylines()
+
+
+## Round-B: Build STREAM_COUNT stream polylines deterministically from world_seed.
+## NO _rng calls — everything is derived from integer hashes of world_seed and stream index.
+## Each stream:
+##   - Starts at a point on the HIGH border ring (~180-210m from center, scaled).
+##   - Ends at a point near the LOW center region (~60-80m from center, scaled).
+##   - Has STREAM_SEGMENTS-2 interior control points curved by _stream_jitter_noise.
+## The jitter displaces control points LATERALLY (perpendicular to the main axis) so
+## the channel curves naturally without needing _rng.
+func _build_stream_polylines() -> void:
+	_stream_polylines.clear()
+	var r_outer: float = 185.0 * _scale   # start ring radius (high terrain)
+	var r_inner: float = 70.0 * _scale    # end ring radius (low center region)
+
+	for si in range(STREAM_COUNT):
+		# Deterministic base angle for this stream — spread evenly + hash offset.
+		# hash() returns a non-negative int; int % int = int → cast to float after.
+		var hash_offset: float = float(hash(world_seed ^ (si * 2654435761)) % 1000) / 1000.0
+		var base_angle: float = (float(si) / float(STREAM_COUNT)) * TAU + hash_offset * 0.8
+
+		# Start point on the outer ring (high terrain)
+		var sx: float = cos(base_angle) * r_outer
+		var sz: float = sin(base_angle) * r_outer
+
+		# End point near center (low terrain) — slightly offset so streams converge but
+		# don't all hit the exact same point; end is always outside the spawn bowl.
+		var end_hash: float = float(hash(world_seed ^ (si * 3141592653 + 7)) % 1000) / 1000.0
+		var end_angle: float = base_angle + (end_hash - 0.5) * 0.7
+		var ex: float = cos(end_angle) * r_inner
+		var ez: float = sin(end_angle) * r_inner
+
+		var polyline: Array[Vector2] = []
+		polyline.append(Vector2(sx, sz))
+
+		# Interior control points — spaced evenly along the line, jittered laterally.
+		for seg in range(1, STREAM_SEGMENTS - 1):
+			var t: float = float(seg) / float(STREAM_SEGMENTS - 1)
+			var lx: float = lerpf(sx, ex, t)
+			var lz: float = lerpf(sz, ez, t)
+			# Lateral direction (perpendicular to stream axis in xz plane)
+			var dx: float = ex - sx
+			var dz: float = ez - sz
+			var inv_len: float = 1.0 / maxf(sqrt(dx * dx + dz * dz), 0.0001)
+			var perp_x: float = -dz * inv_len
+			var perp_z: float =  dx * inv_len
+			# Jitter amplitude scales down near start/end so the stream hugs its anchors.
+			var env: float = smoothstep(0.0, 0.5, t) * smoothstep(1.0, 0.5, t)
+			var jitter: float = _stream_jitter_noise.get_noise_2d(lx, lz) * 28.0 * _scale * env
+			polyline.append(Vector2(lx + perp_x * jitter, lz + perp_z * jitter))
+
+		polyline.append(Vector2(ex, ez))
+		_stream_polylines.append(polyline)
+
+
+## Round-B: Returns the squared distance from world-xz point (px, pz) to the nearest
+## stream segment across all polylines, plus which stream index it belongs to.
+## Returns [dist_sq, stream_index].  Pure math, no _rng.
+func _dist_sq_to_streams(px: float, pz: float) -> Array:
+	var best_dist_sq: float = 1e18
+	var best_si: int = -1
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		for pi in range(poly.size() - 1):
+			var a: Vector2 = poly[pi] as Vector2
+			var b: Vector2 = poly[pi + 1] as Vector2
+			# Closest point on segment ab to (px, pz)
+			var abx: float = b.x - a.x
+			var abz: float = b.y - a.y
+			var len2: float = abx * abx + abz * abz
+			var dpx: float = px - a.x
+			var dpz: float = pz - a.y
+			var t_seg: float = 0.0
+			if len2 > 0.0001:
+				t_seg = clampf((dpx * abx + dpz * abz) / len2, 0.0, 1.0)
+			var cx: float = a.x + t_seg * abx
+			var cz: float = a.y + t_seg * abz
+			var dx: float = px - cx
+			var dz: float = pz - cz
+			var d2: float = dx * dx + dz * dz
+			if d2 < best_dist_sq:
+				best_dist_sq = d2
+				best_si = si
+	return [best_dist_sq, best_si]
+
 
 ## Calcula la altura en una coordenada world (x, z).
 ## Suma: noise base + broad swell + subida hacia bordes + flattening en el centro
@@ -503,6 +626,22 @@ func _compute_height_at(x: float, z: float) -> float:
 			var ramp: float = (on - OUTCROP_THRESHOLD) / (1.0 - OUTCROP_THRESHOLD)
 			ramp = smoothstep(0.0, 1.0, ramp)
 			h += ramp * OUTCROP_MAX_ADD
+
+	# Round-B: Stream channel carve.
+	# Subtracts a smoothstep trough wherever (x,z) falls within STREAM_HALF_WIDTH of
+	# any stream polyline segment. SPAWN BOWL SACRED: carve is NEVER applied inside
+	# flat_radius + STREAM_HALF_WIDTH (a channel can't eat into the landing pad).
+	# No _rng — _stream_polylines was built deterministically in _build_stream_polylines().
+	var spawn_safe_radius: float = flat_radius + STREAM_HALF_WIDTH
+	if not _stream_polylines.is_empty() and dist_center > spawn_safe_radius:
+		var stream_result: Array = _dist_sq_to_streams(x, z)
+		var sd2: float = stream_result[0]
+		var hw2: float = STREAM_HALF_WIDTH * STREAM_HALF_WIDTH
+		if sd2 < hw2:
+			# t = 0 at centreline, 1 at edge — smoothstep gives a rounded trough profile.
+			var t_ch: float = sqrt(sd2) / STREAM_HALF_WIDTH   # 0..1
+			var profile: float = 1.0 - smoothstep(0.0, 1.0, t_ch)  # 1 at center, 0 at edge
+			h -= profile * STREAM_DEPTH
 
 	return h
 
@@ -718,6 +857,21 @@ func _height_to_color_at(h: float, x: float, z: float) -> Color:
 			ramp = smoothstep(0.0, 1.0, ramp)
 			# Blend toward chalk/mineral tone (desaturated, slightly warm)
 			result = result.lerp(PALE_CHALK, ramp * 0.55)
+
+	# Round-B: Streambed color — wet dark mud / pebble tone inside channel.
+	# Uses the same spawn-bowl guard as the geometry carve (FLAT_RADIUS_BASE * _scale).
+	# WET_MUD is a dark, cool, desaturated tone (Kimetsu canon: desaturated biome).
+	const WET_MUD: Color = Color(0.18, 0.17, 0.14)  # dark damp streambed
+	var dist_c2: float = sqrt(x * x + z * z)
+	var safe_r2: float = FLAT_RADIUS_BASE * _scale + STREAM_HALF_WIDTH
+	if not _stream_polylines.is_empty() and dist_c2 > safe_r2:
+		var sr2: Array = _dist_sq_to_streams(x, z)
+		var sd2c: float = sr2[0]
+		var hw2c: float = STREAM_HALF_WIDTH * STREAM_HALF_WIDTH
+		if sd2c < hw2c:
+			var t_ch2: float = sqrt(sd2c) / STREAM_HALF_WIDTH
+			var profile2: float = 1.0 - smoothstep(0.0, 1.0, t_ch2)
+			result = result.lerp(WET_MUD, profile2 * 0.75)
 
 	return result
 
@@ -1476,6 +1630,146 @@ func _build_pond(poi: POISystem.POI) -> void:
 			pos + Vector3(cos(angle) * br, 0.25, sin(angle) * br),
 			Vector3(_rng.randf_range(0.6, 1.2), 0.5, _rng.randf_range(0.6, 1.2)),
 			COLOR_ROCK, true)
+
+## Round-B: Build water ribbon + optional dry-watercourse pebble line for each stream.
+## Streams 0 and 1 get a toon-water ribbon sitting partway up the carved trench.
+## Stream 2 is left DRY — only a pebble line follows the channel.
+## No _rng in the ribbon geometry; pebble scatter uses _rng.state save/restore.
+## use_collision=false, shadows off for all stream water.
+func _build_stream_ribbons() -> void:
+	if _stream_polylines.is_empty():
+		return
+	var container := Node3D.new()
+	container.name = "StreamRibbons"
+	add_child(container)
+
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+
+		var is_dry: bool = (si == 2)   # stream 2 = dry watercourse
+
+		if not is_dry:
+			# ── Water ribbon — flat quad mesh along the polyline ──────────────────
+			# The ribbon sits at terrain_height + STREAM_DEPTH * 0.40 (partway up the
+			# carved trench, below the rim) so it reads as water filling the channel.
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+			for pi in range(poly.size() - 1):
+				var a2: Vector2 = poly[pi] as Vector2
+				var b2: Vector2 = poly[pi + 1] as Vector2
+				var ax: float = a2.x; var az: float = a2.y
+				var bx: float = b2.x; var bz: float = b2.y
+
+				# Water surface Y = terrain height at centreline + STREAM_DEPTH * 0.40.
+				# get_terrain_height already includes the carved trough, so this places
+				# the ribbon partway up the trench (above the carved floor, below the rim)
+				# → water visibly sits in the dip, not buried under the ground.
+				var ay: float = get_terrain_height(ax, az) + STREAM_DEPTH * 0.40
+				var by_: float = get_terrain_height(bx, bz) + STREAM_DEPTH * 0.40
+
+				# Width of ribbon = slightly narrower than the full channel for visual clarity
+				var ribbon_hw: float = STREAM_HALF_WIDTH * 0.65
+
+				# Segment direction + perpendicular (xz plane)
+				var dx: float = bx - ax
+				var dz: float = bz - az
+				var inv_len: float = 1.0 / maxf(sqrt(dx * dx + dz * dz), 0.0001)
+				var px: float = -dz * inv_len   # left perpendicular
+				var pz: float =  dx * inv_len
+
+				# Four corners of the quad strip segment
+				var v00 := Vector3(ax + px * ribbon_hw, ay,  az + pz * ribbon_hw)
+				var v01 := Vector3(ax - px * ribbon_hw, ay,  az - pz * ribbon_hw)
+				var v10 := Vector3(bx + px * ribbon_hw, by_, bz + pz * ribbon_hw)
+				var v11 := Vector3(bx - px * ribbon_hw, by_, bz - pz * ribbon_hw)
+
+				# UV along segment for flow animation in the shader
+				var u0: float = float(pi)       / float(poly.size() - 1)
+				var u1: float = float(pi + 1)   / float(poly.size() - 1)
+
+				st.set_uv(Vector2(u0, 0.0)); st.add_vertex(v00)
+				st.set_uv(Vector2(u0, 1.0)); st.add_vertex(v01)
+				st.set_uv(Vector2(u1, 1.0)); st.add_vertex(v11)
+				st.set_uv(Vector2(u0, 0.0)); st.add_vertex(v00)
+				st.set_uv(Vector2(u1, 1.0)); st.add_vertex(v11)
+				st.set_uv(Vector2(u1, 0.0)); st.add_vertex(v10)
+
+			st.generate_normals()
+			var ribbon_mesh: ArrayMesh = st.commit()
+
+			# Reuse water_toon.gdshader — same approach as _build_pond / _build_well.
+			var water_mat: ShaderMaterial = ShaderMaterial.new()
+			water_mat.shader = load("res://scenes/levels/water_toon.gdshader")
+			# water_color is a vec3 uniform — alpha is silently dropped; use base_transparency
+			# to control opacity. 0.55 < pond default (0.7) → streams are more see-through.
+			var stream_water_color: Color = Color(0.25, 0.42, 0.55)
+			water_mat.set_shader_parameter("water_color", stream_water_color)
+			water_mat.set_shader_parameter("base_transparency", 0.55)
+
+			var ribbon_mi := MeshInstance3D.new()
+			ribbon_mi.name = "StreamWater%d" % si
+			ribbon_mi.mesh = ribbon_mesh
+			ribbon_mi.material_override = water_mat
+			ribbon_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			container.add_child(ribbon_mi)
+		else:
+			# ── Dry watercourse — pebble line along the channel centreline ─────────
+			# RNG save/restore so this scatter pass is INVISIBLE to enemy placement.
+			var pebble_scene: PackedScene = null
+			const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"
+			if ResourceLoader.exists(PEBBLE_PATH):
+				pebble_scene = load(PEBBLE_PATH)
+			if pebble_scene == null:
+				continue
+
+			var rng_state_pebble: int = _rng.state
+
+			# Place ~6 pebble clusters along the polyline using deterministic positions
+			# (lerp along the curve, no _rng for positioning).
+			var pebble_count: int = 6
+			for pi in range(pebble_count):
+				var t_p: float = (float(pi) + 0.5) / float(pebble_count)
+				# Interpolate along polyline by segment count
+				var total_segs: int = poly.size() - 1
+				var seg_t: float = t_p * float(total_segs)
+				var seg_i: int = clampi(int(seg_t), 0, total_segs - 1)
+				var seg_frac: float = seg_t - float(seg_i)
+				var pa2: Vector2 = poly[seg_i] as Vector2
+				var pb2: Vector2 = poly[seg_i + 1] as Vector2
+				var cx2: float = lerpf(pa2.x, pb2.x, seg_frac)
+				var cz2: float = lerpf(pa2.y, pb2.y, seg_frac)
+				var cy2: float = get_terrain_height(cx2, cz2) - STREAM_DEPTH * 0.6
+
+				# Spawn bowl safety check (no pebbles inside the spawn bowl)
+				var dc: float = sqrt(cx2 * cx2 + cz2 * cz2)
+				if dc < FLAT_RADIUS_BASE * _scale:
+					continue
+
+				# Small cluster: 2-4 pebbles per placement using _rng (wrapped)
+				var clump: int = _rng.randi_range(2, 4)
+				for _cp in range(clump):
+					var off_x: float = _rng.randf_range(-STREAM_HALF_WIDTH * 0.6, STREAM_HALF_WIDTH * 0.6)
+					var off_z: float = _rng.randf_range(-0.5, 0.5)
+					var pebble: Node3D = pebble_scene.instantiate() as Node3D
+					if pebble == null:
+						continue
+					var ps: float = _rng.randf_range(0.3, 0.7)
+					var prot: float = _rng.randf() * TAU
+					pebble.transform = Transform3D(
+						Basis(Vector3.UP, prot).scaled(Vector3(ps, ps, ps)),
+						Vector3(cx2 + off_x, cy2, cz2 + off_z)
+					)
+					_detail_apply_geo_flags(pebble, 60.0)
+					container.add_child(pebble)
+
+			# Restore RNG — enemy placement unchanged
+			_rng.state = rng_state_pebble
+
+	print("[StreamRibbons] %d streams built (%d wet, 1 dry)" % [_stream_polylines.size(), _stream_polylines.size() - 1])
+
 
 # ── Vegetation (gltf scatter — assets reales CC0) ────────────────────────────
 # Pools de assets reales para scatter procedural. Reemplaza el viejo BoxMesh
