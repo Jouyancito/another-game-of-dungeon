@@ -50,6 +50,15 @@ class_name CrystalCeiling
 		if is_inside_tree() and _focus_light != null:
 			_focus_light.visible = enable_focus_light
 
+## When false, hides the emissive ceiling PLANE but KEEPS the lights. Floor 1 has a
+## separate full-size CavernCeiling rock roof, so this small 120x120 plane just read
+## as a "white square cloud" floating mid-map. Hidden there; lights stay.
+@export var show_ceiling_plane: bool = true:
+	set(value):
+		show_ceiling_plane = value
+		if is_inside_tree() and _mesh != null:
+			_mesh.visible = show_ceiling_plane
+
 # Tints canon por bioma — ver game/docs/art/crystal_ceiling.md para justificación.
 const BIOMA_TINTS := {
 	"pradera":        Color("#C8E68A"),  # verde-amarillo cálido — día primaveral
@@ -62,9 +71,10 @@ const BIOMA_TINTS := {
 # Golden-hour light story — overrides the flat bioma tint for the LIGHTS (see
 # _apply_bioma). The FocusLight is the dominant warm "diamond cave-sun" hero; the
 # CeilingLight is a dim cool sky-fill = the cool-shadow half of the contrast.
-const HERO_WARM := Color(0.96, 0.84, 0.46)  # #F5D576 — diamond cave-sun (warm gold)
+const HERO_WARM := Color(0.99, 0.93, 0.81)  # #FDEDCF — warm WHITE sun (was #F5D576 gold;
+                                            # the saturated gold turned the whole map mustard)
 const SKY_COOL := Color(0.55, 0.62, 0.78)   # cool sky-fill (cool-shadow half)
-const HERO_ENERGY := 2.6   # softened from 3.5 — at 3.5 the gold pool desertified the ground
+const HERO_ENERGY := 1.8   # dropped 2.6->1.8 — the gold pool was still desertifying the ground
 
 @onready var _mesh: MeshInstance3D = $CeilingMesh
 @onready var _light: DirectionalLight3D = $CeilingLight
@@ -85,6 +95,8 @@ func _ready() -> void:
 	_apply_bioma()
 	if _focus_light != null:
 		_focus_light.visible = enable_focus_light
+	if _mesh != null:
+		_mesh.visible = show_ceiling_plane
 
 
 func _apply_bioma() -> void:
