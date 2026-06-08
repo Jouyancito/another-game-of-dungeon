@@ -130,11 +130,12 @@ const COLOR_ALTAR: Color       = Color(0.700, 0.650, 0.550)
 const COLOR_GIANT_TRUNK: Color = Color(0.300, 0.200, 0.100)
 const COLOR_GIANT_CANOPY: Color = Color(0.130, 0.300, 0.080)
 
-# ── Cavern key light (direccional con sombras — BRILLANTE, da forma/profundidad) ──
-@export var key_light_energy: float = 0.9
+# ── Cavern key light (direccional cálido con sombras — el "sol filtrado") ──
+# Warm-WHITE, no ámbar: el ámbar saturado tiñe todo de amarillo-desierto.
+@export var key_light_energy: float = 1.3
 @export var key_light_pitch: float = -52.0
 @export var key_light_yaw: float = -35.0
-@export var key_light_color: Color = Color(0.72, 0.78, 0.92)
+@export var key_light_color: Color = Color(1.0, 0.93, 0.78)
 
 # ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
 @export var monarch_shadows: bool = false      # true = sombra dinámica (perf red-line; off by default)
@@ -179,9 +180,9 @@ var _border_radius_base: float = BORDER_RADIUS_BASE
 # y se libera en regenerate() para un reseed limpio.
 var _baseline_children: Array[Node] = []
 
-## Cavern key light — UN DirectionalLight tenue con sombras. Sin él la penumbra
-## queda plana/negra. No es un sol: luz de relleno con dirección, tintada fría como
-## filtrada por cristal. Perf: es el ÚNICO shadow-caster permitido (red-line #2).
+## Cavern key light — UN DirectionalLight CÁLIDO con sombras: el "sol filtrado"
+## dorado del golden-hour ACOGEDOR (DanMachi F18). Da forma/profundidad y aporta la
+## mitad cálida del contraste warm-key/cool-shadow. Perf: shadow-caster principal.
 func _build_key_light() -> void:
 	var key := DirectionalLight3D.new()
 	key.name = "CavernKeyLight"

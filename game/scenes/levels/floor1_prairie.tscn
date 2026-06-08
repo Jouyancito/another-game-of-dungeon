@@ -74,15 +74,31 @@
 
 [sub_resource type="Environment" id="env_resource"]
 background_mode = 1
-background_color = Color(0.13, 0.13, 0.14, 1)
+background_color = Color(0.1, 0.09, 0.11, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.72, 0.78, 0.92, 1)
-ambient_light_energy = 0.33
+ambient_light_color = Color(0.35, 0.4, 0.52, 1)
+ambient_light_energy = 0.15
 reflected_light_source = 1
 tonemap_mode = 3
 tonemap_exposure = 1.0
-tonemap_white = 1.1
-glow_enabled = false
+tonemap_white = 5.0
+glow_enabled = true
+glow_blend_mode = 1
+glow_intensity = 1.0
+glow_strength = 1.0
+glow_hdr_threshold = 0.95
+glow_bloom = 0.0
+glow_levels/4 = 0.6
+glow_levels/5 = 0.6
+fog_enabled = false
+fog_light_color = Color(0.85, 0.86, 0.82, 1)
+fog_density = 0.0035
+fog_aerial_perspective = 0.15
+fog_sun_scatter = 0.1
+adjustment_enabled = true
+adjustment_brightness = 1.0
+adjustment_contrast = 1.05
+adjustment_saturation = 1.35
 ssao_enabled = false
 ssil_enabled = false
 ssr_enabled = false
@@ -91,7 +107,7 @@ sdfgi_enabled = false
 ; ── Floor material ────────────────────────────────────────────────────────────
 
 [sub_resource type="StandardMaterial3D" id="mat_floor"]
-albedo_color = Color(0.255, 0.305, 0.185, 1)
+albedo_color = Color(0.28, 0.42, 0.19, 1)
 roughness = 1.0
 
 ; ── Scene Root ─────────────────────────────────────────────────────────────────

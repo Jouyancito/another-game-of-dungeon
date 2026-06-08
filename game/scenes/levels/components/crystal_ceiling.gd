@@ -26,7 +26,10 @@ class_name CrystalCeiling
 		if is_inside_tree():
 			_apply_size()
 
-@export_range(0.3, 3.0, 0.1) var light_energy: float = 1.2:
+# Energy of the cool sky-fill DirectionalLight (the cool-shadow half of the
+# golden-hour contrast). Dim by design: the warm FocusLight is the hero. This is
+# the single owner of CeilingLight.light_energy — _apply_bioma seeds it from here.
+@export_range(0.0, 3.0, 0.1) var light_energy: float = 0.5:
 	set(value):
 		light_energy = value
 		if is_inside_tree() and _light != null:
@@ -56,6 +59,13 @@ const BIOMA_TINTS := {
 	"dimension_rota": Color("#C84AC8"),  # magenta corrupto — wrong, glitchy
 }
 
+# Golden-hour light story — overrides the flat bioma tint for the LIGHTS (see
+# _apply_bioma). The FocusLight is the dominant warm "diamond cave-sun" hero; the
+# CeilingLight is a dim cool sky-fill = the cool-shadow half of the contrast.
+const HERO_WARM := Color(0.96, 0.84, 0.46)  # #F5D576 — diamond cave-sun (warm gold)
+const SKY_COOL := Color(0.55, 0.62, 0.78)   # cool sky-fill (cool-shadow half)
+const HERO_ENERGY := 2.6   # softened from 3.5 — at 3.5 the gold pool desertified the ground
+
 @onready var _mesh: MeshInstance3D = $CeilingMesh
 @onready var _light: DirectionalLight3D = $CeilingLight
 @onready var _focus_light: OmniLight3D = $FocusLight
@@ -79,14 +89,18 @@ func _ready() -> void:
 
 func _apply_bioma() -> void:
 	var tint: Color = BIOMA_TINTS.get(bioma, Color(1, 1, 1, 1))
+	# Warm-cozy story: lights are NO LONGER bioma-tinted (that flattened the contrast
+	# and made everything one cold/green wash). Only the ceiling plane keeps a bioma
+	# hue; the warm hero + cool fill come from the constants above.
 	if _material != null:
 		_material.albedo_color = Color(tint.r, tint.g, tint.b, 0.55)
-		_material.emission = tint.lightened(0.3)
+		_material.emission = HERO_WARM   # warm glowing "sky" (blooms via env glow)
 	if _light != null:
-		_light.light_color = tint
-		_light.light_energy = light_energy
+		_light.light_color = SKY_COOL    # cool sky-fill, dim
+		_light.light_energy = light_energy  # owned by the export, not hardcoded
 	if _focus_light != null:
-		_focus_light.light_color = tint.lightened(0.2)
+		_focus_light.light_color = HERO_WARM   # the diamond cave-sun
+		_focus_light.light_energy = HERO_ENERGY
 
 
 func _apply_size() -> void:
