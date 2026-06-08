@@ -106,6 +106,7 @@ const TERRAIN_MAX_HEIGHT: float = 9.0    # alto max de colinas
 const TERRAIN_NOISE_FREQ: float = 0.004  # frecuencia baja = features grandes
 const TERRAIN_NOISE_OCTAVES: int = 3
 const TERRAIN_EDGE_RISE: float = 6.0     # subida hacia los bordes (acantilados)
+const FLAT_RADIUS_BASE: float = 50.0     # spawn-bowl flatten radius (pre-scale) — single source
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 const COLOR_FLOOR: Color       = Color(0.290, 0.478, 0.180)
@@ -172,6 +173,13 @@ var _terrain_noise: FastNoiseLite
 ## color patch frequencies are independent of _scale and always match the documented
 ## sizes: ~40m large patches (sample * 0.025) and ~8m fine grain (sample * 0.125).
 var _color_noise: FastNoiseLite
+## Dedicated noise for dirt/rock outcrops (Feature Round-A #2).
+## Frequency 0.05 is scale-independent (sampled in world coords, not divided by _scale).
+## Cells where this > OUTCROP_THRESHOLD AND dist_center > flat_radius get a height bump.
+var _outcrop_noise: FastNoiseLite
+## Dedicated low-frequency noise for broad terrain swells (Feature Round-A #3).
+## Frequency 0.0015 — one full wave ≈ 667 m, so at 600m we get gentle rolls (not flat disc).
+var _swell_noise: FastNoiseLite
 var _terrain_heights: PackedFloat32Array
 var _terrain_stride: int = 0  # TERRAIN_RESOLUTION + 1
 
@@ -183,6 +191,12 @@ var _border_radius_base: float = BORDER_RADIUS_BASE
 # Snapshot de hijos pre-generación: lo que NO está acá se considera generado
 # y se libera en regenerate() para un reseed limpio.
 var _baseline_children: Array[Node] = []
+
+## Round-A #1: Material memo cache for _make_cave_material.
+## Keyed by Color so repeated calls with the same color share one StandardMaterial3D
+## (and therefore one NoiseTexture2D pair) instead of allocating a new one per CSG node.
+## Reset in regenerate() to avoid holding stale materials across reseeds.
+var _cave_mat_cache: Dictionary = {}
 
 ## Cavern key light — UN DirectionalLight CÁLIDO con sombras: el "sol filtrado"
 ## dorado del golden-hour ACOGEDOR (DanMachi F18). Da forma/profundidad y aporta la
@@ -343,6 +357,8 @@ func regenerate(new_seed: int = -1) -> void:
 	_crystal_rose_transforms.clear()
 	# Reset tree positions (refilled during _generate_vegetation for understory fungi).
 	_tree_positions.clear()
+	# Reset cave material cache — new generation allocates fresh materials.
+	_cave_mat_cache.clear()
 	# queue_free es diferido: esperar un frame para que el árbol quede limpio
 	# antes de re-poblar (evita nombres duplicados y dobles colisiones).
 	await get_tree().process_frame
@@ -409,9 +425,32 @@ func _setup_terrain_noise() -> void:
 	_color_noise.fractal_lacunarity = 2.0
 	_color_noise.fractal_gain = 0.5
 
+	# Round-A #2: Outcrop noise — sampled in raw world coords so frequency is always
+	# 0.05 regardless of _scale. ~20m feature size. Two octaves for crinkled edges.
+	_outcrop_noise = FastNoiseLite.new()
+	_outcrop_noise.seed = world_seed + 37
+	_outcrop_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_outcrop_noise.frequency = 0.05
+	_outcrop_noise.fractal_octaves = 2
+	_outcrop_noise.fractal_lacunarity = 2.0
+	_outcrop_noise.fractal_gain = 0.5
+
+	# Round-A #3: Swell noise — very low frequency for broad undulations.
+	# 0.0015 = one full wave period ≈ 667m; at 600m we see roughly one roll across
+	# the map so the terrain feels hilly instead of a flat disc.
+	_swell_noise = FastNoiseLite.new()
+	_swell_noise.seed = world_seed + 53
+	_swell_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_swell_noise.frequency = 0.0015
+	_swell_noise.fractal_octaves = 1
+	_swell_noise.fractal_lacunarity = 2.0
+	_swell_noise.fractal_gain = 0.5
+
 
 ## Calcula la altura en una coordenada world (x, z).
-## Suma: noise base + subida hacia bordes + flattening en el centro.
+## Suma: noise base + broad swell + subida hacia bordes + flattening en el centro
+## + dirt/rock outcrops (outside flat_radius only).
+## SAFETY: flat_radius zone is NEVER touched by the new additive terms.
 func _compute_height_at(x: float, z: float) -> float:
 	# 1. Noise base — colinas suaves
 	var n: float = _terrain_noise.get_noise_2d(x, z)  # -1..1
@@ -424,15 +463,45 @@ func _compute_height_at(x: float, z: float) -> float:
 	var t: float = clampf(dist_center / max_r, 0.0, 1.0)
 
 	# 3. Flatten en el centro (radio 50m) para que la entrada sea plana
-	var flat_radius: float = 50.0 * _scale
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
 	if dist_center < flat_radius:
 		var flat_t: float = dist_center / flat_radius
 		h = lerpf(0.0, h, smoothstep(0.0, 1.0, flat_t))
+
+	# Round-A #3: Broad swell — low-frequency undulation summed AFTER the flatten guard.
+	# Applied at ALL dist_center values but ATTENUATED to zero inside flat_radius via
+	# the same smoothstep as the base noise above, so the spawn bowl stays flat.
+	# Amplitude 3.5m → gentle rolling hills visible from the distance but no cliffs.
+	# _swell_noise is sampled in raw world coords (scale-independent).
+	if _swell_noise != null:
+		var sw: float = _swell_noise.get_noise_2d(x, z)  # -1..1
+		sw = (sw + 1.0) * 0.5  # 0..1
+		var swell_h: float = sw * 3.5
+		# Attenuate to zero inside flat_radius (same envelope as the base flatten).
+		var swell_blend: float = 1.0
+		if dist_center < flat_radius:
+			swell_blend = smoothstep(0.0, 1.0, dist_center / flat_radius)
+		h += swell_h * swell_blend
 
 	# 4. Subida hacia los bordes (acantilados naturales)
 	if t > 0.7:
 		var edge_t: float = (t - 0.7) / 0.3
 		h += TERRAIN_EDGE_RISE * edge_t * edge_t
+
+	# Round-A #2: Dirt/rock outcrops — ONLY outside the flat_radius spawn bowl.
+	# _outcrop_noise is scale-independent (sampled in world coords, freq=0.05).
+	# Where noise > OUTCROP_THRESHOLD we add a smooth bump capped at OUTCROP_MAX_ADD
+	# so the steepest slope stays climbable for CharacterBody3D (~1.5m over ~6m).
+	const OUTCROP_THRESHOLD: float = 0.7    # top ~15% of noise values trigger an outcrop
+	const OUTCROP_MAX_ADD: float   = 2.5    # max added metres; ~1.5m/6m slope ≈ 14° — climbable
+	if _outcrop_noise != null and dist_center > flat_radius:
+		var on: float = _outcrop_noise.get_noise_2d(x, z)  # -1..1
+		on = (on + 1.0) * 0.5  # 0..1
+		if on > OUTCROP_THRESHOLD:
+			# Smooth ramp from threshold to 1.0 → clean bump edges, no hard ledges.
+			var ramp: float = (on - OUTCROP_THRESHOLD) / (1.0 - OUTCROP_THRESHOLD)
+			ramp = smoothstep(0.0, 1.0, ramp)
+			h += ramp * OUTCROP_MAX_ADD
 
 	return h
 
@@ -634,6 +703,21 @@ func _height_to_color_at(h: float, x: float, z: float) -> Color:
 	var patch_color: Color = base.lerp(DARK_SOIL, clampf((n_large - 0.55) * 2.2, 0.0, 0.38))
 	patch_color = patch_color.lerp(MOSSY_GREY, clampf((0.35 - n_large) * 2.0, 0.0, 0.28))
 	var result: Color = patch_color.lerp(PALE_CHALK, clampf((n_fine - 0.72) * 1.8, 0.0, 0.20))
+
+	# Round-A #2: Outcrop color bias — raised cells get an extra chalk/rock shift.
+	# Gated by flat_radius EXACTLY like the geometry bump in _compute_height_at, so the
+	# chalk tint only appears where the terrain actually bumps — never on the flat spawn
+	# bowl (also skips the redundant noise sample for in-bowl cells).
+	const OUTCROP_THRESHOLD_C: float = 0.7
+	if _outcrop_noise != null and sqrt(x * x + z * z) > FLAT_RADIUS_BASE * _scale:
+		var on: float = _outcrop_noise.get_noise_2d(x, z)
+		on = (on + 1.0) * 0.5
+		if on > OUTCROP_THRESHOLD_C:
+			var ramp: float = (on - OUTCROP_THRESHOLD_C) / (1.0 - OUTCROP_THRESHOLD_C)
+			ramp = smoothstep(0.0, 1.0, ramp)
+			# Blend toward chalk/mineral tone (desaturated, slightly warm)
+			result = result.lerp(PALE_CHALK, ramp * 0.55)
+
 	return result
 
 
@@ -1082,7 +1166,8 @@ func _build_landmark_pillars() -> void:
 		pillar.height = height
 		pillar.sides = 8
 		pillar.use_collision = true
-		pillar.material_override = _make_material(COLOR_PILLAR)
+		# Round-A #1: landmark pillars use cave material (worked stone, not flat color)
+		pillar.material_override = _make_cave_material(COLOR_PILLAR)
 		pillar.position = pos + Vector3(0, height * 0.5, 0)
 		add_child(pillar)
 
@@ -1103,7 +1188,8 @@ func _build_entrance(poi: POISystem.POI) -> void:
 		Vector3(sz.x, 0.04, sz.y), COLOR_PATH, false)
 
 	for side in [-1.0, 1.0]:
-		_add_csg_box("EntranceStone%s" % ("N" if side < 0 else "S"),
+		# Round-A #1: entrance stones use cave material (worked stone blocks)
+		_add_cave_csg_box("EntranceStone%s" % ("N" if side < 0 else "S"),
 			pos + Vector3(0, 0.6, side * sz.y * 0.5),
 			Vector3(sz.x * 0.8, 1.2, 0.8), COLOR_ROCK, true)
 
@@ -1114,7 +1200,8 @@ func _build_entrance(poi: POISystem.POI) -> void:
 		pillar.height = 4.0
 		pillar.sides = 8
 		pillar.use_collision = true
-		pillar.material_override = _make_material(COLOR_ROCK)
+		# Round-A #1: entrance pillars use cave material (worked stone)
+		pillar.material_override = _make_cave_material(COLOR_ROCK)
 		pillar.position = pos + Vector3(sz.x * 0.4 * side, 2.0, -sz.y * 0.5)
 		add_child(pillar)
 
@@ -1314,16 +1401,18 @@ func _build_altar(poi: POISystem.POI) -> void:
 	base.radius = 3.0
 	base.height = 0.4
 	base.use_collision = true
-	base.material_override = _make_material(COLOR_ALTAR)
+	# Round-A #1: altar base uses cave material (worked stone platform)
+	base.material_override = _make_cave_material(COLOR_ALTAR)
 	base.position = pos + Vector3(0, 0.2, 0)
 	add_child(base)
 
-	_add_csg_box("AltarStone", pos + Vector3(0, 0.9, 0),
+	# Round-A #1: altar stone and pillars use cave material
+	_add_cave_csg_box("AltarStone", pos + Vector3(0, 0.9, 0),
 		Vector3(1.5, 1.4, 1.5), COLOR_ALTAR, true)
 
 	for i in range(4):
 		var angle: float = float(i) * TAU / 4.0
-		_add_csg_box("AltarPillar%d" % i,
+		_add_cave_csg_box("AltarPillar%d" % i,
 			pos + Vector3(cos(angle) * 2.2, 0.6, sin(angle) * 2.2),
 			Vector3(0.5, 1.2, 0.5), COLOR_ROCK, true)
 
@@ -1335,7 +1424,8 @@ func _build_well(poi: POISystem.POI) -> void:
 	well.radius = 1.0
 	well.height = 1.0
 	well.use_collision = true
-	well.material_override = _make_material(COLOR_ROCK)
+	# Round-A #1: well structure uses cave material (rough stone ring)
+	well.material_override = _make_cave_material(COLOR_ROCK)
 	well.position = pos + Vector3(0, 0.5, 0)
 	add_child(well)
 
@@ -1371,7 +1461,8 @@ func _build_pond(poi: POISystem.POI) -> void:
 	for i in range(8):
 		var angle: float = float(i) * TAU / 8.0
 		var br: float = sz.x * 0.4 + 0.5
-		_add_csg_box("PondRock%d" % i,
+		# Round-A #1: pond border rocks use cave material (natural stone, not flat gray)
+		_add_cave_csg_box("PondRock%d" % i,
 			pos + Vector3(cos(angle) * br, 0.25, sin(angle) * br),
 			Vector3(_rng.randf_range(0.6, 1.2), 0.5, _rng.randf_range(0.6, 1.2)),
 			COLOR_ROCK, true)
@@ -1868,6 +1959,13 @@ func _generate_vegetation(pois: Array) -> void:
 	_scatter_understory_mushrooms(container)
 	_rng.state = rng_state_um
 
+	# ── 5. Round-A #2: Rock emphasis near outcrop zones. ─────────────────────
+	# Outcrop cells are geologically convincing with extra surface rocks. Wrapped in
+	# RNG save/restore — MUST NOT shift the enemy placement sequence.
+	var rng_state_oc: int = _rng.state
+	_scatter_outcrop_rocks(pois, container)
+	_rng.state = rng_state_oc
+
 ## Esparce instancias en un anillo (inner_r..outer_r) alrededor de `center`.
 ## Es el placement temático: rodea un POI con su bioma característico.
 ## collider_kind: "" = none, "trunk" = CapsuleShape3D for trees, "rock" = BoxShape3D for rocks.
@@ -1974,6 +2072,42 @@ func _scatter_understory_mushrooms(parent: Node3D) -> void:
 			inst.add_to_group("grounded")
 			parent.add_child(inst)
 
+
+## Round-A #2: Place extra rocks near heightmap outcrop zones for geological realism.
+## Only candidates where _outcrop_noise > OUTCROP_THRESHOLD are accepted.
+## Wrapped in rng save/restore at the call site (_generate_vegetation) so this pass
+## is invisible to the enemy-placement RNG sequence.
+## Count: ~30 extra rocks at scale=1.0; scales quadratically for proc_lab.
+func _scatter_outcrop_rocks(pois: Array, parent: Node3D) -> void:
+	if _outcrop_noise == null or POOL_ROCKS.is_empty():
+		return
+	const OUTCROP_THRESHOLD_R: float = 0.65  # slightly lower than geometry threshold → wider halo
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var count: int = int(30.0 * _scale * _scale)
+	# Count PLACEMENTS, not attempts — outcrop noise + spawn-bowl rejections used to
+	# burn the whole budget so far fewer than `count` rocks actually landed. Bounded
+	# attempt cap avoids spinning when noise rarely clears the threshold. (RNG-safe:
+	# this whole pass is wrapped in _rng.state save/restore at the call site.)
+	var placed: int = 0
+	var attempts: int = 0
+	var max_attempts: int = count * 6
+	while placed < count and attempts < max_attempts:
+		attempts += 1
+		var pos: Vector3 = _random_open_pos(pois, 10.0)
+		if pos == Vector3.INF:
+			continue
+		# Accept only if this position is actually on/near an outcrop ridge.
+		var on: float = _outcrop_noise.get_noise_2d(pos.x, pos.z)
+		on = (on + 1.0) * 0.5
+		if on < OUTCROP_THRESHOLD_R:
+			continue
+		# Respect spawn bowl — no outcrops inside flat_radius.
+		var dist_c: float = sqrt(pos.x * pos.x + pos.z * pos.z)
+		if dist_c < flat_radius:
+			continue
+		pos.y = get_terrain_height(pos.x, pos.z)
+		_place_instance(POOL_ROCKS, pos, 0.5, 1.8, parent, "rock")
+		placed += 1
 
 ## Instancia un PackedScene random del pool con rotación Y + escala por edad.
 ## collider_kind: "" = no collider (bushes/grass/ground cover)
@@ -2361,20 +2495,26 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	return mat
 
 
-## FIX #5 (MEDIUM) — Cave stone material for structural CSG surfaces (border walls,
-## boss arena, ruins). Adds roughness + a procedural triplanar noise detail so the
-## flat-color blockout look is replaced by believable wet stone.
+## FIX #5 (MEDIUM) + Round-A #1 — Cave stone material for structural CSG surfaces
+## (border walls, boss arena, ruins, landmark pillars, entrance pillars, altar, well, pond rocks).
+## Adds roughness + triplanar noise detail + normal map for real surface relief.
 ## No external texture files needed — NoiseTexture2D + FastNoiseLite are built-in.
-## Applied INSTEAD of _make_material() for border/boss/ruins surfaces only.
-## Plain props (ground slabs, rocks, ceiling) keep _make_material() as-is.
+##
+## Round-A #1 additions:
+##   - Normal map: a second NoiseTexture2D with as_normal_map=true provides real bump shading.
+##   - Memo cache (_cave_mat_cache keyed by Color): repeated calls with the same color reuse
+##     one material + one NoiseTexture2D pair instead of allocating dozens at load time.
 func _make_cave_material(color: Color) -> StandardMaterial3D:
+	# Cache check — return existing material if this color was already built.
+	if _cave_mat_cache.has(color):
+		return _cave_mat_cache[color] as StandardMaterial3D
+
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = 0.85
 	mat.metallic = 0.0
 
-	# Triplanar noise detail — gives wet-stone veining without any texture file.
-	# detail_albedo texture modulates the base color multiplicatively (Godot 4 blend).
+	# ── Albedo detail: triplanar noise → wet-stone veining ────────────────────
 	var noise: FastNoiseLite = FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	noise.frequency = 0.18   # coarse rock-vein scale
@@ -2396,6 +2536,30 @@ func _make_cave_material(color: Color) -> StandardMaterial3D:
 	mat.uv1_triplanar_sharpness = 4.0
 	mat.uv1_scale = Vector3(0.3, 0.3, 0.3)   # tile size ≈ 3m per noise period
 
+	# ── Normal map: finer noise interpreted as bump for real surface relief ───
+	# A different seed + higher frequency gives smaller bumps independent of the vein detail.
+	# as_normal_map=true converts the greyscale noise to a tangent-space normal map.
+	# bump_strength controls perceived depth (1.5 = noticeable, not overwhelming).
+	var norm_noise: FastNoiseLite = FastNoiseLite.new()
+	norm_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	norm_noise.frequency = 0.45   # finer than the albedo detail → smaller surface facets
+	norm_noise.fractal_octaves = 2
+	norm_noise.seed = 9999  # fixed seed — normal map is the same for all stone surfaces
+
+	var norm_tex: NoiseTexture2D = NoiseTexture2D.new()
+	norm_tex.noise = norm_noise
+	norm_tex.width = 128
+	norm_tex.height = 128
+	norm_tex.seamless = true
+	norm_tex.as_normal_map = true
+	norm_tex.bump_strength = 1.5
+
+	mat.normal_enabled = true
+	mat.normal_texture = norm_tex
+	mat.normal_scale = 1.0
+
+	# Store in memo cache so subsequent calls with the same color reuse this instance.
+	_cave_mat_cache[color] = mat
 	return mat
 
 
