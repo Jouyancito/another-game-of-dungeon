@@ -1366,32 +1366,41 @@ func _build_camp(poi: POISystem.POI) -> void:
 			pos + Vector3(cos(angle) * 2.0, 0.2, sin(angle) * 2.0),
 			Vector3(2.0, 0.4, 0.5), COLOR_TRUNK, true)
 
+## Landmark tree uses a REAL scaled gltf, not the old green-box-on-a-stick.
+const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf")
+
 func _build_giant_tree(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
-	var trunk_h: float = 20.0
-	var trunk_r: float = 3.0
-	var canopy_r: float = 15.0
 
-	var trunk: CSGCylinder3D = CSGCylinder3D.new()
-	trunk.name = "GiantTreeTrunk"
-	trunk.radius = trunk_r
-	trunk.height = trunk_h
-	trunk.sides = 12
-	trunk.use_collision = true
-	trunk.material_override = _make_material(COLOR_GIANT_TRUNK)
-	trunk.position = pos + Vector3(0, trunk_h * 0.5, 0)
-	add_child(trunk)
+	# Landmark-sized REAL tree (model native ~7m → ~31m at 4.5x) — replaces the old
+	# CSGCylinder trunk + flat green CSGBox canopy that read as a box floating on a stick.
+	var giant_scale: float = 4.5
+	var tree: Node3D = SCENE_GIANT_TREE.instantiate() as Node3D
+	if tree != null:
+		var rot_y: float = _rng.randf() * TAU
+		tree.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(giant_scale, giant_scale, giant_scale)), pos)
+		tree.add_to_group("grounded")
+		add_child(tree)
+		# Thick trunk collider — blocks the player at the base (canopy is overhead).
+		var body := StaticBody3D.new()
+		body.collision_layer = 1
+		body.collision_mask = 0
+		var col := CollisionShape3D.new()
+		var cap := CapsuleShape3D.new()
+		cap.radius = 1.6
+		cap.height = 12.0
+		col.shape = cap
+		col.position = Vector3(0.0, 6.0, 0.0)
+		body.add_child(col)
+		add_child(body)
+		body.global_position = pos
 
-	_add_csg_box("GiantTreeCanopy",
-		pos + Vector3(0, trunk_h + canopy_r * 0.4, 0),
-		Vector3(canopy_r * 2, canopy_r * 0.8, canopy_r * 2),
-		COLOR_GIANT_CANOPY, false)
-
+	# Gnarled roots fanning from the base (kept — grounds the giant tree visually).
 	for i in range(5):
 		var angle: float = float(i) * TAU / 5.0 + _rng.randf_range(-0.2, 0.2)
 		var root_len: float = _rng.randf_range(4.0, 7.0)
 		_add_csg_box("GiantRoot%d" % i,
-			pos + Vector3(cos(angle) * (trunk_r + root_len * 0.5), 0.4, sin(angle) * (trunk_r + root_len * 0.5)),
+			pos + Vector3(cos(angle) * (3.0 + root_len * 0.5), 0.4, sin(angle) * (3.0 + root_len * 0.5)),
 			Vector3(root_len, 0.8, 1.5), COLOR_GIANT_TRUNK, true)
 
 func _build_altar(poi: POISystem.POI) -> void:
