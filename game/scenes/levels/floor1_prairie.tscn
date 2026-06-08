@@ -355,4 +355,16 @@ script = ExtResource("57_music_player")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -8)
 creature_scene = ExtResource("56_firefly")
 count = 4
+spawn_radius = 18.0
+
+[node name="FireflySpawner_B" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 20)
+creature_scene = ExtResource("56_firefly")
+count = 4
+spawn_radius = 16.0
+
+[node name="FireflySpawner_C" parent="AmbientFauna" instance=ExtResource("3_spawner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 0, 15)
+creature_scene = ExtResource("56_firefly")
+count = 4
 spawn_radius = 14.0

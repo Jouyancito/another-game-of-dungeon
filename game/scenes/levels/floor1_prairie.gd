@@ -168,6 +168,10 @@ var _border_noise_offsets: Array[float] = []
 
 # Terrain state
 var _terrain_noise: FastNoiseLite
+## Dedicated noise for terrain color variation — decoupled from _terrain_noise so
+## color patch frequencies are independent of _scale and always match the documented
+## sizes: ~40m large patches (sample * 0.025) and ~8m fine grain (sample * 0.125).
+var _color_noise: FastNoiseLite
 var _terrain_heights: PackedFloat32Array
 var _terrain_stride: int = 0  # TERRAIN_RESOLUTION + 1
 
@@ -282,6 +286,11 @@ func generate() -> void:
 	if active_layers.get("grass", true):
 		_build_grass_carpet()
 
+	# 4.6. Ground detail scatter — sparse pebbles + small rocks + clover clumps.
+	# No colliders, low count, RNG-wrapped so enemy placement stays deterministic.
+	if active_layers.get("vegetation", true):
+		_scatter_ground_detail(pois)
+
 	# 5. Jugador — ajustar a la altura del terreno
 	var entrance_pos: Vector3 = _find_entrance_pos(pois)
 	# Defensive: a procedural entrance can land out of bounds (or terrain may be
@@ -388,6 +397,18 @@ func _setup_terrain_noise() -> void:
 	_terrain_noise.fractal_lacunarity = 2.0
 	_terrain_noise.fractal_gain = 0.5
 
+	# Dedicated color noise — frequency=1.0 (neutral base); actual spatial frequencies
+	# are applied at the call site via coordinate scaling (*0.025 = ~40m patches,
+	# *0.125 = ~8m fine grain). This keeps color patches independent of _scale,
+	# so proc_lab and the full 600m map produce the same documented patch sizes.
+	_color_noise = FastNoiseLite.new()
+	_color_noise.seed = world_seed + 11
+	_color_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_color_noise.frequency = 1.0
+	_color_noise.fractal_octaves = 2
+	_color_noise.fractal_lacunarity = 2.0
+	_color_noise.fractal_gain = 0.5
+
 
 ## Calcula la altura en una coordenada world (x, z).
 ## Suma: noise base + subida hacia bordes + flattening en el centro.
@@ -480,28 +501,72 @@ func _generate_terrain_mesh() -> void:
 			var v01 := Vector3(x0, h01, z1)
 			var v11 := Vector3(x1, h11, z1)
 
-			# Color por altura: verde oscuro bajo, verde claro medio, marrón/gris alto
-			var c00: Color = _height_to_color(h00)
-			var c10: Color = _height_to_color(h10)
-			var c01: Color = _height_to_color(h01)
-			var c11: Color = _height_to_color(h11)
+			# Color por altura + noise XZ variation (parches suelo/musgo/tiza)
+			var c00: Color = _height_to_color_at(h00, x0, z0)
+			var c10: Color = _height_to_color_at(h10, x1, z0)
+			var c01: Color = _height_to_color_at(h01, x0, z1)
+			var c11: Color = _height_to_color_at(h11, x1, z1)
+
+			# World-scaled UVs — required for detail_albedo to sample correctly.
+			# uv1_triplanar does NOT apply to the detail layer; explicit per-vertex
+			# UVs are the only way Godot 4 drives detail_albedo on a SurfaceTool mesh.
+			const UV_SCALE: float = 0.22
+			var uv00 := Vector2(x0, z0) * UV_SCALE
+			var uv10 := Vector2(x1, z0) * UV_SCALE
+			var uv01 := Vector2(x0, z1) * UV_SCALE
+			var uv11 := Vector2(x1, z1) * UV_SCALE
 
 			# Triángulo 1: v00 - v10 - v11
-			st.set_color(c00); st.add_vertex(v00)
-			st.set_color(c10); st.add_vertex(v10)
-			st.set_color(c11); st.add_vertex(v11)
+			st.set_color(c00); st.set_uv(uv00); st.add_vertex(v00)
+			st.set_color(c10); st.set_uv(uv10); st.add_vertex(v10)
+			st.set_color(c11); st.set_uv(uv11); st.add_vertex(v11)
 			# Triángulo 2: v00 - v11 - v01
-			st.set_color(c00); st.add_vertex(v00)
-			st.set_color(c11); st.add_vertex(v11)
-			st.set_color(c01); st.add_vertex(v01)
+			st.set_color(c00); st.set_uv(uv00); st.add_vertex(v00)
+			st.set_color(c11); st.set_uv(uv11); st.add_vertex(v11)
+			st.set_color(c01); st.set_uv(uv01); st.add_vertex(v01)
 
 	st.generate_normals()
 	var mesh: ArrayMesh = st.commit()
 
-	# Material: usar vertex colors
+	# Material: vertex colors + procedural detail texture for surface micro-relief.
+	# Mirrors _make_cave_material() pattern: NoiseTexture2D detail_albedo MUL +
+	# triplanar world mapping. Fine frequency (0.35) = ~3m texture tiles = visible
+	# ground grain up close without competing with vertex color patches at distance.
+	# vertex_color_use_as_albedo stays ON — the detail layer multiplies on top.
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.9
+	mat.roughness = 0.92
+	mat.metallic = 0.0
+
+	# ── Procedural detail noise (stand-in for a real ground atlas) ────────────
+	var detail_noise := FastNoiseLite.new()
+	detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	detail_noise.frequency = 0.35   # fine surface grain
+	detail_noise.fractal_octaves = 2
+	detail_noise.seed = world_seed + 7  # offset from terrain height noise
+
+	# Color ramp biased high so MUL blend modulates subtly instead of darkening.
+	# Range 0.78..1.0 means detail never drops albedo below 78% — grain reads as
+	# surface texture, not a dark filter.
+	var detail_ramp := Gradient.new()
+	detail_ramp.set_color(0, Color(0.78, 0.78, 0.78))
+	detail_ramp.set_color(1, Color(1.0, 1.0, 1.0))
+
+	var detail_tex := NoiseTexture2D.new()
+	detail_tex.noise = detail_noise
+	detail_tex.width = 256
+	detail_tex.height = 256
+	detail_tex.seamless = true
+	detail_tex.color_ramp = detail_ramp  # subtly modulate, not darken
+
+	mat.detail_enabled = true
+	mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	mat.detail_albedo = detail_tex
+
+	# uv1_triplanar does NOT affect the detail layer — detail uses UV0 (set per vertex
+	# above). Triplanar was removed here because it only applies to the base albedo
+	# channel (which uses vertex colors, so scale is irrelevant there too).
+	# UV0 world-scale is set in the vertex loop: uv_scale=0.22 → ~4.5m tile.
 
 	var terrain_mi := MeshInstance3D.new()
 	terrain_mi.name = "TerrainMesh"
@@ -526,12 +591,50 @@ func _height_to_color(h: float) -> Color:
 	# principio Kimetsu del _art_canon: bioma desaturado para que las skills
 	# (color saturado) resalten. Evita la fatiga/after-images del verde chillón.
 	# Bajo: verde-oliva pradera — Medio: oliva claro — Alto: tierra/roca.
+	var base_color: Color
 	if t < 0.4:
-		return Color(0.22, 0.31, 0.17).lerp(Color(0.31, 0.39, 0.23), t / 0.4)
+		base_color = Color(0.22, 0.31, 0.17).lerp(Color(0.31, 0.39, 0.23), t / 0.4)
 	elif t < 0.75:
-		return Color(0.31, 0.39, 0.23).lerp(Color(0.40, 0.41, 0.28), (t - 0.4) / 0.35)
+		base_color = Color(0.31, 0.39, 0.23).lerp(Color(0.40, 0.41, 0.28), (t - 0.4) / 0.35)
 	else:
-		return Color(0.40, 0.41, 0.28).lerp(Color(0.44, 0.40, 0.32), (t - 0.75) / 0.25)
+		base_color = Color(0.40, 0.41, 0.28).lerp(Color(0.44, 0.40, 0.32), (t - 0.75) / 0.25)
+	# Base height-only color; see _height_to_color_at() for the world-XZ noise-varied wrapper.
+	return base_color
+
+
+## Noise-varied terrain color. Call this instead of _height_to_color when you
+## have the XZ world position available (i.e. from _generate_terrain_mesh).
+## Blends the height-based color toward 3 nearby earthy tones:
+##   dark_soil  — darker, slightly cooler (damp cavity soil)
+##   mossy      — muted green-grey (lichen patches near walls)
+##   pale_chalk — lighter warm beige (mineral surface breaks)
+## Uses _color_noise (frequency=1.0, seed=world_seed+11) with coordinate scaling:
+##   x * 0.025 → ~40m large patches  |  x * 0.125 → ~8m fine grain
+## Decoupled from _terrain_noise so patch sizes are independent of _scale.
+## All tones are desaturated to respect Kimetsu canon.
+func _height_to_color_at(h: float, x: float, z: float) -> Color:
+	var base: Color = _height_to_color(h)
+	if _color_noise == null:
+		return base
+
+	# Large-scale patch noise (~40m patches at frequency=1.0 * coord scale 0.025).
+	var n_large: float = _color_noise.get_noise_2d(x * 0.025, z * 0.025)
+	n_large = (n_large + 1.0) * 0.5  # 0..1
+
+	# Fine-grain noise (~8m speckling at frequency=1.0 * coord scale 0.125).
+	var n_fine: float = _color_noise.get_noise_2d(x * 0.125 + 500.0, z * 0.125 + 500.0)
+	n_fine = (n_fine + 1.0) * 0.5  # 0..1
+
+	# Three earthy blend targets (all desaturated — Kimetsu canon)
+	const DARK_SOIL: Color   = Color(0.17, 0.19, 0.13)   # damp dark humus
+	const MOSSY_GREY: Color  = Color(0.27, 0.31, 0.22)   # lichen/moss patch
+	const PALE_CHALK: Color  = Color(0.42, 0.40, 0.33)   # mineral/chalk break
+
+	# Blend: large-patch drives soil vs. base; fine noise adds chalk highlights
+	var patch_color: Color = base.lerp(DARK_SOIL, clampf((n_large - 0.55) * 2.2, 0.0, 0.38))
+	patch_color = patch_color.lerp(MOSSY_GREY, clampf((0.35 - n_large) * 2.0, 0.0, 0.28))
+	var result: Color = patch_color.lerp(PALE_CHALK, clampf((n_fine - 0.72) * 1.8, 0.0, 0.20))
+	return result
 
 
 func _hide_flat_ground() -> void:
@@ -828,6 +931,17 @@ var _crystal_warm_transforms: Array[Transform3D] = []
 var _crystal_cool_transforms: Array[Transform3D] = []
 var _crystal_rose_transforms: Array[Transform3D] = []
 
+# Real faceted crystal model (TRELLIS-generated). When importable, the crystal
+# MultiMeshes instance THIS mesh (tinted + glowing via material_override) instead
+# of a plain box. Falls back to the box if Godot hasn't imported the .glb yet.
+const SCENE_CRYSTAL_GLB: String = "res://assets/art/piso1_pradera/crystals/crystal_amethyst_01.glb"
+## Uniform size multiplier for the GLB crystals (they were too small for the light
+## they cast). Tunable from the inspector.
+@export var crystal_glb_size_mult: float = 2.0
+var _crystal_mesh_cache: Mesh = null
+var _crystal_mesh_norm: float = 1.0     # 1 / max AABB extent → treats the model as ~unit
+var _crystal_mesh_tried: bool = false
+
 func _spawn_crystal_shard(_shard_name: String, center: Vector3, base_color: Color,
 		min_len: float = 1.5, max_len: float = 6.0,
 		min_width: float = 0.3, max_width: float = 1.2) -> void:
@@ -876,9 +990,6 @@ func _create_multimesh_emissive(mm_name: String, transforms: Array[Transform3D],
 	if transforms.is_empty():
 		return
 
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3.ONE
-
 	var mat := StandardMaterial3D.new()
 	if gem_mode:
 		# Translucent gem / crystal glass — Danmachi Floor 18 style.
@@ -898,7 +1009,19 @@ func _create_multimesh_emissive(mm_name: String, transforms: Array[Transform3D],
 		mat.emission_enabled = true
 		mat.emission = Color(color.r * 0.95, color.g * 0.9, color.b * 0.85)
 		mat.emission_energy_multiplier = emission_energy
-	mesh.material = mat
+
+	# Use the real faceted crystal model when gem_mode AND the .glb is imported;
+	# otherwise fall back to a unit box (also covers the opaque biolum patches).
+	var crystal_mesh: Mesh = _get_crystal_mesh() if gem_mode else null
+	var use_glb: bool = crystal_mesh != null
+	var mesh: Mesh
+	if use_glb:
+		mesh = crystal_mesh        # shared GLB resource — tint/glow via MMI material_override
+	else:
+		var box := BoxMesh.new()
+		box.size = Vector3.ONE
+		box.material = mat
+		mesh = box
 
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -906,13 +1029,43 @@ func _create_multimesh_emissive(mm_name: String, transforms: Array[Transform3D],
 	mm.instance_count = transforms.size()
 
 	for i in range(transforms.size()):
-		mm.set_instance_transform(i, transforms[i])
+		var t: Transform3D = transforms[i]
+		if use_glb:
+			# The model is a CLUSTER — apply a UNIFORM scale (no per-axis stretch),
+			# sized from the shard's original scale, normalized to the model AABB and
+			# bumped by crystal_glb_size_mult so crystals are big enough for their light.
+			var sc: Vector3 = t.basis.get_scale()
+			var uniform: float = ((sc.x + sc.y + sc.z) / 3.0) * _crystal_mesh_norm * crystal_glb_size_mult
+			t = Transform3D(t.basis.orthonormalized().scaled(Vector3(uniform, uniform, uniform)), t.origin)
+		mm.set_instance_transform(i, t)
 
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = mm_name
 	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if use_glb:
+		mmi.material_override = mat
 	add_child(mmi)
+
+
+## Lazily loads + caches the TRELLIS crystal model's mesh, normalized to ~unit via
+## its AABB (so the existing per-shard scaling stays sane). Returns null if Godot
+## hasn't imported the .glb yet → callers fall back to the box.
+func _get_crystal_mesh() -> Mesh:
+	if _crystal_mesh_tried:
+		return _crystal_mesh_cache
+	_crystal_mesh_tried = true
+	if not ResourceLoader.exists(SCENE_CRYSTAL_GLB):
+		return null
+	var m: Mesh = _extract_mesh_from_gltf(SCENE_CRYSTAL_GLB)
+	if m == null:
+		return null
+	var ab: AABB = m.get_aabb()
+	var maxext: float = maxf(ab.size.x, maxf(ab.size.y, ab.size.z))
+	if maxext > 0.0001:
+		_crystal_mesh_norm = 1.0 / maxext
+	_crystal_mesh_cache = m
+	return m
 
 func _build_landmark_pillars() -> void:
 	for i in range(PILLAR_COUNT):
@@ -1290,6 +1443,97 @@ const SCENE_LAETIPORUS: PackedScene = preload("res://assets/art/piso1_pradera/ve
 ## _scatter_understory_mushrooms), never in open field.
 const SCENE_MUSHROOM_COMMON: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf")
 
+## ── Ground detail scatter (S4) ───────────────────────────────────────────────
+## Sparse pebble + small-rock + clover-clump pass. No colliders. Low count.
+## Gives the eye micro-landmarks on the ground surface so it doesn't read as empty.
+## Wrapped in _rng.state save/restore — MUST NOT shift the enemy-placement sequence.
+func _scatter_ground_detail(pois: Array) -> void:
+	var container := Node3D.new()
+	container.name = "GroundDetail"
+	add_child(container)
+
+	# Save RNG state so this pass is invisible to subsequent passes (enemies, etc.)
+	var rng_state: int = _rng.state
+
+	# Pool: pebble_round + rock_small alternating. Clover separately below.
+	const DETAIL_POOL: Array[String] = [
+		"res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf",
+		"res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb",
+	]
+	var detail_scenes: Array[PackedScene] = []
+	for path in DETAIL_POOL:
+		if ResourceLoader.exists(path):
+			detail_scenes.append(load(path))
+
+	# Clover clump scene
+	var clover_scene: PackedScene = null
+	const CLOVER_PATH: String = "res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"
+	if ResourceLoader.exists(CLOVER_PATH):
+		clover_scene = load(CLOVER_PATH)
+
+	# Count scales with map area; at demo scale (1.0) → 180 pebbles + 60 clover clumps.
+	var pebble_count: int = int(180.0 * _scale * _scale)
+	var clover_count: int = int(60.0 * _scale * _scale)
+
+	# ── Pebbles / small rocks ────────────────────────────────────────────────
+	if not detail_scenes.is_empty():
+		for _i in range(pebble_count):
+			var pos: Vector3 = _random_open_pos(pois, 4.0)   # small clearance — tiny props
+			if pos == Vector3.INF:
+				continue
+			pos.y = get_terrain_height(pos.x, pos.z)
+			var scene: PackedScene = detail_scenes[_rng.randi() % detail_scenes.size()]
+			var inst: Node3D = scene.instantiate() as Node3D
+			if inst == null:
+				continue
+			var s: float = _rng.randf_range(0.25, 0.7)   # small scale — ground-level clutter
+			var rot_y: float = _rng.randf() * TAU
+			inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
+			# gltf root is Node3D; set shadow/visibility on MeshInstance3D children
+			_detail_apply_geo_flags(inst, 45.0)
+			container.add_child(inst)
+
+	# ── Clover clumps ────────────────────────────────────────────────────────
+	if clover_scene != null:
+		for _i in range(clover_count):
+			var pos: Vector3 = _random_open_pos(pois, 5.0)
+			if pos == Vector3.INF:
+				continue
+			pos.y = get_terrain_height(pos.x, pos.z)
+			var inst: Node3D = clover_scene.instantiate() as Node3D
+			if inst == null:
+				continue
+			var s: float = _rng.randf_range(0.5, 1.1)
+			var rot_y: float = _rng.randf() * TAU
+			inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
+			_detail_apply_geo_flags(inst, 35.0)
+			container.add_child(inst)
+
+	# Restore RNG — enemy placement sequence unchanged
+	_rng.state = rng_state
+	print("[GroundDetail] pebbles+rocks budget=%d clover=%d placed=%d" % [pebble_count, clover_count, container.get_child_count()])
+
+
+## Applies SHADOW_CASTING_SETTING_OFF + visibility_range_end to all MeshInstance3D
+## descendants of a gltf root node. gltf roots are plain Node3D wrappers; the actual
+## geometry lives one or more levels deeper as MeshInstance3D.
+func _detail_apply_geo_flags(root: Node3D, vis_range_end: float) -> void:
+	# Apply flags to the node itself if it is a MeshInstance3D.
+	var mi: MeshInstance3D = root as MeshInstance3D
+	if mi != null:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = vis_range_end
+		# Fade margin prevents hard pop: 15% of the cull distance, minimum 5m.
+		mi.visibility_range_end_margin = maxf(5.0, vis_range_end * 0.15)
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	# Always recurse into children regardless of whether root was a MeshInstance3D.
+	# gltf roots are plain Node3D wrappers — geometry lives in child MeshInstance3Ds.
+	for child in root.get_children():
+		var child_node: Node3D = child as Node3D
+		if child_node != null:
+			_detail_apply_geo_flags(child_node, vis_range_end)
+
+
 ## ── Grass carpet (S3) ────────────────────────────────────────────────────────
 ## Dense ground-cover layer via chunked MultiMeshInstance3D.
 ## Perf contract (red-line §3): ≤13k visible blades, hard-cull grass_cull_distance,
@@ -1309,13 +1553,57 @@ func _build_grass_carpet() -> void:
 		push_warning("[GrassCarpet] no gltf grass meshes loaded — using fallback blade mesh")
 		blade_meshes = [_make_fallback_blade_mesh()]
 
-	# ── 2. Shared material — desaturated olive/tan palette (cavern biome) ───────
-	# Grass must NOT compete with skill VFX (Kimetsu canon). Desaturated and dark.
-	# Applied to every variant so the mixed carpet reads as one cohesive palette.
-	var grass_mat := StandardMaterial3D.new()
-	grass_mat.albedo_color = Color(0.34, 0.38, 0.22)   # desaturated sage-olive
-	grass_mat.roughness = 0.9
-	grass_mat.metallic = 0.0
+	# ── 2. Shared material — wind-sway ShaderMaterial (desaturated olive, cavern) ──
+	# Replaced StandardMaterial3D with a ShaderMaterial whose VERTEX stage sways
+	# blades by TIME. Phase = world-position hash so blades move independently.
+	# Base swings top vertices only (tip moves, base stays planted) by biasing
+	# displacement by vertex Y in model space. Amplitude ~2-3cm — perceptible but
+	# not distracting. Kimetsu canon: desaturated olive so skills still pop.
+	var grass_mat := ShaderMaterial.new()
+	var grass_shader := Shader.new()
+	grass_shader.code = """
+shader_type spatial;
+// cull_disabled is INTENTIONAL: env_grass_small_01 is a crossed-tuft mesh that
+// must be readable from both sides. cull_back would make tufts invisible from
+// behind (half the viewing angles). The ~2× fragment cost is accepted and stays
+// within the ≤13k-blade rendered red-line enforced by visibility_range_end.
+render_mode cull_disabled, shadows_disabled;
+
+uniform vec4 albedo : source_color = vec4(0.34, 0.38, 0.22, 1.0);
+uniform float sway_amplitude : hint_range(0.0, 0.1) = 0.028;
+uniform float sway_speed : hint_range(0.0, 5.0) = 1.4;
+// blade_height: real measured height of env_grass_small_01 AABB (metres).
+// Set at runtime after mesh extraction so height_bias is calibrated to actual geometry.
+uniform float blade_height : hint_range(0.01, 2.0) = 0.6;
+
+void vertex() {
+	// World-space position of this vertex (model → world)
+	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// Phase based on world XZ so each blade sways independently
+	float phase = world_pos.x * 1.7 + world_pos.z * 2.3;
+	// Bias: top of blade (high local Y) sways fully; base (Y≈0) stays planted.
+	// blade_height driven from measured AABB so amplitude is correct for real geometry.
+	float height_bias = clamp(VERTEX.y / blade_height, 0.0, 1.0);
+	float sway = sin(TIME * sway_speed + phase) * sway_amplitude * height_bias;
+	VERTEX.x += sway;
+	VERTEX.z += sway * 0.4;
+}
+
+void fragment() {
+	ALBEDO = albedo.rgb;
+	ROUGHNESS = 0.9;
+	METALLIC = 0.0;
+}
+"""
+	grass_mat.shader = grass_shader
+
+	# Set blade_height from the first extracted mesh's AABB so the sway height_bias
+	# is calibrated to the real geometry (env_grass_small_01 is ~0.39m, not 0.6m).
+	# Falls back to 0.6 (the shader uniform default) if the mesh list is empty.
+	if not blade_meshes.is_empty():
+		var aabb_h: float = blade_meshes[0].get_aabb().size.y
+		grass_mat.set_shader_parameter("blade_height", maxf(aabb_h, 0.01))
+
 	# Billboard is not used (tufts look fine in 3D); shadows off for perf
 	for bm in blade_meshes:
 		for si in range(bm.get_surface_count()):

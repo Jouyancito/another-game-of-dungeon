@@ -146,8 +146,14 @@ Template check-list:
 ## 7. Performance
 
 - **Max recomendado**: ~30 criaturas activas simultáneas por piso. Floor1 actual:
-  20 → margen OK.
-- **No CharacterBody3D, no física real**: cada criatura cuesta ~1 Node3D + 2-5
+  32 (20 mesh-only + 12 fireflies) → margen OK.
+- **Clases de costo de fauna**:
+  - **Barato** (`Node3D` + mesh + `_process()`): mariposas, pájaros, conejos.
+  - **Caro** (OmniLight3D por instancia): luciérnagas. Cada luciérnaga = 1 luz
+    dinámica en Vulkan Forward+. NO entra en el presupuesto "barato" de las demás.
+    Mantener total de luciérnagas ≤12 para no saturar el budget de luces dinámicas.
+    FireflySpawner counts bajados de 8/7/6=21 a 4/4/4=12 (2026-06-08).
+- **No CharacterBody3D, no física real**: cada criatura no-luminosa cuesta ~1 Node3D + 2-5
   MeshInstance3D + _process() con math simple. Barato.
 - **Distance culling**: Godot 4 culling automático por frustum descarta renders
   fuera de cámara. No implementar culling manual.
