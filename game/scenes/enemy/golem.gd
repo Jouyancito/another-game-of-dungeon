@@ -48,10 +48,13 @@ func _on_enemy_ready() -> void:
 		# children.  find_children recurses the whole tree.
 		for child in model.find_children("*", "MeshInstance3D", true, false):
 			child.material_override = stone_mat
-		# Golem proportions: wider and taller than a normal orc
-		model.scale = Vector3(1.5, 1.6, 1.5)
 		model.rotation.y = PI  # Quaternius mira +Z; look_at apunta -Z → girar 180° (si no, camina de espaldas)
 		add_child(model)
+		# Fit visual + hitbox to a single source of truth: 2.5m tall. Box girth
+		# 0.22*h -> ~1.1m footprint; model_width_mult 1.2 = visual-only stocky
+		# stretch (does NOT bloat the hitbox). Height drives the scale; horizontal
+		# girth is explicit because skinned bind-pose width is unusable.
+		EnemyModelFitter.fit(self, model, 2.5, "box", 0.22, 1.2)
 	else:
 		# Fallback: procedural humanoid (graceful degradation)
 		push_warning("Golem: enemy_orc.gltf not found, using proc mesh")

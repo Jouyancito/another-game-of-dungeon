@@ -28,6 +28,10 @@ func _on_enemy_ready() -> void:
 		model_root.name = "Model"
 		model_root.rotation.y = PI  # Quaternius mira +Z; girar 180° (si no, de espaldas)
 		add_child(model_root)
+		# Fit visual + hitbox: human scale (1.85m), capsule girth 0.18*h (~0.33m
+		# radius). Height drives the scale; girth is explicit (skinned bind-pose
+		# width is unusable). Done before the bow is attached.
+		EnemyModelFitter.fit(self, model_root, 1.85, "capsule", 0.18)
 	else:
 		push_warning("BanditArcher: enemy_ninja.gltf not found, using proc mesh")
 		model_root = EnemyModelBuilder.build_humanoid(default_color, 0.95, 0.9)

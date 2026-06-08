@@ -20,6 +20,9 @@ var _strafe_interval := 1.5
 # Reference to the visual model node — used by _attack_charged_heavy for the
 # telegraph tween (previously used mesh, which is hidden; now points at Model).
 var _model_root: Node3D = null
+# Scale applied by EnemyModelFitter (NOT Vector3.ONE for fitted gltf). The
+# telegraph tween must scale relative to this, or it permanently clobbers the fit.
+var _model_base_scale := Vector3.ONE
 
 
 func _on_enemy_ready() -> void:
@@ -39,6 +42,12 @@ func _on_enemy_ready() -> void:
 		model.rotation.y = PI  # Quaternius mira +Z; girar 180° (si no, de espaldas)
 		add_child(model)
 		_model_root = model
+		# Fit visual + hitbox: human scale (1.85m), capsule girth 0.18*h (~0.33m
+		# radius). Height drives the scale; girth is explicit (skinned bind-pose
+		# width is unusable). Capture the fitted scale so the charged-heavy
+		# telegraph tween can scale RELATIVE to it instead of clobbering it.
+		EnemyModelFitter.fit(self, model, 1.85, "capsule", 0.18)
+		_model_base_scale = _model_root.scale
 	else:
 		push_warning("BanditMelee: enemy_ninja.gltf not found, using proc mesh")
 		var model := EnemyModelBuilder.build_humanoid(default_color, 1.0, 1.0)
@@ -156,8 +165,10 @@ func _attack_charged_heavy() -> void:
 	var tween_target: Node3D = _model_root if is_instance_valid(_model_root) else null
 	if tween_target != null:
 		var tween = create_tween()
-		tween.tween_property(tween_target, "scale", Vector3(1.3, 1.3, 1.3), 0.4)
-		tween.tween_property(tween_target, "scale", Vector3(1.0, 1.0, 1.0), 0.2)
+		# Scale RELATIVE to the fitted base so we don't permanently undo the fit
+		# (settling at ONE would restore the giant native gltf size + desync hitbox).
+		tween.tween_property(tween_target, "scale", _model_base_scale * 1.3, 0.4)
+		tween.tween_property(tween_target, "scale", _model_base_scale, 0.2)
 
 	await get_tree().create_timer(1.0).timeout
 
