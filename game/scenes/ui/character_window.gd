@@ -107,6 +107,18 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	advanced_section.visible = false
 
+	# Hide the Profesiones tab from the tab bar — paused scope, see post-alpha-specs/.
+	# Stats=0, Habilidades=1, Profesiones=2.
+	var tabs: TabContainer = get_node_or_null("Panel/Margin/VBox/Tabs")
+	if tabs != null:
+		var profesiones_idx: int = -1
+		for i in range(tabs.get_tab_count()):
+			if tabs.get_tab_title(i) == "Profesiones":
+				profesiones_idx = i
+				break
+		if profesiones_idx >= 0:
+			tabs.set_tab_hidden(profesiones_idx, true)
+
 	char_preview = CharacterPreview.new()
 	char_preview.custom_minimum_size = Vector2(120, 168)
 	var preview_container := identity_row.get_node("PreviewContainer")

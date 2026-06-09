@@ -7,6 +7,10 @@ func _ready() -> void:
 	$CenterContainer/VBoxContainer/BtnTutorial.pressed.connect(_on_btn_tutorial_pressed)
 	$CenterContainer/VBoxContainer/BtnOpciones.pressed.connect(_on_btn_opciones_pressed)
 	$CenterContainer/VBoxContainer/BtnSalir.pressed.connect(_on_btn_salir_pressed)
+	# Tutorial is not yet implemented — visibly disabled so the player knows it
+	# exists but isn't available in this build (alpha demo scope).
+	$CenterContainer/VBoxContainer/BtnTutorial.disabled = true
+	$CenterContainer/VBoxContainer/BtnTutorial.tooltip_text = "Próximamente"
 
 
 func _on_btn_jugar_pressed() -> void:

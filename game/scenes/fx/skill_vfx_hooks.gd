@@ -191,6 +191,11 @@ func _spawn_on_player(skill_id: StringName) -> VFXBase:
 	if vfx == null:
 		push_error("SkillVFXHooks: '%s'.tscn no tiene VFXBase como root script" % skill_id)
 		return null
+	# Guard against "assign to previously freed instance" crash seen in crash log
+	# (warrior_perfect_block in stack). _owner_player may be freed on scene change.
+	if not is_instance_valid(_owner_player):
+		vfx.queue_free()
+		return null
 	_owner_player.add_child(vfx)
 	return vfx
 

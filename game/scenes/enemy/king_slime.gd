@@ -75,9 +75,14 @@ func _on_enemy_ready() -> void:
 	if enemy_type == "" or enemy_type == "enemy_basic":
 		enemy_type = "king_slime"
 	sub_tier = SubTier.BOSS
+	# Set boss default_color so _flash_damage restores to green, not the inherited
+	# dark-red Color(0.8,0.2,0.2) from base_enemy.gd. Must be set before first hit.
+	default_color = Color(0.25, 0.85, 0.3)
 	add_to_group("enemies")
 	_setup_contact_aura()
-	call_deferred("_setup_player_passthrough")
+	# Register collision exception NOW (synchronously) before the first physics frame
+	# so the 3m-radius capsule never physically blocks the player on spawn.
+	_setup_player_passthrough()
 	phase_changed.connect(_on_phase_changed)
 	var summon_timer: Timer = get_node_or_null("SummonTimer")
 	if summon_timer:
@@ -87,6 +92,8 @@ func _on_enemy_ready() -> void:
 func _setup_player_passthrough() -> void:
 	# Ignora físicamente al player (no lo bloquea, no lo empuja) pero sigue
 	# existiendo en su layer para que raycasts de ataque lo detecten.
+	# Called synchronously in _on_enemy_ready AND re-called each time a new player
+	# joins (via _try_acquire_target) so late-joining players are also excepted.
 	for p in get_tree().get_nodes_in_group("player"):
 		if p is PhysicsBody3D:
 			add_collision_exception_with(p)
@@ -112,6 +119,10 @@ func _setup_contact_aura() -> void:
 	aura.body_exited.connect(_on_contact_aura_exited)
 
 
+## Minimum effective speed multiplier when contact aura + acid pool both active.
+## Prevents stacking past 40% of base (0.2 * 0.5 = 0.1 would be below floor).
+const SPEED_SLOW_FLOOR: float = 0.4
+
 func _on_contact_aura_entered(body: Node) -> void:
 	if body.is_in_group("player") and not _players_in_contact.has(body):
 		_players_in_contact.append(body)
@@ -120,7 +131,9 @@ func _on_contact_aura_entered(body: Node) -> void:
 		if "speed" in body and not body.has_meta("king_slime_orig_speed"):
 			var true_orig: float = body.get_meta("king_slime_proj_slow", body.speed)
 			body.set_meta("king_slime_orig_speed", true_orig)
-			body.speed = true_orig * CONTACT_SLOW
+			# Clamp: effective multiplier never drops below SPEED_SLOW_FLOOR.
+			var clamped_mult: float = maxf(CONTACT_SLOW, SPEED_SLOW_FLOOR)
+			body.speed = true_orig * clamped_mult
 		_attach_gelatin_overlay(body)
 
 
@@ -323,7 +336,9 @@ func _apply_slow(body: Node, mult: float, duration: float) -> void:
 		return
 	body.set_meta(meta_key, true_orig)
 	body.set_meta(meta_key + "_until", Time.get_ticks_msec() + int(duration * 1000))
-	body.speed = true_orig * mult
+	# Clamp stacked slow: effective multiplier never drops below SPEED_SLOW_FLOOR.
+	var clamped_mult: float = maxf(mult, SPEED_SLOW_FLOOR)
+	body.speed = true_orig * clamped_mult
 	_slow_restore_watcher(body, meta_key)
 
 
@@ -334,26 +349,25 @@ func _slow_restore_watcher(body: Node, meta_key: String) -> void:
 		if not body.has_meta(meta_key):
 			return
 		await get_tree().create_timer(0.1).timeout
-		if not is_instance_valid(body):
+		# Guard after await: body or boss may have been freed while waiting.
+		if not is_instance_valid(self) or not is_instance_valid(body):
 			return
 		if not body.has_meta(meta_key):
 			return
 		var until: int = body.get_meta(meta_key + "_until", 0)
 		if Time.get_ticks_msec() >= until:
-			if not is_instance_valid(body):
-				return
 			var true_orig: float = body.get_meta(meta_key, body.speed if "speed" in body else 0.0)
-			# Si la ContactAura sigue activa, restaurar al slow de la aura.
+			# Si la ContactAura sigue activa, restaurar al slow de la aura (clamped).
 			# Si no, restaurar al speed verdadero original.
 			if "speed" in body:
 				if body.has_meta("king_slime_orig_speed"):
-					body.speed = true_orig * CONTACT_SLOW
+					body.speed = true_orig * maxf(CONTACT_SLOW, SPEED_SLOW_FLOOR)
 				else:
 					body.speed = true_orig
 			if is_instance_valid(body):
 				body.remove_meta(meta_key)
-				body.remove_meta(meta_key + "_until")
-			return
+				if body.has_meta(meta_key + "_until"):
+					body.remove_meta(meta_key + "_until")
 			return
 
 
@@ -1098,7 +1112,7 @@ func _attack_embestida() -> void:
 func _attack_escupitajo() -> void:
 	var telegraph: float = 1.2
 	await get_tree().create_timer(telegraph).timeout
-	if is_dead or not is_instance_valid(self):
+	if not is_instance_valid(self) or is_dead:
 		return
 	action_state = ActionState.EXECUTE
 
@@ -1111,7 +1125,7 @@ func _attack_escupitajo() -> void:
 func _attack_escupitajo_abanico() -> void:
 	var telegraph: float = 1.2
 	await get_tree().create_timer(telegraph).timeout
-	if is_dead or not is_instance_valid(self):
+	if not is_instance_valid(self) or is_dead:
 		return
 	action_state = ActionState.EXECUTE
 	# 3 proyectiles abanico ±15°

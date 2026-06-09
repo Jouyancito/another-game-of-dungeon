@@ -3252,6 +3252,8 @@ func _make_cave_material(color: Color) -> StandardMaterial3D:
 
 # ── DEBUG: tecla K spawnea King Slime frente al player ──────────────
 func _unhandled_input(event: InputEvent) -> void:
+	if not OS.is_debug_build():
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_K:
@@ -3284,7 +3286,9 @@ func _debug_spawn_king_slime() -> void:
 	var fwd: Vector3 = -player.global_transform.basis.z
 	fwd.y = 0.0
 	add_child(king)
-	king.global_position = player.global_position + fwd.normalized() * 6.0 + Vector3(0, 1.5, 0)
+	# 14m ahead so the 3m-radius capsule cannot overlap the player on spawn.
+	# y+0.5 keeps the boss grounded without capsule-edge touching the player above.
+	king.global_position = player.global_position + fwd.normalized() * 14.0 + Vector3(0, 0.5, 0)
 	print("DEBUG: King Slime spawned at ", king.global_position)
 
 
