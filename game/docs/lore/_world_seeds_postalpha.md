@@ -86,6 +86,35 @@ Conflicto de canon detectado (verificado): `_world_canon.md` (líneas 211, 289-2
 - **Reconciliación elegante (si algún día se decide):** caverna mineral **+ toques celtas** (megalitos, círculos de piedra cubiertos de musgo, bruma verde) bajo el domo. Honra el nombre canon sin derribar el techo.
 - **NO tomar esta decisión a las apuradas dentro de un doc de feel.** Estacionada.
 
+### 8. 🌡️ Coherencia de transición de biomas — gradual vs ruptura dimensional (2026-06-08)
+Joan planteó: la generación procedural puede ser por-piso, pero las **transiciones de biomas entre pisos** deben ser graduales — *"no pasar del frío al calor extremo"*. Verificado en archivo: **esa regla YA es canon, escrita por Joan el 2026-04-08** en `tower_biome_system.md §C` (líneas 904-1005).
+
+**Lo que §C ya define (no inventamos nada):**
+- Ejes Minecraft-style: Temperatura (Congelante -2 → Abrasador +2), Humedad (Árido -2 → Saturado +2).
+- **Regla dura:** máx **Δ2 por eje** entre pisos consecutivos (línea 947).
+- Ejemplo textual (línea 952): *"Tundra(-2,-1) NO puede ir a Volcán(+2,-2): diferencia (4,1) — PROHIBIDO"* = exactamente el salto frío→calor que Joan quiere prohibir.
+- Excepciones ya previstas (línea 955): **Dimensión Astral + Mundo Espejo son "comodines"** — pueden seguir a CUALQUIER bioma (rupturas intencionales de realidad).
+
+**⚠️ Contradicción de canon detectada (verificada):** hay **dos modelos de torre sin reconciliar**:
+1. `tower_biome_system.md` — 100 pisos procedural, 24 biomas, §C gradual (máx Δ2). **NO está en la lista "Canon Vigente"** de CLAUDE.md → por eso la regla §C se "perdió de vista".
+2. `_world_canon.md §13` — 5 pisos culturales (Erindar celta / Aokigahara jp / Jötunheim nórdico / Al-Samum árabe / Umbral). **Vigente.** Pero Jötunheim(frío) → Al-Samum(calor) = **Δ4 = viola §C**.
+   → El salto frío→calor NO es diseño: es **dos docs chocando**.
+
+**✅ DECISIÓN (Joan, 2026-06-08): el portal es una VÁLVULA DE BYPASS de coherencia — no binario.** No es "todos los saltos son ruptura" ni "todo debe ser gradual". Es:
+- **Default = gradual donde la coherencia lo permite.** Pueden existir pisos consecutivos que SÍ cambian gradualmente (§C, máx Δ2) — frío→templado→cálido, transición sentida. Esos pisos honran tu regla.
+- **Portal = bypass diegético cuando NO se puede.** Cuando dos pisos adyacentes romperían §C (el salto dimensional frío→calor, ej. Jötunheim→Al-Samum = Δ4), el **portal absorbe y justifica** la discontinuidad ("cruzaste a otra dimensión sellada"). El salto se vuelve **feature**, no bug.
+- El portal **telegrafía** el cambio (`floor_transitions.md`: Era-1 teleportador muestra el bioma siguiente; Era-2 rasgadura deja ver partículas del próximo piso), **NO lo suaviza**. Avisa, no maquilla.
+- Mecánica equivalente a los **comodines** de §C (Dimensión Astral/Mundo Espejo pueden seguir a cualquier bioma): el portal es el comodín universal que licencia romper la adyacencia donde el diseño lo pida.
+
+**Reconciliación de los dos modelos:** §C gradual aplica como **default** a los biomas procedurales/conectivos (y a cualquier par de pisos dentro de Δ2). El **portal** es el mecanismo que permite los saltos dimensionales (pisos culturales ancla, comodines) sin que se sientan rotos. El instinto "no frío→calor" de Joan vive en lo gradual; el portal es la excepción gobernada, no el caos.
+
+**Anti-patrón:** NO forzar que TODO sea gradual (mataría los saltos dimensionales que son fantasía), ni que TODO sea salto-portal (perdería el "sense of place" Valheim de las transiciones sentidas). El portal decide caso por caso: ¿este par de pisos entra en Δ2? gradual. ¿No entra? portal lo bypasea y avisa.
+
+**Lo que SÍ está sólido (sin acción):** procedural por-piso, determinista con seed, ya es canon **y está implementado** (`floor1_prairie.gd`, seed 12345 byte-identical, regenerable).
+
+- **Costo / scope:** EJECUCIÓN 100% post-alfa. El alfa = solo P1; el demo de 10 min **nunca transiciona** a otro piso. No se rediseña nada ahora — esto es brújula. Pendiente real post-alfa: reconciliar formalmente los dos modelos de torre (100-piso procedural vs 5-piso cultural) — ese es el gap de fondo, no el salto térmico.
+- **Cross-ref:** `tower_biome_system.md §C` (la regla huérfana, rescatarla del olvido al reconciliar), `floor_transitions.md` (el portal que telegrafía), `_world_canon.md §13` (los 5 pisos culturales).
+
 ---
 
 ## Anti-patrón a vigilar (el propio doc lo nombra)

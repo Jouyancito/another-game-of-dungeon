@@ -2,7 +2,7 @@
 
 > **⚠️ TODO-canon-update (2026-04-23)**: refs v1.1 centradas en ambientación chilena quedaron parcialmente **DEPRECATED** por rewrite a **hub planetario multicultural** en `_world_canon.md` v2.0. Las refs de juegos (Genshin/BG3/Hollow Knight/etc.) siguen válidas como framework; las refs culturales chilenas (volcanes, Chiloé, Atacama) pasan a ser **una cultura entre muchas**, no la base. No tocar por ahora — rewrite al retomar el worldbuilding. Al retomar, alinear con `_world_canon.md` v2.0 §2 (hub planetario) + §13 (5 pisos mixtos culturales).
 
-**Versión**: 1.1 — refs propuestas (Genshin/BG3/Hollow Knight/Sea of Thieves/Slay Spire/Vampire Survivors/Honkai) aprobadas y movidas a canon + §7 Monster Feast adoptado + §8 Filosofía adoptada por refs
+**Versión**: 1.2 — agregado **Valheim** ⭐ como ref mayor (sense of place + world-state colectivo + low-poly legible + producción incremental) que faltaba pese a usarse de facto en 20+ archivos · v1.1 — refs propuestas (Genshin/BG3/Hollow Knight/Sea of Thieves/Slay Spire/Vampire Survivors/Honkai) aprobadas y movidas a canon + §7 Monster Feast adoptado + §8 Filosofía adoptada por refs
 **Fecha**: 2026-04-17
 **Estado**: Canon central de referencias. Fuente única para alinear visión narrativa, visual, jugable y de sistema.
 **Depende**: `_world_canon.md` (mundo), `GDD_DungeonParty.md` (pilares + estructura), `_system.md` (skills canon), `_class_lore_*.md` (identidad per-orden).
@@ -162,6 +162,15 @@ Dungeon Party no inventa cada sistema desde cero. Se **para sobre hombros** de o
 - **Usado en**: coop 1-6 jugadores DP, Gremio, design de roles complementarios (Warrior tank, Cleric heal, etc).
 - **Específicamente**: DRG es la ref más cercana a "4 jugadores en el mismo piso cooperando en roles distintos" que DP quiere lograr.
 
+#### Valheim ⭐ (ref mayor — usada de facto en todo el proyecto)
+- **Aporta** (4 ejes):
+  1. **World-state colectivo** — el mundo avanza por **servidor**, no por jugador. Trofeos de boss montables como marca persistente del progreso compartido (canon `_world_seeds_postalpha.md` — modelo Descubrimiento→Conquista→Civilización + Guardian-Cuervo trofeos por jugador).
+  2. **Construcción incremental early-access** — build público mínimo y crecé en vivo (filosofía de producción post scope-reset: alpha → 5 mapas, demo itch.io). Pareja con Hades + Vampire Survivors.
+  3. **Low-poly legible** — el **read** (silueta clara, lectura instantánea) sobre fidelity. Alma del contrato DP_ToonGrounded (`_art_canon.md` — "Valheim legible low-poly").
+  4. **Sense of place** — cada bioma se siente **lugar real, no nivel**. Ancla del principio world-first (CLAUDE.md "World-first sobre systems-first") + coherencia ecológica (`_world_coherence.md`).
+- **Usado en**: world-state colectivo (post-alpha), pipeline producción incremental, art canon (DP_ToonGrounded), floor1_prairie sense-of-place + scatter ecológico, tower_biome_system, onboarding.
+- **⚠️ Filtro**: NO adoptamos survival hardcore (hambre/stamina/base-building como loop core) ni terreno procedural open-world como el juego entero. DP es **dungeon crawler por pisos sellados**, no survival sandbox. Tomamos el read visual + sense of place + world-state colectivo + producción incremental.
+
 #### Risk of Rain 2
 - **Aporta**: coop hasta 4 con escalado.
 - **⚠️ FILTRO**: RoR2 **escala con cantidad de jugadores**. DP **NO** (pilar 1 GDD — coord es poder, dificultad fija). Solo adoptamos "vibe coop", no escalamiento.
@@ -264,6 +273,10 @@ Tabla de decisión rápida: si diseñás sistema X, consultá ref Y.
 | **Build-up de poder sensible** | **Vampire Survivors** | Diablo 2 |
 | **Framing cinematográfico ultimate** | **Honkai Star Rail** (visual) + JJK (pose) | One Piece |
 | **Evento mundo cross-orden** | **Danmachi Monster Feast** (§7) | — |
+| **Sense of place (bioma = lugar real)** | **Valheim** | Made in Abyss + Hollow Knight |
+| **World-state colectivo (avance por server)** | **Valheim** (trofeos de boss) | canon `_world_seeds_postalpha.md` |
+| **Low-poly legible (read > fidelity)** | **Valheim** | `_art_canon.md` DP_ToonGrounded |
+| **Producción incremental early-access** | **Valheim** + Hades | Vampire Survivors |
 
 ---
 
@@ -292,7 +305,8 @@ Combinando las referencias anteriores, Dungeon Party debería sentirse como:
 
 **Tono core**:
 - **Intensidad combate**: Demon Slayer / JJK — cada ultimate se siente ganado, nombres visibles, pose.
-- **Atmósfera exploración**: Made in Abyss / Dark Souls — asombro ante lo desconocido con peligro latente.
+- **Atmósfera exploración**: Made in Abyss / Dark Souls / **Valheim** — asombro ante lo desconocido con peligro latente; cada bioma se siente lugar real, no nivel.
+- **Sentido de mundo + read visual**: **Valheim** — low-poly legible (silueta clara > fidelity) + sense of place + world-state colectivo por server. Ancla del principio world-first y del contrato DP_ToonGrounded.
 - **Slice of life Taberna**: Hades + Stardew Valley — calidez, NPCs memorables, continuidad cross-run.
 - **Cooperación mecánica**: DRG + Danmachi — cada rol importa, las sinergias son visibles (canon `_synergies.md` 15 combos).
 - **Progresión visible**: Diablo 2 + Danmachi grado — cada run deja huella (loot, XP, achievements, Journal).
@@ -403,6 +417,7 @@ Cómo cada referencia **canon aprobada** influye en decisiones de diseño activa
 |-----|-------------------------------------|
 | **Danmachi** | Mazmorra vertical + Gremio neutral + Taberna cross-orden + Monster Feast (§7). Ancla narrativa central. |
 | **Deep Rock Galactic** | Coop 4+ con roles mecánicos complementarios. Cada clase importa, cada rol se siente distinto. |
+| **Valheim** ⭐ | Sense of place (bioma = lugar real, no nivel) + world-state colectivo por server + low-poly legible (read>fidelity, alma DP_ToonGrounded) + producción incremental early-access. Ref mayor usada de facto en art, mundo, producción. |
 | **Hades** | Taberna como base emocional con NPCs que te reconocen + progresión cross-run visible. |
 | **Diablo 2** | Skill tree 2-ramas + stat points por nivel + drops raridades (canon GDD §6). |
 | **Metin2** | Drop ownership + hotbar 4 loadouts + enhancement +1/+9 (canon implementado). |
@@ -457,4 +472,4 @@ Este doc **crece con el proyecto**. No es snapshot 2026-04-17 — es vivo. Cambi
 
 ---
 
-*Canon References v1.1. Danmachi es la referencia central. 26+ refs canon aprobadas (incluyendo las 7 que eran propuestas C en v1.0). Monster Feast §7 adoptado como evento futuro canon. Filosofía adoptada §8 es resumen ejecutivo de contribución de cada ref. Actualizar al agregar refs nuevas — no sobrescribir sin justificar.*
+*Canon References v1.2. Danmachi es la referencia central; Valheim ⭐ es la ref mayor de mundo/art/producción. 27+ refs canon aprobadas (incluyendo las 7 que eran propuestas C en v1.0). Monster Feast §7 adoptado como evento futuro canon. Filosofía adoptada §8 es resumen ejecutivo de contribución de cada ref. Actualizar al agregar refs nuevas — no sobrescribir sin justificar.*
