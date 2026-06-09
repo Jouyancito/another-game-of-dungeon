@@ -48,9 +48,10 @@ extends Node3D
 ## ── Crystal glass material tweaks ────────────────────────────────────────────
 ## Alpha 0-1: 0 = invisible, 1 = opaque. ~0.65 = translucent gem look (Danmachi F18).
 @export var crystal_alpha: float = 0.65
-## Emission energy multiplier for crystal MultiMeshes. Lowered 2.0->0.8: at 2.0 the
+## Emission energy multiplier for crystal MultiMeshes. Lowered 2.0->1.2: at 2.0 the
 ## glow + env bloom blew the crystals to pure white and the per-color tint was lost.
-@export var crystal_emission_energy: float = 2.0
+## Wave1.5 audit: 1.2 keeps colored body visible while cores still exceed glow_hdr_threshold=0.85.
+@export var crystal_emission_energy: float = 1.2
 
 # ── Map dimensions ────────────────────────────────────────────────────────────
 # MAP_SIZE conservado como const de referencia histórica (600x600 base de calibración).
@@ -79,8 +80,8 @@ const CRYSTAL_PATH_CLUSTERS: int = 35       # clusters a lo largo de la curva
 const CRYSTAL_SCATTER_WIDTH: float = 60.0    # ancho de dispersión lateral
 const CRYSTAL_MIN_HEIGHT: float = 32.0       # altura mínima (cuelgan del techo)
 const CRYSTAL_MAX_HEIGHT: float = 42.0
-const CRYSTAL_LIGHT_RANGE: float = 80.0      # rango grande — menos luces, más cobertura
-const CRYSTAL_LIGHT_ENERGY: float = 1.1      # subido (0.9→1.1) para que los charcos lean contra la oscuridad
+const CRYSTAL_LIGHT_RANGE: float = 10.0      # Wave1.5: tightened 80→10 — tight pool on ground, not flood
+const CRYSTAL_LIGHT_ENERGY: float = 3.0      # Wave1.5: boosted 1.1→3.0 — OmniLights now actually illuminate ground
 const CRYSTAL_AMBIENT_ENERGY: float = 0.25   # legacy — ya no se usa (flood gigante eliminado; fill en WorldEnv)
 const CRYSTAL_MONARCH_COUNT: int = 3         # cristales gigantes "príncipe"
 const CRYSTAL_LIGHTS_EVERY: int = 3          # luz real cada N clusters (reduce OmniLights)
@@ -132,9 +133,11 @@ const COLOR_BOSS_WALL: Color   = Color(0.314, 0.314, 0.314)
 const COLOR_PATH: Color        = Color(0.420, 0.259, 0.149)
 const COLOR_BORDER: Color      = Color(0.345, 0.290, 0.235)
 const COLOR_CEILING: Color     = Color(0.250, 0.220, 0.200)
-const COLOR_CRYSTAL_WARM: Color = Color(1.0, 0.95, 0.85)   # cuarzo blanco cálido
-const COLOR_CRYSTAL_COOL: Color = Color(0.85, 0.9, 1.0)    # cuarzo azulado
-const COLOR_CRYSTAL_ROSE: Color = Color(1.0, 0.88, 0.92)   # cuarzo rosa pálido
+# Wave1.5 hue split: cold cyan vs warm river = contrast story.
+# ~1/3 warm amber (echoes river gold), ~1/3 cold cyan, ~1/3 violet.
+const COLOR_CRYSTAL_WARM: Color = Color(1.0, 0.82, 0.45)   # cuarzo ámbar cálido (contrasta con cyan)
+const COLOR_CRYSTAL_COOL: Color = Color(0.37, 0.85, 1.0)   # cyan frío #5FD8FF
+const COLOR_CRYSTAL_ROSE: Color = Color(0.69, 0.44, 1.0)   # violeta #B06FFF
 const COLOR_PILLAR: Color      = Color(0.400, 0.380, 0.340)
 const COLOR_WATER: Color       = Color(0.2, 0.4, 0.6, 0.6)
 const COLOR_CAMP_TENT: Color   = Color(0.550, 0.350, 0.200)
@@ -773,7 +776,7 @@ func _generate_terrain_mesh() -> void:
 	# vertex_color_use_as_albedo stays ON — the detail layer multiplies on top.
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.92
+	mat.roughness = 0.6  # Wave1.5: 0.92→0.6 — damp sheen so crystal/river light streaks across ground
 	mat.metallic = 0.0
 
 	# ── Procedural detail noise (stand-in for a real ground atlas) ────────────
@@ -1138,19 +1141,17 @@ func _build_crystal_field() -> void:
 					cluster_color,
 					0.8, 4.5, 0.3, 1.2)
 
-		# Luz real solo cada N clusters — reduce OmniLights, más rango compensa
+		# Luz real solo cada N clusters — Wave1.5: tight pool (range 7-12m) at energy 3.0
+		# so cluster omnis actually reach the ground ~35m below the ceiling.
 		if i % CRYSTAL_LIGHTS_EVERY == 0:
 			var cy_light: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT - 2.0, CRYSTAL_MAX_HEIGHT - 2.0)
 			var cl: OmniLight3D = OmniLight3D.new()
 			cl.name = "CrystalLight%d" % i
-			cl.light_color = Color(
-				cluster_color.r * 0.9 + 0.1,
-				cluster_color.g * 0.9 + 0.1,
-				cluster_color.b * 0.85 + 0.1
-			)
-			cl.light_energy = CRYSTAL_LIGHT_ENERGY + _rng.randf_range(-0.15, 0.15)
-			cl.omni_range = CRYSTAL_LIGHT_RANGE + _rng.randf_range(-10.0, 10.0)
-			cl.omni_attenuation = 1.4
+			# Tint-matched to crystal color (saturated, not washed toward white)
+			cl.light_color = cluster_color
+			cl.light_energy = CRYSTAL_LIGHT_ENERGY + _rng.randf_range(-0.3, 0.3)
+			cl.omni_range = clampf(CRYSTAL_LIGHT_RANGE + _rng.randf_range(-3.0, 2.0), 7.0, 12.0)
+			cl.omni_attenuation = 1.5
 			cl.shadow_enabled = false
 			cl.position = Vector3(path_x, cy_light, path_z)
 			add_child(cl)
@@ -1576,12 +1577,13 @@ func _build_giant_tree(poi: POISystem.POI) -> void:
 		_scatter_apply_geo_flags(tree, 120.0)
 		add_child(tree)
 		# Thick trunk collider — blocks the player at the base (canopy is overhead).
+		# Wave1.5: radius 1.6→2.8 — enemies were clipping through the trunk/roots.
 		var body := StaticBody3D.new()
 		body.collision_layer = 1
 		body.collision_mask = 0
 		var col := CollisionShape3D.new()
 		var cap := CapsuleShape3D.new()
-		cap.radius = 1.6
+		cap.radius = 2.8
 		cap.height = 12.0
 		col.shape = cap
 		col.position = Vector3(0.0, 6.0, 0.0)
@@ -1936,9 +1938,12 @@ func _build_stream_ribbons() -> void:
 			water_mat.shader = load("res://scenes/levels/water_toon.gdshader")
 			# water_color is a vec3 uniform — alpha is silently dropped; use base_transparency
 			# to control opacity. 0.55 < pond default (0.7) → streams are more see-through.
-			var stream_water_color: Color = Color(0.25, 0.42, 0.55)
+			# Wave1.5: molten-gold color (warm amber) so river reads as gold vs cold crystals.
+			var stream_water_color: Color = Color(0.55, 0.38, 0.12)
 			water_mat.set_shader_parameter("water_color", stream_water_color)
 			water_mat.set_shader_parameter("base_transparency", 0.55)
+			# Wave1.5: trim emission ~15% (0.06 → 0.051) — reads as molten gold, not white laser.
+			water_mat.set_shader_parameter("emission_strength", 0.051)
 			# Flow direction: xz world vector → shader vec2. Shader uniform hint_range is on
 			# individual components; pass as Vector2 which Godot sends as vec2.
 			water_mat.set_shader_parameter("flow_dir", fdir)
