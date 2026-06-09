@@ -50,7 +50,7 @@ extends Node3D
 @export var crystal_alpha: float = 0.65
 ## Emission energy multiplier for crystal MultiMeshes. Lowered 2.0->0.8: at 2.0 the
 ## glow + env bloom blew the crystals to pure white and the per-color tint was lost.
-@export var crystal_emission_energy: float = 0.8
+@export var crystal_emission_energy: float = 2.0
 
 # ── Map dimensions ────────────────────────────────────────────────────────────
 # MAP_SIZE conservado como const de referencia histórica (600x600 base de calibración).
@@ -144,10 +144,10 @@ const COLOR_GIANT_CANOPY: Color = Color(0.130, 0.300, 0.080)
 
 # ── Cavern key light (direccional cálido con sombras — el "sol filtrado") ──
 # Warm-WHITE, no ámbar: el ámbar saturado tiñe todo de amarillo-desierto.
-@export var key_light_energy: float = 1.3
+@export var key_light_energy: float = 0.5
 @export var key_light_pitch: float = -52.0
 @export var key_light_yaw: float = -35.0
-@export var key_light_color: Color = Color(1.0, 0.93, 0.78)
+@export var key_light_color: Color = Color(0.7, 0.78, 0.95)
 
 # ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
 @export var monarch_shadows: bool = false      # true = sombra dinámica (perf red-line; off by default)
@@ -1224,6 +1224,15 @@ func _spawn_crystal_shard(_shard_name: String, center: Vector3, base_color: Colo
 		_rng.randf_range(-spread, spread)
 	)
 
+	# A4: clamp so the shard's bottom tip (pos.y - length*0.5) stays below
+	# CEILING_HEIGHT - 1, i.e. pos.y + length*0.5 <= CEILING_HEIGHT - 1.
+	# Also skip shards placed outside the playable border.
+	var shard_top: float = pos.y + length * 0.5
+	if shard_top > CEILING_HEIGHT - 1.0:
+		pos.y -= shard_top - (CEILING_HEIGHT - 1.0)
+	if not _is_inside_border(Vector3(pos.x, 0.0, pos.z)):
+		return
+
 	# Construir transform con rotación + escala
 	var rot_x: float = _rng.randf_range(deg_to_rad(150), deg_to_rad(210))
 	var rot_y: float = _rng.randf_range(0, TAU)
@@ -1563,6 +1572,8 @@ func _build_giant_tree(poi: POISystem.POI) -> void:
 		var rot_y: float = _rng.randf() * TAU
 		tree.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(giant_scale, giant_scale, giant_scale)), pos)
 		tree.add_to_group("grounded")
+		# D1: shadow-off + 120m visibility cull for the landmark tree
+		_scatter_apply_geo_flags(tree, 120.0)
 		add_child(tree)
 		# Thick trunk collider — blocks the player at the base (canopy is overhead).
 		var body := StaticBody3D.new()
@@ -1806,11 +1817,14 @@ func _scatter_stream_banks() -> void:
 						body.global_position = Vector3(px, terrain_y, pz)
 
 				elif item_roll < 0.90 and reed_scene != null:
-					# Reed proxy — env_grass_small scaled tall (1.5–2.5×), no collider
+					# Reed proxy — env_grass_small scaled tall, no collider.
+					# C8: Y stretch capped at 1.8 (was 2.5) — avoids surreal stilts
+					# that read as aquatic reeds needing standing water; 1.8 = tall
+					# marsh grass, believable in a damp cavern bank.
 					var inst: Node3D = reed_scene.instantiate() as Node3D
 					if inst != null:
 						var sx: float = lerpf(0.6, 1.0, scale_draw)
-						var sy: float = lerpf(1.5, 2.5, scale_draw)  # taller than normal grass
+						var sy: float = lerpf(1.2, 1.8, scale_draw)  # C8: was (1.5, 2.5)
 						inst.transform = Transform3D(
 							Basis(Vector3.UP, rot_y).scaled(Vector3(sx, sy, sx)),
 							Vector3(px, terrain_y, pz)
@@ -2023,11 +2037,13 @@ const POOL_TREES: Array[PackedScene] = [
 ## FIX #2: placed via _scatter_dead_trees(), not in POOL_TREES.
 const SCENE_DEAD_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf")
 
+## C7: flowering bushes removed — full-sun wildflower bushes are incoherent in a
+## dim cavern (same rationale as flower_clump removal in POOL_GROUND).
+## env_bush_flowers_01 + env_bush_small_flowers_01 dropped; pool reduced to 2
+## base shrub types that read as shade-tolerant understory brush.
 const POOL_BUSHES: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowers_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_small_flowers_01.gltf"),
 ]
 const POOL_ROCKS: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"),
@@ -2627,6 +2643,8 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		var rot_y: float = _rng.randf() * TAU
 		tree.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
 		tree.add_to_group("grounded")
+		# D1: shadow-off + 120m visibility cull (dead trees = same tier as live trees)
+		_scatter_apply_geo_flags(tree, 120.0)
 		parent.add_child(tree)
 		# Trunk collider — same shape as POOL_TREES instances (no extra _rng calls).
 		var dt_body := StaticBody3D.new()
@@ -2716,6 +2734,23 @@ func _scatter_outcrop_rocks(pois: Array, parent: Node3D) -> void:
 		_place_instance(POOL_ROCKS, pos, 0.5, 1.8, parent, "rock")
 		placed += 1
 
+## D1 — Apply shadow-off + visibility range end to all MeshInstance3D descendants
+## of a scatter instance.  Used for heavy scatter (trees, rocks, dead trees, giant
+## tree) so they don't cast shadows and are culled beyond vis_range_end.
+## Colliders are NOT touched — only geometry flags.
+func _scatter_apply_geo_flags(root: Node3D, vis_range_end: float) -> void:
+	var mi: MeshInstance3D = root as MeshInstance3D
+	if mi != null:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = vis_range_end
+		mi.visibility_range_end_margin = maxf(8.0, vis_range_end * 0.10)
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	for child in root.get_children():
+		var child_node: Node3D = child as Node3D
+		if child_node != null:
+			_scatter_apply_geo_flags(child_node, vis_range_end)
+
+
 ## Instancia un PackedScene random del pool con rotación Y + escala por edad.
 ## collider_kind: "" = no collider (bushes/grass/ground cover)
 ##   "trunk" → CapsuleShape3D (radius 0.35*s, height 2.5*s) blocking the trunk only.
@@ -2737,6 +2772,14 @@ func _place_instance(
 	# DEBE apoyarse en el terreno. El detector de flotantes (GroundSnapUtility) sólo
 	# considera nodos del grupo "grounded"; cristales y fauna aérea quedan excluidos.
 	inst.add_to_group("grounded")
+	# D1: shadow-off + visibility range for scatter (trees, rocks, bushes).
+	# Trees/giant-tree → 120m; rocks → 80m; bushes/ground → 60m.
+	var vis_r: float = 60.0
+	if collider_kind == "trunk":
+		vis_r = 120.0
+	elif collider_kind == "rock":
+		vis_r = 80.0
+	_scatter_apply_geo_flags(inst, vis_r)
 	parent.add_child(inst)
 	# ── Cheap primitive collision for solid props ──────────────────────────────
 	# StaticBody3D on Layer 1 (World), mask 0 (only player/enemies test against us).
