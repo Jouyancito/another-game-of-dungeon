@@ -121,36 +121,41 @@ const STREAM_DEPTH: float = 0.8         # max depth at channel floor (shallow �
 const STREAM_SEGMENTS: int = 5          # control points per stream (interpolated)
 
 # ── Colors ────────────────────────────────────────────────────────────────────
-const COLOR_FLOOR: Color       = Color(0.290, 0.478, 0.180)
-const COLOR_TRUNK: Color       = Color(0.361, 0.227, 0.118)
-const COLOR_CANOPY: Color      = Color(0.176, 0.353, 0.118)
-const COLOR_CANOPY_DARK: Color = Color(0.118, 0.275, 0.078)
-const COLOR_TALL_GRASS: Color  = Color(0.118, 0.290, 0.055)
-const COLOR_ROCK: Color        = Color(0.502, 0.502, 0.502)
-const COLOR_ROCK_DARK: Color   = Color(0.380, 0.380, 0.380)
-const COLOR_RUIN: Color        = Color(0.627, 0.627, 0.627)
-const COLOR_BOSS_WALL: Color   = Color(0.314, 0.314, 0.314)
-const COLOR_PATH: Color        = Color(0.420, 0.259, 0.149)
-const COLOR_BORDER: Color      = Color(0.345, 0.290, 0.235)
-const COLOR_CEILING: Color     = Color(0.250, 0.220, 0.200)
-# Wave1.5 hue split: cold cyan vs warm river = contrast story.
-# ~1/3 warm amber (echoes river gold), ~1/3 cold cyan, ~1/3 violet.
+# D2-ACT-1 HYBRID palette: dominant dark-grounded, cool cavern fill, warm key.
+# Procedural greens/browns desaturated ~28% vs Wave1 — Kimetsu rule: biome is quiet,
+# skills and crystals are the saturated pixels. Crystals remain as jewel accents only.
+const COLOR_FLOOR: Color       = Color(0.286, 0.406, 0.220)  # olive-green, -28% sat
+const COLOR_TRUNK: Color       = Color(0.320, 0.234, 0.163)  # bark brown, -27% sat
+const COLOR_CANOPY: Color      = Color(0.214, 0.302, 0.176)  # cavern leaf, -28% sat
+const COLOR_CANOPY_DARK: Color = Color(0.165, 0.240, 0.131)  # dark understory, -27% sat
+const COLOR_TALL_GRASS: Color  = Color(0.173, 0.252, 0.118)  # dim grass, -27% sat
+const COLOR_ROCK: Color        = Color(0.502, 0.502, 0.502)  # neutral rock (keep)
+const COLOR_ROCK_DARK: Color   = Color(0.380, 0.380, 0.380)  # dark rock (keep)
+const COLOR_RUIN: Color        = Color(0.627, 0.627, 0.627)  # ruin stone (keep)
+const COLOR_BOSS_WALL: Color   = Color(0.314, 0.314, 0.314)  # boss arena (keep)
+const COLOR_PATH: Color        = Color(0.362, 0.253, 0.172)  # dirt path, -25% sat
+const COLOR_BORDER: Color      = Color(0.345, 0.290, 0.235)  # cave stone (already muted)
+const COLOR_CEILING: Color     = Color(0.250, 0.220, 0.200)  # ceiling rock (keep)
+# JEWEL ACCENTS — crystals are the ONLY saturated pixels on floor 1.
+# ~1/3 warm amber (echoes the warm key), ~1/3 cold cyan, ~1/3 violet.
 const COLOR_CRYSTAL_WARM: Color = Color(1.0, 0.82, 0.45)   # cuarzo ámbar cálido (contrasta con cyan)
 const COLOR_CRYSTAL_COOL: Color = Color(0.37, 0.85, 1.0)   # cyan frío #5FD8FF
 const COLOR_CRYSTAL_ROSE: Color = Color(0.69, 0.44, 1.0)   # violeta #B06FFF
-const COLOR_PILLAR: Color      = Color(0.400, 0.380, 0.340)
+const COLOR_PILLAR: Color      = Color(0.400, 0.380, 0.340)  # stone pillar (already muted)
 const COLOR_WATER: Color       = Color(0.2, 0.4, 0.6, 0.6)
-const COLOR_CAMP_TENT: Color   = Color(0.550, 0.350, 0.200)
-const COLOR_ALTAR: Color       = Color(0.700, 0.650, 0.550)
-const COLOR_GIANT_TRUNK: Color = Color(0.300, 0.200, 0.100)
-const COLOR_GIANT_CANOPY: Color = Color(0.130, 0.300, 0.080)
+const COLOR_CAMP_TENT: Color   = Color(0.476, 0.340, 0.230)  # canvas, -26% sat
+const COLOR_ALTAR: Color       = Color(0.635, 0.603, 0.548)  # stone altar, -25% sat
+const COLOR_GIANT_TRUNK: Color = Color(0.270, 0.210, 0.155)  # old bark, -26% sat
+const COLOR_GIANT_CANOPY: Color = Color(0.172, 0.262, 0.136)  # dense canopy, -27% sat
 
 # ── Cavern key light (direccional cálido con sombras — el "sol filtrado") ──
-# Warm-WHITE, no ámbar: el ámbar saturado tiñe todo de amarillo-desierto.
-@export var key_light_energy: float = 0.5
+# D2-ACT-1 HYBRID: warm gold key vs cool-dark fill = high contrast defined shadows.
+# Key is the HERO light (warm gold #F5D8A0); fill stays cool-dark from crystal ceiling.
+# Energy 0.8 — strong enough to rim figures warmly against cool shadow but not bleaching.
+@export var key_light_energy: float = 0.8
 @export var key_light_pitch: float = -52.0
 @export var key_light_yaw: float = -35.0
-@export var key_light_color: Color = Color(0.7, 0.78, 0.95)
+@export var key_light_color: Color = Color(0.961, 0.847, 0.627)  # #F5D8A0 warm gold
 
 # ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
 @export var monarch_shadows: bool = false      # true = sombra dinámica (perf red-line; off by default)
@@ -1200,10 +1205,11 @@ var _crystal_warm_transforms: Array[Transform3D] = []
 var _crystal_cool_transforms: Array[Transform3D] = []
 var _crystal_rose_transforms: Array[Transform3D] = []
 
-# Real faceted crystal model (TRELLIS-generated). When importable, the crystal
-# MultiMeshes instance THIS mesh (tinted + glowing via material_override) instead
-# of a plain box. Falls back to the box if Godot hasn't imported the .glb yet.
-const SCENE_CRYSTAL_GLB: String = "res://assets/art/piso1_pradera/crystals/crystal_amethyst_01.glb"
+# Faceted crystal model — BESPOKE bpy-generated (game/tools/blender/gen_crystal.py),
+# 26 tris vs the old TRELLIS amethyst's 98,809. The crystal MultiMeshes instance
+# THIS mesh (tinted + glowing via material_override); the field's many rotated
+# instances form the clusters. Falls back to the box if the .glb isn't imported yet.
+const SCENE_CRYSTAL_GLB: String = "res://assets/art/piso1_pradera/crystals/crystal_dp_single_01.glb"
 ## Uniform size multiplier for the GLB crystals (they were too small for the light
 ## they cast). Tunable from the inspector.
 @export var crystal_glb_size_mult: float = 2.0
@@ -3144,8 +3150,34 @@ func _add_cave_csg_box(node_name: String, world_pos: Vector3, size: Vector3, col
 	add_child(box)
 	return box
 
-func _make_material(color: Color) -> StandardMaterial3D:
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
+## DP_ToonGrounded shader resource — loaded once, shared across all _make_material calls.
+## Lazy-loaded on first use; null means the shader file is not yet imported (falls back
+## to a plain StandardMaterial3D so the map still runs without the shader).
+var _toon_grounded_shader: Shader = null
+var _toon_grounded_shader_tried: bool = false
+
+## _make_material() — THE unification chokepoint for all procedural/CSG surfaces.
+## Applies DP_ToonGrounded ShaderMaterial: 3-band toon ramp, cool non-black shadow,
+## matte, optional warm gold rim. Preserves each mesh's albedo via albedo_color param.
+## Falls back to a plain StandardMaterial3D if the shader is not yet imported.
+## gltf scatter packs keep their own materials (future material_override pass extends this).
+func _make_material(color: Color) -> Material:
+	# Lazy-load the shader once
+	if not _toon_grounded_shader_tried:
+		_toon_grounded_shader_tried = true
+		const SHADER_PATH: String = "res://scenes/levels/dp_toon_grounded.gdshader"
+		if ResourceLoader.exists(SHADER_PATH):
+			_toon_grounded_shader = load(SHADER_PATH) as Shader
+
+	if _toon_grounded_shader != null:
+		var mat := ShaderMaterial.new()
+		mat.shader = _toon_grounded_shader
+		mat.set_shader_parameter("albedo_color", color)
+		mat.set_shader_parameter("use_vertex_color", false)
+		return mat
+
+	# Shader not available — plain fallback so the map never fails to run
+	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	return mat
 

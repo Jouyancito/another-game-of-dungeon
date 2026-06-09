@@ -1246,3 +1246,62 @@ Piso 100:      BLANCO Y NEGRO ORO  ███████████████
 ---
 
 *Art Canon v2.0. Consolida 3 docs previos (art_direction + visual_bible + _art_direction_bible). Refs actualizadas con LOTR + Metin2 + Dark and Darker + SLF + Tensura (2026-05-18). Cambios al canon se versionan aquí primero.*
+
+---
+
+## §9 — Procedural Family Contract (D2 Act-1 Hybrid)
+
+**Status**: canon vigente desde 2026-06-08. Aplica a todos los assets CSG/procedurales del piso 1 generados por `floor1_prairie.gd`.
+
+### §9.1 Tone — Warm Key + Cool-Dark Fill
+
+Floor 1 runs a **D2 Act-1 hybrid lighting story**:
+
+- **Warm key** (`CavernKeyLight`): `#F5D8A0` warm gold, energy 0.8, pitch -52°, yaw -35°. This is the "diamond cave sun" — the dramatic rim that defines figures and surfaces from above-left. Shadows are cast and defined by this light.
+- **Cool-dark fill** (`CeilingLight` in CrystalCeiling): `SKY_COOL #8CA0C8`, energy 0.5 (owned by the `light_energy` export). Cool-dark only, never compensating for the key.
+- **Ambient**: dim and cool-tinted (WorldEnvironment), dominated by crystal OmniLights close-range.
+- **Net effect**: warm-lit faces vs cool-dark shadows = high contrast, figures defined by warm rim against cool cave shadow. Kimetsu/Valheim cozy soul preserved via the warm key; D2 contrast added via the cool-dark fill.
+
+### §9.2 Family Signature — CSG/Procedural Assets
+
+All procedural CSG surfaces share a consistent visual language:
+
+- **Flat-shade + 1 chamfer**: hard toon ramp (no soft gradients). Where geometry allows, one small chamfer edge gives a secondary mid-band.
+- **Bottom-weighted silhouette**: pillars taper slightly wider at base; walls ground-anchor with a thicker foot slab.
+- **Detail in notches**: surface interest comes from geometry notches (see `_make_cave_material` noise detail), not albedo complexity.
+
+### §9.3 DP_ToonGrounded Shader Rules
+
+**File**: `game/scenes/levels/dp_toon_grounded.gdshader`
+**Applied through**: `_make_material()` in `floor1_prairie.gd` (all procedural CSG surfaces route through this chokepoint).
+
+| Rule | Value |
+|------|-------|
+| Ramp bands | 3: shadow / mid / light |
+| Shadow tint | `#7A8FC4` cool slate-blue, strength 0.45 (NEVER pure black) |
+| Mid threshold | 0.30 NdotL |
+| Light threshold | 0.65 NdotL |
+| Spec | Disabled (matte, no PBR specular) |
+| Rim | Optional warm gold `#F8DC9E`, power 5, intensity 0.30 |
+| Vertex color | Available via `use_vertex_color` param (off by default for CSG) |
+
+### §9.4 Palette Roles
+
+| Role | Color range | Saturation rule |
+|------|-------------|-----------------|
+| Dominant ground (floors, terrain, paths) | Olive-greens, dirt browns | **-27% desaturated** vs full-sat. Kimetsu rule: biome is quiet. |
+| Cool cavern fill (ceiling, border walls) | Cool gray-beige | Already muted; keep as-is. |
+| Warm key (key light, camp fire, altar) | Gold/amber tones | Accent only — no large flat surfaces in full warm-sat. |
+| Jewel accents (crystals only) | Cyan `#5FD8FF`, amber `#D1A373`, violet `#B06FFF` | **ONLY saturated pixels on floor 1.** Never apply to structural CSG. |
+| Structural stone (pillars, ruins, walls) | Mid-gray + cave noise via `_make_cave_material` | Always via cave material, never flat color. |
+
+### §9.5 Scope Guard — "Stop at 5 bespoke assets"
+
+- **CSG procedural assets** (pillars, ruins, walls, altar, camp props, border): all use `_make_material()` → DP_ToonGrounded.
+- **Characters**: stay with their pack materials (KayKit Adventurers / Quaternius). Do NOT override with DP_ToonGrounded.
+- **gltf scatter packs** (trees, rocks, bushes): keep their own imported materials for now. A future `material_override` pass would extend DP_ToonGrounded to them — that is explicitly deferred.
+- **Stop rule**: when tempted to create a 6th bespoke CSG sub-style, stop and ask "does this appear in the 10-min vertical slice video?" If not → defer.
+- **Water**: `water_toon.gdshader` stays separate (animated, translucent — not the toon ramp family).
+- **Crystals**: gem glass material (`_create_multimesh_emissive` gem_mode=true) stays separate (translucent + emissive — jewel accent family).
+
+---
