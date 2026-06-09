@@ -51,7 +51,7 @@ extends Node3D
 ## Emission energy multiplier for crystal MultiMeshes. Lowered 2.0->1.2: at 2.0 the
 ## glow + env bloom blew the crystals to pure white and the per-color tint was lost.
 ## Wave1.5 audit: 1.2 keeps colored body visible while cores still exceed glow_hdr_threshold=0.85.
-@export var crystal_emission_energy: float = 1.2
+@export var crystal_emission_energy: float = 0.9
 
 # ── Map dimensions ────────────────────────────────────────────────────────────
 # MAP_SIZE conservado como const de referencia histórica (600x600 base de calibración).
@@ -80,7 +80,7 @@ const CRYSTAL_PATH_CLUSTERS: int = 35       # clusters a lo largo de la curva
 const CRYSTAL_SCATTER_WIDTH: float = 60.0    # ancho de dispersión lateral
 const CRYSTAL_MIN_HEIGHT: float = 32.0       # altura mínima (cuelgan del techo)
 const CRYSTAL_MAX_HEIGHT: float = 42.0
-const CRYSTAL_LIGHT_RANGE: float = 10.0      # Wave1.5: tightened 80→10 — tight pool on ground, not flood
+const CRYSTAL_LIGHT_RANGE: float = 22.0      # quick-win: 10→22 for visible colored ground pools (clamp raised below)
 const CRYSTAL_LIGHT_ENERGY: float = 3.0      # Wave1.5: boosted 1.1→3.0 — OmniLights now actually illuminate ground
 const CRYSTAL_AMBIENT_ENERGY: float = 0.25   # legacy — ya no se usa (flood gigante eliminado; fill en WorldEnv)
 const CRYSTAL_MONARCH_COUNT: int = 3         # cristales gigantes "príncipe"
@@ -1006,8 +1006,8 @@ func _build_ceiling() -> void:
 	var ceil_mat: StandardMaterial3D = StandardMaterial3D.new()
 	ceil_mat.albedo_color = Color(0.35, 0.32, 0.28)
 	ceil_mat.emission_enabled = true
-	ceil_mat.emission = Color(0.18, 0.17, 0.15)  # emisión sutil — roca visible, no brillante
-	ceil_mat.emission_energy_multiplier = 1.0
+	ceil_mat.emission = Color(0.24, 0.22, 0.20)  # quick-win: brighter so overhead reads as stone dome, not void
+	ceil_mat.emission_energy_multiplier = 1.4
 	ceiling.material_override = ceil_mat
 	add_child(ceiling)
 
@@ -1155,7 +1155,7 @@ func _build_crystal_field() -> void:
 			# Tint-matched to crystal color (saturated, not washed toward white)
 			cl.light_color = cluster_color
 			cl.light_energy = CRYSTAL_LIGHT_ENERGY + _rng.randf_range(-0.3, 0.3)
-			cl.omni_range = clampf(CRYSTAL_LIGHT_RANGE + _rng.randf_range(-3.0, 2.0), 7.0, 12.0)
+			cl.omni_range = clampf(CRYSTAL_LIGHT_RANGE + _rng.randf_range(-3.0, 2.0), 14.0, 26.0)
 			cl.omni_attenuation = 1.5
 			cl.shadow_enabled = false
 			cl.position = Vector3(path_x, cy_light, path_z)
