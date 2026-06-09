@@ -611,10 +611,35 @@ func _compute_height_at(x: float, z: float) -> float:
 			swell_blend = smoothstep(0.0, 1.0, dist_center / flat_radius)
 		h += swell_h * swell_blend
 
-	# 4. Subida hacia los bordes (acantilados naturales)
-	if t > 0.7:
-		var edge_t: float = (t - 0.7) / 0.3
-		h += TERRAIN_EDGE_RISE * edge_t * edge_t
+	# 4. Round-C: Continuous radial bowl — terrain rises SMOOTHLY from the edge of the
+	# spawn bowl out to the border.  Replaces the old t>0.7 cliff that left the mid band
+	# flat and made streams look like they weren't flowing.
+	#
+	# Design:
+	#   • bowl_t  = normalised dist in [flat_radius, border_radius] → [0, 1]
+	#   • smoothstep(bowl_t) gives a gentle S-curve; max slope = 1.5 * BOWL_RISE / span
+	#                          = 1.5 * 12 / 200 ≈ 0.09 m/m → over 6.25m grid step = 0.56m
+	#                          (≈ 5° incline — well within CharacterBody3D climbable limit)
+	#   • Inside flat_radius the blend is ZERO (spawn bowl stays completely flat).
+	#   • An optional steeper lip in the last 15% of the ring adds a subtle visual wall
+	#     without creating an impassable cliff (max extra = BOWL_LIP_RISE = 4m, same
+	#     smooth curve — worst case slope still ~12° at the literal border edge).
+	#
+	# Total rise at border: BOWL_RISE(12) + BOWL_LIP_RISE(4) = 16m over 250m radius
+	# which is a clearly-readable "edge is high / center is low" bowl for cavern P1.
+	const BOWL_RISE: float = 12.0      # metres gained from flat_radius edge to border
+	const BOWL_LIP_RISE: float = 4.0   # extra metres in the last 15% (visual border lip)
+	var bowl_blend: float = 0.0
+	if dist_center >= flat_radius:
+		var bowl_span: float = max_r - flat_radius
+		if bowl_span > 0.001:
+			var bowl_t: float = clampf((dist_center - flat_radius) / bowl_span, 0.0, 1.0)
+			bowl_blend = smoothstep(0.0, 1.0, bowl_t)
+			h += bowl_blend * BOWL_RISE
+			# Steeper lip — only in the outermost 15% of the bowl band
+			if bowl_t > 0.85:
+				var lip_t: float = (bowl_t - 0.85) / 0.15
+				h += smoothstep(0.0, 1.0, lip_t) * BOWL_LIP_RISE
 
 	# Round-A #2: Dirt/rock outcrops — ONLY outside the flat_radius spawn bowl.
 	# _outcrop_noise is scale-independent (sampled in world coords, freq=0.05).
