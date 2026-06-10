@@ -27,7 +27,7 @@ const MIMIC_REVEAL_VFX := preload("res://scenes/enemy/vfx/mimic_reveal_vfx.tscn"
 
 var state: State = State.DISGUISED
 
-@onready var _anim: AnimationPlayer = get_node_or_null("AnimationPlayer")
+@onready var _reveal_anim: AnimationPlayer = get_node_or_null("AnimationPlayer")
 
 
 func _on_enemy_ready() -> void:
@@ -114,9 +114,9 @@ func _trigger_reveal(player: Node3D) -> void:
 		cam.shake(0.3, 0.15)
 
 	# Anim reveal (D). Fallback Timer si la anim no existe.
-	if _anim != null and _anim.has_animation("reveal"):
-		_anim.play("reveal")
-		await _anim.animation_finished
+	if _reveal_anim != null and _reveal_anim.has_animation("reveal"):
+		_reveal_anim.play("reveal")
+		await _reveal_anim.animation_finished
 	else:
 		await get_tree().create_timer(reveal_duration).timeout
 
