@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+# pre-push gate (dungeon-party) — nothing that fails to compile reaches origin.
+#
+# Runs game/tools/godot/validate.ps1: headless import pass + full script
+# compile sweep (~216 scripts, two engine boots, well under a minute).
+#
+# Deliberately does NOT run the GUT suite yet: 63 tests are still red
+# (scene-tree fixtures + known game bugs, see audit 2026-06-09 triage).
+# Promote the suite into this gate once it is green.
+#
+# Bypass (leaves a trace in your terminal): git push --no-verify
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+echo "[pre-push gate] validate.ps1 (import + compile sweep)..."
+powershell.exe -ExecutionPolicy Bypass -File "$REPO_ROOT/game/tools/godot/validate.ps1"
+STATUS=$?
+
+if [ "$STATUS" -ne 0 ]; then
+  {
+    printf '\n[pre-push gate] BLOQUEADO: validate.ps1 fallo (exit %s).\n' "$STATUS"
+    printf '  Hay errores de import o scripts que no compilan.\n'
+    printf '  Corre: powershell -ExecutionPolicy Bypass -File game\\tools\\godot\\validate.ps1\n'
+    printf '  Bypass deliberado: git push --no-verify\n\n'
+  } >&2
+  exit 1
+fi
+
+echo "[pre-push gate] OK"
+exit 0
