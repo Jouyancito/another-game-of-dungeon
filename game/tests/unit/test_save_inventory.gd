@@ -44,7 +44,8 @@ func test_inventory_save_preserves_quantity() -> void:
 
 
 func test_inventory_load_skips_invalid_item_id() -> void:
-	# Simular save corrupto con item_id inexistente
+	# Simulate corrupted save with non-existent item_id.
+	# The game code emits push_error for the invalid ID — this is expected behavior.
 	var fake_data := {
 		"items": [
 			{"item_id": "this_id_does_not_exist", "grid_pos_x": 0, "grid_pos_y": 0, "quantity": 1},
@@ -53,9 +54,10 @@ func test_inventory_load_skips_invalid_item_id() -> void:
 		"coins": 10,
 	}
 	inv.from_save_data(fake_data)
-	# Solo el item válido se cargó
-	assert_eq(inv.items.size(), 1, "item inválido skipeado, item válido cargado")
+	# Only the valid item was loaded
+	assert_eq(inv.items.size(), 1, "invalid item skipped, valid item loaded")
 	assert_eq(inv.items[0]["item_id"], "sword_rusty")
+	assert_push_error_count(1, "push_error expected for invalid item_id")
 
 
 func test_inventory_load_caps_quantity_to_max_stack() -> void:
@@ -100,13 +102,15 @@ func test_equipment_save_empty_slots_not_serialized() -> void:
 
 
 func test_equipment_load_invalid_item_id_leaves_slot_empty() -> void:
+	# The game code emits push_error for invalid item IDs — expected behavior.
 	var fake_data := {
 		"main_hand": {"item_id": "this_does_not_exist", "quantity": 1},
 		"amulet": {"item_id": "amulet_fang", "quantity": 1},
 	}
 	eq.from_save_data(fake_data)
-	assert_true(eq.get_slot("main_hand").is_empty(), "item inválido → slot vacío")
-	assert_eq(eq.get_slot("amulet").get("item_id", ""), "amulet_fang", "válido cargado")
+	assert_true(eq.get_slot("main_hand").is_empty(), "invalid item -> slot empty")
+	assert_eq(eq.get_slot("amulet").get("item_id", ""), "amulet_fang", "valid item loaded")
+	assert_push_error_count(1, "push_error expected for invalid item_id in equipment")
 
 
 func test_equipment_load_unknown_slot_key_ignored() -> void:

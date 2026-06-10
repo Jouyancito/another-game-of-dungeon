@@ -23,8 +23,9 @@ func after_each() -> void:
 # ClassBaseStats.DEFAULTS
 # ═══════════════════════════════════════════
 
-func test_defaults_has_five_classes() -> void:
-	assert_eq(ClassBaseStats.DEFAULTS.size(), 5, "5 clases definidas")
+func test_defaults_has_six_classes() -> void:
+	# Danzante de Sombras was added as the 6th class (canon 2026-04-23).
+	assert_eq(ClassBaseStats.DEFAULTS.size(), 6, "6 clases definidas (includes Danzante)")
 
 
 func test_defaults_warrior() -> void:
@@ -133,13 +134,17 @@ func test_get_character_valid_index() -> void:
 
 
 func test_get_character_invalid_negative() -> void:
+	# SaveManager emits push_error for invalid indices — this is expected behavior.
 	var c = manager.get_character(-1)
-	assert_eq(c, {}, "Índice negativo retorna diccionario vacío")
+	assert_eq(c, {}, "Negative index returns empty dict")
+	assert_push_error_count(1, "push_error expected for invalid index -1")
 
 
 func test_get_character_invalid_out_of_range() -> void:
+	# SaveManager emits push_error for invalid indices — this is expected behavior.
 	var c = manager.get_character(99)
-	assert_eq(c, {}, "Índice fuera de rango retorna diccionario vacío")
+	assert_eq(c, {}, "Out-of-range index returns empty dict")
+	assert_push_error_count(1, "push_error expected for out-of-range index 99")
 
 
 func test_get_character_count_empty() -> void:
@@ -223,19 +228,21 @@ func test_can_create_six_characters() -> void:
 	assert_eq(manager.get_character_count(), 6, "Se pueden crear hasta 6 personajes")
 
 
-func test_all_five_classes_created() -> void:
+func test_all_six_classes_created() -> void:
+	# Includes Danzante de Sombras added as 6th class (canon 2026-04-23).
 	var scenes = [
 		["res://scenes/player/player.tscn", "Guerrero"],
 		["res://scenes/player/mage.tscn", "Mago"],
 		["res://scenes/player/archer.tscn", "Arquero"],
 		["res://scenes/player/necromancer.tscn", "Nigromante"],
 		["res://scenes/player/cleric.tscn", "Clérigo"],
+		["res://scenes/player/danzante.tscn", "Danzante de Sombras"],
 	]
 	for s in scenes:
 		manager.create_character(s[1], s[0], s[1])
 
-	assert_eq(manager.get_character_count(), 5)
-	for i in range(5):
+	assert_eq(manager.get_character_count(), 6)
+	for i in range(6):
 		var c = manager.get_character(i)
 		assert_eq(c["name"], scenes[i][1])
 		assert_eq(c["class_scene"], scenes[i][0])

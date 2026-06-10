@@ -207,18 +207,20 @@ func test_perform_attack_deals_damage_to_target() -> void:
 	var e = _create_enemy()
 	await get_tree().process_frame
 
+	# Set GameManager so _ready() -> _load_character_stats() loads predictable defaults.
+	GameManager.selected_character_index = -1
+	GameManager.selected_class_scene = "res://scenes/player/player.tscn"
 	var mock_target = BasePlayer.new()
-	mock_target.str_stat = 5
-	mock_target.int_stat = 5
-	mock_target.dex_stat = 5
+	add_child_autofree(mock_target)
+	await get_tree().process_frame
+	# Override stats AFTER _ready() so we control def precisely.
 	mock_target.def_stat = 0
-	mock_target.vit_stat = 5
 	mock_target.recalculate_stats()
 	mock_target.health = mock_target.max_health
 	mock_target.mana = mock_target.max_mana
-	add_child_autofree(mock_target)
 
-	var initial_health = mock_target.health
+	var initial_health: float = mock_target.health
 	e.target = mock_target
 	e.perform_attack()
-	assert_eq(mock_target.health, initial_health - 10.0, "Enemy deals 10 dmg with 0 DEF")
+	# Canon §2.5: apply_armor_v2(10, DEF=0, attacker_level=1) = 10 * (1 - 0/(0+50)) = 10
+	assert_almost_eq(mock_target.health, initial_health - 10.0, 0.01, "Enemy deals 10 dmg with 0 DEF (v2)")
