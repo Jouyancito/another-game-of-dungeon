@@ -14,6 +14,8 @@ var combo: ClassResource
 
 func before_each() -> void:
 	player = BasePlayer.new()
+	# Add to tree BEFORE positioning enemies so global_position works.
+	add_child_autofree(player)
 	player.str_stat = 6
 	player.int_stat = 5
 	player.dex_stat = 14  # DEX primario Danzante
@@ -39,8 +41,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if is_instance_valid(player):
-		player.free()
+	pass  # add_child_autofree handles cleanup
 
 
 # ─── Mock enemy reutilizable ───
@@ -66,13 +67,19 @@ class MockEnemy extends Node3D:
 # ─── Skill stub: finisher INSTANT + combo_consume_all ───
 
 func _make_finisher_skill() -> SkillResource:
-	# Proxy de danzante_thousand_shadows: INSTANT single-enemy, mult escalante por combo.
+	# Proxy de danzante_thousand_shadows: INSTANT + combo_consume_all, mult escalante.
+	# Uses CONE (360°) instead of SINGLE_ENEMY: SINGLE_ENEMY uses a camera raycast that
+	# requires physics colliders — DummyPlayer (Node3D) has no Camera3D so
+	# _acquire_enemy_target always returns null and no damage is applied.
+	# CONE uses geometry (get_nodes_in_group + distance) which works with MockEnemy.
+	# combo_consume_all still works: _pre_consume_combo runs before _execute_cone.
 	var s := SkillResource.new()
 	s.id = &"danzante_thousand_shadows_stub"
 	s.class_id = &"danzante"
 	s.cast_type = SkillResource.CastType.INSTANT
-	s.target_type = SkillResource.TargetType.SINGLE_ENEMY
+	s.target_type = SkillResource.TargetType.CONE
 	s.range_m = 5.0
+	s.cone_angle_deg = 360.0  # full sphere — picks any enemy in range
 	s.resource_cost = 0
 	s.resource_type = SkillResource.ResourceCostType.NONE
 	s.cooldown_s = 0.0

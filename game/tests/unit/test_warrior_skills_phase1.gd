@@ -9,6 +9,14 @@ var rage: ClassResource
 
 func before_each() -> void:
 	player = BasePlayer.new()
+	# Add to tree BEFORE setting stats so global_position and get_tree() work.
+	add_child_autofree(player)
+	# Disable physics so _physics_process never runs on this bare BasePlayer.new().
+	# BasePlayer._ready() @onready vars ($CollisionShape3D, $Head, $Head/Camera3D, $MeshInstance3D)
+	# resolve to null when the node is created without its .tscn scene. If physics runs,
+	# collider.shape.height and head.position.y crash with "Method/function failed".
+	player.set_physics_process(false)
+	player.set_process(false)
 	player.str_stat = 12
 	player.int_stat = 4
 	player.dex_stat = 6
@@ -33,8 +41,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if is_instance_valid(player):
-		player.free()
+	pass  # add_child_autofree handles cleanup
 
 
 # ─── Canon .tres cargan valores exactos de warrior.md §3 ───
@@ -78,7 +85,7 @@ func test_perfect_block_tres_canon_values() -> void:
 	assert_eq(s.id, &"warrior_perfect_block")
 	assert_eq(s.reactive_window_s, 0.4)
 	assert_eq(s.reflect_ratio, 0.5)
-	assert_eq(s.reactive_rage_on_success, 10)
+	assert_eq(s.resource_gen_on_cast, 10)  # reactive_rage_on_success deprecated; gen fires on parry success via resource_gen_on_cast
 	assert_eq(s.cooldown_s, 4.0)
 	assert_eq(s.status_duration_s, 0.5)
 
@@ -135,6 +142,10 @@ func test_punch_hits_multiple_enemies_in_cone() -> void:
 func test_charge_applies_stun_to_hit_enemy() -> void:
 	var charge: SkillResource = load("res://shared/skills/resources/warrior/charge.tres")
 	skills.set_slot(1, charge)
+	# Force sync path: with duration=0 the dash resolves immediately (no async tween).
+	# When player IS in the scene tree, the tween path runs and damage fires only after
+	# the tween callback — making assertions right after cast_slot unreliable without await.
+	skills.dash_tween_duration_s = 0.0
 	var e := MockEnemy.new()
 	player.add_child(e)
 	e.global_position = player.global_position + Vector3(0, 0, -4.0)
@@ -148,6 +159,8 @@ func test_charge_applies_stun_to_hit_enemy() -> void:
 func test_charge_moves_player_toward_enemy() -> void:
 	var charge: SkillResource = load("res://shared/skills/resources/warrior/charge.tres")
 	skills.set_slot(1, charge)
+	# Force sync path for the same reason as test_charge_applies_stun_to_hit_enemy.
+	skills.dash_tween_duration_s = 0.0
 	var e := MockEnemy.new()
 	player.add_child(e)
 	e.global_position = player.global_position + Vector3(0, 0, -4.0)
@@ -312,7 +325,16 @@ func _make_enemy() -> BaseEnemy:
 	e.health = 100.0
 	e._max_health = 100.0
 	e.damage = 10.0
-	player.add_child(e)
+	# DO NOT add to the scene tree. Status tests only call apply_status / has_status /
+	# get_status_time_left / _tick_statuses / outgoing_damage_mult — all pure dictionary
+	# operations that do not require get_tree(). Adding to the tree triggers:
+	#   • BaseEnemy._ready() → await get_tree().process_frame (async coroutine)
+	#   • @onready var mesh = $MeshInstance3D → engine error (no child nodes)
+	#   • Async errors bleed into the next GUT test window (false positives)
+	# _flash_damage() is called by bleed ticks but returns immediately when mesh is null
+	# (no gltf model root on bare BaseEnemy.new()) — no create_timer, no tree required.
+	# Use autofree to ensure cleanup without adding to tree.
+	autofree(e)
 	return e
 
 

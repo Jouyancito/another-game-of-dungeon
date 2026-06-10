@@ -16,14 +16,15 @@ func before_each() -> void:
 	player.base_health = 100.0
 	player.base_mana = 80.0
 	player.downed_time_s = 30.0
+	# Add to scene tree so _physics_process (is_on_floor, move_and_slide) works.
+	add_child_autofree(player)
 	player.recalculate_stats()
 	player.health = player.max_health
 	player.mana = player.max_mana
 
 
 func after_each() -> void:
-	if is_instance_valid(player):
-		player.free()
+	pass  # add_child_autofree handles cleanup
 
 
 # ─── Caso 1: die() ya no mata instant — entra en downed ───

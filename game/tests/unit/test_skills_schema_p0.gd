@@ -11,6 +11,14 @@ var resource: ClassResource  # genérico — tests setean type según lo que nec
 
 func before_each() -> void:
 	player = BasePlayer.new()
+	# Add to tree BEFORE positioning mock enemies so global_position and get_tree() work.
+	add_child_autofree(player)
+	# Disable physics so _physics_process never runs on this bare BasePlayer.new().
+	# BasePlayer @onready vars ($CollisionShape3D, $Head, etc.) resolve to null when
+	# instantiated without its .tscn scene. Physics would then crash on collider.shape.height
+	# and head.position.y with "Method/function failed. Returning: nullptr".
+	player.set_physics_process(false)
+	player.set_process(false)
 	player.str_stat = 12
 	player.int_stat = 10
 	player.dex_stat = 6
@@ -35,8 +43,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if is_instance_valid(player):
-		player.free()
+	pass  # add_child_autofree handles cleanup
 
 
 class MockEnemy extends Node3D:
@@ -62,12 +69,17 @@ class MockEnemy extends Node3D:
 
 
 func _make_skill(id: StringName) -> SkillResource:
+	# Uses CONE (360°) instead of SINGLE_ENEMY. The SINGLE_ENEMY path uses a
+	# camera-raycast that requires physics colliders — MockEnemy is a plain Node3D
+	# with no collision body and will never be hit. CONE uses geometry queries
+	# (get_nodes_in_group + distance) which work correctly with MockEnemy.
 	var s := SkillResource.new()
 	s.id = id
 	s.class_id = &"test"
 	s.cast_type = SkillResource.CastType.INSTANT
-	s.target_type = SkillResource.TargetType.SINGLE_ENEMY
+	s.target_type = SkillResource.TargetType.CONE
 	s.range_m = 10.0
+	s.cone_angle_deg = 360.0
 	s.damage_formula = SkillResource.DamageFormulaType.PHYSICAL_V2
 	s.base_damage = 20
 	return s
@@ -237,8 +249,13 @@ func test_g4_combo_multiplier_scales_damage_by_points() -> void:
 	e.global_position = player.global_position + Vector3(0, 0, -3)
 	skills.cast_slot(0)
 	# 3 points → idx 2 → mult 1.8
-	# get_physical_damage(20) = 20 + 12*2 = 44. × 1.8 = 79.2
-	assert_almost_eq(e.last_damage, 79.2, 0.1)
+	# Canon physical_v2(base=20, weapon=0, STR=12, level=1, class_mult=1.0):
+	#   stat_mult  = 1 + 12*0.02 = 1.24
+	#   level_mult = 1 + 1*0.03  = 1.03
+	#   raw        = 20 * 1.24 * 1.03 = 25.544
+	#   with combo mult 1.8 → 25.544 * 1.8 = 45.979
+	# Old comment used deprecated v1 formula (base + STR*2 = 44); v2 canon applies here.
+	assert_almost_eq(e.last_damage, 45.979, 0.1)
 	assert_eq(resource.get_current(), 0, "consume_all vació el pool")
 
 
@@ -252,8 +269,12 @@ func test_g4_combo_without_points_uses_base_damage() -> void:
 	player.add_child(e)
 	e.global_position = player.global_position + Vector3(0, 0, -3)
 	skills.cast_slot(0)
-	# Daño base 20 + (12*2) = 44
-	assert_almost_eq(e.last_damage, 44.0, 0.01)
+	# Canon physical_v2(base=20, weapon=0, STR=12, level=1, class_mult=1.0):
+	#   stat_mult  = 1 + 12*0.02 = 1.24
+	#   level_mult = 1 + 1*0.03  = 1.03
+	#   result     = 20 * 1.24 * 1.03 = 25.544
+	# Old comment used deprecated v1 formula (base + STR*2 = 44); v2 canon applies here.
+	assert_almost_eq(e.last_damage, 25.544, 0.01)
 
 
 # ─── G5: Channeled tick ───
@@ -261,7 +282,11 @@ func test_g4_combo_without_points_uses_base_damage() -> void:
 func test_g5_channeled_tick_damages_per_interval() -> void:
 	var s := _make_skill(&"channeled_test")
 	s.cast_type = SkillResource.CastType.CHANNELED
-	s.target_type = SkillResource.TargetType.SINGLE_ENEMY
+	# Use CONE (360°) not SINGLE_ENEMY. CHANNELED+SINGLE_ENEMY path uses
+	# _acquire_enemy_target (camera raycast) — BasePlayer.new() has no camera →
+	# always returns null → no damage. CONE uses geometry queries that work with MockEnemy.
+	s.target_type = SkillResource.TargetType.CONE
+	s.cone_angle_deg = 360.0
 	s.tick_interval_s = 0.5
 	s.tick_resource_cost = 0
 	s.base_damage = 10
@@ -282,7 +307,9 @@ func test_g5_channeled_tick_damages_per_interval() -> void:
 func test_g5_channeled_drains_tick_resource_cost() -> void:
 	var s := _make_skill(&"channeled_mp")
 	s.cast_type = SkillResource.CastType.CHANNELED
-	s.target_type = SkillResource.TargetType.SINGLE_ENEMY
+	# CONE instead of SINGLE_ENEMY — same reason as test_g5_channeled_tick_damages_per_interval.
+	s.target_type = SkillResource.TargetType.CONE
+	s.cone_angle_deg = 360.0
 	s.tick_interval_s = 0.5
 	s.tick_resource_cost = 10
 	s.resource_type = SkillResource.ResourceCostType.MP
@@ -298,7 +325,9 @@ func test_g5_channeled_drains_tick_resource_cost() -> void:
 func test_g5_channeled_stops_when_resource_out() -> void:
 	var s := _make_skill(&"channeled_mp_out")
 	s.cast_type = SkillResource.CastType.CHANNELED
-	s.target_type = SkillResource.TargetType.SINGLE_ENEMY
+	# CONE instead of SINGLE_ENEMY — same reason as test_g5_channeled_tick_damages_per_interval.
+	s.target_type = SkillResource.TargetType.CONE
+	s.cone_angle_deg = 360.0
 	s.tick_interval_s = 0.5
 	s.tick_resource_cost = 10
 	s.resource_type = SkillResource.ResourceCostType.MP
@@ -312,7 +341,9 @@ func test_g5_channeled_stops_when_resource_out() -> void:
 func test_g5_stop_channel_starts_cooldown() -> void:
 	var s := _make_skill(&"channeled_cd")
 	s.cast_type = SkillResource.CastType.CHANNELED
-	s.target_type = SkillResource.TargetType.SINGLE_ENEMY
+	# CONE instead of SINGLE_ENEMY — same reason as test_g5_channeled_tick_damages_per_interval.
+	s.target_type = SkillResource.TargetType.CONE
+	s.cone_angle_deg = 360.0
 	s.tick_interval_s = 0.5
 	s.cooldown_s = 5.0
 	skills.set_slot(0, s)

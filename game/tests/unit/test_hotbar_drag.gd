@@ -70,10 +70,21 @@ func _make_slot(idx: int) -> HotbarSlot:
 
 
 func test_get_drag_data_returns_payload_when_skill_present() -> void:
+	# _get_drag_data calls set_drag_preview() — a native Control method that requires an
+	# active drag session (gui_is_dragging() == true). In headless tests there is no GUI
+	# event loop, so the engine fires: "Condition !get_viewport()->gui_is_dragging() is true".
+	#
+	# Stubbing set_drag_preview via partial_double + INCLUDE_NATIVE does not suppress the
+	# engine-level assert inside Control::set_drag_preview (the check fires in C++ before
+	# GDScript even calls the overridden method). The correct approach is to call _get_drag_data
+	# normally and then use assert_engine_error() to mark the expected engine condition as
+	# "acknowledged", preventing GUT from counting it as a test failure.
 	var slot: HotbarSlot = _make_slot(2)
 	var s := _make_skill(&"warrior_war_cry")
 	slot.set_skill(s)
 	var data = slot._get_drag_data(Vector2.ZERO)
+	# Acknowledge the expected engine condition from set_drag_preview in headless mode.
+	assert_engine_error("gui_is_dragging", "set_drag_preview headless condition is expected")
 	assert_eq(typeof(data), TYPE_DICTIONARY, "drag_data es Dictionary")
 	assert_eq(data.get("type", ""), "hotbar_skill", "type correcto")
 	assert_eq(data.get("from_slot", -1), 2, "from_slot matchea")

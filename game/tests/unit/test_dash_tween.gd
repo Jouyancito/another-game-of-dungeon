@@ -35,6 +35,12 @@ class DummyPlayer extends Node3D:
 	func get_physical_damage(base: float) -> float:
 		return base + float(str_stat) * 2.0
 
+	# player_skills.gd line 609 calls _owner_player.get_rid() to exclude the
+	# player from the wall-raycast. Node3D has no get_rid(); provide a blank RID
+	# so the raycast exclude array is valid.
+	func get_rid() -> RID:
+		return RID()
+
 
 var player: DummyPlayer
 var skills: PlayerSkills

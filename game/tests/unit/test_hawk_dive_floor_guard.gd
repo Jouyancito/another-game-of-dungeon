@@ -59,14 +59,17 @@ func test_dive_guard_clamps_at_threshold_exact() -> void:
 # ─── Guard NO activo cuando y > 1.5 (dive normal) ───
 
 func test_dive_normal_descent_above_guard_threshold() -> void:
-	var setup = _make_hawk_with_target(8.0, Vector3(0, 0, 0))
+	# Offset target slightly in XZ so hawk (at 0,8,0) and target don't share the
+	# same XZ — look_at_from_position errors when origin and target are identical
+	# in the non-Y axes (same XZ, different Y is OK for the look-at direction).
+	var setup = _make_hawk_with_target(8.0, Vector3(0.01, 0, 0.01))
 	var hawk = setup["hawk"]
 	hawk.state = hawk.HawkState.DIVING
 	hawk.velocity = Vector3.ZERO
 
 	hawk._move_toward_target(0.016)
 
-	# Y alto + target en y=0 → debe descender (velocity.y < 0)
+	# Y alto + target debajo → debe descender (velocity.y < 0)
 	assert_lt(hawk.velocity.y, 0.0,
 		"En altura alta, dive debe descender (velocity.y < 0). Si guard se activa siempre, halcón nunca llega")
 
@@ -74,7 +77,9 @@ func test_dive_normal_descent_above_guard_threshold() -> void:
 # ─── State transitions ───
 
 func test_dive_to_retreating_on_ground_contact() -> void:
-	var setup = _make_hawk_with_target(0.4, Vector3(0, 0, 0))
+	# Offset target XZ to avoid look_at_from_position error (hawk at 0,0.4,0 and
+	# target at 0,0,0 would share the same XZ, causing the engine to error).
+	var setup = _make_hawk_with_target(0.4, Vector3(0.01, 0, 0.01))
 	var hawk = setup["hawk"]
 	hawk.state = hawk.HawkState.DIVING
 	hawk.velocity = Vector3.ZERO
