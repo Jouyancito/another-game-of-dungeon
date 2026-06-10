@@ -176,8 +176,10 @@ func cast_skill(skill: SkillResource) -> bool:
 	# no al cast. Sino re-apretar la key reseteaba el CD a full.
 	if skill.cooldown_s > 0.0 and skill.cast_type != SkillResource.CastType.CHANNELED:
 		cooldowns[skill.id] = skill.cooldown_s
-	# G2: resource gen al castear (Fe pre-heal, Rage pre-charge, etc)
-	if skill.resource_gen_on_cast > 0:
+	# G2: resource gen al castear (Fe pre-heal, Rage pre-charge, etc).
+	# Skills reactivas difieren esta gen al parry EXITOSO (path reactive ~L817):
+	# generarla acá también la duplicaba (+20 Rage en perfect_block, canon +10).
+	if skill.resource_gen_on_cast > 0 and skill.reactive_window_s <= 0.0:
 		_gen_resource(skill, skill.resource_gen_on_cast)
 	# Ejecutar
 	_execute(skill)

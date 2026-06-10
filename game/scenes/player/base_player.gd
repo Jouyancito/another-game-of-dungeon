@@ -418,8 +418,13 @@ func _load_character_stats() -> void:
 			xp = data.get("xp", 0.0)
 			xp_to_next_level = Progression.xp_for_level(level)
 			return
-	# Sin personaje guardado: usar ClassBaseStats.DEFAULTS según la escena
-	var scene_path = GameManager.selected_class_scene
+	# Sin personaje guardado: usar ClassBaseStats.DEFAULTS según la PROPIA escena
+	# instanciada (scene_file_path). Fallback al selector global solo sin escena
+	# (BasePlayer.new() en tests/tools). Antes leía siempre el global: spawnear
+	# una clase distinta a selected_class_scene heredaba stats ajenos en silencio.
+	var scene_path: String = scene_file_path
+	if scene_path.is_empty():
+		scene_path = GameManager.selected_class_scene
 	var defaults = ClassBaseStats.DEFAULTS.get(scene_path, {})
 	if not defaults.is_empty():
 		str_stat = defaults.get("str_stat", str_stat)
@@ -870,7 +875,8 @@ func take_damage(amount: float, element: String = "", attacker: Node = null) -> 
 			var rage_gained: int = int((final_damage / max_health) * 100.0)
 			class_resource.add(rage_gained)
 	# ── SFX daño recibido ─────────────────────────────────────────────────────
-	if AudioManager:
+	# is_inside_tree guard: global_position asserts fuera del árbol (tests/headless).
+	if AudioManager and is_inside_tree():
 		AudioManager.play_sfx(&"punch_hit", global_position)
 	if health <= 0:
 		die()
