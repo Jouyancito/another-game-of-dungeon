@@ -1,18 +1,17 @@
 #!/usr/bin/env sh
 # pre-push gate (dungeon-party) — nothing that fails to compile reaches origin.
 #
-# Runs game/tools/godot/validate.ps1: headless import pass + full script
+# Phase 1 — game/tools/godot/validate.ps1: headless import pass + full script
 # compile sweep (~216 scripts, two engine boots, well under a minute).
-#
-# Deliberately does NOT run the GUT suite yet: 63 tests are still red
-# (scene-tree fixtures + known game bugs, see audit 2026-06-09 triage).
-# Promote the suite into this gate once it is green.
+# Phase 2 — full GUT suite (~24s headless). Promoted 2026-06-10 once the
+# suite went green (387 tests, 0 failing; was 95 red at the audit).
 #
 # Bypass (leaves a trace in your terminal): git push --no-verify
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
+GODOT="$REPO_ROOT/Godot_v4.6.2-stable_win64.exe/Godot_v4.6.2-stable_win64_console.exe"
 
-echo "[pre-push gate] validate.ps1 (import + compile sweep)..."
+echo "[pre-push gate] 1/2 validate.ps1 (import + compile sweep)..."
 powershell.exe -ExecutionPolicy Bypass -File "$REPO_ROOT/game/tools/godot/validate.ps1"
 STATUS=$?
 
@@ -26,5 +25,19 @@ if [ "$STATUS" -ne 0 ]; then
   exit 1
 fi
 
+echo "[pre-push gate] 2/2 GUT suite..."
+GUT_OUT=$("$GODOT" --headless --path "$REPO_ROOT/game" -s res://addons/gut/gut_cmdln.gd -gexit 2>&1)
+GUT_STATUS=$?
+
+if [ "$GUT_STATUS" -ne 0 ] || echo "$GUT_OUT" | grep -q "failing tests"; then
+  {
+    printf '\n[pre-push gate] BLOQUEADO: GUT suite roja (exit %s).\n' "$GUT_STATUS"
+    echo "$GUT_OUT" | grep -E "Passing|Failing|failing tests" | head -5
+    printf '  Bypass deliberado: git push --no-verify\n\n'
+  } >&2
+  exit 1
+fi
+
+echo "$GUT_OUT" | grep -A8 "^Totals" | grep -E "Tests|Passing"
 echo "[pre-push gate] OK"
 exit 0
