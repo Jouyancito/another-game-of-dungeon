@@ -247,7 +247,7 @@ static func xp_for_level_v2(level: int) -> float:
     elif level < 50:    # Tier II — gradual
         return 3000.0 * pow(1.12, level - 25)
     elif level < 75:    # Tier III — desacelerando
-        return 45000.0 * pow(1.10, level - 50)
+        return 46000.0 * pow(1.10, level - 50)
     elif level < 95:    # Tier IV — endgame grind
         return 500000.0 * pow(1.08, level - 75)
     else:               # Tier V — mito
@@ -259,12 +259,14 @@ static func xp_for_level_v2(level: int) -> float:
 | 1→2 | 100 | 100 |
 | 10→11 | 351 | 2.3k |
 | 25→26 | 3k | 26k |
-| 50→51 | 45k | 400k |
+| 50→51 | 46k | 400k |
 | 75→76 | 500k | 4M |
 | 95→96 | 2.5M | 20M |
 | 99→100 | 3.2M | 30M |
 
 **Razón**: curva exponencial constante 1.15 explota en lvl 100. El piecewise mantiene pacing natural: rápido al principio (enganchar), grind real al final (significado del lvl max).
+
+**Errata 2026-06-10**: Tier III base era 45000, pero Tier II termina en 3000·1.12²⁴ ≈ 45535 (lvl 49→50) — la curva RETROCEDÍA en el boundary. Base corregida a 46000 para restaurar monotonicidad. Los otros 3 boundaries verificados monotónicos (I→II: 2489<3000 · III→IV: 443k<500k · IV→V: 2.16M<2.5M).
 
 ---
 

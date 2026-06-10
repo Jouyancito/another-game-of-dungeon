@@ -72,8 +72,9 @@ func test_xp_for_level_v2_tier2_lvl25() -> void:
 
 
 func test_xp_for_level_v2_tier3_lvl50() -> void:
-	# Tier III lvl 50→51: 45000 * 1.10^0 = 45000
-	assert_almost_eq(Progression.xp_for_level_v2(50), 45000.0, 1.0)
+	# Tier III lvl 50→51: 46000 * 1.10^0 = 46000 (base raised from 45000,
+	# errata 2026-06-10: old base backtracked vs tier II lvl 49 ~= 45535)
+	assert_almost_eq(Progression.xp_for_level_v2(50), 46000.0, 1.0)
 
 
 func test_xp_for_level_v2_tier4_lvl75() -> void:
@@ -93,13 +94,11 @@ func test_xp_for_level_v2_no_negative_discontinuity_at_boundaries() -> void:
 	var xp_25: float = Progression.xp_for_level_v2(25)
 	assert_gt(xp_25, xp_24, "tier II start greater than tier I end (no backtrack)")
 
-	# BUG DOCUMENTED (category D): xp tier II→III boundary backtracks.
-	# xp_for_level_v2(49) = 3000 * 1.12^24 ≈ 45535, but
-	# xp_for_level_v2(50) = 45000 * 1.10^0 = 45000  (< 45535 — backtrack).
-	# The XP curve formula in progression.gd has wrong tier III base or transition level.
-	# This assertion is INTENTIONALLY disabled pending game-code fix.
-	# See: game/shared/stats/progression.gd xp_for_level_v2() tier III boundary.
-	# assert_gt(xp_for_level_v2(50), xp_for_level_v2(49))  # DO NOT enable until fixed
+	# lvl 49 final tier II vs lvl 50 initial tier III (regression guard for the
+	# 2026-06-10 errata: tier III base 45000 backtracked vs lvl 49 ~= 45535).
+	var xp_49: float = Progression.xp_for_level_v2(49)
+	var xp_50: float = Progression.xp_for_level_v2(50)
+	assert_gt(xp_50, xp_49, "tier III start greater than tier II end (no backtrack)")
 
 	var xp_74: float = Progression.xp_for_level_v2(74)
 	var xp_75: float = Progression.xp_for_level_v2(75)

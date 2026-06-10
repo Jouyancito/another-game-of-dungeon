@@ -33,7 +33,8 @@ static func max_mana_v2(base_mana: float, total_int: int, level: int) -> float:
 ## XP requerido para pasar del nivel N al N+1 — canon §5 piecewise.
 ##   Tier I  (1-24):  100   * 1.15^(lvl-1)
 ##   Tier II (25-49): 3000  * 1.12^(lvl-25)
-##   Tier III(50-74): 45000 * 1.10^(lvl-50)
+##   Tier III(50-74): 46000 * 1.10^(lvl-50) — base 46000 (errata 2026-06-10:
+##                    45000 retrocedía vs tier II lvl 49 ≈ 45535)
 ##   Tier IV (75-94): 500000 * 1.08^(lvl-75)
 ##   Tier V  (95+):  2500000 * 1.05^(lvl-95)
 static func xp_for_level_v2(level: int) -> float:
@@ -42,7 +43,7 @@ static func xp_for_level_v2(level: int) -> float:
 	elif level < 50:
 		return 3000.0 * pow(1.12, float(level - 25))
 	elif level < 75:
-		return 45000.0 * pow(1.10, float(level - 50))
+		return 46000.0 * pow(1.10, float(level - 50))
 	elif level < 95:
 		return 500000.0 * pow(1.08, float(level - 75))
 	else:
