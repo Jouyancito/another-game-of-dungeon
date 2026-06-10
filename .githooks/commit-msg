@@ -1,0 +1,49 @@
+#!/usr/bin/env sh
+# commit-msg gate (dungeon-party) — a `feat:` must ship with verification.
+#
+# Origin: 2026-06-09 operating review (engram #1454) + Anthropic best-practices
+# ("CLAUDE.md is advisory; hooks are deterministic"). The flagship shipped 336
+# commits with NO adversarial gate and a persistent feat->fix-same-day pattern.
+# This makes "feat: without a verification artifact" impossible by default —
+# moving the locus of correctness from attention to a deterministic check.
+#
+# A `feat:` commit must include AT LEAST ONE of:
+#   - a staged test file (game/tests/**, test_*.gd, *_test.gd)
+#   - a spec / issue reference in the subject (#123, "spec", docs/)
+# Deliberate bypass (leaves a trace): add [skip-gate] to the subject, or
+#   git commit --no-verify
+
+MSG_FILE="$1"
+SUBJECT=$(head -1 "$MSG_FILE")
+
+# Only gate feat / feat(scope) / feat!:
+echo "$SUBJECT" | grep -qE '^feat(\([^)]*\))?!?:' || exit 0
+
+# Explicit bypass token
+case "$SUBJECT" in *"[skip-gate]"*) exit 0 ;; esac
+
+STAGED=$(git diff --cached --name-only)
+
+# Pass: a test file is part of the change
+if printf '%s\n' "$STAGED" | grep -qE '(^|/)test_[^/]*\.gd$|(^|/)[^/]*_test\.gd$|(^|/)tests?/'; then
+  exit 0
+fi
+
+# Pass: subject references a spec / issue / docs
+if echo "$SUBJECT" | grep -qiE '#[0-9]+|\bspec\b|docs/'; then
+  exit 0
+fi
+
+# Block
+{
+  printf '\n[commit-msg gate] BLOQUEADO: un commit `feat:` sin verificacion.\n\n'
+  printf '  Un `feat:` tiene que traer AL MENOS UNO de:\n'
+  printf '    - un test staged       (game/tests/**, test_*.gd, *_test.gd)\n'
+  printf '    - una ref a spec/issue (#123, "spec", docs/...) en el subject\n\n'
+  printf '  Por que: review operativa 2026-06-09 — el flagship shippeo 336\n'
+  printf '  commits sin gate, con patron feat->fix-mismo-dia. Esto cierra eso.\n\n'
+  printf '  Si es a proposito (WIP, experimento), deja rastro deliberado:\n'
+  printf '    - agrega [skip-gate] al mensaje, o\n'
+  printf '    - git commit --no-verify\n\n'
+} >&2
+exit 1
