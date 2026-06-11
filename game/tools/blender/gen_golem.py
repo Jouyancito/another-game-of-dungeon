@@ -113,7 +113,7 @@ def make_rock_block(
         geom=list(bm.verts) + list(bm.edges) + list(bm.faces),
         offset=bevel_off,
         offset_type="OFFSET",
-        segments=1,
+        segments=2,   # a couple support loops so the Subdivision Surface rounds cleanly
         profile=0.5,
         affect="EDGES",
         clamp_overlap=True,
@@ -281,29 +281,33 @@ def build_golem() -> list[bpy.types.Object]:
 
     # --- ARMS: long, heavy, hanging to ~knee (knuckle-drag). ---
     #     Splay outward via Y-axis rotation (tilts side X toward height Z).
+    # KNUCKLE-DRAG arms (ref img 33): long, thick, hanging DOWN + FORWARD with big
+    # fists resting near the ground in front of the legs. Turns it from a stocky
+    # robot into a gorilla-like stone beast.
     arm_specs = [
-        (-1, 40, 41, 42, 1.08),  # left arm a touch bigger (overgrown side)
-        (1, 43, 44, 45, 1.00),
+        (-1, 40, 41, 42, 1.14),  # left arm bigger (overgrown side)
+        (1, 43, 44, 45, 1.0),
     ]
     for sgn, us, fs, ks, sc in arm_specs:
-        parts.append(make_rock_block(  # upper arm
+        parts.append(make_rock_block(  # upper arm — thick, from the high shoulder
             f"uparm_{us}",
-            (sgn * 0.92, 0.06, 1.42),
-            (0.40 * sc, 0.40 * sc, 0.64 * sc),
-            rotation=(0.0, math.radians(-8.0 * sgn), 0.0),
-            bevel=0.06, jitter=0.09, block_seed=us,
+            (sgn * 0.98, 0.12, 1.46),
+            (0.48 * sc, 0.48 * sc, 0.74 * sc),
+            rotation=(math.radians(-6.0), math.radians(-6.0 * sgn), 0.0),
+            bevel=0.07, jitter=0.09, block_seed=us, detail=1,
         ))
-        parts.append(make_rock_block(  # forearm
+        parts.append(make_rock_block(  # forearm — long, dropping down and FORWARD
             f"forearm_{fs}",
-            (sgn * 1.02, 0.10, 0.80),
-            (0.42 * sc, 0.42 * sc, 0.66 * sc),
-            bevel=0.06, jitter=0.09, block_seed=fs,
+            (sgn * 1.08, 0.26, 0.68),
+            (0.48 * sc, 0.48 * sc, 0.82 * sc),
+            rotation=(math.radians(10.0), 0.0, 0.0),
+            bevel=0.06, jitter=0.09, block_seed=fs, detail=1,
         ))
-        parts.append(make_rock_block(  # fist (big knuckle near ground)
+        parts.append(make_rock_block(  # BIG fist resting near the ground, forward
             f"fist_{ks}",
-            (sgn * 1.04, 0.16, 0.34),
-            (0.52 * sc, 0.54 * sc, 0.46 * sc),
-            bevel=0.07, jitter=0.10, block_seed=ks,
+            (sgn * 1.08, 0.40, 0.28),
+            (0.66 * sc, 0.70 * sc, 0.60 * sc),
+            bevel=0.08, jitter=0.11, block_seed=ks, detail=1,
         ))
 
     # --- NECK + HEAD: low, set forward between the shoulders. ---
@@ -441,6 +445,53 @@ def _face_vertex_colors(obj: bpy.types.Object) -> None:
             ca.data[li].color = col
 
 
+def paint_moss(obj: bpy.types.Object) -> None:
+    """Paint moss-green into the STONE on up-facing / high faces (fading to grey
+    stone on sides + below) — so the moss is PART of the rock, not a stuck-on mesh
+    (Joan: 'pintar la textura de las rocas arriba con colores musgo'). Per-face
+    vertex color; Godot shows it via the toon use_vertex_color path. Z = up here."""
+    me = obj.data
+    if not me.color_attributes:
+        me.color_attributes.new(name="Col", type="BYTE_COLOR", domain="CORNER")
+    ca = me.color_attributes[0]
+    zs = [v.co.z for v in me.vertices]
+    zmin, zr = min(zs), max(1e-6, max(zs) - min(zs))
+    stone = (0.44, 0.42, 0.40)
+    moss = (0.30, 0.45, 0.24)
+    prng = random.Random(SEED * 13)
+    for poly in me.polygons:
+        vs = [me.vertices[i].co for i in poly.vertices]
+        nrm = (vs[1] - vs[0]).cross(vs[2] - vs[0])
+        up = 0.0 if nrm.length < 1e-9 else max(0.0, nrm.normalized().z)
+        cz = sum(v.z for v in vs) / len(vs)
+        h = (cz - zmin) / zr
+        amt = up * (0.30 + 0.85 * h) + prng.uniform(-0.30, 0.16)
+        if amt < 0.22:
+            amt = 0.0   # leave BARE stone patches — moss is patchy, not a full carpet
+        amt = max(0.0, min(1.0, amt))
+        col = (stone[0] * (1 - amt) + moss[0] * amt,
+               stone[1] * (1 - amt) + moss[1] * amt,
+               stone[2] * (1 - amt) + moss[2] * amt, 1.0)
+        for li in poly.loop_indices:
+            ca.data[li].color = col
+
+
+def round_block(obj: bpy.types.Object, levels: int = 1) -> None:
+    """Subdivision-surface a block into a smooth BOULDER mass (Joan's refs = rounded
+    weathered rock, not hard cubes). Flat-shaded later -> faceted low-poly boulder."""
+    try:
+        bpy.context.collection.objects.link(obj)
+    except RuntimeError:
+        pass
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    m = obj.modifiers.new("subsurf", type="SUBSURF")
+    m.levels = levels
+    m.render_levels = levels
+    bpy.ops.object.modifier_apply(modifier=m.name)
+
+
 def boolean_union(objs: list[bpy.types.Object]) -> bpy.types.Object:
     """Weld the interpenetrating blocks into ONE watertight solid — no internal
     faces, no z-fighting (the cause of the 'transparent' patches). EXACT solver
@@ -518,20 +569,24 @@ def main():
     for o in eyes:
         o.data.materials.append(eye_mat)
 
-    # Per-block tonal variation baked as vertex colors (clean, not speckled).
+    # WEATHERED mottled stone (ref img 33): mostly grey stone, with some blocks
+    # moss-stained (green) and some warm-weathered (tan), biased a touch darker so
+    # it reads as solid heavy rock, not washed-out. Per-block, clean (not speckled).
     vrng = random.Random(SEED * 7 + 3)
     for o in parts:
-        t = vrng.uniform(-0.13, 0.13)
-        h = vrng.uniform(-0.03, 0.03)
-        col = (min(1.0, max(0.0, 0.42 + t + h)),
-               min(1.0, max(0.0, 0.40 + t)),
-               min(1.0, max(0.0, 0.36 + t - h)), 1.0)
-        _set_vertex_color(o, col)
+        _set_vertex_color(o, (1.0, 1.0, 1.0, 1.0))  # placeholder; repainted after join
     for o in eyes:
         _set_vertex_color(o, (1.0, 1.0, 1.0, 1.0))
 
+    # Round each block into a boulder mass (eyes stay sharp slits).
+    for o in parts:
+        round_block(o, 1)
+
     golem = join_objects(parts + eyes, "golem_dp_body")
     finalize_mesh(golem)
+    # Moss is PAINTED into the rock (up-facing/high faces -> green) so it lives with
+    # the stone; only small 3D flowers go on top (golem.gd). Joan's idea.
+    paint_moss(golem)
 
     tris = count_tris(golem)
     me = golem.data

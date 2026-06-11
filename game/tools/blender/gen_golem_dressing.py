@@ -167,6 +167,29 @@ def build_moss_tuft():
     return _new_obj("golem_moss_tuft", bm)
 
 
+def build_grass_clump(seed=11):
+    """Low CLINGING grass: a fan of thin blades that hug the stone (lean OUT low,
+    not up like a bush). Joan: 'pasto pegado a la piedra, no arbustos'."""
+    grng = random.Random(SEED * 61 + seed)
+    bm = bmesh.new()
+    for _i in range(20):
+        ang = grng.uniform(0.0, 2.0 * math.pi)
+        ln = grng.uniform(0.22, 0.42)        # blade length (spreads out)
+        rise = grng.uniform(0.06, 0.16)      # low rise = clings/hugs the rock
+        w = grng.uniform(0.020, 0.034)       # blade width at base
+        dx, dy = math.cos(ang), math.sin(ang)
+        px, py = -dy, dx                     # perpendicular = blade width dir
+        b1 = bm.verts.new((px * w, py * w, 0.0))
+        b2 = bm.verts.new((-px * w, -py * w, 0.0))
+        # gentle arc: a mid bend so the blade droops back toward the stone
+        mid = bm.verts.new((dx * ln * 0.6, dy * ln * 0.6, rise))
+        tip = bm.verts.new((dx * ln, dy * ln, rise * 0.55))
+        bm.faces.new((b1, b2, mid))
+        bm.faces.new((b2, tip, mid))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _new_obj("golem_grass_clump", bm)
+
+
 def build_flower(name, seed):
     """5 distinct petals (rounded quads) tilted up into a shallow cup + a small
     raised disc center. Reads as a real bloom, not a flat scalloped disc. 2 slots."""
@@ -294,6 +317,13 @@ def main():
     bpy.context.collection.objects.link(tuft)
     tuft.data.materials.append(make_material("golem_moss", MOSS_RGBA))
     export_single(tuft, "golem_moss_tuft_02.glb")
+
+    # 2c) Clinging grass blades (replaces the bush-y patches)
+    clear_scene()
+    grass = build_grass_clump()
+    bpy.context.collection.objects.link(grass)
+    grass.data.materials.append(make_material("golem_grass", (0.40, 0.58, 0.27, 1.0)))
+    export_single(grass, "golem_grass_clump_01.glb")
 
     # 3) Pink flower
     clear_scene()

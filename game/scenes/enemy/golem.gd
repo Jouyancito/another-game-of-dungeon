@@ -60,7 +60,7 @@ func _on_enemy_ready() -> void:
 		add_child(model)
 		# Fit height to 2.5m + box hitbox. width_mult 1.0: the bespoke body is
 		# already stocky/wide (arms span), no extra stretch needed.
-		EnemyModelFitter.fit(self, model, 4.0, "box", 0.22, 1.0)  # ~4m: imposing vs a 1.8m player
+		EnemyModelFitter.fit(self, model, 5.0, "box", 0.22, 1.0)  # ~5m: towers over a 1.8m player
 		# Dress it — children of `model` so they track the visual exactly (scale
 		# + position + rotation), added AFTER fit() so positions stay aligned.
 		_grow_moss(model)
@@ -73,7 +73,7 @@ func _on_enemy_ready() -> void:
 		add_child(model)
 
 	# Dormant: aplastado como roca — tween re-points to self.scale (unchanged)
-	scale = Vector3(1.2, 0.5, 1.2)
+	scale = Vector3(1.34, 0.40, 1.34)  # dormant: flat + wide = a mossy boulder asleep
 
 
 ## Body stone + amber eyes that light up on awaken. Overrides per-surface BY
@@ -165,52 +165,39 @@ func _make_solid(inst: Node3D) -> void:
 ## "the prairie slowly took the rock", not props stuck on. Model-local (+Y up).
 ## LEFT shoulder is the overgrown side (denser). Anchors eyeballed — tune live.
 func _grow_moss(model: Node3D) -> void:
-	# Variants so the dressing isn't the same stamp repeated (Joan 2026-06-10).
-	var moss := [
-		"res://assets/art/piso1_pradera/enemies/big/golem_moss_patch_01.glb",
-		"res://assets/art/piso1_pradera/enemies/big/golem_moss_tuft_02.glb",
-	]
+	# Moss is now PAINTED into the stone (gen_golem.py paint_moss: up-facing/high
+	# faces go green). Here we only sprinkle small 3D FLOWERS on top of those mossy
+	# areas — the little 3D pop (Joan's idea), not a carpet of stuck-on meshes.
 	var flowers := [
 		"res://assets/art/piso1_pradera/enemies/big/golem_flower_pink_01.glb",
 		"res://assets/art/piso1_pradera/enemies/big/golem_flower_white_01.glb",
 		"res://assets/art/piso1_pradera/enemies/big/golem_flower_yellow_01.glb",
 	]
-	# Moss on the up-facing tops: head crown, both shoulders (left denser), back
-	# hump, upper-arm tops, chest shelf. Broad coverage = an organic carpet.
-	var moss_anchors := [
-		Vector3(0.00, 2.36, -0.10), Vector3(-0.20, 2.30, 0.02),
-		Vector3(-0.66, 2.04, -0.02), Vector3(-0.82, 2.12, -0.12),
-		Vector3(-0.44, 2.06, 0.12), Vector3(-0.30, 1.96, 0.28),
-		Vector3(0.62, 1.92, -0.02), Vector3(0.48, 1.86, 0.14),
-		Vector3(0.00, 2.10, -0.30), Vector3(-0.34, 2.00, -0.26),
-		Vector3(-0.96, 1.54, 0.02), Vector3(0.92, 1.46, 0.00),
-		Vector3(0.04, 1.60, 0.34),
-	]
-	# Flowers only on the sunniest high spots (sparse accent, not a bush).
-	var flower_anchors := [
-		Vector3(-0.72, 2.12, 0.04), Vector3(0.12, 2.40, -0.04),
-		Vector3(0.54, 1.96, 0.08),
+	# Up-facing/mossy spots across the body; ~half get a tiny flower (sparse).
+	var spots := [
+		Vector3(0.00, 2.36, -0.06), Vector3(-0.22, 2.30, 0.04),
+		Vector3(-0.66, 2.06, 0.00), Vector3(-0.44, 2.06, 0.14),
+		Vector3(-0.30, 1.96, 0.28), Vector3(0.60, 1.92, 0.00),
+		Vector3(0.48, 1.86, 0.16), Vector3(0.00, 2.12, -0.28),
+		Vector3(-0.34, 2.00, -0.24), Vector3(-0.96, 1.52, 0.04),
+		Vector3(0.92, 1.46, 0.02), Vector3(0.04, 1.60, 0.34),
+		Vector3(-0.42, 0.42, 0.18), Vector3(0.42, 0.42, 0.18),
+		Vector3(-0.40, 0.72, -0.02), Vector3(0.40, 0.72, -0.04),
 	]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC0FFEE
-	for a in moss_anchors:
-		var m := _instance_plant(moss[rng.randi() % moss.size()])
-		if m == null:
-			continue
-		m.position = a + Vector3(0.0, -0.16, 0.0)  # sink deep so behind it is ROCK, not see-through
-		var sc := rng.randf_range(0.55, 0.85)
-		m.scale = Vector3(sc, sc, sc)
-		m.rotation.y = rng.randf() * TAU
-		model.add_child(m)
-	for a in flower_anchors:
+	for a in spots:
+		if rng.randf() > 0.5:
+			continue  # sparse — only ~half the spots get a flower
 		var f := _instance_plant(flowers[rng.randi() % flowers.size()])
 		if f == null:
 			continue
 		f.position = a
-		var sc := rng.randf_range(0.34, 0.5)
+		var sc := rng.randf_range(0.28, 0.46)
 		f.scale = Vector3(sc, sc, sc)
 		f.rotation.y = rng.randf() * TAU
 		model.add_child(f)
+		_make_solid(f)
 
 
 ## Load + instantiate a dressing glb (null if missing).
@@ -271,9 +258,14 @@ func _should_pursue(distance: float) -> bool:
 func _awaken() -> void:
 	if awaken_tween and awaken_tween.is_running():
 		return
-	_light_up_eyes()  # the rock "opens its eyes" — player got close OR hit it
+	# Heavy, telegraphed rise (motion-designer: golem = slow, ponderous, earth-shaking).
+	# gather/anticipation -> eyes flicker on -> ponderous CUBIC rise + overshoot ->
+	# hard settle (the mass slams into place). ~1.2s = the player can read it coming.
 	awaken_tween = create_tween()
-	awaken_tween.tween_property(self, "scale", Vector3(1.0, 1.0, 1.0), 0.5)
+	awaken_tween.tween_property(self, "scale", Vector3(1.34, 0.34, 1.34), 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	awaken_tween.tween_callback(_light_up_eyes)  # the rock "opens its eyes"
+	awaken_tween.tween_property(self, "scale", Vector3(0.96, 1.10, 0.96), 0.75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	awaken_tween.tween_property(self, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	awaken_tween.tween_callback(func():
 		is_dormant = false
 		is_provoked = true
