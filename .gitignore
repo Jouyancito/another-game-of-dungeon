@@ -42,3 +42,9 @@ game/assets/art/_raw/
 
 # Engram local state
 .engram/
+
+# Dev scratch renders (throwaway preview/diagnostic PNGs — regenerable)
+game/tools/godot/_golem_*.png
+game/tools/godot/_t_*.png
+game/tools/blender/_pg_*.png
+game/tools/blender/_preview_golem.png

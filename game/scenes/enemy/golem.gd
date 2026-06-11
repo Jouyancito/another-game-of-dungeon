@@ -10,6 +10,21 @@ var attack_index := 0
 var stomp_range := 3.0
 var throw_range := 10.0
 
+## Carved eyes stay dark while the golem is camouflaged as a rock; _awaken()
+## lights them up (player got close OR hit it). Muted warm amber at half the
+## old intensity — tune live in Godot.
+const EYE_COLOR := Color(0.96, 0.80, 0.20)
+const EYE_ENERGY := 2.6
+var _eye_mats: Array[StandardMaterial3D] = []
+
+## Shared toon pipeline (game/docs/shader_system.md). This golem is the visual
+## TEMPLATE — the whole enemy roster will move to these same shaders.
+const TOON_SHADER: Shader = preload("res://scenes/levels/dp_toon_grounded.gdshader")
+## 2-sided variant (abs(dot) lights both faces) — for the thin dressing so its
+## back faces aren't black when double-sided.
+const TOON_SHADER_2S: Shader = preload("res://scenes/levels/dp_toon_grounded_2sided.gdshader")
+const OUTLINE_SHADER: Shader = preload("res://assets/art/shaders/toon_outline.gdshader")
+
 @onready var head_mesh: MeshInstance3D = $Head
 
 
@@ -28,42 +43,219 @@ func _on_enemy_ready() -> void:
 	if old_head:
 		old_head.visible = false
 
-	# Load the orc gltf as the golem visual — the orc silhouette reads as a
-	# heavy humanoid creature, which sells "stone golem" better than a BoxMesh.
-	# We override the material at runtime with a stone/gray tint so it reads
-	# as rock, not a green orc. Scale is exaggerated (1.5× width, 1.6× height)
-	# to give the golem its heavy, stocky proportions.
-	const ORC_PATH := "res://assets/art/piso1_pradera/enemies/big/enemy_orc.gltf"
-	var packed: PackedScene = load(ORC_PATH) if ResourceLoader.exists(ORC_PATH) else null
+	# Bespoke stone-golem body (game/tools/blender/gen_golem.py): a hunched rock
+	# construct on its OWN low-poly mesh (~2.4k tris) with TWO material slots —
+	# "golem_stone" (body) + "golem_eye_core" (the carved eyes). Dressed at runtime
+	# with prairie moss/flowers/mushrooms + floating rocks so the golem reads as
+	# "the prairie made stone". See docs/art/_bestiary_visual_bible.md §6.5.
+	const GOLEM_BODY := "res://assets/art/piso1_pradera/enemies/big/golem_dp_body_01.glb"
+	var packed: PackedScene = load(GOLEM_BODY) if ResourceLoader.exists(GOLEM_BODY) else null
 	if packed != null:
 		var model: Node3D = packed.instantiate()
 		model.name = "Model"
-		# Stone tint: desaturated warm grey, slightly rougher than skin
-		var stone_mat := StandardMaterial3D.new()
-		stone_mat.albedo_color = Color(0.58, 0.56, 0.52)   # warm stone grey
-		stone_mat.roughness = 0.92
-		stone_mat.metallic = 0.0
-		# Apply to every MeshInstance3D in the full subtree — gltf models are
-		# SKINNED so the mesh nodes live under a Skeleton3D, not as direct
-		# children.  find_children recurses the whole tree.
-		for child in model.find_children("*", "MeshInstance3D", true, false):
-			child.material_override = stone_mat
-		model.rotation.y = PI  # Quaternius mira +Z; look_at apunta -Z → girar 180° (si no, camina de espaldas)
+		_apply_golem_materials(model)
+		# Face was authored toward -Z (= Godot forward), so NO 180° flip is needed
+		# (unlike Quaternius packs). If the golem ever walks backwards, set to PI.
+		model.rotation.y = 0.0
 		add_child(model)
-		# Fit visual + hitbox to a single source of truth: 2.5m tall. Box girth
-		# 0.22*h -> ~1.1m footprint; model_width_mult 1.2 = visual-only stocky
-		# stretch (does NOT bloat the hitbox). Height drives the scale; horizontal
-		# girth is explicit because skinned bind-pose width is unusable.
-		EnemyModelFitter.fit(self, model, 2.5, "box", 0.22, 1.2)
+		# Fit height to 2.5m + box hitbox. width_mult 1.0: the bespoke body is
+		# already stocky/wide (arms span), no extra stretch needed.
+		EnemyModelFitter.fit(self, model, 4.0, "box", 0.22, 1.0)  # ~4m: imposing vs a 1.8m player
+		# Dress it — children of `model` so they track the visual exactly (scale
+		# + position + rotation), added AFTER fit() so positions stay aligned.
+		_grow_moss(model)
+		_spawn_floating_rocks(model)
 	else:
 		# Fallback: procedural humanoid (graceful degradation)
-		push_warning("Golem: enemy_orc.gltf not found, using proc mesh")
+		push_warning("Golem: golem_dp_body_01.glb not found, using proc mesh")
 		var model := EnemyModelBuilder.build_humanoid(default_color, 1.5, 1.4)
 		model.name = "Model"
 		add_child(model)
 
 	# Dormant: aplastado como roca — tween re-points to self.scale (unchanged)
 	scale = Vector3(1.2, 0.5, 1.2)
+
+
+## Body stone + amber eyes that light up on awaken. Overrides per-surface BY
+## MATERIAL NAME — the glb carries slot "golem_stone" + slot "golem_eye_core".
+## Falls back to surface index 1 = eyes if material names were stripped on import.
+func _apply_golem_materials(model: Node3D) -> void:
+	# White albedo + vertex colors: the body glb bakes per-block stone tones as
+	# vertex colors (gen_golem.py) so the golem reads as many stones, not one flat
+	# tan. vertex_color_use_as_albedo lets those baked tones drive the surface color.
+	# Toon (cell-shaded) stone: the shared DP_ToonGrounded shader drives the body
+	# from its baked per-block vertex colors (use_vertex_color) — 3 hard light bands
+	# + cool non-black shadow + warm rim = the anime look. Dark outline via next_pass.
+	var stone_mat := ShaderMaterial.new()
+	stone_mat.shader = TOON_SHADER
+	stone_mat.set_shader_parameter("albedo_color", Color(1, 1, 1))
+	stone_mat.set_shader_parameter("use_vertex_color", true)
+	# Solid HEAVY stone: kill most of the rim glow + deepen shadows so it reads as
+	# opaque rock, not a washed/translucent surface (Joan: "se siente transparente").
+	stone_mat.set_shader_parameter("rim_intensity", 0.10)
+	stone_mat.set_shader_parameter("shadow_darkness", 0.40)  # not too dark — black shadow reads as 'transparent void'
+	stone_mat.set_shader_parameter("shadow_tint_strength", 0.30)
+	stone_mat.next_pass = _make_outline(0.012)  # thin: avoids poking through concave block seams
+
+	# Eyes start CAMOUFLAGED: stone-colored albedo, emission energy 0 so the
+	# golem reads as a plain rock. _awaken() (proximity OR hit) fades them up to
+	# the muted amber above. Kept as a member ref so _light_up_eyes can tween it.
+	var eye_mat := StandardMaterial3D.new()
+	eye_mat.albedo_color = Color(0.42, 0.40, 0.36)  # stone tone while dormant (camouflaged)
+	eye_mat.roughness = 0.95
+	eye_mat.emission_enabled = true
+	eye_mat.emission = EYE_COLOR
+	eye_mat.emission_energy_multiplier = 0.0
+	eye_mat.next_pass = _make_outline()
+	_eye_mats.append(eye_mat)
+
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var surf_mesh: Mesh = (mi as MeshInstance3D).mesh
+		if surf_mesh == null:
+			continue
+		var matched_eye := false
+		for s in range(surf_mesh.get_surface_count()):
+			var smat := surf_mesh.surface_get_material(s)
+			var sname := smat.resource_name.to_lower() if smat != null else ""
+			if sname.contains("eye"):
+				(mi as MeshInstance3D).set_surface_override_material(s, eye_mat)
+				matched_eye = true
+			else:
+				(mi as MeshInstance3D).set_surface_override_material(s, stone_mat)
+		# Fallback: names stripped on import → assume 2nd surface is the eyes.
+		if not matched_eye and surf_mesh.get_surface_count() == 2:
+			(mi as MeshInstance3D).set_surface_override_material(1, eye_mat)
+
+
+## Inverted-hull outline (shared toon_outline shader) as a material next_pass —
+## the dark contour that sells the anime/cel look.
+func _make_outline(thickness := 0.03) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = OUTLINE_SHADER
+	m.set_shader_parameter("outline_color", Color(0.05, 0.05, 0.07))
+	m.set_shader_parameter("outline_thickness", thickness)
+	return m
+
+
+## Make a dressing instance (moss/flower/rock) DOUBLE-SIDED so it never shows
+## see-through from behind (these are simple convex-ish meshes, so cull_disabled
+## is clean — unlike the non-manifold body, which must stay single-sided).
+func _make_solid(inst: Node3D) -> void:
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = (mi as MeshInstance3D).mesh
+		if mesh == null:
+			continue
+		for s in range(mesh.get_surface_count()):
+			var base := mesh.surface_get_material(s)
+			var col := Color(1, 1, 1)
+			if base is BaseMaterial3D:
+				col = (base as BaseMaterial3D).albedo_color
+			# 2-sided toon: double-sided (no see-through) + both faces lit (no black
+			# underside) + cohesive toon look. NO outline next_pass (that darkened the body).
+			var tm := ShaderMaterial.new()
+			tm.shader = TOON_SHADER_2S
+			tm.set_shader_parameter("albedo_color", col)
+			tm.set_shader_parameter("use_vertex_color", false)
+			(mi as MeshInstance3D).set_surface_override_material(s, tm)
+
+
+## Vegetation with ECOLOGICAL LOGIC: moss colonizes the broad UPWARD-facing
+## surfaces across the whole upper body (where rain pools + light reaches);
+## flowers are rare accents only on the sunniest crown/shoulder tops. Reads as
+## "the prairie slowly took the rock", not props stuck on. Model-local (+Y up).
+## LEFT shoulder is the overgrown side (denser). Anchors eyeballed — tune live.
+func _grow_moss(model: Node3D) -> void:
+	# Variants so the dressing isn't the same stamp repeated (Joan 2026-06-10).
+	var moss := [
+		"res://assets/art/piso1_pradera/enemies/big/golem_moss_patch_01.glb",
+		"res://assets/art/piso1_pradera/enemies/big/golem_moss_tuft_02.glb",
+	]
+	var flowers := [
+		"res://assets/art/piso1_pradera/enemies/big/golem_flower_pink_01.glb",
+		"res://assets/art/piso1_pradera/enemies/big/golem_flower_white_01.glb",
+		"res://assets/art/piso1_pradera/enemies/big/golem_flower_yellow_01.glb",
+	]
+	# Moss on the up-facing tops: head crown, both shoulders (left denser), back
+	# hump, upper-arm tops, chest shelf. Broad coverage = an organic carpet.
+	var moss_anchors := [
+		Vector3(0.00, 2.36, -0.10), Vector3(-0.20, 2.30, 0.02),
+		Vector3(-0.66, 2.04, -0.02), Vector3(-0.82, 2.12, -0.12),
+		Vector3(-0.44, 2.06, 0.12), Vector3(-0.30, 1.96, 0.28),
+		Vector3(0.62, 1.92, -0.02), Vector3(0.48, 1.86, 0.14),
+		Vector3(0.00, 2.10, -0.30), Vector3(-0.34, 2.00, -0.26),
+		Vector3(-0.96, 1.54, 0.02), Vector3(0.92, 1.46, 0.00),
+		Vector3(0.04, 1.60, 0.34),
+	]
+	# Flowers only on the sunniest high spots (sparse accent, not a bush).
+	var flower_anchors := [
+		Vector3(-0.72, 2.12, 0.04), Vector3(0.12, 2.40, -0.04),
+		Vector3(0.54, 1.96, 0.08),
+	]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xC0FFEE
+	for a in moss_anchors:
+		var m := _instance_plant(moss[rng.randi() % moss.size()])
+		if m == null:
+			continue
+		m.position = a + Vector3(0.0, -0.16, 0.0)  # sink deep so behind it is ROCK, not see-through
+		var sc := rng.randf_range(0.55, 0.85)
+		m.scale = Vector3(sc, sc, sc)
+		m.rotation.y = rng.randf() * TAU
+		model.add_child(m)
+	for a in flower_anchors:
+		var f := _instance_plant(flowers[rng.randi() % flowers.size()])
+		if f == null:
+			continue
+		f.position = a
+		var sc := rng.randf_range(0.34, 0.5)
+		f.scale = Vector3(sc, sc, sc)
+		f.rotation.y = rng.randf() * TAU
+		model.add_child(f)
+
+
+## Load + instantiate a dressing glb (null if missing).
+func _instance_plant(path: String) -> Node3D:
+	if not ResourceLoader.exists(path):
+		return null
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return null
+	return ps.instantiate()
+
+
+## A few small rocks orbiting/hovering around the golem (a nod to the floating-
+## ecosystem reference). Hover + slow spin via looping tweens.
+## NOTE: positions are eyeballed; tune live in Godot.
+func _spawn_floating_rocks(model: Node3D) -> void:
+	# Bespoke golem fragment (game/tools/blender/gen_golem_dressing.py) — bakes the
+	# body's golem_stone color so the orbiting chips read as broken-off golem stone,
+	# not a map prop (the old prop_rock_small_01.glb rendered as pale clashing cones).
+	const FLOAT_ROCK := "res://assets/art/piso1_pradera/enemies/big/golem_rock_chip_01.glb"
+	if not ResourceLoader.exists(FLOAT_ROCK):
+		return
+	# Sides/back only — never in front of the face (blocks the eye read).
+	var specs := [
+		{"pos": Vector3(-1.15, 1.55, 0.25), "amp": 0.22, "t": 2.2},
+		{"pos": Vector3(1.10, 2.05, 0.30), "amp": 0.30, "t": 2.9},
+		{"pos": Vector3(0.85, 1.15, 0.70), "amp": 0.18, "t": 1.9},
+	]
+	for spec in specs:
+		var rock_scene := load(FLOAT_ROCK) as PackedScene
+		if rock_scene == null:
+			continue
+		var rock: Node3D = rock_scene.instantiate()
+		rock.position = spec["pos"]
+		rock.scale = Vector3(0.28, 0.28, 0.28)
+		rock.rotation = Vector3(randf() * 0.5, randf() * TAU, randf() * 0.5)
+		model.add_child(rock)
+		var base_y: float = spec["pos"].y
+		var amp: float = spec["amp"]
+		var dur: float = spec["t"]
+		var hover := create_tween().set_loops()
+		hover.tween_property(rock, "position:y", base_y + amp, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		hover.tween_property(rock, "position:y", base_y, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		var spin := create_tween().set_loops()
+		spin.tween_property(rock, "rotation:y", TAU, dur * 3.0).as_relative()
 
 
 ## Override: NEUTRAL + lógica de despertar por proximidad
@@ -79,6 +271,7 @@ func _should_pursue(distance: float) -> bool:
 func _awaken() -> void:
 	if awaken_tween and awaken_tween.is_running():
 		return
+	_light_up_eyes()  # the rock "opens its eyes" — player got close OR hit it
 	awaken_tween = create_tween()
 	awaken_tween.tween_property(self, "scale", Vector3(1.0, 1.0, 1.0), 0.5)
 	awaken_tween.tween_callback(func():
@@ -87,18 +280,17 @@ func _awaken() -> void:
 	)
 
 
+## Fade the carved eyes from dark stone to muted amber when the golem awakens.
+func _light_up_eyes() -> void:
+	for em in _eye_mats:
+		em.albedo_color = EYE_COLOR
+		create_tween().tween_property(em, "emission_energy_multiplier", EYE_ENERGY, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
 ## Idle: inmóvil, camuflado como roca
 func _idle_behavior(_delta: float) -> void:
 	velocity.x = 0
 	velocity.z = 0
-
-
-## Movimiento lento y deliberado — respeta speed_mult de JUGGERNAUT_SLOW (0.7×).
-func _move_toward_target(_delta: float) -> void:
-	var direction = (target.global_position - global_position).normalized()
-	direction.y = 0
-	velocity.x = direction.x * speed * speed_mult
-	velocity.z = direction.z * speed * speed_mult
 
 
 ## Returns the gltf model root so EnemyAnimator can find the AnimationPlayer.
