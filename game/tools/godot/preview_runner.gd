@@ -57,7 +57,7 @@ func _run(target: String, out_path: String, angle: String, pose: String) -> void
 		elif "is_dormant" in subject:
 			subject.set("is_dormant", false)
 			subject.scale = Vector3.ONE
-		for _i in range(70):
+		for _i in range(150):
 			await get_tree().process_frame
 
 	_frame_camera(subject, angle)

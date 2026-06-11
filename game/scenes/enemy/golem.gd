@@ -187,17 +187,20 @@ func _grow_moss(model: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC0FFEE
 	for a in spots:
-		if rng.randf() > 0.5:
-			continue  # sparse — only ~half the spots get a flower
+		if rng.randf() > 0.72:
+			continue  # most spots get a flower now (Joan: didn't see them before)
 		var f := _instance_plant(flowers[rng.randi() % flowers.size()])
 		if f == null:
 			continue
 		f.position = a
-		var sc := rng.randf_range(0.28, 0.46)
+		var sc := rng.randf_range(0.42, 0.62)
 		f.scale = Vector3(sc, sc, sc)
 		f.rotation.y = rng.randf() * TAU
 		model.add_child(f)
 		_make_solid(f)
+
+	# Branch + nest PULLED — the first pass read as crude stuck-on primitives (no
+	# cohesion with the golem). Revisit as a properly-modelled bespoke asset later.
 
 
 ## Load + instantiate a dressing glb (null if missing).
@@ -258,18 +261,30 @@ func _should_pursue(distance: float) -> bool:
 func _awaken() -> void:
 	if awaken_tween and awaken_tween.is_running():
 		return
-	# Heavy, telegraphed rise (motion-designer: golem = slow, ponderous, earth-shaking).
-	# gather/anticipation -> eyes flicker on -> ponderous CUBIC rise + overshoot ->
-	# hard settle (the mass slams into place). ~1.2s = the player can read it coming.
+	# PLACEHOLDER until the golem is RIGGED. Rigid stone must NOT scale-stretch (that
+	# read as rubber/sponge — Joan). The real awaken = rigid parts rotating (forearms
+	# swing down, shoulders grind, head lifts) + rocks tumbling off + grinding shake;
+	# that needs a rig (separate arm/head meshes). For now: eyes on + a quick, un-bouncy
+	# rise to full size (no elastic overshoot).
+	_light_up_eyes()  # the rock "opens its eyes"
 	awaken_tween = create_tween()
-	awaken_tween.tween_property(self, "scale", Vector3(1.34, 0.34, 1.34), 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	awaken_tween.tween_callback(_light_up_eyes)  # the rock "opens its eyes"
-	awaken_tween.tween_property(self, "scale", Vector3(0.96, 1.10, 0.96), 0.75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	awaken_tween.tween_property(self, "scale", Vector3.ONE, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	awaken_tween.tween_property(self, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	awaken_tween.tween_callback(func():
 		is_dormant = false
 		is_provoked = true
 	)
+
+
+## Return to the dormant rock state (preview cycling / re-camouflage). Eyes off,
+## settle back down into the flat mossy boulder.
+func _sleep() -> void:
+	if awaken_tween and awaken_tween.is_running():
+		awaken_tween.kill()
+	is_dormant = true
+	is_provoked = false
+	for em in _eye_mats:
+		em.emission_energy_multiplier = 0.0
+	create_tween().tween_property(self, "scale", Vector3(1.34, 0.40, 1.34), 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 
 
 ## Fade the carved eyes from dark stone to muted amber when the golem awakens.

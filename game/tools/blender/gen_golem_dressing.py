@@ -294,6 +294,92 @@ def export_single(obj, filename):
     print(f"[gen_dressing] EXPORTED -> {filename}  tris={count_tris(obj)}")
 
 
+def _box(name, loc, size, rot=(0.0, 0.0, 0.0)):
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    sx, sy, sz = size
+    for v in bm.verts:
+        v.co.x *= sx
+        v.co.y *= sy
+        v.co.z *= sz
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    o = _new_obj(name, bm)
+    o.location = Vector(loc)
+    o.rotation_euler = Euler(rot, "XYZ")
+    return o
+
+
+def _join_all(objs, name):
+    for o in objs:
+        try:
+            bpy.context.collection.objects.link(o)
+        except RuntimeError:
+            pass
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    objs[0].name = name
+    return objs[0]
+
+
+def build_branch_nest():
+    """A gnarled branch with leaves + a twig nest with eggs growing out of the
+    golem — 'nature made a home on it' (Joan). Multi-material, joined. Z-up."""
+    parts = []
+    wood = make_material("branch_wood", (0.34, 0.24, 0.15, 1.0))
+    leaf = make_material("branch_leaf", (0.37, 0.53, 0.27, 1.0))
+    twig = make_material("nest_twig", (0.29, 0.20, 0.12, 1.0))
+    egg = make_material("egg_pale", (0.87, 0.88, 0.80, 1.0))
+    # branch: 3 thin segments arcing up + out (+X)
+    for i, spec in enumerate([
+            ((0.00, 0.0, 0.16), (0.05, 0.05, 0.30), (0.0, math.radians(18), 0.0)),
+            ((0.12, 0.0, 0.40), (0.045, 0.045, 0.26), (0.0, math.radians(44), 0.0)),
+            ((0.30, 0.0, 0.50), (0.04, 0.04, 0.22), (0.0, math.radians(66), 0.0))]):
+        b = _box("branch_%d" % i, spec[0], spec[1], spec[2])
+        b.data.materials.append(wood)
+        parts.append(b)
+    # leaves: flat triangles fanning at the branch tip
+    lbm = bmesh.new()
+    lrng = random.Random(SEED * 71 + 5)
+    for _k in range(7):
+        ang = lrng.uniform(0.0, 2.0 * math.pi)
+        ln = lrng.uniform(0.10, 0.18)
+        dx, dy = math.cos(ang), math.sin(ang)
+        px, py = -dy, dx
+        w = 0.04
+        v1 = lbm.verts.new((px * w, py * w, 0.0))
+        v2 = lbm.verts.new((-px * w, -py * w, 0.0))
+        v3 = lbm.verts.new((dx * ln, dy * ln, lrng.uniform(0.02, 0.09)))
+        lbm.faces.new((v1, v2, v3))
+    bmesh.ops.recalc_face_normals(lbm, faces=lbm.faces)
+    leaves = _new_obj("branch_leaves", lbm)
+    leaves.location = Vector((0.44, 0.0, 0.56))
+    leaves.data.materials.append(leaf)
+    parts.append(leaves)
+    # nest: a flattened bowl seated in the fork
+    nbm = bmesh.new()
+    bmesh.ops.create_cone(nbm, cap_ends=True, cap_tris=False, segments=10,
+                          radius1=0.15, radius2=0.11, depth=0.08)
+    nest = _new_obj("nest", nbm)
+    nest.location = Vector((0.07, 0.0, 0.36))
+    nest.data.materials.append(twig)
+    parts.append(nest)
+    # eggs in the nest
+    for j, egg_xy in enumerate([(-0.045, 0.02), (0.045, 0.01), (0.0, -0.045)]):
+        ebm = bmesh.new()
+        bmesh.ops.create_icosphere(ebm, subdivisions=1, radius=0.033)
+        for v in ebm.verts:
+            v.co.z *= 1.25   # egg-shaped
+        bmesh.ops.recalc_face_normals(ebm, faces=ebm.faces)
+        e = _new_obj("egg_%d" % j, ebm)
+        e.location = Vector((0.07 + egg_xy[0], egg_xy[1], 0.40))
+        e.data.materials.append(egg)
+        parts.append(e)
+    return _join_all(parts, "golem_branch_nest")
+
+
 def main():
     print(f"\n[gen_dressing] seed={SEED}  output_dir={OUTPUT_DIR}\n")
 
@@ -324,6 +410,15 @@ def main():
     bpy.context.collection.objects.link(grass)
     grass.data.materials.append(make_material("golem_grass", (0.40, 0.58, 0.27, 1.0)))
     export_single(grass, "golem_grass_clump_01.glb")
+
+    # 2d) Branch + twig nest with eggs (the 'nature made a home' detail)
+    clear_scene()
+    bn = build_branch_nest()
+    bpy.context.view_layer.objects.active = bn
+    for p in bn.data.polygons:
+        p.use_smooth = False
+    export_glb(os.path.join(OUTPUT_DIR, "golem_branch_nest_01.glb"))
+    print("[gen_dressing] EXPORTED -> golem_branch_nest_01.glb  tris=%d" % count_tris(bn))
 
     # 3) Pink flower
     clear_scene()

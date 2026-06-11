@@ -31,11 +31,21 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.current = true
 
-	# Let the runtime dressing settle, then wake it (stand up + light the eyes).
+	# Let the runtime dressing settle, then CYCLE sleep<->wake on a loop so the
+	# movement is easy to watch (sleeps as a rock, rises heavy, settles, re-sleeps).
 	for _i in range(30):
 		await get_tree().process_frame
-	if golem.has_method("_awaken"):
-		golem.call("_awaken")
+	while is_inside_tree():
+		if golem.has_method("_awaken"):
+			golem.call("_awaken")
+		await _wait(3.5)
+		if golem.has_method("_sleep"):
+			golem.call("_sleep")
+		await _wait(2.5)
+
+
+func _wait(seconds: float) -> void:
+	await get_tree().create_timer(seconds).timeout
 
 
 func _add_lights() -> void:
