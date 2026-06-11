@@ -20,7 +20,7 @@ render_mode cull_back, depth_draw_opaque, specular_disabled, ambient_light_disab
 // Base color; multiplied by vertex color when use_vertex_color=true.
 // _make_material() sets this to the COLOR_* constant for the surface.
 uniform vec4 albedo_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform bool use_vertex_color : hint_default_false = false;
+uniform bool use_vertex_color = false;
 
 // ── Toon ramp (3 bands) ──────────────────────────────────────────────────────
 // band_shadow = fraction of full brightness for the darkest band (lit=0 side).
@@ -51,7 +51,10 @@ void fragment() {
 		base *= COLOR;
 	}
 	ALBEDO   = base.rgb;
-	ALPHA    = base.a;
+	// Do NOT write ALPHA: writing it (even =1.0) pushes the material into Godot's
+	// TRANSPARENCY pipeline (distance-sorted, not depth-tested) -> you see through
+	// the front faces to the interior/back = looked translucent like ice. Stone is
+	// opaque, so leave ALPHA untouched and stay in the opaque pipeline. (2026-06-10)
 	ROUGHNESS = 1.0;
 	METALLIC  = 0.0;
 }
