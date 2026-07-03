@@ -115,6 +115,16 @@ Joan planteó: la generación procedural puede ser por-piso, pero las **transici
 - **Costo / scope:** EJECUCIÓN 100% post-alfa. El alfa = solo P1; el demo de 10 min **nunca transiciona** a otro piso. No se rediseña nada ahora — esto es brújula. Pendiente real post-alfa: reconciliar formalmente los dos modelos de torre (100-piso procedural vs 5-piso cultural) — ese es el gap de fondo, no el salto térmico.
 - **Cross-ref:** `tower_biome_system.md §C` (la regla huérfana, rescatarla del olvido al reconciliar), `floor_transitions.md` (el portal que telegrafía), `_world_canon.md §13` (los 5 pisos culturales).
 
+### 9. Semillas nuevas — entrevista Joan 2026-07-03
+
+> Estas semillas emergieron en la entrevista de mundo 2026-07-02/03. Filtro vigente: NO implementar hasta que P1 esté video-ready. Son ideas válidas anotadas para no perderlas.
+
+- **Chozas de P1 que rotan de posición** al destruirse (~3 días): las chozas de los bandidos reaparecen en puntos distintos del mapa (world-state per-server). Refuerza que el bioma tiene "actividad" entre runs.
+- **Dungeon regenerativa 6-12h**: el dungeon (o secciones de él) se regenera en un ciclo de 6 a 12 horas. Penaliza farmeo estático y mantiene la sensación de descubrimiento en runs repetidas.
+- **Barrios multiculturales fomentados por la comunidad**: a medida que jugadores internacionales llegan al servidor, el barrio chileno inicial crece con el estilo que cada comunidad trae. Implementación = world-state colectivo por servidor.
+- **Ciudad se reconstruye pasado nivel 5** (world-state): las ruinas cerca de la torre (destrucción previa al juego del jugador) se reconstruyen como consecuencia del avance del servidor. Equivalente al modelo de civilización de la semilla §0. Implementación post-alfa.
+- **Comercio que pierde peso post-P5**: el comercio de la ciudad (items básicos) es útil hasta ~P5; después, el crafteo y las recompensas del dungeon lo superan. Diseño de economía progresiva.
+
 ---
 
 ## Anti-patrón a vigilar (el propio doc lo nombra)

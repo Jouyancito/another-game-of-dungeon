@@ -127,6 +127,15 @@ Principio Axlin (`_floor_sketches.md` + `_world_coherence.md §4`): *"las criatu
 > textual: *"un golem de piedra volcánica en P1 NO tiene lógica."* → en P1 lo endémico es un
 > construct de **cristal/geoda** (la roca que el cristal colonizó), no piedra genérica. Ver §6.5.
 
+> **Nota P2 — naturaleza creada (2026-07-03, entrevista Joan)**: el principio endémico se extiende
+> al P2 con una variante importante. En P1 la fauna incluye animales **reales** (mundo humano,
+> ancla de familiaridad). En P2 las criaturas son **NATURALEZA CREADA** — endémicas de la torre,
+> diseñadas desde cero (criterio Axlin aplicado a un piso de fantasía pura). La referencia de
+> sensación es Chiloé/leyendas chilotas ("el bosque vivo que te observa") — NOT como catálogo
+> de criaturas que copiar. Los roles evocados por mitologías existentes (el que vigila, el eco
+> que confunde) pueden inspirar funciones, pero diseño visual y nombres serán propios. Ver
+> `_references/p2_bosque/_synthesis.md`.
+
 ---
 
 ## 5. Build-method — los 3 baldes (cómo se fabrica cada uno)
@@ -181,7 +190,9 @@ NOMBRE
 > Las fichas se completan a medida que Joan trae referencias. Abajo, golem como ejemplo trabajado
 > (v0.2, refs recibidas — piedra+musgo+ojos cyan). El resto son slots.
 
-### 6.5 GOLEM — ejemplo trabajado (v0.2, refs de Joan recibidas 2026-06-09)
+### 6.5 GOLEM — ejemplo trabajado (v0.3, 2026-07-03 — trigger + rol actualizados)
+
+**Rol**: Mini subjefe **opcional** y no-agresivo. Ignorable si el jugador no lo ataca. Dormido = paisaje. (Decisión 2026-07-03, entrevista Joan.)
 
 **Dirección resuelta: golem de PIEDRA + MUSGO (la pradera lo colonizó) + ojos/núcleo cyan.**
 Refs de Joan = 3 imágenes: (1) golem-ecosistema con rocas flotantes y arbolitos encima
@@ -207,8 +218,11 @@ colonizadora) y cara tallada de img 3.
 - **Cohesión con el piso**: la vegetación NO se modela nueva — se **reusan los gltf de scatter de
   pradera** (musgo/hongos/flores que ya tenés) como hijos en hombros/espalda/cabeza. El golem
   literalmente lleva puesta la pradera. ESTE es el "parecido con el resto del piso".
-- **Referencias**: ✅ 3 imágenes de Joan (descritas arriba). Pendiente confirmar: ¿rocas flotantes
-  sí/no? ¿cuánta vegetación (sutil vs jardín andante)?
+- **Referencias**: ✅ 3 imágenes de Joan (descritas arriba). **RESUELTO 2026-06-14 (Joan)**:
+  (1) Rocas flotantes = **SÍ**, y se elevan al despertar (atadas al `awaken`, no flotan dormido).
+  (2) Vegetación = **jardín andante VIVO** (extremo rico, no sutil) — con FAUNA ambiente
+  (mariposas, pájaros) que convive con el golem. El golem es un ecosistema caminante.
+  (3) Build = **composite bespoke** (no reskin).
 - **Build**: **asset COMPUESTO** (no reskin):
   1. Cuerpo → `gen_golem.py` bpy bespoke ✅ HECHO (2026-06-09): pila de ~15 rocas chaflanadas +
      facetas/displace en masas grandes + escombro en juntas + cara tallada. **2464 tris**, 2.48m,
@@ -221,17 +235,101 @@ colonizadora) y cara tallada de img 3.
   - *Alternativa barata (validar rápido)*: reskin `enemy_orc.gltf` gris + musgo scatter encima +
     ojos cyan. Menos único pero 1 sesión. bpy-bespoke queda para v2.
 - **Notas anim**: juggernaut lento (IA actual intacta). Dormant = parece un peñasco musgoso
-  (squash 1.2/0.5/1.2) → awaken tween al acercarse. Lumber: el peso se siente en el delay.
+  (squash 1.2/0.5/1.2) → awaken tween **SOLO al ser atacado** (NO por proximidad —
+  decisión 2026-07-03, entrevista Joan; reemplaza cualquier referencia previa a trigger por
+  cercanía). Lumber: el peso se siente en el delay.
+  - **Clip set (2026-06-14)**: `dormant` → `awaken` (cuerpo se yergue + **rocas se elevan** a
+    posición orbital + el jardín "se despierta") → `lumber` (caminar) → `slam` (ataque) →
+    `crumble` (muerte, rocas caen). Recomendado: TODO en **Godot** (AnimationPlayer + tweens),
+    NO rig bpy — el composite, las rocas flotantes y la fauna ya viven en Godot; riggear en bpy
+    no paga acá. bpy entrega solo el cuerpo static.
+  - **Fauna ambiente**: mariposas/pájaros como partículas/boids livianos (GPUParticles3D o
+    pocos boids) orbitando el golem — refuerza "jardín vivo". Se calman en combate, revolotean
+    en idle. Cohesión con el piso: reusar siluetas de fauna P1 si existen.
+  - **NORTH-STAR world-state (post-alpha, NO demo)**: el golem es la semilla del "anciano que
+    crece si no lo matás" — a más tiempo vivo (entre runs), más bioma acreta (más jardín, más
+    rocas, sube de tier) y eventualmente **vaga overleveled por pisos bajos** (elite errante /
+    world-event). Mecánica = world-state colectivo Valheim → `_world_seeds_postalpha.md`. Para el
+    DEMO se construye solo la **variante visual del anciano**; la persistencia/aging es post-alpha.
+  - **FORM DECISIONS (2026-06-14, refs de Joan cargadas — ver `_references/golem/`)**:
+    - **Awaken de ENSAMBLAJE** (la estrella, visión de Joan): dormant = pila de roca = terreno
+      → las piedras se **acomodan con peso** (movimiento pesado, escalonado) → queda **parado y
+      alerta**. IMPLICACIÓN ARQUITECTÓNICA: el cuerpo NO puede ser una malla soldada única — las
+      rocas deben ser **piezas separadas** (nodos) con transform de reposo (pila) y de armado
+      (de pie); el awaken tweenea pila→armado. Próximo build = golem por CHUNKS, no monolítico.
+    - **Núcleo/ojos = CYAN** (canon, acento jewel P1). Magenta de ref 06 descartado.
+    - **Roca = MIXTA**: placas angulares (núcleo/torso, firma chaflán DP) + cantos rodados
+      (extremidades) → evita el look "cubos uniformes" del build actual.
+    - **Elementos FIRMA (incorporar sí o sí, refs 01/05)**: **árbol/arbusto creciendo de la
+      cabeza/espalda** (diferenciador #1) · **espirales talladas** en el torso · **vides
+      envolviendo los brazos** + placa de runas. Musgo DESATURADO (no verde brillante).
+  - **MOVESET tree-gated (2026-06-14, Joan) — mecánica firma del golem:**
+    - **El ÁRBOL de la espalda es un TARGET DESTRUCTIBLE** con su propia vida. Su estado cambia el
+      estilo de pelea (state machine de combate). Es el encuentro memorable del demo.
+    - **CON árbol** → el golem lo **ARRANCA** (anim de rip, ref: trolls de *LOTR: Battle for
+      Middle-earth* arrancando un tronco — "se ve bonito", Joan) y **abanica con el TRONCO 3 veces
+      seguidas**, pesado/lento, física acorde al peso del tronco.
+    - **SIN árbol** (destruido) → moveset cambia a **PISOTÓN** (seísmo AoE) o **TIRAR ROCA** (la
+      agarra del suelo, con anim de polvo/tierra suelta al arrancarla).
+    - **ENRAIZAR / snare** (vides del piso atrapan al jugador) → en AMBOS estados.
+    - **Muerte = DERRUMBE** (colapsa por gravedad en escombros), NO el reverso del ensamblaje.
+    - **ESCALA**: tiene que SENTIRSE grande aunque sea "un grupo de piedras que sobresale" — target
+      ~4.5-5m, que achique al jugador (Joan, 2026-06-14).
+    - **SCOPE**: state-machine de combate + sub-objeto destructible + IA de fase, NO solo anim.
+      Fase A = animaciones (previsualizar en viewer). Fase B = cablear destructible + switch de
+      moveset + IA. Animación toda en Godot (chunks), no rig bpy.
+    - **Set de anim**: `idle` · `lumber` · `attack_basic` · `attack_charged` · `trunk_rip` +
+      `trunk_sweep`(x3) [con árbol] · `stomp` / `rock_throw`(+polvo) [sin árbol] · `root_snare`
+      [ambos] · `hit_react` · `death`(=derrumbe) · (ya: `dormant`, `awaken`).
+    - 🐛 Bug abierto: placa NEGRA en torso/cara (chunk central) — material de ojos-núcleo o chunk
+      sin material de piedra. Fix en el próximo pase. Árbol quedó "lollipop" — frondear.
+
+### 6.6 KING SLIME (BOSS DE ZONA) — ficha parcial (rol/ubicación, 2026-07-03)
+
+**Rol**: Boss de zona P1. Pelea OBLIGATORIA — no hay bypass; el boss ES el paso al P2.
+**Decisión 2026-07-03, entrevista Joan.**
+
+- **Nicho**: "el que comió demasiada bioluminiscencia" — absorció tanta luz del diamante del techo que su cuerpo se volvió denso, iridiscente, casi sólido. Culminación ecológica del ciclo slime→King.
+- **Ubicación**: plantado AL FRENTE del acantilado que marca el límite de P1. Se instaló a comer EN la fuente del flujo de bioluminiscencia. La razón ecológica (comer la fuente) = el motivo por el que bloquea el paso → ecología ES level design.
+- **Mecánica de muerte** (decidida 2026-07-03):
+  1. Cuerpo se derrama por el borde → **muestra visualmente el camino al P2** (lectura de "bajar")
+  2. Queda el **núcleo flotando** (cristal condensado)
+  3. Tomar el núcleo registra el **desbloqueo world-state colectivo** por mundo (servidor) — modelo Valheim
+  4. Descenso por el acantilado, bioluminiscencia se apaga, suena lluvia → entrada al P2 bajo luna llena
+- **Familia**: blob / boss (icosphere sobresaturada, escala ~3-4x slime común).
+- **Gama**: sobresaturado — exceso de bioluminiscencia acumulada. Iridiscente/denso (ref de dirección visual, aún sin imagen confirmada).
+- **Silueta**: blob gigante, bottom-weighted, translucente-denso (más sólido que los slimes menores).
+- **Aspecto**: ⌛ **pendiente-referencia visual de Joan**. Para el demo alcanza el modelo actual + material iridiscente/denso.
+- **Ataques/fases**: ya diseñados (4 fases implementadas) — ver código existente. No se replican aquí.
+- **Build**: blob (bpy malla icosphere + escalada) — mismo balde que slime/mini.
+
+---
+
+### 6.7 OSO — stub (2026-07-03)
+
+**Rol**: Mini subjefe **opcional y territorial** de P1. Contraste de personalidad con el golem: el oso es AGRESIVO (ataca apenas te ve o sospecha), el golem es PASIVO (solo reacciona al golpe).
+**Decisión 2026-07-03, entrevista Joan.**
+
+- **Nicho**: guarida semi-descubierta (grieta de roca, zona de bosque denso de P1). Territorial.
+- **Comportamiento**: ataca al verte o al sospechar presencia. No espera a ser atacado.
+- **Familia**: cuadrúpedo (bajo, 4 patas, cola). Quiebre asimétrico: pelaje espeso + postura de carga.
+- **Gama**: pelaje oscuro/marrón, dentro de la paleta P1 (colores de tierra/madera). ⌛ confirmar con ref.
+- **Aspecto / refs**: ⌛ **pendiente-referencia visual de Joan**.
+- **Build**: pack (orgánico — resin/gltf externo + material override). Familia cuadrúpedo.
+- **Notas anim**: carga de frente (distinto al lobo que rodea). Animación de alerta al entrar al radio territorial.
+
+---
 
 ### Slots pendientes (orden sugerido por payoff de ambiente, de Joan: golem → bandido → lobo)
 
-- 6.1 **Bandido melee** — humanoide, no-endémico. [slot]
-- 6.2 **Bandido arquero** — humanoide ágil, silueta de arco. [slot]
-- 6.3 **Lobo** — cuadrúpedo predador, manada. [slot]
-- 6.4 **Slime / mini** — blob endémico, brilla lo que comió. [slot]
-- 6.5 **Golem** — ✅ ejemplo trabajado arriba.
-- 6.6 **King Slime (boss)** — culminación ecológica. [slot]
-- 6.7..N — zorro, cabra, rata, serpiente, escorpión, pájaro, halcón, tortuga, avispa, mimic. [slots]
+- 6.1 **Bandido melee** — humanoide, no-endémico. ⌛ [pendiente-referencia]
+- 6.2 **Bandido arquero** — humanoide ágil, silueta de arco. ⌛ [pendiente-referencia]
+- 6.3 **Lobo** — cuadrúpedo predador, manada. ⌛ [pendiente-referencia]
+- 6.4 **Slime / mini** — blob endémico, brilla lo que comió. ⌛ [pendiente-referencia]
+- 6.5 **Golem** — ✅ ficha completa arriba (v0.3).
+- 6.6 **King Slime (boss)** — ✅ ficha parcial arriba (rol/ubicación/mecánica de muerte). Aspecto ⌛ pendiente-referencia.
+- 6.7 **Oso** — ✅ stub arriba (rol/comportamiento). Refs y ficha completa ⌛ pendiente-referencia.
+- 6.8..N — zorro, cabra, rata, serpiente, escorpión, pájaro, halcón, tortuga, avispa, mimic. [slots]
 
 ---
 
@@ -245,3 +343,9 @@ colonizadora) y cara tallada de img 3.
   colonizadora) + ojos/núcleo cyan. Endémico por doble vía (vegetación + cristal). Build =
   asset compuesto (bpy body + reuse scatter pradera + emisivo Godot). Pendiente: confirmar scope
   (bespoke vs reskin barato) + detalles (rocas flotantes, cantidad de vegetación).
+- **v0.3 (2026-07-03)** — Entrevista de mundo Joan. (1) §6.5 golem: awaken trigger cambiado a
+  SOLO-al-ser-atacado (reemplaza proximity-OR-hit); rol = mini subjefe opcional no-agresivo.
+  (2) §6.6 King Slime: ficha parcial — rol/ubicación/mecánica de muerte decididos; aspecto
+  pendiente-referencia. (3) §6.7 Oso: stub — mini subjefe territorial agresivo (contraste con
+  golem pasivo); aspecto pendiente-referencia. (4) §4: nota P2 naturaleza creada + Chiloé como
+  referencia de sensación. Slots list actualizada.

@@ -32,9 +32,11 @@ La Torre de Dungeon Party es **un enigma**, no el foco del mal cósmico. Los jug
 
 ### 2.1 Premisa
 
+> **Actualización 2026-07-03 (entrevista Joan)**: la ciudad **no nació multicultural** — _nació con identidad chilena_ (referencia: Valparaíso — cerros, casas de colores, palafitos, tejuela). La multicultura es el **DESTINO** que se construye a medida que aventureros internacionales llegan y fomentan el estilo de su barrio. El texto de abajo describe el estado avanzado/meta; el estado inicial se documenta en `_alpha_5_maps.md §Flujo`. La esencia multicultural como destino sigue siendo canon — lo que cambia es el punto de partida. La ciudad también tiene **ruinas cerca de la torre** (hubo una destrucción); pasado el nivel 5, la ciudad se reconstruye (world-state colectivo, post-alfa).
+
 La **Ciudad de la Torre** es un asentamiento cosmopolita construido alrededor de la base de la Torre. A lo largo de generaciones, la Torre atrajo gente de todos los rincones del planeta — **nórdicos, japoneses, árabes, africanos, latinoamericanos, europeos, indoamericanos, polinesios, eslavos, chinos, indios, mongoles, celtas, persas** — y la ciudad creció como **mezcla libre** de todas esas culturas.
 
-**No hay cultura dominante**. Ninguna tradición reclama la Torre como propia. Los aventureros llegan solos o en caravanas, aprenden a convivir, y el Gremio (ver §4) los coordina.
+**No hay cultura dominante** (en el estado meta/avanzado). Ninguna tradición reclama la Torre como propia. Los aventureros llegan solos o en caravanas, aprenden a convivir, y el Gremio (ver §4) los coordina.
 
 ### 2.2 Consecuencias narrativas
 
@@ -208,8 +210,8 @@ Pilar de design del mundo:
 
 | # | Nombre | Raíz cultural |
 |---|--------|---------------|
-| 1 | **Valle de Erindar** | Celta/Irlandés |
-| 2 | **Selva de Aokigahara** | Japonés (bosque real) |
+| 1 | **Valle de Erindar** ⚠️ en revisión (ver §13 P1) | Celta/Irlandés |
+| 2 | ~~Selva de Aokigahara~~ ⛔ OBSOLETO 2026-07-03 — nombre pendiente (ver §13 P2) | — |
 | 3 | **Jötunheim** | Nórdico (mitología — tierra de gigantes de hielo) |
 | 4 | **Desierto de Al-Samum** | Árabe (samum = tormenta de arena) |
 | 5 | **Umbral Fragmentado** | Neutral/cross-cultural |
@@ -286,21 +288,31 @@ Detalle completo de layout, NPCs, servicios y handoff: ver `_taverna_spec.md` v2
 
 Cada piso está inspirado en una **cultura distinta del mundo real**. La mezcla es intencional: los pisos son dimensiones conectadas por la Torre y cada una parece haber "tomado forma" desde una mitología o geografía distinta del mundo. Nadie sabe por qué.
 
-### Piso 1 — **Valle de Erindar** (celta/irlandés)
+### Piso 1 — **Valle de Erindar** (celta/irlandés) — ⚠️ NOMBRE EN REVISIÓN
 
-- **Concepto**: pradera húmeda con neblina verde, megalitos cubiertos de musgo, círculos de piedra, colinas onduladas. Brumas que esconden criaturas pequeñas.
-- **Ambiente**: día eterno nublado. Luz dorada filtrada. Sonido de gaitas distantes.
-- **Fauna propuesta**: slimes (placeholder), lobos de niebla, criaturas tipo Fae pequeñas (sprites, pixies), boss tipo Rey Slime (canon existente) o Sidhe-guardián.
-- **Raíz**: Tír na nÓg (Tierra de los Jóvenes, mitología irlandesa) + Erin (nombre poético de Irlanda). "Erindar" = "tierra de Erin" fantasy.
-- **Paleta**: verde musgo, gris piedra, dorado luz, blanco niebla.
+> **Nota 2026-07-03**: el nombre "Erindar" NO está descartado pero tampoco confirmado — la pregunta formal quedó sin responder en la entrevista de mundo. Label funcional vigente: **"Pradera Interior"**. Además, la implementación real (`floor1_prairie.tscn`) diverge del concepto original: no es un valle exterior sino una **caverna-cristal** con techo de diamante bioluminiscente y pradera interior. La identidad final se define cuando haya material grabado para anclarla. Ver `_world_seeds_postalpha.md §7` y `_alpha_5_maps.md §P1`.
 
-### Piso 2 — **Selva de Aokigahara** (japonés)
+- **Concepto** (v2.0 original — puede no reflejar la implementación actual): pradera húmeda con neblina verde, megalitos cubiertos de musgo, círculos de piedra, colinas onduladas. Brumas que esconden criaturas pequeñas.
+- **Implementación real**: caverna-cristal con techo de ~45m, diamante bioluminiscente, pradera interior con scatter de vegetación, fauna real (lobos, pájaros, ratas, bandidos). Solo 2 entidades mágicas pasivas: golem y slime.
+- **Ambiente**: luminoso-cristal, quieto. Feel: "Pradera INMENSA — no esperabas que la torre fuera tan grande por dentro; hay vida, naturaleza dentro de ella." (Joan, 2026-07-03)
+- **Fauna decidida**: ver `_alpha_5_maps.md §Tabla P1`.
+- **Raíz** (del naming original): Tír na nÓg + Erin. "Erindar" = "tierra de Erin" fantasy. Estado: en revisión.
+- **Paleta**: verde musgo, gris piedra, dorado luz, blanco niebla. (Nota: la paleta real del bioma incluye también cyan jewel de los cristales — ver `_bestiary_visual_bible.md §2`)
 
-- **Concepto**: bosque denso de árboles altos, luz tenue verde filtrada, raíces expuestas. Santuarios torii en ruinas. Silencio antinatural (los pájaros no cantan).
-- **Ambiente**: atardecer permanente. Niebla baja. Sonidos de bambú chocando.
-- **Fauna propuesta**: yokai (kitsune, tengu, yamabiko), enemigos humanoides tipo "monje perdido", boss tipo guardián oni o nurikabe (muro).
-- **Raíz**: Aokigahara — bosque real al pie del monte Fuji, cargado de folklore sobre espíritus. Respetado con contexto: el juego no refiere al aspecto turístico trágico real, sino al lore mitológico previo.
-- **Paleta**: verde oscuro, negro tronco, rojo laca (torii), ámbar farolito.
+### Piso 2 — ~~Selva de Aokigahara~~ — ⛔ DIRECCIÓN OBSOLETA 2026-07-03
+
+> **Decisión Joan (entrevista 2026-07-02/03)**: la dirección japonesa/Aokigahara queda **DESCARTADA** por "muy genérica". Torii, yokai, Nurikabe → no van. El nombre del piso queda **PENDIENTE** — nombre nuevo por definir. La nueva dirección está documentada en `_alpha_5_maps.md §P2` y `_references/p2_bosque/_synthesis.md`.
+
+**Dirección nueva (2026-07-03)**:
+- **Concepto**: bosque oscuro con luz de luna llena permanente, árboles con luces fluorescentes estilo Kimetsu no Yaiba, hongos, flores exóticas, búhos, serpientes, polillas gigantes. Tono místico/élfico, más oscuro que P1.
+- **Criaturas**: NATURALEZA CREADA endémica de la torre (criterio Axlin) — NO se copian mitologías. Los roles (el que vigila, el que confunde) se rediseñan como criaturas propias. Fichas ⌛.
+- **Chiloé** (leyendas/mitología chilota) = referencia de **SENSACIÓN** solamente: el "bosque vivo que te observa". No es catálogo de criaturas.
+- **Clima**: lluvia tormentosa / niebla.
+- **Paleta**: verde muy oscuro + negro tronco + fluorescencia dorado-luciérnaga / cian-hongo + luz de luna fría.
+- **Nombre**: ⌛ pendiente.
+- **Palafitos en risco**: ⌛ condicional ("si nos da el mapa").
+
+~~Concepto y fauna originales (Aokigahara/japonés) — ver historial de git si se necesitan recuperar.~~
 
 ### Piso 3 — **Jötunheim** (nórdico)
 

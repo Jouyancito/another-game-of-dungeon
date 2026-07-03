@@ -1,0 +1,31 @@
+# DRAFT — gdlint config for DungeonParty-A. NOT APPLIED.
+# Copy to repo root as `.gdlintrc` during rollout step 3 (see ../code-quality-proposal.md §6).
+# gdtoolkit 4.x (Godot 4). Conservative: the codebase already passes naming/structure;
+# this only relaxes line-length and excludes vendored/dev/shader-heavy files.
+#
+# gdformat note: gdformat emits TABS by default (canon here) — no option needed to keep tabs.
+
+# Matches .editorconfig [*.gd] max_line_length = 100.
+# Long lines are mostly embedded shader-string literals + dev scripts (see excludes).
+max-line-length: 100
+
+# These two already pass everywhere; keep them so regressions get caught.
+function-name: '(_on_[a-z][a-z0-9]*(_[a-z0-9]+)*|[a-z][a-z0-9]*(_[a-z0-9]+)*)'
+class-name: '([A-Z][a-zA-Z0-9]*)'
+
+# Procedural enemy/level scripts legitimately have many methods/long bodies.
+# Loosen structural caps so we don't get noise on a clean codebase.
+max-public-methods: 40
+function-arguments-number: 12
+
+# Excluded paths — passed via the CLI, not this file (gdlint has no `exclude` key).
+# When invoking, DO NOT point gdlint at these trees:
+#   game/assets/art/_raw/**   (vendored binbun3d VFX — different style, real `;`)
+#   addons/**                 (GUT + third-party tooling)
+#   .godot/**                 (engine cache)
+# Tolerated-but-included (lower priority, may carry long lines):
+#   game/scenes/dev/**  game/tools/**
+#
+# For a single embedded-shader file that still trips line-length, prefer an inline
+#   # gdlint:ignore=max-line-length
+# at the top of that file over loosening the global rule.
