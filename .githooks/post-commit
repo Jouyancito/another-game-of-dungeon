@@ -1,0 +1,10 @@
+#!/bin/sh
+# auto-push (A2 — aprobado por Joan 2026-07-02)
+# Regla: la PC nunca es el único lugar donde vive un commit por más de unas horas.
+# Cada commit se sube a origin de inmediato; si falla (offline / gate), avisa y no bloquea.
+branch=$(git rev-parse --abbrev-ref HEAD)
+if git push --quiet origin "$branch" 2>/dev/null; then
+  echo "[post-commit] auto-push -> origin/$branch OK"
+else
+  echo "[post-commit] auto-push FALLO (offline o gate pre-push) — pushear manualmente cuando se pueda"
+fi
