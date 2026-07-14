@@ -26,6 +26,16 @@ python E:\Calyx\home\ingest\ask.py search "tema" 5
 Re-ingestar tras editar docs: regenerar el JSONL con `calyx_ingest_dpdocs.py` + `calyx ingest dp_canon --batch ... --idempotent`.
 Calyx responde **qué construir**; no valida que funcione — eso es de los tests + el juego corriendo.
 
+## 🤖 Synapse — playtester (NO grounding, NO review de assets)
+
+MCP registrado (`E:\Synapse\target\release\synapse-mcp.exe --mode stdio`). 40 tools de escritorio Windows.
+
+- **Licencia**: PolyForm **Noncommercial**. Permitido acá porque Dungeon Party es **hobby project, no se vende** (LICENSE.md §Personal Uses nombra "hobby projects" explícitamente). **Si el juego se comercializa, hace falta licencia paga** — revisar antes.
+- **Para qué SÍ**: `act` + `screenshot` + `shell` → un agente agarra el mouse, JUEGA el juego y mira la pantalla. Tester de noche.
+- **Para qué NO**: percepción estructurada. Godot expone **0 elementos UIA** (medido 2026-06-14) — `find`/`observe` son ciegos adentro del juego. Y NO reemplaza `tools/visual_gate/` + `tools/imgdiff/` para juzgar renders: el gate propio mide (SSIM, IoU, ΔE) y su regla madre es *"nunca un veredicto sin un número al lado"*. Synapse juega; el gate juzga.
+
+**División**: Calyx = qué construir · tests + Synapse = que corra · visual_gate = cómo se ve.
+
 ## ⚠️ Scope Reset 2026-05-18
 
 Plan post-reinicio acordado en `juego dungeon.md` (Desktop). Filtro vigente para TODA decisión:
