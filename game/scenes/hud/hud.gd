@@ -40,6 +40,11 @@ var _torch_slot_placeholder: Label
 var _torch_slot_status: Label
 var _torch_slot_hint: Label
 
+# True while the floor-cleared banner is up. It reuses DeathScreen/DeathLabel,
+# so it must suppress the [R]-respawn handler those normally arm — a victory
+# must never reload the run out from under the player.
+var _floor_cleared_active := false
+
 func _ready() -> void:
 	add_to_group("hud")
 	death_screen.visible = false
@@ -386,6 +391,8 @@ func _on_cooldown_tick(skill_id: StringName, remaining_s: float, total_s: float)
 
 
 func _on_player_died() -> void:
+	# Dying mid-celebration: death owns DeathScreen from here on.
+	_floor_cleared_active = false
 	crosshair.visible = false
 	death_screen.visible = true
 	stat_indicator.visible = false
@@ -393,6 +400,39 @@ func _on_player_died() -> void:
 	# El tween previo era invisible si venía de _on_player_downed (ya era rojizo).
 	death_screen.color = Color(0, 0, 0, 0.85)
 	death_label.text = "HAS CAÍDO\n\n[R] para volver al punto de partida"
+
+
+## Celebrates a boss kill. Deliberately NON-blocking: the boss just dropped its
+## loot at the player's feet, so seizing input here would be hostile. The banner
+## fades on its own and the player leaves through the existing pause menu.
+## Progress is already persisted by the time this is called — this is pure feedback.
+func show_floor_cleared(floor_number: int, boss_name: String, is_first_clear: bool) -> void:
+	_floor_cleared_active = true
+	death_screen.visible = true
+	death_screen.color = Color(0.6, 0.5, 0.1, 0.0)
+
+	var headline := "PISO %d DESPEJADO" % floor_number
+	if not is_first_clear:
+		headline += " (de nuevo)"
+	death_label.text = "%s\n\n%s derrotado" % [headline, boss_name]
+
+	if AudioManager:
+		AudioManager.play_sfx(&"level_up")  # non-positional: the HUD is 2D
+
+	var tween := create_tween()
+	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.35), 0.5)
+	tween.tween_interval(3.0)
+	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.0), 1.5)
+	tween.tween_callback(_clear_floor_cleared_banner)
+
+
+func _clear_floor_cleared_banner() -> void:
+	# A death during the banner already took over DeathScreen — do not stomp it.
+	if not _floor_cleared_active:
+		return
+	_floor_cleared_active = false
+	death_screen.visible = false
+	death_label.text = ""
 
 
 func _on_player_downed(_player_ref: BasePlayer) -> void:
@@ -416,7 +456,9 @@ func _on_player_revived(_player_ref: BasePlayer, _healer: Node) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Respawn temprano — R durante downed o dead recarga la escena actual.
 	# Canon futuro: revive ritual en ciudad/gremio reemplazará este flow.
-	if not death_screen.visible:
+	# The victory banner reuses DeathScreen but must not arm respawn — R during a
+	# floor-clear would reload the run and destroy the boss loot lying on the ground.
+	if not death_screen.visible or _floor_cleared_active:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:

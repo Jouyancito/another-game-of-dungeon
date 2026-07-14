@@ -4,6 +4,28 @@ Dungeon crawler cooperativo en primera persona, 1-6 jugadores. Torre de 5 pisos 
 
 **Repo**: https://github.com/Jouyancito/another-game-of-dungeon (privado)
 
+## ⚙️ Modos de trabajo SIEMPRE activos en este repo
+
+Ambos rigen todo el trabajo en Dungeon Party. No son opt-in.
+
+1. **Ponytail** (`AGENTS.md` en la raíz — leerlo antes de escribir código). Escalera de pereza: ¿hace falta? → ¿ya existe acá? → ¿lo hace la stdlib/Godot? → ¿una línea? → recién ahí, el mínimo que funciona. **El mejor código es el que no se escribe.** Nunca perezoso para *entender* el problema ni para validación/seguridad.
+   - Corolario duramente ganado (2026-07-14): **los docs de diseño mienten**. Varios listan como "GAP / no implementado" cosas que están hechas hace tiempo (`habitat_type` en BaseEnemy, fauna ambiental, world_select, agua+vegetación del piso 1). **Verificá contra el código antes de construir.** Reescribir lo que ya existe es la peor violación de ponytail.
+2. **Caveman** — respuestas comprimidas. Toda la sustancia técnica queda; se va el relleno. NO aplica a código, commits, UI copy ni docs (esos van en inglés y prosa normal).
+
+## 🧠 Calyx — canon consultable (grounding)
+
+El canon de diseño (`game/docs/**/*.md`, 1975 chunks) vive ingestado en un vault Calyx con
+embeddings GPU. Consultalo antes de construir, en vez de leer 20 docs a mano:
+
+```bash
+E:\llamacpp\calyx_embed_stack.cmd          # levanta llama-server :8085 + shim TEI :18190
+python E:\Calyx\home\ingest\ask.py kernel "¿qué dice el canon sobre X?"
+python E:\Calyx\home\ingest\ask.py search "tema" 5
+```
+
+Re-ingestar tras editar docs: regenerar el JSONL con `calyx_ingest_dpdocs.py` + `calyx ingest dp_canon --batch ... --idempotent`.
+Calyx responde **qué construir**; no valida que funcione — eso es de los tests + el juego corriendo.
+
 ## ⚠️ Scope Reset 2026-05-18
 
 Plan post-reinicio acordado en `juego dungeon.md` (Desktop). Filtro vigente para TODA decisión:

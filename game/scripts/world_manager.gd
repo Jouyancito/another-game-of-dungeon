@@ -141,6 +141,34 @@ func update_world(index: int, data: Dictionary) -> void:
 	save_worlds()
 
 
+## Records a floor clear on the ACTIVE world (GameManager.world_index).
+## Idempotent: re-clearing a floor never lowers progress nor duplicates a trophy,
+## so a replayed boss is safe. Returns true if this was the world's first clear
+## of that floor (the caller uses it to decide whether to show a victory screen).
+func mark_floor_cleared(floor_number: int, trophy: StringName = &"") -> bool:
+	var index: int = GameManager.world_index
+	# No world selected (dev/test scene) is a normal state, not an error — check it
+	# before get_world(), which push_error()s on an invalid index by design.
+	if index < 0 or index >= worlds.size():
+		return false
+	var world := get_world(index)
+	if world.is_empty():
+		return false
+
+	var previous_best: int = int(world.get("highest_floor_cleared", 0))
+	var trophies: Array = (world.get("boss_trophies", []) as Array).duplicate()
+	var is_first_clear := floor_number > previous_best
+
+	if trophy != &"" and not trophies.has(String(trophy)):
+		trophies.append(String(trophy))
+
+	update_world(index, {
+		"highest_floor_cleared": maxi(previous_best, floor_number),
+		"boss_trophies": trophies,
+	})
+	return is_first_clear
+
+
 func delete_world(index: int) -> void:
 	if index < 0 or index >= worlds.size():
 		push_error("WorldManager: índice de mundo inválido: %d" % index)

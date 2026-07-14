@@ -908,14 +908,20 @@ func die() -> void:
 		TitleTracker.on_enemy_killed(enemy_type)
 
 	# ── SFX muerte + CameraShake ─────────────────────────────────────────────
+	var is_boss: bool = sub_tier == SubTier.BOSS or enemy_tier >= 10
 	if AudioManager:
 		AudioManager.play_sfx(&"enemy_die_slime", global_position)
 	if CameraShake:
-		var is_boss: bool = sub_tier == SubTier.BOSS or enemy_tier >= 10
 		if is_boss:
 			CameraShake.shake_heavy()
 		else:
 			CameraShake.shake_light()
+
+	# ── Floor clear ──────────────────────────────────────────────────────────
+	# Hooked here, not in king_slime.gd: every boss dies through die(), so the
+	# floor-clear loop closes for future bosses without touching each one.
+	if is_boss:
+		_report_floor_cleared()
 
 	_spawn_loot()
 	_on_death()
@@ -970,6 +976,21 @@ func _spawn_damage_number(amount: int, is_crit: bool, element: String) -> void:
 	scene_root.add_child(fdn)
 	fdn.global_position = global_position + Vector3(0, 1.5, 0)
 	fdn.setup(amount, is_crit, element)
+
+
+## Persists the floor clear on the active world and tells the HUD to celebrate it.
+## enemy_tier is the floor this boss belongs to (1-100), so it IS the cleared floor.
+## Guarded on WorldManager having an active world: a boss killed from a dev/test
+## scene (no world selected) still dies normally, it just records nothing.
+func _report_floor_cleared() -> void:
+	if GameManager.world_index < 0:
+		return
+	var trophy := StringName("trophy_%s" % enemy_type)
+	var is_first_clear: bool = WorldManager.mark_floor_cleared(enemy_tier, trophy)
+
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_floor_cleared"):
+		hud.show_floor_cleared(enemy_tier, display_name if display_name != "" else enemy_type, is_first_clear)
 
 
 ## Override para efectos de muerte custom

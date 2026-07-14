@@ -32,6 +32,11 @@ func _load_all_skills(path: String) -> void:
 
 func _register_skill(file_path: String) -> void:
 	var res = load(file_path)
+	# Data resources referenced BY a skill (SummonResource via SkillResource.summon_data)
+	# live alongside the skills that use them. They are not skills and are loaded through
+	# their owner, so skip them silently — only a genuinely unloadable/wrong .tres warns.
+	if res is SummonResource:
+		return
 	if res == null or not (res is SkillResource):
 		push_warning("SkillDB: '%s' no es SkillResource válida" % file_path)
 		return
