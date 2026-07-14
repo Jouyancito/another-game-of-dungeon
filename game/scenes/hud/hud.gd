@@ -45,6 +45,10 @@ var _torch_slot_hint: Label
 # must never reload the run out from under the player.
 var _floor_cleared_active := false
 
+# Status readout (stun etc). Built in code rather than in the .tscn to keep this
+# self-contained — see _on_player_status_applied for why it is text and not icons yet.
+var _status_label: Label
+
 func _ready() -> void:
 	add_to_group("hud")
 	death_screen.visible = false
@@ -52,6 +56,7 @@ func _ready() -> void:
 	level_up_label.visible = false
 	# Font del death_label más chico y claro (antes 48 desde tscn).
 	death_label.add_theme_font_size_override("font_size", 22)
+	_build_status_label()
 	_build_pickup_hint()
 	_build_target_frame()
 	_wire_hotbar_slots()
@@ -321,6 +326,9 @@ func connect_to_player(player: Node) -> void:
 		player.player_downed.connect(_on_player_downed)
 	if player.has_signal("player_revived"):
 		player.player_revived.connect(_on_player_revived)
+	if player.has_signal("status_applied"):
+		player.status_applied.connect(_on_player_status_applied)
+		player.status_removed.connect(_on_player_status_removed)
 	player.level_up.connect(_on_level_up)
 	_on_health_changed(player.health, player.max_health)
 	_on_mana_changed(player.mana, player.max_mana)
@@ -424,6 +432,53 @@ func show_floor_cleared(floor_number: int, boss_name: String, is_first_clear: bo
 	tween.tween_interval(3.0)
 	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.0), 1.5)
 	tween.tween_callback(_clear_floor_cleared_banner)
+
+
+## Human-readable names for the statuses the player can carry.
+const STATUS_LABELS: Dictionary = {
+	&"stun": "ATURDIDO",
+}
+
+
+## Centred above the crosshair: a stunned player is staring at the thing hitting them,
+## so that is where the news has to be.
+func _build_status_label() -> void:
+	_status_label = Label.new()
+	_status_label.name = "StatusLabel"
+	_status_label.visible = false
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.add_theme_font_size_override("font_size", 20)
+	_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_status_label.add_theme_constant_override("outline_size", 4)
+	_status_label.set_anchors_preset(Control.PRESET_CENTER)
+	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_status_label.position.y -= 80.0
+	add_child(_status_label)
+
+## Status feedback on the player.
+##
+## Canon docs/skills/_status_effects.md §4 specifies 24x24 icons with a category-coloured
+## border, a countdown, and stack counts. That icon set does not exist yet, and inventing
+## one for a single status would be art nobody asked for. This is the honest floor: the
+## player is TOLD, immediately and unmissably, that they cannot act and why. Upgrade path
+## is the §4 icon strip, reading the same status_applied/status_removed signals.
+func _on_player_status_applied(status_name: StringName, _duration: float) -> void:
+	_status_label.text = STATUS_LABELS.get(status_name, String(status_name).to_upper())
+	_status_label.visible = true
+
+
+func _on_player_status_removed(_status_name: StringName) -> void:
+	if _player == null or not _player.has_method("has_status"):
+		_status_label.visible = false
+		return
+	# Another status may still be running — only go quiet when they are all gone.
+	for name: StringName in STATUS_LABELS:
+		if _player.has_status(name):
+			_status_label.text = STATUS_LABELS[name]
+			return
+	_status_label.visible = false
 
 
 ## Ends the run: the player took the descent. Progress is already persisted, so this

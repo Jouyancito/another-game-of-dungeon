@@ -12,6 +12,8 @@ extends BaseEnemy
 const CHARGE_SPEED_MULT: float = 3.2
 const CHARGE_DURATION: float = 0.9
 const CHARGE_KNOCKBACK: float = 14.0
+## Canon _floor1_integral_plan.md §6: "Su carga aplica `stun` 0.5s al impactar".
+const CHARGE_STUN_S: float = 0.5
 
 var _is_charging: bool = false
 var _charge_elapsed: float = 0.0
@@ -87,15 +89,10 @@ func perform_attack() -> void:
 		target.take_damage(damage * outgoing_damage_mult())
 		if target.has_method("apply_knockback"):
 			target.apply_knockback(_charge_direction, CHARGE_KNOCKBACK)
-
-		# ponytail: canon (_floor1_integral_plan.md §6) also wants a 0.5s STUN on impact,
-		# but there is no player status system — BasePlayer has apply_knockback() and no
-		# apply_status(), and nothing in the game stuns the player today. Building one for
-		# a TIER-2 nice-to-have would mean redesigning the player's core state machine.
-		# Ceiling: the charge lands its damage and heavy knockback, but never locks the
-		# player out. Upgrade path: give BasePlayer the same apply_status() contract
-		# BaseEnemy already has (docs/skills/_status_effects.md §Stun is written for both),
-		# then add apply_status(&"stun", 0.5) here.
+		# Canon _floor1_integral_plan.md §6: the charge stuns for 0.5s on impact. The
+		# knockback throws you; the stun is the half-second where you cannot answer.
+		if target.has_method("apply_status"):
+			target.apply_status(&"stun", CHARGE_STUN_S, self)
 
 	await get_tree().create_timer(attack_cooldown).timeout
 	if not is_instance_valid(self):

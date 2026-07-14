@@ -93,6 +93,17 @@ var is_dead := false
 var is_downed := false
 @export var downed_time_s: float = 15.0
 var _downed_time_left: float = 0.0
+
+# ── Status effects on the PLAYER ──────────────────────────────────────────────
+# Canon docs/skills/_status_effects.md. Enemies have carried statuses since Fase 1
+# (BaseEnemy.apply_status); the player never could, so nothing in the game was able
+# to stun them even though the canon has always said heavy hits (Embestida) do.
+# Same contract as BaseEnemy on purpose: apply_status / has_status / get_status_time_left.
+signal status_applied(status_name: StringName, duration: float)
+signal status_removed(status_name: StringName)
+
+## StringName → {time_left: float}
+var status_effects: Dictionary = {}
 var is_holding_attack := false
 var dash_locked := false  # PlayerSkills lo alza durante tween de Embestida — WASD y vel enemy overrides OFF.
 var is_crouching := false
@@ -533,6 +544,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_downed:
 		if not (event is InputEventMouseMotion):
 			return
+	# Stun — canon §2.2 "sin acción": no attacks, no skills, no interacting. The camera
+	# stays free (same as downed): taking away the ability to act is the punishment;
+	# taking away the ability to LOOK is just disorienting.
+	if is_stunned():
+		if not (event is InputEventMouseMotion):
+			return
 
 	# Interactuar con E — recoger items o abrir cofres
 	if event.is_action_pressed("interact"):
@@ -623,6 +640,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_regenerate(delta)
+	_tick_statuses(delta)
 
 	# Dash activo — tween controla global_position directo. Cortamos WASD/knockback.
 	if dash_locked:
@@ -673,8 +691,15 @@ func _physics_process(delta: float) -> void:
 		skills.clear_all_active_skills()
 		channeling = false  # re-evaluar branches abajo como no-canalizando
 
-	# Saltar (no agachado, no canalizando)
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not channeling:
+	# Stun locks movement exactly like a channel does — canon §2.2 "sin acción ni
+	# movimiento". Folded into the same branch instead of a second lock: gravity keeps
+	# running (no floating), and knockback still wins, so a stunned player being charged
+	# by a jabali still gets thrown rather than standing rooted through the hit.
+	var stunned: bool = is_stunned()
+	var movement_locked: bool = channeling or stunned
+
+	# Saltar (no agachado, no canalizando, no aturdido)
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not movement_locked:
 		velocity.y = jump_velocity
 
 	# Velocidad según estado
@@ -687,7 +712,7 @@ func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	if channeling:
+	if movement_locked:
 		# Lock x/z — gravity (velocity.y) sigue para no quedar suspendido en el aire.
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -842,6 +867,62 @@ func _regenerate(delta: float) -> void:
 		var hp_regen = Progression.hp_regen_rate(get_effective_stat("vit")) * delta
 		health = minf(health + hp_regen, max_health)
 		health_changed.emit(health, max_health)
+
+# ── Status effects (canon docs/skills/_status_effects.md) ─────────────────────
+
+## Applies a status. Mirrors BaseEnemy.apply_status() so an attack does not have to know
+## whether it hit a player or an enemy — it just calls apply_status().
+## Dead/downed players take no new statuses: downed is already total incapacitation, and
+## stunning a corpse is noise.
+func apply_status(name: StringName, duration: float, _source: Node = null) -> void:
+	if is_dead or is_downed or duration <= 0.0:
+		return
+	match name:
+		&"stun":
+			_apply_stun(duration)
+		_:
+			push_warning("BasePlayer.apply_status: '%s' no implementado (soporta stun)" % name)
+
+
+func has_status(name: StringName) -> bool:
+	return status_effects.has(name)
+
+
+func get_status_time_left(name: StringName) -> float:
+	if not status_effects.has(name):
+		return 0.0
+	return float(status_effects[name].get("time_left", 0.0))
+
+
+## Canon §2.2 Stun: "sin acción ni movimiento", refresh-to-max (never stacks, and a
+## second hit cannot cut short a longer stun already running).
+func _apply_stun(duration: float) -> void:
+	var existing: Dictionary = status_effects.get(&"stun", {})
+	var current: float = float(existing.get("time_left", 0.0))
+	status_effects[&"stun"] = {"time_left": maxf(current, duration)}
+	status_applied.emit(&"stun", duration)
+
+
+## Ticks every status down and drops the expired ones.
+func _tick_statuses(delta: float) -> void:
+	if status_effects.is_empty():
+		return
+	var expired: Array[StringName] = []
+	for name: StringName in status_effects:
+		var entry: Dictionary = status_effects[name]
+		entry["time_left"] = float(entry.get("time_left", 0.0)) - delta
+		if entry["time_left"] <= 0.0:
+			expired.append(name)
+	for name: StringName in expired:
+		status_effects.erase(name)
+		status_removed.emit(name)
+
+
+## True while the player is stunned: no attacks, no skills, no movement. The camera stays
+## free — being unable to act is the punishment, being unable to LOOK is just disorienting.
+func is_stunned() -> bool:
+	return status_effects.has(&"stun")
+
 
 func take_damage(amount: float, element: String = "", attacker: Node = null) -> void:
 	if is_dead or is_downed:
