@@ -765,8 +765,13 @@ func _try_acquire_target() -> void:
 
 
 func _look_at_target() -> void:
-	var look_pos = target.global_position
+	var look_pos: Vector3 = target.global_position
 	look_pos.y = global_position.y
+	# look_at() con origen y destino en la MISMA posición no tiene dirección que mirar y
+	# emite error. Pasa de verdad: un spawn superpuesto, un teleport, un enemigo que alcanza
+	# al jugador exacto. No hay a dónde girar — mantener el rumbo es la respuesta correcta.
+	if global_position.distance_squared_to(look_pos) < 0.0001:
+		return
 	look_at(look_pos)
 
 

@@ -79,6 +79,17 @@ func _register_tables() -> void:
 		],
 	})
 
+	# Piso 5 — Guardián-Cuervo (jefe de RANGO). Solo dropea si PELEÓ: un cuervo que te
+	# reconoce y se aparta no deja botín, porque no hubo victoria.
+	_add("guardian_cuervo", {
+		"gold_min": 200,
+		"gold_max": 400,
+		"drops": [
+			{"item_id": "material_black_feather", "chance": 1.0, "qty_min": 3, "qty_max": 6},
+			{"item_id": "corona_oxidada_menor", "chance": 0.35, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
 	_add("turtle", {
 		"gold_min": 2,
 		"gold_max": 5,
