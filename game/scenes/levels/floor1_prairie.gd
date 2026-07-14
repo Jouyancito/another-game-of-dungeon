@@ -2891,20 +2891,91 @@ func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 func _spawn_poi_enemies(pois: Array) -> void:
 	for poi in pois:
 		var p: POISystem.POI = poi as POISystem.POI
-		if p.enemy_count <= 0:
-			continue
 
-		# Elegir tabla de spawn según tipo de POI
-		var table: Array = _get_poi_spawn_table(p.type)
-		for i in range(p.enemy_count):
-			var offset: Vector3 = Vector3(
-				_rng.randf_range(-p.size.x * 0.3, p.size.x * 0.3),
-				0.8,
-				_rng.randf_range(-p.size.y * 0.3, p.size.y * 0.3)
-			)
-			var enemy: CharacterBody3D = _pick_from_table(table).instantiate() as CharacterBody3D
-			add_child(enemy)
-			enemy.global_position = p.position + offset
+		# Whether this POI's roster ended up with a sub-B+ enemy decides if its chest may
+		# be a mimic (canon docs/balance/_mimic.md §2.1). Read off the enemies actually
+		# spawned rather than the table, so a lucky all-sub-A roll stays mimic-free.
+		var has_sub_b := false
+
+		if p.enemy_count > 0:
+			# Elegir tabla de spawn según tipo de POI
+			var table: Array = _get_poi_spawn_table(p.type)
+			for i in range(p.enemy_count):
+				var offset: Vector3 = Vector3(
+					_rng.randf_range(-p.size.x * 0.3, p.size.x * 0.3),
+					0.8,
+					_rng.randf_range(-p.size.y * 0.3, p.size.y * 0.3)
+				)
+				var enemy: CharacterBody3D = _pick_from_table(table).instantiate() as CharacterBody3D
+				add_child(enemy)
+				enemy.global_position = p.position + offset
+				if enemy is BaseEnemy and (enemy as BaseEnemy).sub_tier >= BaseEnemy.SubTier.B:
+					has_sub_b = true
+
+		_spawn_poi_chest(p, has_sub_b)
+
+
+## POI types that hold a chest. The entrance always gets one and never a mimic: it is
+## where the player learns "chest = loot", and canon (_mimic.md §2.1) refuses to break
+## that lesson with a 0% gate on the intro arena.
+const CHEST_POI_TYPES: Array[String] = ["entrance", "ruins", "camp", "giant_tree", "altar", "well"]
+
+## Canon _mimic.md §2.1: Floor 1, arena with >=1 sub-B enemy -> 5%. Intro arena -> 0%.
+const MIMIC_CHANCE_SUB_B: float = 0.05
+
+## Canon _mimic.md §2.2: at most ONE mimic alive per scene. A roll that loses to the
+## cooldown does NOT re-roll — a normal chest spawns in its place.
+var _mimic_spawned := false
+
+
+## The mimic gate, canon _mimic.md §2.1-2.2. Static and pure so the rule can be checked
+## without generating a 600x600m level: `roll` is the caller's RNG draw in [0, 1).
+static func should_chest_be_mimic(
+	poi_type: String, has_sub_b: bool, mimic_already_spawned: bool, roll: float
+) -> bool:
+	# §2.1 — the intro arena is where the player learns "chest = loot". Never betray it.
+	if poi_type == "entrance":
+		return false
+	# §2.1 — a mimic only hides among chests an arena's sub-B+ enemies are guarding.
+	if not has_sub_b:
+		return false
+	# §2.2 — one mimic per scene, and losing to the cooldown does NOT re-roll:
+	# a normal chest takes its place.
+	if mimic_already_spawned:
+		return false
+	return roll < MIMIC_CHANCE_SUB_B
+
+
+func _spawn_poi_chest(p: POISystem.POI, has_sub_b: bool) -> void:
+	if not CHEST_POI_TYPES.has(p.type):
+		return
+
+	var spot: Vector3 = p.position + Vector3(
+		_rng.randf_range(-p.size.x * 0.2, p.size.x * 0.2),
+		0.0,
+		_rng.randf_range(-p.size.y * 0.2, p.size.y * 0.2)
+	)
+	spot.y = get_terrain_height(spot.x, spot.z) + 0.4
+
+	var is_mimic: bool = should_chest_be_mimic(p.type, has_sub_b, _mimic_spawned, _rng.randf())
+
+	var scene_path := "res://scenes/enemy/mimic_chest.tscn" if is_mimic else "res://scenes/loot/loot_chest.tscn"
+	var packed: PackedScene = load(scene_path)
+	if packed == null:
+		push_error("floor1_prairie: no se pudo cargar %s" % scene_path)
+		return
+
+	var chest: Node3D = packed.instantiate()
+	if is_mimic:
+		_mimic_spawned = true
+	else:
+		# A guarded POI is worth more than an unguarded one — the risk IS the price.
+		(chest as LootChest).chest_tier = (
+			LootChest.ChestTier.RARE if has_sub_b else LootChest.ChestTier.COMMON
+		)
+
+	add_child(chest)
+	chest.global_position = spot
 
 ## Devuelve una posición en el anillo alrededor de un POI del tipo dado (si existe),
 ## o Vector3.INF si no hay ninguno. Para spawn ecológico: criaturas que PERTENECEN
