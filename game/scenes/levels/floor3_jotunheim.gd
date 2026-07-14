@@ -43,5 +43,6 @@ func _get_config() -> BiomeConfig:
 		["res://scenes/enemy/wolf.tscn", 6, 0.8],
 		["res://scenes/enemy/golem.tscn", 2, 0.8],
 	]
+	c.boss_scene = "res://scenes/enemy/jotun_giant.tscn"
 	c.next_floor_scene = "res://scenes/levels/floor4_alsamum.tscn"
 	return c

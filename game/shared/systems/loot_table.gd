@@ -90,6 +90,31 @@ func _register_tables() -> void:
 		],
 	})
 
+	# Bosses de piso — canon enemy_tier_system.md: "el boss de cada piso es un GATE".
+	_add("forest_watcher", {
+		"gold_min": 60, "gold_max": 120,
+		"drops": [
+			{"item_id": "material_black_feather", "chance": 1.0, "qty_min": 2, "qty_max": 4},
+			{"item_id": "cape_hunter", "chance": 0.30, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	_add("jotun_giant", {
+		"gold_min": 100, "gold_max": 200,
+		"drops": [
+			{"item_id": "material_stone_core", "chance": 1.0, "qty_min": 1, "qty_max": 3},
+			{"item_id": "shield_iron", "chance": 0.30, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	_add("samum", {
+		"gold_min": 150, "gold_max": 280,
+		"drops": [
+			{"item_id": "material_venom_sac", "chance": 1.0, "qty_min": 2, "qty_max": 5},
+			{"item_id": "corona_oxidada_menor", "chance": 0.30, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
 	_add("turtle", {
 		"gold_min": 2,
 		"gold_max": 5,

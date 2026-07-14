@@ -16,9 +16,8 @@ extends Node3D
 ## MUNDO. Por eso el camino es lineal y corto: es un pasillo de atmósfera, no un sandbox.
 ##
 ## Canon `tower_biome_system.md`: el tier de un piso = su número. Los enemigos de acá son
-## tier 2. El bestiario canon del P2 son búhos, serpientes entre arbustos y polillas
-## gigantes; el boss del P2 está ⌛ SIN DEFINIR en el canon, así que este piso termina en el
-## cliffhanger en vez de inventar uno.
+## tier 2 (búhos, serpientes, polillas gigantes). Su jefe es El Vigilante — la misma silueta
+## que te observa a mitad de camino, esperándote al fondo.
 
 const SCENE_PLAYER_FALLBACK: String = "res://scenes/player/player.tscn"
 const SCENE_HUD: PackedScene = preload("res://scenes/hud/hud.tscn")
@@ -43,6 +42,7 @@ var _rng := RandomNumberGenerator.new()
 var _watcher: Node3D = null
 var _watcher_seen := false
 var _player: Node3D = null
+var _boss_spawned := false
 
 
 func _ready() -> void:
@@ -298,18 +298,58 @@ func _reveal_watcher() -> void:
 
 # ── Fin del demo ──────────────────────────────────────────────────────────────
 
-## Al fondo del bosque está el paso al Piso 3.
+## Al fondo del bosque te espera lo que te venía mirando.
 ##
-## El bosque NO tiene boss: su boss está ⌛ sin definir en el canon (`_alpha_5_maps.md` deja
-## la columna vacía), y no se inventa un jefe para llenar un casillero. Así que el descenso
-## está ahí, esperando, y el jugador simplemente lo encuentra caminando —
-## el bosque no te cobra peaje, te deja ir.
+## Canon `enemy_tier_system.md`: "el boss de cada piso es un GATE". El Vigilante es ese gate,
+## y es el mismo que se te apareció a mitad de camino y desapareció. No se inventó un jefe
+## para llenar un casillero: se le cobró la deuda a la escena que el propio canon monta —
+## "el bosque vivo que te observa", "algo te observa (silueta que desaparece)".
+##
+## El paso al Piso 3 se abre cuando cae.
 func _spawn_ending_trigger() -> void:
+	var trigger := Area3D.new()
+	trigger.name = "BossSpawnTrigger"
+	trigger.collision_mask = 2   # capa del player — con 1 el trigger es ciego (bug histórico)
+	trigger.position = Vector3(0, 2.0, ENDING_Z + 30.0)
+
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(PATH_HALF_WIDTH * 2.0, 8.0, 5.0)
+	shape.shape = box
+	trigger.add_child(shape)
+
+	trigger.body_entered.connect(func(body: Node) -> void:
+		if _boss_spawned or not body.is_in_group("player"):
+			return
+		_boss_spawned = true
+		trigger.set_deferred("monitoring", false)
+		_spawn_watcher_boss.call_deferred()
+	)
+	add_child(trigger)
+
+
+func _spawn_watcher_boss() -> void:
+	var packed: PackedScene = load("res://scenes/enemy/forest_watcher.tscn")
+	if packed == null:
+		push_error("floor2_forest: no cargó el Vigilante")
+		return
+	var boss: BaseEnemy = packed.instantiate()
+	add_child(boss)
+	boss.global_position = Vector3(0, 1.0, ENDING_Z)
+	boss.died.connect(_on_watcher_died)
+
+	# La silueta que te seguía ya no hace falta: se paró enfrente tuyo.
+	if _watcher != null and is_instance_valid(_watcher):
+		_watcher.queue_free()
+
+
+## Muerto el Vigilante, el bosque te deja ir.
+func _on_watcher_died(boss: BaseEnemy) -> void:
 	var descent := FloorDescent.new()
 	descent.name = "FloorDescent"
 	descent.from_floor = 2
 	add_child(descent)
-	descent.global_position = Vector3(0, 0.2, ENDING_Z)
+	descent.global_position = boss.global_position + Vector3(0, 0.2, 6.0)
 
 
 # ── Player + HUD ──────────────────────────────────────────────────────────────

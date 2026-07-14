@@ -37,15 +37,15 @@ func _on_enemy_ready() -> void:
 	habitat_type = "boss_arena"
 
 	# Tier 5 BOSS — canon enemy_tier_system.md §3 (BOSS = 3.0x, XP 10x).
-	health = 900.0
-	damage = 46.0
+	health = 8200.0
+	damage = 52.0
 	speed = 3.6
 	mass = 5.0
 	knockback_resistance = 1.0   # canon: los bosses son inmunes al knockback
 	attack_range = 3.2
 	detection_range = 30.0
 	attack_cooldown = 1.8
-	xp_reward = 700.0
+	xp_reward = 1400.0
 
 	default_color = Color(0.06, 0.05, 0.09)
 	mesh.visible = false
@@ -70,6 +70,10 @@ func _on_enemy_ready() -> void:
 ## ¿Este mundo ya lo vio? La memoria vive en el mundo, no en el enemigo: matarlo, morir, o
 ## salir al menú no la borra. Ese es el punto.
 func _world_remembers() -> bool:
+	# Sin mundo activo (escena dev/test) es un estado normal, no un error — hay que chequearlo
+	# antes de get_world(), que push_error()a con un índice inválido por diseño.
+	if GameManager.world_index < 0:
+		return false
 	var world: Dictionary = WorldManager.get_world(GameManager.world_index)
 	if world.is_empty():
 		return false
