@@ -20,26 +20,15 @@ const VFX_MAP: Dictionary = {
 	&"mage_arcane_storm":      preload("res://scenes/fx/mage/arcane_storm_vfx.tscn"),
 	&"mage_prismatic_barrier": preload("res://scenes/fx/mage/prismatic_barrier_vfx.tscn"),
 	&"mage_supernova":         preload("res://scenes/fx/mage/supernova_vfx.tscn"),
-	# Danzante — TODO-D(art): .tscn no creados aún. Paths esperados en DANZANTE_VFX_TODO
-	# abajo. Cuando D cree los 4 .tscn con root VFXBase, descomentar los preloads.
-	# Audit wave3 W1 — entries registradas para que B pueda wirear handlers en cuanto
-	# los assets existan. Mientras tanto, _spawn_on_player devuelve null con warning.
-}
-
-## TODO-D(art) — 4 VFX .tscn pendientes para Danzante Fase 1 (audit W1, 2026-04-24).
-## Cada .tscn debe tener script root VFXBase + duration_s configurado. Spawn pattern:
-## swift_cut / shadow_step / thousand_shadows → one-shot adjunto al player (trail/flash);
-## night_veil → sustained toggle (spawn on toggle_changed active, stop on deactivate).
-## Paths canon cuando D los cree:
-##   - danzante_swift_cut        → res://scenes/fx/danzante/swift_cut_trail.tscn
-##   - danzante_shadow_step      → res://scenes/fx/danzante/shadow_step_vanish.tscn
-##   - danzante_night_veil       → res://scenes/fx/danzante/night_veil_dissolve.tscn
-##   - danzante_thousand_shadows → res://scenes/fx/danzante/thousand_shadows_afterimages.tscn
-const DANZANTE_VFX_TODO: Dictionary = {
-	&"danzante_swift_cut":        "res://scenes/fx/danzante/swift_cut_trail.tscn",
-	&"danzante_shadow_step":      "res://scenes/fx/danzante/shadow_step_vanish.tscn",
-	&"danzante_night_veil":       "res://scenes/fx/danzante/night_veil_dissolve.tscn",
-	&"danzante_thousand_shadows": "res://scenes/fx/danzante/thousand_shadows_afterimages.tscn",
+	# Danzante — canon docs/skills/danzante_sombras.md §7 (sombra violeta-negra).
+	# El Danzante estaba code-complete pero visualmente MUDO: sus 4 skills no tenían VFX,
+	# así que castearlas no se veía. Estos son esos 4.
+	#   swift_cut / shadow_step / thousand_shadows → one-shot adjunto al player
+	#   night_veil → toggle sostenido (duration_s = 0; el caller es dueño del stop())
+	&"danzante_swift_cut":        preload("res://scenes/fx/danzante/swift_cut_trail.tscn"),
+	&"danzante_shadow_step":      preload("res://scenes/fx/danzante/shadow_step_vanish.tscn"),
+	&"danzante_night_veil":       preload("res://scenes/fx/danzante/night_veil_dissolve.tscn"),
+	&"danzante_thousand_shadows": preload("res://scenes/fx/danzante/thousand_shadows_afterimages.tscn"),
 }
 
 # Duración one-shot para charge_vfx adjunto al player (trail durante el dash).

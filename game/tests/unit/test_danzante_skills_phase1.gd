@@ -179,17 +179,32 @@ func test_finisher_with_zero_combo_deals_base_damage_no_mult() -> void:
 	assert_eq(combo.get_current(), 0, "combo sigue en 0")
 
 
-# ─── Sanity: VFX hooks Danzante flaggeados como TODO ───
+# ─── VFX del Danzante: registrados y cargables ───
 
-func test_danzante_vfx_todo_entries_declared() -> void:
-	# Audit W1: DANZANTE_VFX_TODO debe listar los 4 paths canon esperados
-	# para que B pueda wirear handlers cuando D cree los .tscn.
+func test_danzante_vfx_are_registered_and_loadable() -> void:
+	# Esto asertaba que los 4 VFX seguían PENDIENTES (DANZANTE_VFX_TODO). Ya existen:
+	# el Danzante era code-complete pero visualmente mudo — castear sus skills no se veía.
+	# Ahora el test pide lo contrario, que es lo que el jugador necesita.
 	var expected := [
 		&"danzante_swift_cut",
 		&"danzante_shadow_step",
 		&"danzante_night_veil",
 		&"danzante_thousand_shadows",
 	]
-	for skill_id in expected:
-		assert_true(SkillVFXHooks.DANZANTE_VFX_TODO.has(skill_id), \
-			"DANZANTE_VFX_TODO lista '%s' como TODO a crear por D" % skill_id)
+	for skill_id: StringName in expected:
+		assert_true(SkillVFXHooks.VFX_MAP.has(skill_id),
+			"'%s' debe estar en VFX_MAP o la skill no muestra nada al castearse" % skill_id)
+
+		var packed: PackedScene = SkillVFXHooks.VFX_MAP[skill_id]
+		var vfx: Node = packed.instantiate()
+		autofree(vfx)
+		assert_true(vfx is VFXBase,
+			"'%s' debe tener root VFXBase — player_skills.gd llama play()/stop() sobre él" % skill_id)
+
+
+func test_night_veil_is_a_sustained_toggle() -> void:
+	# Canon: night_veil es un toggle. duration_s = 0 significa "sostenido" — el caller es
+	# dueño del stop(). Si auto-expirara, el VFX mentiría sobre si el velo sigue activo.
+	var veil: VFXBase = SkillVFXHooks.VFX_MAP[&"danzante_night_veil"].instantiate()
+	autofree(veil)
+	assert_eq(veil.duration_s, 0.0, "un toggle que se auto-apaga miente sobre su estado")
