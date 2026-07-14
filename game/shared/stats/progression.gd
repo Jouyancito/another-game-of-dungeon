@@ -11,6 +11,12 @@ const BASE_XP_PER_LEVEL: float = 100.0
 const XP_CURVE_EXPONENT: float = 1.15
 const STAT_POINTS_PER_LEVEL: int = 3
 
+## Alpha demo level cap — CLAUDE.md "Scope Reset 2026-05-18": the agreed MVP is
+## "1 mapa, 3 clases, 1 boss, ~15 enemies, lvl cap 15". There was no cap in code: XP kept
+## levelling forever, so a player farming Floor 1 could outscale the only content there is.
+## 0 would mean uncapped; keep it a number so lifting the cap is one edit.
+const MAX_LEVEL: int = 15
+
 
 # ─── v2 canon balance_v2.md ──────────────────────────────────────────────────
 

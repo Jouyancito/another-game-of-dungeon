@@ -993,8 +993,16 @@ func restore_mana(amount: float) -> void:
 	mana_changed.emit(mana, max_mana)
 
 func gain_xp(amount: float) -> void:
+	# Level cap — CLAUDE.md "Scope Reset 2026-05-18" agreed on lvl cap 15 for the alpha, but
+	# nothing enforced it: XP levelled forever, so grinding Floor 1 outscaled the only
+	# content that exists. At cap the bar simply sits full; XP is no longer accumulated
+	# rather than silently hoarded, so lifting the cap later cannot dump a pile of levels
+	# on a returning save.
+	if is_at_level_cap():
+		return
+
 	xp += amount
-	while xp >= xp_to_next_level:
+	while xp >= xp_to_next_level and not is_at_level_cap():
 		xp -= xp_to_next_level
 		level += 1
 		stat_points += Progression.STAT_POINTS_PER_LEVEL
@@ -1005,8 +1013,17 @@ func gain_xp(amount: float) -> void:
 		# ── SFX level up ─────────────────────────────────────────────────────
 		if AudioManager:
 			AudioManager.play_sfx(&"level_up")
+
+	if is_at_level_cap():
+		xp = xp_to_next_level  # bar reads full, not half-way to a level that cannot come
+
 	xp_changed.emit(xp, xp_to_next_level, level)
 	save_progress()
+
+
+## True once the player has hit the alpha's level ceiling.
+func is_at_level_cap() -> bool:
+	return Progression.MAX_LEVEL > 0 and level >= Progression.MAX_LEVEL
 
 func assign_stat(stat_name: String) -> bool:
 	if stat_points <= 0:
