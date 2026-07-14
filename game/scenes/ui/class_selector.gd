@@ -45,10 +45,13 @@ const CLASSES: Array = [
 	},
 ]
 
-## Alpha demo: solo estas 3 clases visibles en el selector. Las 6 de arriba
-## siguen siendo canon de lanzamiento (CLAUDE.md) — esto es solo el recorte del
-## demo. Para revivir las 6: dejar ALPHA_ONLY = [] (vacío = mostrar todas).
-const ALPHA_ONLY: Array = ["Guerrero", "Mago", "Arquero"]
+## Las 6 clases, abiertas. Las 6 son canon de lanzamiento (CLAUDE.md) y las 6 están
+## code-complete: stats, skills, recurso propio y VFX — el Danzante era la última muda y ya
+## no lo es. El recorte a 3 existía para el demo de 1 mapa; con la torre entera construida,
+## esconder tres clases terminadas es dejar trabajo hecho fuera del juego.
+##
+## Volver a recortar es escribir los nombres acá: ["Guerrero", "Mago", "Arquero"].
+const ALPHA_ONLY: Array = []
 
 var _classes: Array = []
 var current_index: int = 0
