@@ -426,6 +426,24 @@ func show_floor_cleared(floor_number: int, boss_name: String, is_first_clear: bo
 	tween.tween_callback(_clear_floor_cleared_banner)
 
 
+## Ends the run: the player took the descent. Progress is already persisted, so this
+## is the send-off — hold on the cliffhanger, then hand back to the menu.
+## Canon (lore/_alpha_5_maps.md): the demo closes on "algo te observa" + "continuará".
+func show_demo_ending(from_floor: int) -> void:
+	_floor_cleared_active = true  # keeps [R]-respawn suppressed through the outro
+	crosshair.visible = false
+	death_screen.visible = true
+	death_screen.color = Color(0, 0, 0, 0)
+	death_label.text = "Descendés hacia el Piso %d.\n\nAlgo te observa desde los árboles.\n\n— CONTINUARÁ —" % (from_floor + 1)
+
+	var outro := create_tween()
+	outro.tween_property(death_screen, "color", Color(0, 0, 0, 0.95), 2.5)
+	outro.tween_interval(3.5)
+	outro.tween_callback(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+	)
+
+
 func _clear_floor_cleared_banner() -> void:
 	# A death during the banner already took over DeathScreen — do not stomp it.
 	if not _floor_cleared_active:

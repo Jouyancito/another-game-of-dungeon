@@ -1525,6 +1525,23 @@ func _spawn_king_deferred(king: Node3D, pos: Vector3) -> void:
 		return
 	add_child(king)
 	king.global_position = pos
+	# Killing the boss opens the way down — that descent is where the run ends.
+	# Bound to the boss instance rather than polling: die() emits this exactly once.
+	if king is BaseEnemy:
+		(king as BaseEnemy).died.connect(_on_boss_died)
+
+
+## Reveals the descent in the arena the boss died in.
+func _on_boss_died(boss: BaseEnemy) -> void:
+	var descent := FloorDescent.new()
+	descent.name = "FloorDescent"
+	descent.from_floor = boss.enemy_tier
+	# Offset from the corpse so the descent never spawns under the loot it just dropped.
+	# Reuses the boss's own Y: it is standing on the arena's CSG slab, which is flat and
+	# sits above the terrain heightmap — get_terrain_height() would sink the pit into it.
+	var spot: Vector3 = boss.global_position + Vector3(0.0, 0.0, 6.0)
+	add_child(descent)
+	descent.global_position = spot
 
 
 func _build_camp(poi: POISystem.POI) -> void:

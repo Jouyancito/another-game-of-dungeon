@@ -123,6 +123,9 @@ var status_effects: Dictionary = {}
 
 signal status_applied(status_name: StringName, duration: float)
 signal status_removed(status_name: StringName)
+## Emitted once, from die(), before the corpse tween starts. Levels listen to this
+## to react to a specific kill (e.g. the boss dying opens the descent).
+signal died(enemy: BaseEnemy)
 
 
 func _ready() -> void:
@@ -923,6 +926,7 @@ func die() -> void:
 	if is_boss:
 		_report_floor_cleared()
 
+	died.emit(self)
 	_spawn_loot()
 	_on_death()
 	# Play death animation if available (no-op when _anim is nil).
