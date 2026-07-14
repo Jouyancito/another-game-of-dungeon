@@ -12,17 +12,6 @@ const LeaderScene := preload("res://scenes/enemy/bandit_leader.tscn")
 const RabbitScene := preload("res://scenes/fauna/rabbit.tscn")
 
 
-## The repo ships ZERO audio files (assets/sounds/sfx/ holds only a README listing the 12
-## CC0 sounds still to be downloaded). AudioManager warns once per missing path, by design,
-## and carries on — but GUT counts any push_warning inside a test as a failure. These tests
-## hit combat, so they hit that warning. Firing it here, once, moves a KNOWN and documented
-## startup warning out of the assertion window. It hides nothing: if the sounds ever land,
-## this simply stops warning.
-func before_all() -> void:
-	AudioManager.play_sfx(&"enemy_hit_flesh")
-	AudioManager.play_sfx(&"enemy_die_slime")
-
-
 func _spawn(scene: PackedScene) -> Node3D:
 	var node: Node3D = scene.instantiate()
 	add_child_autofree(node)
