@@ -43,7 +43,6 @@ var _rng := RandomNumberGenerator.new()
 var _watcher: Node3D = null
 var _watcher_seen := false
 var _player: Node3D = null
-var _ended := false
 
 
 func _ready() -> void:
@@ -299,30 +298,18 @@ func _reveal_watcher() -> void:
 
 # ── Fin del demo ──────────────────────────────────────────────────────────────
 
-## Caminar hasta el fondo del bosque cierra la demo. Canon: corte "continuará".
+## Al fondo del bosque está el paso al Piso 3.
+##
+## El bosque NO tiene boss: su boss está ⌛ sin definir en el canon (`_alpha_5_maps.md` deja
+## la columna vacía), y no se inventa un jefe para llenar un casillero. Así que el descenso
+## está ahí, esperando, y el jugador simplemente lo encuentra caminando —
+## el bosque no te cobra peaje, te deja ir.
 func _spawn_ending_trigger() -> void:
-	var area := Area3D.new()
-	area.name = "EndingTrigger"
-	area.position = Vector3(0, 1.5, ENDING_Z)
-	area.collision_mask = 2   # capa del player
-
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(PATH_HALF_WIDTH * 2.0, 6.0, 4.0)
-	shape.shape = box
-	area.add_child(shape)
-
-	area.body_entered.connect(func(body: Node) -> void:
-		if _ended or not body.is_in_group("player"):
-			return
-		_ended = true
-		var hud := get_tree().get_first_node_in_group("hud")
-		if hud and hud.has_method("show_demo_ending"):
-			hud.show_demo_ending(2)
-		else:
-			get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
-	)
-	add_child(area)
+	var descent := FloorDescent.new()
+	descent.name = "FloorDescent"
+	descent.from_floor = 2
+	add_child(descent)
+	descent.global_position = Vector3(0, 0.2, ENDING_Z)
 
 
 # ── Player + HUD ──────────────────────────────────────────────────────────────

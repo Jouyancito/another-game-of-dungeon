@@ -20,10 +20,13 @@ extends Node3D
 ## Piso del que se DESCIENDE. El destino se resuelve desde acá.
 @export var from_floor: int = 1
 
-## Adónde lleva cada piso. Un piso sin destino cierra la demo con el cliffhanger en vez de
-## mandar al jugador a una escena que no existe.
+## La torre. Un piso sin destino cierra la demo con el cliffhanger en vez de mandar al
+## jugador a una escena que no existe — por eso el 6 no está: el 5 es el último construido.
 const FLOOR_SCENES: Dictionary = {
 	2: "res://scenes/levels/floor2_forest.tscn",
+	3: "res://scenes/levels/floor3_jotunheim.tscn",
+	4: "res://scenes/levels/floor4_alsamum.tscn",
+	5: "res://scenes/levels/floor5_umbral.tscn",
 }
 
 var _used := false
@@ -99,7 +102,7 @@ func open(_player: Node) -> void:
 			get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
 		return
 
-	if hud and hud.has_method("show_descent") and next_floor == 2:
+	if hud and hud.has_method("show_descent"):
 		# El descenso ES la pantalla de carga (canon floor_transitions.md: "la animación de
 		# transición ES la pantalla de carga"). El HUD la sostiene y carga el piso al final.
 		hud.show_descent(next_scene)

@@ -47,10 +47,9 @@ func test_descent_from_floor_1_leads_to_floor_2() -> void:
 
 func test_a_floor_with_nowhere_to_go_ends_the_demo() -> void:
 	# El fallback canon: un piso sin destino construido corta con el cliffhanger en vez de
-	# mandar al jugador a una escena que no existe. Es lo que hace el bosque (P2), el último
-	# piso construido.
+	# mandar al jugador a una escena que no existe. Hoy es el Piso 5 — el último de la torre.
 	var last := FloorDescent.new()
-	last.from_floor = 2
+	last.from_floor = 5
 	add_child_autofree(last)
 
 	var hud := _FakeHud.new()
@@ -59,7 +58,7 @@ func test_a_floor_with_nowhere_to_go_ends_the_demo() -> void:
 
 	last.open(null)
 
-	assert_eq(hud.ending_from_floor, 2, "sin piso siguiente, la demo corta acá")
+	assert_eq(hud.ending_from_floor, 5, "sin piso siguiente, la demo corta acá")
 	assert_eq(hud.descended_to, "", "y no intenta cargar una escena inexistente")
 
 
