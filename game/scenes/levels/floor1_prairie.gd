@@ -181,6 +181,8 @@ var SCENE_SCORPION: PackedScene
 var SCENE_HAWK: PackedScene
 var SCENE_GOAT: PackedScene
 var SCENE_WASP: PackedScene
+var SCENE_FROG: PackedScene
+var SCENE_JABALI: PackedScene
 var SCENE_TURTLE: PackedScene
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -252,6 +254,8 @@ func _ready() -> void:
 	SCENE_HAWK = load("res://scenes/enemy/hawk.tscn")
 	SCENE_GOAT = load("res://scenes/enemy/goat.tscn")
 	SCENE_WASP = load("res://scenes/enemy/wasp.tscn")
+	SCENE_FROG = load("res://scenes/enemy/frog.tscn")
+	SCENE_JABALI = load("res://scenes/enemy/jabali.tscn")
 	SCENE_TURTLE = load("res://scenes/enemy/turtle.tscn")
 
 	var class_path: String = GameManager.selected_class_scene
@@ -3198,12 +3202,22 @@ func _get_poi_spawn_table(poi_type: String) -> Array:
 				[0.75, SCENE_BIRD],
 				[1.00, SCENE_SCORPION],
 			]
-		_:
+		"pond":
+			# The water's edge belongs to the things that live in it. Frogs sit here;
+			# slimes gather at the water. Nothing dry-land spawns on the shoreline.
 			return [
-				[0.40, SCENE_SLIME],
-				[0.65, SCENE_BIRD],
-				[0.85, SCENE_RAT],
-				[1.00, SCENE_SNAKE],
+				[0.55, SCENE_FROG],
+				[1.00, SCENE_SLIME],
+			]
+		_:
+			# Open field. The jabali is its territorial predator — rare, because a boar
+			# you meet every hundred metres is a mob, not a territory-holder.
+			return [
+				[0.35, SCENE_SLIME],
+				[0.55, SCENE_BIRD],
+				[0.75, SCENE_RAT],
+				[0.90, SCENE_SNAKE],
+				[1.00, SCENE_JABALI],
 			]
 
 func _pick_from_table(table: Array) -> PackedScene:

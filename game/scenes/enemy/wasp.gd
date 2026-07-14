@@ -15,6 +15,9 @@ var fly_height := 1.5  # Aleatorio por avispa: 1.5-2.5m
 const NEST_AGRO_RANGE := 8.0
 const NEST_LEASH_RANGE := 12.0
 
+## Radius in which a struck wasp calls its neighbours in (canon _floor1_integral_plan.md §7).
+const SWARM_ALERT_RANGE := 8.0
+
 # Movimiento errático (buzz)
 var _buzz_offset := Vector3.ZERO
 var _buzz_timer := 0.0
@@ -37,9 +40,42 @@ func _terrain_fly_y_at(pos: Vector3, offset: float) -> float:
 	return hit.position.y + offset
 
 
+## Swatting one wasp brings the swarm. Without this, aggro only ever came from walking
+## near the NEST — so an archer could pick the colony off one by one from 15m and the
+## hive would never react. Now the sting travels: hurt one, and its neighbours come.
+func take_damage(
+	amount: float, hit_direction := Vector3.ZERO, knockback_force := 0.0,
+	attacker_str := 0, attacker: Node = null, element: String = "physical",
+	is_crit: bool = false
+) -> void:
+	var was_alive := not is_dead
+	super.take_damage(amount, hit_direction, knockback_force, attacker_str, attacker, element, is_crit)
+	if was_alive:
+		_alert_swarm(attacker)
+
+
+## Wakes every wasp within SWARM_ALERT_RANGE and points it at whoever threw the punch.
+## Matches on enemy_type rather than a class_name: base_enemy.gd deliberately avoids
+## class_name on enemies to dodge load-order issues, and enemy_type IS the roster id.
+func _alert_swarm(attacker: Node) -> void:
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		if node == self or not (node is BaseEnemy):
+			continue
+		var other := node as BaseEnemy
+		if other.enemy_type != "wasp" or other.is_dead or other.is_provoked:
+			continue
+		if global_position.distance_to(other.global_position) > SWARM_ALERT_RANGE:
+			continue
+		other.is_provoked = true
+		if attacker != null and is_instance_valid(attacker):
+			other.target = attacker
+
+
 func _on_enemy_ready() -> void:
 	enemy_type = "wasp"
 	default_color = Color(0.9, 0.8, 0.1)
+	# Aerial niche — it owns the air above the field, not a patch of ground.
+	habitat_type = "aerial"
 	nest_position = global_position
 	# fly_height offset is relative; compute absolute Y from terrain under spawn.
 	var height_offset: float = randf_range(1.5, 2.5)

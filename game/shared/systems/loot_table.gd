@@ -181,6 +181,26 @@ func _register_tables() -> void:
 		],
 	})
 
+	# Canon _floor1_integral_plan.md TIER 2 §5 — pond frog.
+	_add("frog", {
+		"gold_min": 1,
+		"gold_max": 3,
+		"drops": [
+			{"item_id": "material_frog_leg", "chance": 0.10, "qty_min": 1, "qty_max": 1},
+			{"item_id": "material_venom_sac", "chance": 0.04, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	# Canon _floor1_integral_plan.md TIER 2 §6 — territorial field boar.
+	_add("jabali", {
+		"gold_min": 3,
+		"gold_max": 8,
+		"drops": [
+			{"item_id": "material_leather", "chance": 0.15, "qty_min": 1, "qty_max": 1},
+			{"item_id": "material_tusk", "chance": 0.08, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
 	_add("goat", {
 		"gold_min": 1,
 		"gold_max": 4,
