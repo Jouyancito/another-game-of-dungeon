@@ -1,0 +1,16 @@
+{
+  "name": "dp-visual-gate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Render -> compare -> fix gate for Dungeon Party. Runs odiff per-frame between a freshly captured frame set and a committed golden set; only escalates to the visual critic on FAIL.",
+  "bin": {
+    "visual-gate": "visual_gate.mjs"
+  },
+  "scripts": {
+    "gate": "node visual_gate.mjs"
+  },
+  "dependencies": {
+    "odiff-bin": "^3.2.1"
+  }
+}

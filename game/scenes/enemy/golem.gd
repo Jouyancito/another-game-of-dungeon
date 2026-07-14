@@ -11,11 +11,17 @@ var stomp_range := 3.0
 var throw_range := 10.0
 
 ## Carved eyes stay dark while the golem is camouflaged as a rock; _awaken()
-## lights them up (player got close OR hit it). Muted warm amber at half the
-## old intensity — tune live in Godot.
-const EYE_COLOR := Color(0.96, 0.80, 0.20)
-const EYE_ENERGY := 2.6
+## lights them up. Cyan jewel accent (#5FD8FF) — the crystal core of a
+## prairie golem. Matches the DP_ToonGrounded cyan accent canon.
+const EYE_COLOR := Color(0.373, 0.847, 1.0)  # #5FD8FF
+const EYE_ENERGY := 3.2
 var _eye_mats: Array[StandardMaterial3D] = []
+
+## Floating rocks: stored so _awaken() can tween them up and _sleep() can
+## return them to their embedded resting positions.
+var _floating_rocks: Array[Node3D] = []
+var _rock_rest_positions: Array[Vector3] = []
+var _rock_orbit_positions: Array[Vector3] = []
 
 ## Shared toon pipeline (game/docs/shader_system.md). This golem is the visual
 ## TEMPLATE — the whole enemy roster will move to these same shaders.
@@ -213,39 +219,51 @@ func _instance_plant(path: String) -> Node3D:
 	return ps.instantiate()
 
 
-## A few small rocks orbiting/hovering around the golem (a nod to the floating-
-## ecosystem reference). Hover + slow spin via looping tweens.
-## NOTE: positions are eyeballed; tune live in Godot.
+## A few small rocks that sit EMBEDDED/RESTING on the golem while dormant, then
+## LIFT into a slow orbit on _awaken(). Sides/back only — never in front of the
+## face (blocks the eye read). Uses bespoke golem_rock_chip_01.glb which bakes
+## the body's stone color so chips read as broken-off golem stone.
+## NOTE: positions are eyeballed in model-local space; tune live in Godot.
 func _spawn_floating_rocks(model: Node3D) -> void:
-	# Bespoke golem fragment (game/tools/blender/gen_golem_dressing.py) — bakes the
-	# body's golem_stone color so the orbiting chips read as broken-off golem stone,
-	# not a map prop (the old prop_rock_small_01.glb rendered as pale clashing cones).
 	const FLOAT_ROCK := "res://assets/art/piso1_pradera/enemies/big/golem_rock_chip_01.glb"
 	if not ResourceLoader.exists(FLOAT_ROCK):
 		return
-	# Sides/back only — never in front of the face (blocks the eye read).
+
+	# Each entry: rest pos (embedded/touching body) + orbit pos (lifted, clear of body).
+	# Orbit Y is higher; X/Z push the rock out slightly so it clears the silhouette.
 	var specs := [
-		{"pos": Vector3(-1.15, 1.55, 0.25), "amp": 0.22, "t": 2.2},
-		{"pos": Vector3(1.10, 2.05, 0.30), "amp": 0.30, "t": 2.9},
-		{"pos": Vector3(0.85, 1.15, 0.70), "amp": 0.18, "t": 1.9},
+		{
+			"rest":  Vector3(-1.05, 1.20, 0.20),   # tucked against left shoulder
+			"orbit": Vector3(-1.40, 2.10, 0.35),   # lifted, orbiting left side
+		},
+		{
+			"rest":  Vector3(1.00, 1.65, 0.25),    # tucked against right upper arm
+			"orbit": Vector3(1.35, 2.45, 0.40),   # lifted, orbiting right side
+		},
+		{
+			"rest":  Vector3(0.75, 0.90, 0.55),    # resting on right hip/leg
+			"orbit": Vector3(1.05, 1.80, 0.80),   # lifted, orbiting right-back
+		},
+		{
+			"rest":  Vector3(-0.55, 0.72, -0.40),  # embedded in the back hump
+			"orbit": Vector3(-0.85, 2.20, -0.60), # lifted, orbiting back-left
+		},
 	]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xB0CC
 	for spec in specs:
 		var rock_scene := load(FLOAT_ROCK) as PackedScene
 		if rock_scene == null:
 			continue
 		var rock: Node3D = rock_scene.instantiate()
-		rock.position = spec["pos"]
-		rock.scale = Vector3(0.28, 0.28, 0.28)
-		rock.rotation = Vector3(randf() * 0.5, randf() * TAU, randf() * 0.5)
+		rock.position = spec["rest"]  # start EMBEDDED — dormant state
+		var sc := rng.randf_range(0.22, 0.34)
+		rock.scale = Vector3(sc, sc, sc)
+		rock.rotation = Vector3(rng.randf() * 0.6, rng.randf() * TAU, rng.randf() * 0.6)
 		model.add_child(rock)
-		var base_y: float = spec["pos"].y
-		var amp: float = spec["amp"]
-		var dur: float = spec["t"]
-		var hover := create_tween().set_loops()
-		hover.tween_property(rock, "position:y", base_y + amp, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		hover.tween_property(rock, "position:y", base_y, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		var spin := create_tween().set_loops()
-		spin.tween_property(rock, "rotation:y", TAU, dur * 3.0).as_relative()
+		_floating_rocks.append(rock)
+		_rock_rest_positions.append(spec["rest"])
+		_rock_orbit_positions.append(spec["orbit"])
 
 
 ## Override: NEUTRAL + lógica de despertar por proximidad
@@ -261,22 +279,46 @@ func _should_pursue(distance: float) -> bool:
 func _awaken() -> void:
 	if awaken_tween and awaken_tween.is_running():
 		return
-	# PLACEHOLDER until the golem is RIGGED. Rigid stone must NOT scale-stretch (that
-	# read as rubber/sponge — Joan). The real awaken = rigid parts rotating (forearms
-	# swing down, shoulders grind, head lifts) + rocks tumbling off + grinding shake;
-	# that needs a rig (separate arm/head meshes). For now: eyes on + a quick, un-bouncy
-	# rise to full size (no elastic overshoot).
-	_light_up_eyes()  # the rock "opens its eyes"
+	# Phase 1: eyes light up (the rock "opens its eyes" — cyan jewel glow).
+	_light_up_eyes()
+	# Phase 2: body rises from flat squash to full height — un-bouncy, heavy, cubic.
+	# Rigid stone must NOT scale-stretch like rubber (Joan). The real awaken will need
+	# separate part meshes (forearms swing down, head lifts, shoulders grind); for now
+	# the squash→stand tween with rock lift is the primary visual read.
 	awaken_tween = create_tween()
-	awaken_tween.tween_property(self, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	awaken_tween.tween_property(self, "scale", Vector3.ONE, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# Phase 3: while the body rises, rocks lift from embedded rest to orbit heights.
+	# Staggered delays so each rock lifts at a slightly different moment (cascade feel).
+	for i in range(_floating_rocks.size()):
+		var rock: Node3D = _floating_rocks[i]
+		var orbit: Vector3 = _rock_orbit_positions[i]
+		var delay := 0.10 + i * 0.12  # stagger: first rock lifts at 100ms, rest cascade
+		var lift := create_tween()
+		lift.tween_interval(delay)
+		lift.tween_property(rock, "position", orbit, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		lift.tween_callback(func(): _start_rock_orbit(rock, orbit, i))
 	awaken_tween.tween_callback(func():
 		is_dormant = false
 		is_provoked = true
 	)
 
 
+## Start the idle hover + slow spin on a rock once it has reached its orbit position.
+## Each rock gets slightly different period so they don't move in lockstep.
+func _start_rock_orbit(rock: Node3D, base_pos: Vector3, idx: int) -> void:
+	if not is_instance_valid(rock):
+		return
+	var amp := 0.18 + idx * 0.05   # slightly different hover amplitude per rock
+	var dur := 2.0 + idx * 0.7     # slightly different hover period per rock
+	var hover := create_tween().set_loops()
+	hover.tween_property(rock, "position:y", base_pos.y + amp, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	hover.tween_property(rock, "position:y", base_pos.y,       dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var spin := create_tween().set_loops()
+	spin.tween_property(rock, "rotation:y", TAU, dur * 3.5).as_relative()
+
+
 ## Return to the dormant rock state (preview cycling / re-camouflage). Eyes off,
-## settle back down into the flat mossy boulder.
+## body settles back into the flat mossy boulder, rocks drop to embedded rest.
 func _sleep() -> void:
 	if awaken_tween and awaken_tween.is_running():
 		awaken_tween.kill()
@@ -284,14 +326,26 @@ func _sleep() -> void:
 	is_provoked = false
 	for em in _eye_mats:
 		em.emission_energy_multiplier = 0.0
+		em.albedo_color = Color(0.42, 0.40, 0.36)  # camouflage back to stone tone
+	# Body flattens back into the boulder pose.
 	create_tween().tween_property(self, "scale", Vector3(1.34, 0.40, 1.34), 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	# Rocks sink back to their embedded rest positions (slower than lift — heavy stone).
+	for i in range(_floating_rocks.size()):
+		var rock: Node3D = _floating_rocks[i]
+		if not is_instance_valid(rock):
+			continue
+		var rest: Vector3 = _rock_rest_positions[i]
+		create_tween().tween_property(rock, "position", rest, 0.9).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 
 
-## Fade the carved eyes from dark stone to muted amber when the golem awakens.
+## Fade the carved eyes from camouflaged stone to cyan jewel glow when awakening.
+## Albedo also shifts to cyan so the eye face itself reads as crystal, not just a
+## glowing stone (the emission bloom alone bleeds into the surrounding stone color).
 func _light_up_eyes() -> void:
 	for em in _eye_mats:
-		em.albedo_color = EYE_COLOR
-		create_tween().tween_property(em, "emission_energy_multiplier", EYE_ENERGY, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		em.emission = EYE_COLOR
+		create_tween().tween_property(em, "albedo_color", EYE_COLOR, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		create_tween().tween_property(em, "emission_energy_multiplier", EYE_ENERGY, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
 ## Idle: inmóvil, camuflado como roca

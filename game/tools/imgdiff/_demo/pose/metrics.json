@@ -1,0 +1,42 @@
+{
+  "render": "/mnt/c/Users/the_j/Desktop/bear_presenter_preview/head_turned.png",
+  "target": "/mnt/c/Users/the_j/Desktop/bear_presenter_preview/rest_front.png",
+  "align_mode": "ecc",
+  "bg_mode": "auto",
+  "silhouette": {
+    "iou": 0.4256414809553405,
+    "match_shapes_I1": 0.5490117225976616,
+    "bbox_aspect_err": 0.5337798945572167
+  },
+  "palette": {
+    "mean_ciede2000": 9.237392711639405,
+    "max_ciede2000": 19.943620681762695,
+    "per_zone": [
+      {
+        "target_weight": 0.5347818487688711,
+        "delta_e": 14.709107398986816
+      },
+      {
+        "target_weight": 0.1881704572764414,
+        "delta_e": 5.489748001098633
+      },
+      {
+        "target_weight": 0.13700814926481833,
+        "delta_e": 19.943620681762695
+      },
+      {
+        "target_weight": 0.1036846474842149,
+        "delta_e": 3.5694739818573
+      },
+      {
+        "target_weight": 0.036354897205654234,
+        "delta_e": 2.475013494491577
+      }
+    ]
+  },
+  "ssim": 0.23741330442306427,
+  "value_hist_corr": 0.8469839127182432,
+  "dists": null,
+  "overlay": "/mnt/c/Users/the_j/Desktop/Juego/DungeonParty-A/game/tools/imgdiff/_demo/pose/overlay.png",
+  "notes": "Metrics quantify nameable axes only; naturalness stays the eye's call."
+}

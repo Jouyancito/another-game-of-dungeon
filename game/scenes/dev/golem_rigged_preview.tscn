@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://golem_rigged_preview"]
+
+[ext_resource type="Script" path="res://scenes/dev/golem_rigged_preview.gd" id="1_riggedprev"]
+
+[node name="GolemRiggedPreview" type="Node3D"]
+script = ExtResource("1_riggedprev")

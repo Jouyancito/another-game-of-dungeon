@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://golem_anim_cap_001"]
+
+[ext_resource type="Script" path="res://scenes/dev/golem_anim_capture.gd" id="1_golemanicap"]
+
+[node name="GolemAnimCapture" type="Node3D"]
+script = ExtResource("1_golemanicap")

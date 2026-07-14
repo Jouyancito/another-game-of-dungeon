@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://golem_cap_trunk_rip_01"]
+
+[ext_resource type="Script" path="res://scenes/dev/golem_capture_trunk_rip.gd" id="1_trcap"]
+
+[node name="GolemCaptureTrunkRip" type="Node3D"]
+script = ExtResource("1_trcap")

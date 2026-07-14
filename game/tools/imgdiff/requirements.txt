@@ -1,0 +1,9 @@
+# Tier-0 — pure CPU, zero model. The whole metric panel + overlay runs on these.
+numpy
+opencv-python-headless   # headless: no libGL dep on WSL; script never opens windows
+scikit-image
+scikit-learn
+
+# Tier-1 (optional) — DISTS material/value metric. Pulls torch; install only in
+# the dedicated `critic` env, NEVER the UniRig env. Enable with: --dists
+# pyiqa

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://golem_bone_discover"]
+
+[ext_resource type="Script" path="res://scenes/dev/golem_bone_discover.gd" id="1_bonediscover"]
+
+[node name="GolemBoneDiscover" type="Node3D"]
+script = ExtResource("1_bonediscover")

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://golem_rigged_capture"]
+
+[ext_resource type="Script" path="res://scenes/dev/golem_rigged_capture.gd" id="1_riggedcap"]
+
+[node name="GolemRiggedCapture" type="Node3D"]
+script = ExtResource("1_riggedcap")

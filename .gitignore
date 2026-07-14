@@ -48,3 +48,9 @@ game/tools/godot/_golem_*.png
 game/tools/godot/_t_*.png
 game/tools/blender/_pg_*.png
 game/tools/blender/_preview_golem.png
+
+.atl/
+
+# Golem animation frame dumps — regenerable output of the capture scenes.
+# Kept on disk, out of history: 650+ PNGs (~14MB) per pipeline run.
+game/tools/godot/anim_capture/**/*.png

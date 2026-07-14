@@ -1,0 +1,42 @@
+{
+  "render": "/mnt/c/Users/the_j/Desktop/bear_presenter_preview/rest_front.png",
+  "target": "/mnt/c/Users/the_j/Desktop/bear_presenter_preview/rest_front.png",
+  "align_mode": "none",
+  "bg_mode": "auto",
+  "silhouette": {
+    "iou": 1.0,
+    "match_shapes_I1": 0.0,
+    "bbox_aspect_err": 0.0
+  },
+  "palette": {
+    "mean_ciede2000": 1.2278876965865493e-06,
+    "max_ciede2000": 6.139438482932746e-06,
+    "per_zone": [
+      {
+        "target_weight": 0.5347818487688711,
+        "delta_e": 0.0
+      },
+      {
+        "target_weight": 0.1881704572764414,
+        "delta_e": 0.0
+      },
+      {
+        "target_weight": 0.13700814926481833,
+        "delta_e": 0.0
+      },
+      {
+        "target_weight": 0.1036846474842149,
+        "delta_e": 0.0
+      },
+      {
+        "target_weight": 0.036354897205654234,
+        "delta_e": 6.139438482932746e-06
+      }
+    ]
+  },
+  "ssim": 1.0,
+  "value_hist_corr": 1.0,
+  "dists": null,
+  "overlay": "/mnt/c/Users/the_j/Desktop/Juego/DungeonParty-A/game/tools/imgdiff/_demo/self/overlay.png",
+  "notes": "Metrics quantify nameable axes only; naturalness stays the eye's call."
+}

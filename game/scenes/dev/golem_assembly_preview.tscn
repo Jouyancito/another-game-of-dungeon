@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://q78qgwf4qbki"]
+
+[ext_resource type="Script" path="res://scenes/dev/golem_assembly_preview.gd" id="1_golemasmprev"]
+
+[node name="GolemAssemblyPreview" type="Node3D"]
+script = ExtResource("1_golemasmprev")
