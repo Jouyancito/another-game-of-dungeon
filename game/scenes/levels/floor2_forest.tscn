@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://floor2forest1"]
+
+[ext_resource type="Script" path="res://scenes/levels/floor2_forest.gd" id="1_floor2"]
+
+[node name="Floor2Forest" type="Node3D"]
+script = ExtResource("1_floor2")

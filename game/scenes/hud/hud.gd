@@ -481,6 +481,26 @@ func _on_player_status_removed(_status_name: StringName) -> void:
 	_status_label.visible = false
 
 
+## El descenso por el acantilado. Canon docs/floor_transitions.md: "la animación de
+## transición ES la pantalla de carga" — el jugador no espera mirando una barra, BAJA.
+## Canon _alpha_5_maps.md: "la luz del cristal muere, empieza a sonar lluvia".
+##
+## No bloquea con un spinner: funde a negro mientras la luz se apaga, y recién ahí carga.
+func show_descent(next_scene: String) -> void:
+	_floor_cleared_active = true  # mantiene el [R]-respawn suprimido durante la bajada
+	crosshair.visible = false
+	death_screen.visible = true
+	death_screen.color = Color(0.05, 0.12, 0.14, 0.0)  # el verde-azul del núcleo, muriendo
+	death_label.text = "Descendés por el acantilado.\n\nLa luz se apaga.\nEmpieza a llover."
+
+	var t := create_tween()
+	t.tween_property(death_screen, "color", Color(0.02, 0.04, 0.06, 1.0), 2.6)
+	t.tween_interval(1.2)
+	t.tween_callback(func() -> void:
+		get_tree().change_scene_to_file(next_scene)
+	)
+
+
 ## Ends the run: the player took the descent. Progress is already persisted, so this
 ## is the send-off — hold on the cliffhanger, then hand back to the menu.
 ## Canon (lore/_alpha_5_maps.md): the demo closes on "algo te observa" + "continuará".
@@ -489,7 +509,12 @@ func show_demo_ending(from_floor: int) -> void:
 	crosshair.visible = false
 	death_screen.visible = true
 	death_screen.color = Color(0, 0, 0, 0)
-	death_label.text = "Descendés hacia el Piso %d.\n\nAlgo te observa desde los árboles.\n\n— CONTINUARÁ —" % (from_floor + 1)
+	# Desde el bosque (P2) el corte es el del canon: algo te observó y el bosque sigue.
+	# Desde cualquier otro piso sin destino construido, el corte es el descenso mismo.
+	if from_floor >= 2:
+		death_label.text = "El bosque sigue.\n\nAlgo te observó, y ya no está.\n\n— CONTINUARÁ —"
+	else:
+		death_label.text = "Descendés hacia el Piso %d.\n\n— CONTINUARÁ —" % (from_floor + 1)
 
 	var outro := create_tween()
 	outro.tween_property(death_screen, "color", Color(0, 0, 0, 0.95), 2.5)

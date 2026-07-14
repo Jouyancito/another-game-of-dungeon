@@ -1500,7 +1500,12 @@ func _build_boss_arena(poi: POISystem.POI) -> void:
 	var trigger := Area3D.new()
 	trigger.name = "BossSpawnTrigger"
 	trigger.monitoring = true
-	trigger.collision_mask = 1  # Player está en layer 1 por default (inconsistencia vs CLAUDE.md, doc dice layer 2 pero tscn no la setea)
+	# El player está en collision_layer = 2 (las 7 escenas de clase la setean explícitamente).
+	# Esto escaneaba la layer 1, así que el trigger NUNCA veía al jugador y el King Slime
+	# NUNCA spawneaba: el boss del canon —"pelea OBLIGATORIA, el boss ES el paso"— era
+	# inalcanzable salvo por _debug_spawn_king_slime(). El comentario viejo decía que el
+	# player estaba en layer 1 "por default"; los .tscn dicen lo contrario.
+	trigger.collision_mask = 2
 	var trigger_shape := CollisionShape3D.new()
 	var trigger_box := BoxShape3D.new()
 	trigger_box.size = Vector3(wall_t * 3.0, wall_h, gate_w)

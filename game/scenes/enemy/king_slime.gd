@@ -106,7 +106,9 @@ func _setup_contact_aura() -> void:
 	aura.name = "ContactAura"
 	aura.monitoring = true
 	aura.monitorable = false
-	aura.collision_mask = 1  # player está en layer 1 por default (ver CLAUDE.md vs tscn inconsistencia)
+	# El player está en collision_layer = 2 (las 7 escenas de clase la setean).
+	# Esto escaneaba la layer 1 → el aura de contacto NUNCA tocaba al jugador.
+	aura.collision_mask = 2
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 3.2
@@ -257,7 +259,7 @@ func _spawn_bomb_baba(impact_pos: Vector3, delay: float, is_splatter: bool = fal
 	baba.name = "BabaBomba"
 	baba.monitoring = true
 	baba.monitorable = false
-	baba.collision_mask = 1
+	baba.collision_mask = 2  # player layer — con 1 la baba lo atravesaba
 	baba.set_meta("is_splatter", is_splatter)
 
 	var r: float = 0.35 if is_splatter else 0.5
@@ -884,7 +886,7 @@ func _spawn_drool_puddle(pos: Vector3) -> void:
 	pool.name = "DroolPuddle"
 	pool.monitoring = true
 	pool.monitorable = false
-	pool.collision_mask = 1
+	pool.collision_mask = 2  # player layer — con 1 el charco no mojaba a nadie
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = 2.5
@@ -933,7 +935,7 @@ func _spawn_acid_pool(pos: Vector3) -> void:
 	pool.name = "AcidPool"
 	pool.monitoring = true
 	pool.monitorable = false
-	pool.collision_mask = 1
+	pool.collision_mask = 2  # player layer — con 1 el charco no mojaba a nadie
 
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()

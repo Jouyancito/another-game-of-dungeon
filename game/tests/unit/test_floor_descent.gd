@@ -30,19 +30,46 @@ func test_taking_the_descent_consumes_it() -> void:
 	assert_false(_descent.is_in_group("interactables"), "a used descent must stop offering itself")
 
 
-func test_descent_shows_the_cliffhanger_on_the_hud() -> void:
+func test_descent_from_floor_1_leads_to_floor_2() -> void:
+	# Canon _alpha_5_maps.md: matar al King Slime abre el paso, y el paso BAJA al bosque.
+	# El descenso no es el final — es la puerta. Antes esto cortaba a "continuará" porque el
+	# Piso 2 no existía; ahora existe, y el descenso tiene que llevarte ahí.
 	var hud := _FakeHud.new()
 	hud.add_to_group("hud")
 	add_child_autofree(hud)
 
 	_descent.open(null)
 
-	assert_eq(hud.ending_from_floor, 1, "the HUD is told which floor the player left")
+	assert_eq(hud.descended_to, "res://scenes/levels/floor2_forest.tscn",
+		"el descenso del Piso 1 lleva al bosque, no al menú")
+	assert_eq(hud.ending_from_floor, -1, "no hay cliffhanger todavía: el bosque es lo que sigue")
 
 
-# Minimal stand-in: the real HUD would change_scene_to_file() and tear down the test run.
+func test_a_floor_with_nowhere_to_go_ends_the_demo() -> void:
+	# El fallback canon: un piso sin destino construido corta con el cliffhanger en vez de
+	# mandar al jugador a una escena que no existe. Es lo que hace el bosque (P2), el último
+	# piso construido.
+	var last := FloorDescent.new()
+	last.from_floor = 2
+	add_child_autofree(last)
+
+	var hud := _FakeHud.new()
+	hud.add_to_group("hud")
+	add_child_autofree(hud)
+
+	last.open(null)
+
+	assert_eq(hud.ending_from_floor, 2, "sin piso siguiente, la demo corta acá")
+	assert_eq(hud.descended_to, "", "y no intenta cargar una escena inexistente")
+
+
+# Doble mínimo: el HUD real llamaría change_scene_to_file() y voltearía la corrida de tests.
 class _FakeHud extends Node:
 	var ending_from_floor: int = -1
+	var descended_to: String = ""
 
 	func show_demo_ending(from_floor: int) -> void:
 		ending_from_floor = from_floor
+
+	func show_descent(next_scene: String) -> void:
+		descended_to = next_scene

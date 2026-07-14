@@ -68,6 +68,17 @@ func _register_tables() -> void:
 		],
 	})
 
+	# --- Piso 2: Bosque ---
+	# Canon lore/_alpha_5_maps.md — bestiario P2: búhos, serpientes, polillas gigantes.
+	_add("giant_moth", {
+		"gold_min": 2,
+		"gold_max": 6,
+		"drops": [
+			{"item_id": "material_feather", "chance": 0.14, "qty_min": 1, "qty_max": 2},
+			{"item_id": "material_venom_sac", "chance": 0.05, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
 	_add("turtle", {
 		"gold_min": 2,
 		"gold_max": 5,
