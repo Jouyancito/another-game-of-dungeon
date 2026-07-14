@@ -1,6 +1,14 @@
-extends Node3D
+extends StaticBody3D
 
-## Conejo ambiental — decorativo, no interactúa con combat/loot.
+## Conejo ambiental — fauna de fondo, y la única presa del piso.
+##
+## Canon `_floor1_integral_plan.md` TIER 1 §3: 1 HP, huye del player, tabla `rabbit`
+## (material_rabbit_pelt). Era un Node3D puro — sin cuerpo, sin colisión — así que no se
+## le podía pegar y su loot table llevaba meses muerta. Ahora es cazable: un golpe y cae.
+##
+## StaticBody3D (no CharacterBody3D): sus saltos son tweens de posición, no física. Lo
+## único que necesitaba era un cuerpo al que el raycast del player pueda pegarle.
+##
 ## Hop: scurry 2-3 hops hacia dir random, freeze 1-3s, repite.
 ## Si player <flee_radius: hop frenético opuesto al player 3-5 saltos, luego
 ## retoma wander normal.
@@ -34,10 +42,43 @@ var _hop_elapsed: float = 0.0
 var _fleeing: bool = false
 
 
+var _is_dead: bool = false
+
+
 func _ready() -> void:
 	spawner_origin = global_position
 	add_to_group("ambient")
+	# Also "enemies": that is the group the player's melee raycast checks before it will
+	# damage anything. A rabbit is prey, and prey you cannot hit is scenery.
+	add_to_group("enemies")
 	_start_freeze()
+
+
+## One hit kills — canon says 1 HP. The signature accepts BaseEnemy's full argument list
+## so any attack (melee, arrow, skill) can hit it without special-casing fauna, but the
+## rabbit ignores damage AMOUNT entirely: nothing survives being hit.
+func take_damage(
+	_amount: float, _hit_direction := Vector3.ZERO, _knockback_force := 0.0,
+	_attacker_str := 0, attacker: Node = null, _element: String = "physical",
+	_is_crit: bool = false
+) -> void:
+	if _is_dead:
+		return
+	_is_dead = true
+	remove_from_group("enemies")
+	remove_from_group("ambient")
+	set_process(false)
+
+	var killer_profile_id: String = ""
+	if attacker != null and attacker.has_method("get_profile_id"):
+		killer_profile_id = str(attacker.call("get_profile_id"))
+
+	DropController.spawn_drops(global_position, LootTable.roll("rabbit"), self, killer_profile_id)
+	if AudioManager:
+		AudioManager.play_sfx(&"enemy_die_slime", global_position)
+
+	despawned.emit(self)
+	queue_free()
 
 
 func _process(delta: float) -> void:

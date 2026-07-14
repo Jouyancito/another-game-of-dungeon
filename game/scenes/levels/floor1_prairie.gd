@@ -183,6 +183,8 @@ var SCENE_GOAT: PackedScene
 var SCENE_WASP: PackedScene
 var SCENE_FROG: PackedScene
 var SCENE_JABALI: PackedScene
+var SCENE_SPIDER: PackedScene
+var SCENE_BANDIT_LEADER: PackedScene
 var SCENE_TURTLE: PackedScene
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -256,6 +258,8 @@ func _ready() -> void:
 	SCENE_WASP = load("res://scenes/enemy/wasp.tscn")
 	SCENE_FROG = load("res://scenes/enemy/frog.tscn")
 	SCENE_JABALI = load("res://scenes/enemy/jabali.tscn")
+	SCENE_SPIDER = load("res://scenes/enemy/spider.tscn")
+	SCENE_BANDIT_LEADER = load("res://scenes/enemy/bandit_leader.tscn")
 	SCENE_TURTLE = load("res://scenes/enemy/turtle.tscn")
 
 	var class_path: String = GameManager.selected_class_scene
@@ -2916,6 +2920,14 @@ func _spawn_poi_enemies(pois: Array) -> void:
 				if enemy is BaseEnemy and (enemy as BaseEnemy).sub_tier >= BaseEnemy.SubTier.B:
 					has_sub_b = true
 
+		# Every camp answers to somebody. Exactly one leader — an alpha is singular by
+		# definition, and two of them would just be two bandits with better stats.
+		if p.type == "camp":
+			var leader: CharacterBody3D = SCENE_BANDIT_LEADER.instantiate()
+			add_child(leader)
+			leader.global_position = p.position + Vector3(0.0, 0.8, 0.0)
+			has_sub_b = true  # sub-tier C — his chest is worth guarding
+
 		_spawn_poi_chest(p, has_sub_b)
 
 
@@ -3177,10 +3189,13 @@ func _spawn_field_enemies(_pois: Array, _player_pos: Vector3 = Vector3.ZERO) -> 
 func _get_poi_spawn_table(poi_type: String) -> Array:
 	match poi_type:
 		"ruins":
+			# Spiders live in the dark the ruins make — the one place on an open prairie
+			# where an ambush predator has anywhere to wait.
 			return [
-				[0.30, SCENE_RAT],
-				[0.55, SCENE_BANDIT_MELEE],
-				[0.80, SCENE_BANDIT_ARCHER],
+				[0.25, SCENE_RAT],
+				[0.45, SCENE_BANDIT_MELEE],
+				[0.65, SCENE_BANDIT_ARCHER],
+				[0.85, SCENE_SPIDER],
 				[1.00, SCENE_SNAKE],
 			]
 		"camp":

@@ -162,7 +162,6 @@ func _register_tables() -> void:
 		],
 	})
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("spider", {
 		"gold_min": 1,
 		"gold_max": 4,
@@ -172,7 +171,6 @@ func _register_tables() -> void:
 		],
 	})
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("rabbit", {
 		"gold_min": 0,
 		"gold_max": 1,
@@ -252,7 +250,6 @@ func _register_tables() -> void:
 		],
 	})
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("bandit_leader", {
 		"gold_min": 15,
 		"gold_max": 35,
@@ -270,7 +267,6 @@ func _register_tables() -> void:
 
 	# --- Boss: Rey Slime (boss mantiene drops generosos) ---
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("rey_slime", {
 		"gold_min": 40,
 		"gold_max": 80,
