@@ -162,7 +162,7 @@ Fuente: censo de 3 agentes (mobs/combate, progresión/loot, canon/docs) sobre `D
 
 ### 🔨 FALTA
 
-- **Golem chunk-anchoring: decidido pero no consolidado.** El golem REALMENTE jugable en pisos 1/3/5 (`scenes/enemy/golem.gd`/`golem.tscn`) sigue usando **2 `BoxMesh` planos** (body + head) como placeholder — el trabajo de rig+chunks (`golem_assembly.gd`, `class_name GolemAssembly`, re-arch v3 "joint-positioned skeleton" 2026-06-14, con historial documentado v1→v2→v3 en el propio archivo) vive SOLO en `scenes/dev/golem_preview.tscn` / `golem_assembly_preview.gd` y nunca llegó al enemy real.
+- **Golem chunk-anchoring: decidido pero no consolidado.** El golem jugable en pisos 1/3/5 (`scenes/enemy/golem.gd`) SI carga su cuerpo Blender propio (`golem_dp_body_01.glb`, golem.gd:57 — los `BoxMesh` del .tscn son solo fallback si falta el archivo) — el trabajo de rig+chunks (`golem_assembly.gd`, `class_name GolemAssembly`, re-arch v3 "joint-positioned skeleton" 2026-06-14, con historial documentado v1→v2→v3 en el propio archivo) vive SOLO en `scenes/dev/golem_preview.tscn` / `golem_assembly_preview.gd` y nunca llegó al enemy real.
 - **King Slime no tiene modelo propio.** `king_slime.tscn` usa un `SphereMesh` verde (radius 3) + `BoxMesh` dorado como "Crown" — cero glTF importado, mientras el Slime normal SÍ tiene 3 variantes gltf reales (`enemy_slime_{green,pink,spiky}.gltf`).
 - **Tooling de dev del golem fragmentado**: 10+ scripts de exploración sin consolidar — `golem_bone_discover.gd`, `golem_axis_probe.gd`, `golem_chunk_inspect.gd`, `golem_rigged_capture.gd`/`golem_rigged_preview.gd`, `golem_anim_capture.gd`, `golem_capture_trunk_rip.gd`, y `golem_capture_move.gd` **duplicado** en `scenes/dev/` Y en `game/tools/godot/`.
 - **Contrato de animación incompleto**: los 3 "tipos" de clip (big/blob/flying) no cubren conductas únicas (fases de boss, reveal del mimic) — sin contrato documentado para esos casos.
@@ -214,6 +214,19 @@ Fuente: censo de 3 agentes (mobs/combate, progresión/loot, canon/docs) sobre `D
 - **Rarezas de mobs y razas/especies como ejes taxonómicos nuevos** — ver Mobs y combate.
 
 ---
+
+## Decisiones del PO — RESPONDIDAS 2026-07-17 (canon)
+
+> Fuente: Joan por voz, sesion 2026-07-17 (engram #2150, #2151, #2152). Estas responden parte de las preguntas de abajo.
+
+1. **Rareza de LOOT oficial: Comun -> Raro -> Magico -> Unico** (estilo Path of Exile). "Epico" SE ELIMINA (el codigo hoy tiene common/rare/magic/epic/unique — migrar). Magico = mod fuerte (pega como Unico) sin identidad; Unico = objeto con nombre y LORE ("hacha personalizada", bases que cambian de forma). Gana la escala del DESIGN_BRIEF sobre el GDD.
+2. **Rareza de MOBS: la MISMA escala** (mismo vocabulario que loot). Mob basico del piso = Comun. Raro paga mas XP. **Unicos de mob RESERVADOS a misiones/eventos, siempre con lore, nunca spawn al azar**; Comun/Raro si al azar. Eje ortogonal a los sub-tiers A/B/C/BOSS.
+3. **Errantes** (canon inicial): mobs de pisos superiores que bajan (ej. el del piso 40 vagando en el 10), automaticamente Raro+, QUIZAS mas pasivos; Joan les inventara historias. Pendiente: ¿alpha o post-alpha?
+4. **Golem — NUEVA DIRECCION: piedras FLOTANTES** enlazadas al esqueleto. No sincronizar piedra por piedra: el esqueleto define los movimientos posibles y las piedras lo siguen levitando; awaken magico/fantasioso. Los "huecos entre cubos" que mataron el intento anterior pasan de bug a DISENO (gaps = magia). Supersede el anclaje apretado de golem_assembly v3 y el "GAP documentado" de _references/golem/_synthesis.md.
+5. **XP: repartido a la party, estilo Metin2** — bono si los miembros estan CERCA al matar; lejos = solo division sin bono (penalizacion). Reemplaza el modelo actual killer/target-unico (base_enemy.gd:909-910). Numeros (radio/bono) pendientes de balance.
+6. **Protocolo referencia-primero** (convencion permanente): ante cualquier concepto, consultar TODA la biblioteca de referencias ANTES de crear; lo hallado es la base; sin ref -> imaginar desde el corpus y REGISTRAR el hueco. Biblioteca madre: `game/docs/lore/_world_references.md` (60+ refs; sweep completo 2026-07-17). Ref ya identificada para el slime propio: **Tensura** (variedad/personalidad de monstruos de pradera, _art_canon.md).
+
+Pendiente de proximo pase: anotar el pase de ENTORNO pedido por el PO (pasto, arboles, caminos, rocas — mejora en Blender).
 
 ## Decisiones pendientes del PO
 
