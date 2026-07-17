@@ -1557,6 +1557,39 @@ func _on_boss_died(boss: BaseEnemy) -> void:
 	descent.global_position = spot
 
 
+## Bandit camp dressing — REAL gltf props (2026-07-17), replaces the flat-box-only
+## look. These 15 assets sat imported and unused since the 2026-05-25 batch (see
+## _estado_vivo.md gap list). Only the props that read as "bandit camp" are used
+## here (wood/fence/banner/cart/lantern); civic-village pieces (fountain, hedge,
+## chimney, planks) are left for a future dedicated Outpost POI — mixing them in
+## here would misread the camp's identity. Bounding boxes measured from the glb
+## accessors are a uniform 2x2x2m pack-grid unit, so props are placed at NATIVE
+## scale (no bespoke visual reference exists for this pack — flagged per the
+## reference-first protocol; re-scale after an in-game eyeball pass if it reads
+## off).
+const SCENE_CAMP_FENCE: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_fence_01.glb")
+const SCENE_CAMP_FENCE_GATE: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_fence_gate_01.glb")
+const SCENE_CAMP_BANNER: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_banner_red_01.glb")
+const SCENE_CAMP_LANTERN: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_lantern_01.glb")
+const SCENE_CAMP_CART: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_cart_01.glb")
+const SCENE_CAMP_PILLAR: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_pillar_wood_01.glb")
+
+## Instances a real-prop PackedScene as pure set dressing — visual only, no
+## collision (fence/banner/lantern are thin geometry; a solid StaticBody here
+## risks snagging bandit AI pathing around the camp, which this dressing pass
+## must not touch).
+func _add_camp_prop(scene: PackedScene, node_name: String, world_pos: Vector3, rot_y: float, scale: float = 1.0) -> void:
+	if scene == null:
+		return
+	var inst: Node3D = scene.instantiate() as Node3D
+	if inst == null:
+		return
+	inst.name = node_name
+	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(scale, scale, scale)), world_pos)
+	inst.add_to_group("grounded")
+	_scatter_apply_geo_flags(inst, 80.0)
+	add_child(inst)
+
 func _build_camp(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
 	var sz: Vector2 = poi.size
@@ -1594,6 +1627,34 @@ func _build_camp(poi: POISystem.POI) -> void:
 		_add_csg_box("CampLog%d" % i,
 			pos + Vector3(cos(angle) * 2.0, 0.2, sin(angle) * 2.0),
 			Vector3(2.0, 0.4, 0.5), COLOR_TRUNK, true)
+
+	# Loose fence perimeter — bandit camps are staked, not walled: a few
+	# segments per side read as "marked territory" without enclosing the POI
+	# (an enclosing collider would risk trapping AI/player pathing here).
+	var fence_radius: float = minf(sz.x, sz.y) * 0.42
+	var fence_segments: int = 10
+	var gate_index: int = _rng.randi_range(0, fence_segments - 1)
+	for i in range(fence_segments):
+		var angle: float = float(i) * TAU / float(fence_segments)
+		var fpos: Vector3 = pos + Vector3(cos(angle) * fence_radius, 0, sin(angle) * fence_radius)
+		# Face outward along the ring tangent.
+		var facing: float = angle + PI * 0.5
+		if i == gate_index:
+			_add_camp_prop(SCENE_CAMP_FENCE_GATE, "CampFenceGate", fpos, facing)
+		else:
+			_add_camp_prop(SCENE_CAMP_FENCE, "CampFence%d" % i, fpos, facing)
+
+	_add_camp_prop(SCENE_CAMP_LANTERN, "CampLantern",
+		pos + Vector3(2.2, 0, 1.6), _rng.randf() * TAU)
+	_add_camp_prop(SCENE_CAMP_PILLAR, "CampPillar",
+		pos + Vector3(-2.5, 0, -2.0), _rng.randf() * TAU)
+	_add_camp_prop(SCENE_CAMP_CART, "CampCart",
+		pos + Vector3(sz.x * 0.2, 0, -sz.y * 0.2), _rng.randf() * TAU)
+	for i in range(2):
+		var bx: float = _rng.randf_range(-sz.x * 0.15, sz.x * 0.15)
+		var bz: float = _rng.randf_range(-sz.y * 0.15, sz.y * 0.15)
+		_add_camp_prop(SCENE_CAMP_BANNER, "CampBanner%d" % i,
+			pos + Vector3(bx, 0, bz), _rng.randf() * TAU)
 
 ## Landmark tree uses a REAL scaled gltf, not the old green-box-on-a-stick.
 const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf")
