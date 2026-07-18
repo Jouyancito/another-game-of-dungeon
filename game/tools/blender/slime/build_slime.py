@@ -213,17 +213,39 @@ def mat_jelly():
     ra.default_value = (0.03, 0.32, 0.055, 1.0)   # deep jelly
     rb.default_value = (0.10, 0.60, 0.15, 1.0)    # bright jelly
     nt.links.new(noise.outputs["Fac"], ramp.inputs["Factor"])
-    # suspended bubbles: sparse voronoi dots, slightly lighter
-    vor = nt.nodes.new("ShaderNodeTexVoronoi")
-    vor.inputs["Scale"].default_value = 16.0
-    thr = nt.nodes.new("ShaderNodeMath")
-    thr.operation = 'LESS_THAN'
-    thr.inputs[1].default_value = 0.12
-    nt.links.new(vor.outputs["Distance"], thr.inputs[0])
+    # suspended bubbles (Joan 2026-07-18: varied sizes, drifting through the gel).
+    # Two voronoi layers = small + big bubbles; a slowly rising Mapping offset
+    # makes them travel through the body. Object-space coords already make them
+    # flow when the mesh squashes/stretches.
+    coord = nt.nodes.new("ShaderNodeTexCoord")
+    bmap = nt.nodes.new("ShaderNodeMapping")
+    nt.links.new(coord.outputs["Object"], bmap.inputs["Vector"])
+    loc_curve = bmap.inputs["Location"]
+    loc_curve.default_value = (0.0, 0.0, 0.0)
+    loc_curve.keyframe_insert("default_value", frame=1)
+    loc_curve.default_value = (0.0, 0.0, -0.22)     # bubbles rise as offset sinks
+    loc_curve.keyframe_insert("default_value", frame=72)
+
+    def bubble_layer(scale, thr_v):
+        vor = nt.nodes.new("ShaderNodeTexVoronoi")
+        vor.inputs["Scale"].default_value = scale
+        nt.links.new(bmap.outputs["Vector"], vor.inputs["Vector"])
+        thr = nt.nodes.new("ShaderNodeMath")
+        thr.operation = 'LESS_THAN'
+        thr.inputs[1].default_value = thr_v
+        nt.links.new(vor.outputs["Distance"], thr.inputs[0])
+        return thr
+
+    small = bubble_layer(18.0, 0.10)
+    big = bubble_layer(6.0, 0.20)
+    both = nt.nodes.new("ShaderNodeMath")
+    both.operation = 'MAXIMUM'
+    nt.links.new(small.outputs["Value"], both.inputs[0])
+    nt.links.new(big.outputs["Value"], both.inputs[1])
     bub, ba, bb, bout = _mix_rgba(nt)
     bb.default_value = (0.35, 0.85, 0.45, 1.0)     # bubble glint
     nt.links.new(rout, ba)
-    nt.links.new(thr.outputs["Value"], bub.inputs["Factor"])
+    nt.links.new(both.outputs["Value"], bub.inputs["Factor"])
     # gel rim: edges catch light
     fres = nt.nodes.new("ShaderNodeLayerWeight")
     fres.inputs["Blend"].default_value = 0.25
@@ -262,35 +284,10 @@ def mat_water():
     return m
 
 
-def mat_mud():
-    m, nt, n = _base("brown", 1.0)
-    n.inputs["Subsurface Weight"].default_value = 0.0
-    # mud patches: two earths mixed by big noise
-    noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 3.5
-    noise.inputs["Detail"].default_value = 4.0
-    patch, pa, pb, pout = _mix_rgba(nt)
-    pa.default_value = (0.045, 0.028, 0.014, 1.0)  # wet dark mud
-    pb.default_value = (0.13, 0.085, 0.045, 1.0)   # dry earth
-    nt.links.new(noise.outputs["Fac"], patch.inputs["Factor"])
-    nt.links.new(pout, n.inputs["Base Color"])
-    # roughness varies: wet patches shinier
-    rmap = nt.nodes.new("ShaderNodeMapRange")
-    rmap.inputs["To Min"].default_value = 0.45
-    rmap.inputs["To Max"].default_value = 0.9
-    nt.links.new(noise.outputs["Fac"], rmap.inputs["Value"])
-    nt.links.new(rmap.outputs["Result"], n.inputs["Roughness"])
-    # chunky grit
-    grit = nt.nodes.new("ShaderNodeTexVoronoi")
-    grit.inputs["Scale"].default_value = 9.0
-    bump = nt.nodes.new("ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.5
-    nt.links.new(grit.outputs["Distance"], bump.inputs["Height"])
-    nt.links.new(bump.outputs["Normal"], n.inputs["Normal"])
-    return m
-
-
-mats = {"green": mat_jelly(), "blue": mat_water(), "brown": mat_mud()}
+# Mud slime PARKED (Joan 2026-07-18: read as solid dough, unconvinced an earth
+# slime is worth it). If it returns it needs its own identity (embedded pebbles,
+# grass), not a flat color swap. Old builder recoverable at commit ee7e900.
+mats = {"green": mat_jelly(), "blue": mat_water()}
 body.data.materials.append(mats["green"])
 
 # ---------- showcase-ficha scene ----------
