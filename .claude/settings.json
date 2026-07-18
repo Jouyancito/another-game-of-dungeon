@@ -24,6 +24,12 @@
             "type": "command",
             "shell": "powershell",
             "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:CLAUDE_PROJECT_DIR/.claude/hooks/canon-doc-staleness-check.ps1\""
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:CLAUDE_PROJECT_DIR/.claude/hooks/reference-first-trigger.ps1\"",
+            "timeout": 10
           }
         ]
       }
