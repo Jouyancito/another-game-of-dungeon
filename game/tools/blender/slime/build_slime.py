@@ -165,29 +165,50 @@ for name, (frames, sampler) in ANIMS.items():
 sk_ad.action = None
 obj_ad.action = None
 
-# ---------- habitat materials (canon PO 2026-07-17) ----------
+# ---------- habitat materials (canon PO 2026-07-17; Joan 2026-07-18: each habitat
+# gets its PHYSICS, not just its color — water reads as water, earth as mud,
+# prairie as jelly. "Too solid" was the rejected look.) ----------
 HABITATS = {
-    "green": (0.10, 0.52, 0.16),
-    "blue": (0.08, 0.34, 0.60),
-    "brown": (0.34, 0.20, 0.11),
+    # name: (rgb, roughness, alpha, sss_weight)
+    # Alpha transparency, not raytraced transmission: it reads the same in Godot,
+    # and Eevee headless washed out the transmission attempts (two failed passes).
+    "green": ((0.04, 0.45, 0.08), 0.18, 0.75, 0.35),   # jelly: translucent, saturated
+    "blue": ((0.10, 0.40, 0.70), 0.04, 0.42, 0.0),     # water: see-through, glassy
+    "brown": ((0.07, 0.04, 0.018), 0.75, 1.0, 0.0),    # mud: opaque, dark, matte
 }
 
 
-def gel_material(name, rgb):
+def gel_material(name, rgb, rough, alpha, sssw):
     m = bpy.data.materials.new(f"slime_{name}")
     m.use_nodes = True
-    n = m.node_tree.nodes["Principled BSDF"]
-    for inp, val in [("Base Color", (*rgb, 1.0)), ("Roughness", 0.28),
-                     ("Transmission Weight", 0.25), ("IOR", 1.33),
-                     ("Subsurface Weight", 0.6),
-                     ("Subsurface Radius", (0.08, 0.25, 0.08))]:
+    nt = m.node_tree
+    n = nt.nodes["Principled BSDF"]
+    for inp, val in [("Base Color", (*rgb, 1.0)), ("Roughness", rough),
+                     ("Alpha", alpha), ("IOR", 1.33),
+                     ("Subsurface Weight", sssw),
+                     ("Subsurface Radius", (0.10, 0.30, 0.10))]:
         s = n.inputs.get(inp)
         if s is not None:
             s.default_value = val
+    if alpha < 1.0:
+        if hasattr(m, "surface_render_method"):
+            m.surface_render_method = 'BLENDED'
+        if hasattr(m, "blend_method"):
+            m.blend_method = 'BLEND'
+        # closed blob + alpha blend: cull backfaces or the far side sorts in front
+        m.use_backface_culling = True
+    if name == "brown":   # mud grit: fine noise bump
+        noise = nt.nodes.new("ShaderNodeTexNoise")
+        noise.inputs["Scale"].default_value = 22.0
+        noise.inputs["Detail"].default_value = 6.0
+        bump = nt.nodes.new("ShaderNodeBump")
+        bump.inputs["Strength"].default_value = 0.35
+        nt.links.new(noise.outputs["Fac"], bump.inputs["Height"])
+        nt.links.new(bump.outputs["Normal"], n.inputs["Normal"])
     return m
 
 
-mats = {k: gel_material(k, rgb) for k, rgb in HABITATS.items()}
+mats = {k: gel_material(k, *params) for k, params in HABITATS.items()}
 body.data.materials.append(mats["green"])
 
 # ---------- showcase-ficha scene ----------
@@ -247,6 +268,8 @@ for name, (frames, act_sk, act_obj) in actions.items():
 sk_ad.action = None
 obj_ad.action = None
 body.location = (0, 0, 0)
+for k in ALL_KEYS:      # actions leave the last evaluated values behind — reset to rest
+    kb[k].value = 0.0
 
 scene.frame_set(1)
 scene.render.resolution_x = 1024
