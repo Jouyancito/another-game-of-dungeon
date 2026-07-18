@@ -1,8 +1,13 @@
-# build_slime.py — faceless slime defined by MOTION: viscous idle wobble + habitat colors.
-# Joan (2026-07-18): drop the face for now; the slime reads through liquid movement.
-# Canon (PO 2026-07-17): color by habitat — green prairie, blue water, brown earth.
-# Animation: shape keys (squash/stretch breath + lateral sway at a different frequency),
-# action named "idle-loop" so Godot's glTF import auto-loops it.
+# build_slime.py — faceless slime defined by MOTION: full gameplay animation set.
+# Joan approved the viscous wobble (2026-07-18); this adds the gameplay set:
+#   idle-loop  breathing wobble (approved)
+#   hop-loop   locomotion — slimes don't walk, they hop (approach AND retreat)
+#   hit        flinch on taking a blow
+#   attack     crouch + forward lunge
+#   death      melts into a puddle
+# Fast/slow variants are playback speed in Godot (speed_scale), not extra anims.
+# Elemental steam (water slime killed by fire) is Godot particles, not mesh anim.
+# "-loop" suffix => Godot glTF import auto-loops. Export mode: NLA tracks.
 # Run: blender -b --python build_slime.py
 import bpy
 import math
@@ -39,43 +44,132 @@ H = Z_MAX - Z_MIN
 # ---------- shape keys: the viscous vocabulary ----------
 body.shape_key_add(name="Basis")
 
-sk_squash = body.shape_key_add(name="squash")   # sat-down blob, mass pushed out
+sk = body.shape_key_add(name="squash")     # sat-down blob, mass pushed out
 for i, v in enumerate(me.vertices):
     zn = (v.co.z - Z_MIN) / H
     nz = Z_MIN + (v.co.z - Z_MIN) * 0.80
     spread = 1.0 + 0.14 * (1.0 - zn)
-    sk_squash.data[i].co = Vector((v.co.x * spread, v.co.y * spread, nz))
+    sk.data[i].co = Vector((v.co.x * spread, v.co.y * spread, nz))
 
-sk_stretch = body.shape_key_add(name="stretch")  # gel pulls upward, waist narrows
+sk = body.shape_key_add(name="stretch")    # gel pulls upward, waist narrows
 for i, v in enumerate(me.vertices):
     nz = Z_MIN + (v.co.z - Z_MIN) * 1.16
-    sk_stretch.data[i].co = Vector((v.co.x * 0.93, v.co.y * 0.93, nz))
+    sk.data[i].co = Vector((v.co.x * 0.93, v.co.y * 0.93, nz))
 
-sk_sway = body.shape_key_add(name="sway")        # top mass lags sideways (viscous lag)
+sk = body.shape_key_add(name="sway")       # top mass lags sideways (viscous lag)
 for i, v in enumerate(me.vertices):
     zn = (v.co.z - Z_MIN) / H
-    sk_sway.data[i].co = v.co + Vector((0.10 * zn ** 1.6, 0.0, 0.0))
+    sk.data[i].co = v.co + Vector((0.10 * zn ** 1.6, 0.0, 0.0))
 
-# ---------- keyframe the loop: breath at 1x, sway at 2x, phase-shifted ----------
-FPS, FRAMES = 24, 72
-scene.render.fps = FPS
-scene.frame_start, scene.frame_end = 1, FRAMES
+sk = body.shape_key_add(name="lunge")      # top mass throws FORWARD (-Y = face side)
+for i, v in enumerate(me.vertices):
+    zn = (v.co.z - Z_MIN) / H
+    sk.data[i].co = v.co + Vector((0.0, -0.22 * zn ** 1.5, 0.0))
+
+sk = body.shape_key_add(name="melt")       # collapses into a wide puddle
+for i, v in enumerate(me.vertices):
+    nz = Z_MIN + (v.co.z - Z_MIN) * 0.16
+    sk.data[i].co = Vector((v.co.x * 1.45, v.co.y * 1.45, nz))
+
 kb = me.shape_keys.key_blocks
-for f in range(1, FRAMES + 2, 3):
-    t = (f - 1) / FRAMES
+FPS = 24
+scene.render.fps = FPS
+
+
+def lerp(a, b, t):
+    return a + (b - a) * max(0.0, min(1.0, t))
+
+
+# ---------- animation definitions: name -> (frames, sampler(t) -> {key: value, z: obj_z}) ----------
+def anim_idle(t):
     w = math.sin(2 * math.pi * t)
-    kb["squash"].value = max(0.0, w) * 0.55
-    kb["stretch"].value = max(0.0, -w) * 0.40
-    kb["sway"].value = 0.5 + 0.5 * math.sin(2 * math.pi * 2 * t + math.pi / 3)
-    for name in ("squash", "stretch", "sway"):
-        kb[name].keyframe_insert("value", frame=f)
-me.shape_keys.animation_data.action.name = "idle-loop"
+    return {"squash": max(0.0, w) * 0.55, "stretch": max(0.0, -w) * 0.40,
+            "sway": 0.5 + 0.5 * math.sin(4 * math.pi * t + math.pi / 3)}
+
+
+def anim_hop(t):
+    v = {"squash": 0.0, "stretch": 0.0, "sway": 0.0, "z": 0.0}
+    if t < 0.20:                    # anticipation: crouch
+        v["squash"] = lerp(0.0, 0.75, t / 0.20)
+    elif t < 0.30:                  # launch
+        u = (t - 0.20) / 0.10
+        v["squash"] = lerp(0.75, 0.0, u)
+        v["stretch"] = lerp(0.0, 0.55, u)
+    elif t < 0.70:                  # airborne: parabola, stretch relaxes
+        u = (t - 0.30) / 0.40
+        v["z"] = 0.45 * (1.0 - (2 * u - 1.0) ** 2)
+        v["stretch"] = lerp(0.55, 0.25, u)
+    elif t < 0.80:                  # impact
+        u = (t - 0.70) / 0.10
+        v["squash"] = lerp(0.0, 0.80, u)
+    else:                           # settle wobble
+        u = (t - 0.80) / 0.20
+        v["squash"] = lerp(0.80, 0.0, u)
+        v["sway"] = 0.4 * math.sin(2 * math.pi * u)
+    return v
+
+
+def anim_hit(t):
+    return {"squash": 0.6 * math.sin(math.pi * t),
+            "sway": 0.9 * math.sin(math.pi * min(1.0, t * 1.6))}
+
+
+def anim_attack(t):
+    v = {"squash": 0.0, "stretch": 0.0, "lunge": 0.0}
+    if t < 0.30:                    # crouch back
+        v["squash"] = lerp(0.0, 0.6, t / 0.30)
+    elif t < 0.55:                  # throw forward
+        u = (t - 0.30) / 0.25
+        v["squash"] = lerp(0.6, 0.0, u)
+        v["lunge"] = lerp(0.0, 1.0, u)
+        v["stretch"] = 0.35 * math.sin(math.pi * u)
+    else:                           # recover
+        u = (t - 0.55) / 0.45
+        v["lunge"] = lerp(1.0, 0.0, u)
+    return v
+
+
+def anim_death(t):
+    v = {"melt": min(1.0, t * 1.25), "sway": 0.0, "squash": 0.0}
+    if t > 0.6:                     # final soft ripple as the puddle settles
+        v["squash"] = 0.15 * math.sin(2 * math.pi * (t - 0.6) / 0.4)
+    return v
+
+
+ANIMS = {
+    "idle-loop": (72, anim_idle),
+    "hop-loop": (48, anim_hop),
+    "hit": (12, anim_hit),
+    "attack": (22, anim_attack),
+    "death": (28, anim_death),
+}
+
+ALL_KEYS = ("squash", "stretch", "sway", "lunge", "melt")
+sk_ad = me.shape_keys.animation_data_create()
+obj_ad = body.animation_data_create()
+actions = {}
+for name, (frames, sampler) in ANIMS.items():
+    act_sk = bpy.data.actions.new(f"{name}_sk")
+    sk_ad.action = act_sk
+    act_obj = bpy.data.actions.new(f"{name}_obj")
+    obj_ad.action = act_obj
+    for f in range(1, frames + 1, 2):
+        t = (f - 1) / (frames - 1)
+        vals = sampler(t)
+        for k in ALL_KEYS:
+            kb[k].value = vals.get(k, 0.0)
+            kb[k].keyframe_insert("value", frame=f)
+        body.location.z = vals.get("z", 0.0)
+        body.keyframe_insert("location", frame=f)
+    actions[name] = (frames, act_sk, act_obj)
+sk_ad.action = None
+obj_ad.action = None
 
 # ---------- habitat materials (canon PO 2026-07-17) ----------
 HABITATS = {
-    "green": (0.10, 0.52, 0.16),   # prairie / grass
-    "blue": (0.08, 0.34, 0.60),    # near water
-    "brown": (0.34, 0.20, 0.11),   # earth / rock
+    "green": (0.10, 0.52, 0.16),
+    "blue": (0.08, 0.34, 0.60),
+    "brown": (0.34, 0.20, 0.11),
 }
 
 
@@ -119,7 +213,7 @@ add_light("fill", (1.4, -0.9, 0.4), 55, 1.5)
 add_light("rim", (0.3, 1.6, 1.0), 260, 1.5)
 
 target = bpy.data.objects.new("target", None)
-target.location = (0, 0, 0.02)
+target.location = (0, 0, 0.10)
 bpy.context.collection.objects.link(target)
 
 cd = bpy.data.cameras.new("cam")
@@ -139,14 +233,20 @@ if hasattr(scene.eevee, "use_raytracing"):
 scene.eevee.taa_render_samples = 64
 scene.view_settings.view_transform = 'Standard'
 
-# ---------- renders: animation frames (green) + one still per habitat ----------
+# ---------- renders: preview frames per animation (green) ----------
 scene.render.resolution_x = 512
 scene.render.resolution_y = 640
-for f in range(1, FRAMES + 1, 3):
-    scene.frame_set(f)
-    scene.render.filepath = os.path.join(ANIM_DIR, f"idle_{f:03d}.png")
-    bpy.ops.render.render(write_still=True)
-print("[slime] anim frames done")
+for name, (frames, act_sk, act_obj) in actions.items():
+    sk_ad.action = act_sk
+    obj_ad.action = act_obj
+    for f in range(1, frames + 1, 2):
+        scene.frame_set(f)
+        scene.render.filepath = os.path.join(ANIM_DIR, f"{name.replace('-loop', '')}_{f:03d}.png")
+        bpy.ops.render.render(write_still=True)
+    print("[slime] frames", name)
+sk_ad.action = None
+obj_ad.action = None
+body.location = (0, 0, 0)
 
 scene.frame_set(1)
 scene.render.resolution_x = 1024
@@ -155,15 +255,25 @@ for name, mat in mats.items():
     body.data.materials[0] = mat
     scene.render.filepath = os.path.join(REN_DIR, f"slime_{name}.png")
     bpy.ops.render.render(write_still=True)
-    print("[slime] still", name)
-
-# ---------- save + export (green, with idle-loop animation) ----------
 body.data.materials[0] = mats["green"]
+
+# ---------- push all actions to NLA tracks (one glTF animation per track name) ----------
+for name, (frames, act_sk, act_obj) in actions.items():
+    tr = sk_ad.nla_tracks.new()
+    tr.name = name
+    tr.strips.new(name, 1, act_sk)
+    tr.mute = False
+    tro = obj_ad.nla_tracks.new()
+    tro.name = name
+    tro.strips.new(name, 1, act_obj)
+    tro.mute = False
+
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_DIR, "slime_wip.blend"))
 bpy.ops.export_scene.gltf(
     filepath=os.path.join(OUT_DIR, "slime.glb"),
     use_selection=False,
     export_animations=True,
     export_morph=True,
+    export_animation_mode='NLA_TRACKS',
 )
 print("[slime] DONE")
