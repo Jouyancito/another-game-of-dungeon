@@ -45,6 +45,11 @@ extends Node3D
 ## proc_lab lo desactiva: es un banco de pruebas visual, no una partida.
 @export var skip_game_ui: bool = false
 
+## Vacío = comportamiento normal. Con un tipo de POI ("camp", "ruins", etc.), proc_lab
+## genera SOLO ese POI a escala real (600m, tamaño canon) y lo recentra al origen —
+## ve el asset a su tamaño verdadero sin caminar el mapa completo. Ver generate().
+@export var lab_poi_focus: String = ""
+
 ## ── Crystal glass material tweaks ────────────────────────────────────────────
 ## Alpha 0-1: 0 = invisible, 1 = opaque. ~0.65 = translucent gem look (Danmachi F18).
 @export var crystal_alpha: float = 0.65
@@ -90,8 +95,6 @@ const CEILING_BIOLUM_COLOR: Color = Color(0.4, 0.7, 0.55)  # verde azulado orgá
 
 # Landmarks
 const PILLAR_COUNT: int = 6
-const PILLAR_MIN_HEIGHT: float = 30.0
-const PILLAR_MAX_HEIGHT: float = 50.0
 
 # Vegetation
 const TREE_COUNT: int = 200
@@ -321,7 +324,26 @@ func generate() -> void:
 	var pois: Array = []
 	if active_layers.get("pois", true):
 		var poi_system: POISystem = POISystem.new()
-		pois = poi_system.generate_pois(world_seed, proc_bounds, _is_inside_border)
+		if lab_poi_focus != "":
+			# proc_lab mode: POISystem's sizes/margins/BOSS_MIN_DISTANCE are absolute
+			# metres tuned for the 600m map and do NOT scale with proc_bounds (unlike
+			# terrain height, fixed above). Feeding it a shrunk map_size breaks anchor
+			# POIs (boss is 80x80m with a 350m min-distance rule — inside a 120m cell
+			# it overflows the map itself). So: generate at TRUE 600m scale (real POI
+			# size/position, matches the actual game 1:1), keep only the requested
+			# type, and recenter it to local origin so it lands inside the small
+			# terrain cell without the player having to walk to find it.
+			var raw_pois: Array = poi_system.generate_pois(world_seed, Vector2(600.0, 600.0), Callable())
+			for poi in raw_pois:
+				var p: POISystem.POI = poi as POISystem.POI
+				if p.type == lab_poi_focus:
+					p.position = Vector3.ZERO
+					pois = [p]
+					break
+			if pois.is_empty():
+				push_warning("[floor1_lab] lab_poi_focus='%s' no salió con seed=%d — reseed (R)" % [lab_poi_focus, world_seed])
+		else:
+			pois = poi_system.generate_pois(world_seed, proc_bounds, _is_inside_border)
 		for poi in pois:
 			var p: POISystem.POI = poi as POISystem.POI
 			p.position.y = get_terrain_height(p.position.x, p.position.z)
@@ -608,6 +630,13 @@ func _compute_height_at(x: float, z: float) -> float:
 
 	# 3. Flatten en el centro (radio 50m) para que la entrada sea plana
 	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	if lab_poi_focus != "":
+		# lab mode: el POI enfocado se recentra al origen a su tamaño REAL (puede medir
+		# 40-80m, más que la celda chica de proc_lab). El bowl/outcrop está pensado para
+		# un mapa de 600m — con una celda chica el POI real cruza del flat al bowl y
+		# termina medio bajo terreno que sube. La celda entera se trata como "adentro del
+		# flat_radius": terreno neutro y parejo para que el foco sea el asset, no el mundo.
+		flat_radius = max_r * 10.0
 	if dist_center < flat_radius:
 		var flat_t: float = dist_center / flat_radius
 		h = lerpf(0.0, h, smoothstep(0.0, 1.0, flat_t))
@@ -643,19 +672,24 @@ func _compute_height_at(x: float, z: float) -> float:
 	#
 	# Total rise at border: BOWL_RISE(12) + BOWL_LIP_RISE(4) = 16m over 250m radius
 	# which is a clearly-readable "edge is high / center is low" bowl for cavern P1.
-	const BOWL_RISE: float = 12.0      # metres gained from flat_radius edge to border
-	const BOWL_LIP_RISE: float = 4.0   # extra metres in the last 15% (visual border lip)
+	# Both constants are metres tuned for the full 600m map (proc_bounds default).
+	# flat_radius/max_r already scale with _scale (proc_bounds shrinks them), so the
+	# vertical rise MUST scale too — otherwise a small proc_lab cell keeps the full
+	# 16m rise crushed into a much shorter radius, reading as a steep crater instead
+	# of the intended gentle slope.
+	const BOWL_RISE_BASE: float = 12.0      # metres gained from flat_radius edge to border
+	const BOWL_LIP_RISE_BASE: float = 4.0   # extra metres in the last 15% (visual border lip)
 	var bowl_blend: float = 0.0
 	if dist_center >= flat_radius:
 		var bowl_span: float = max_r - flat_radius
 		if bowl_span > 0.001:
 			var bowl_t: float = clampf((dist_center - flat_radius) / bowl_span, 0.0, 1.0)
 			bowl_blend = smoothstep(0.0, 1.0, bowl_t)
-			h += bowl_blend * BOWL_RISE
+			h += bowl_blend * BOWL_RISE_BASE * _scale
 			# Steeper lip — only in the outermost 15% of the bowl band
 			if bowl_t > 0.85:
 				var lip_t: float = (bowl_t - 0.85) / 0.15
-				h += smoothstep(0.0, 1.0, lip_t) * BOWL_LIP_RISE
+				h += smoothstep(0.0, 1.0, lip_t) * BOWL_LIP_RISE_BASE * _scale
 
 	# Round-A #2: Dirt/rock outcrops — ONLY outside the flat_radius spawn bowl.
 	# _outcrop_noise is scale-independent (sampled in world coords, freq=0.05).
@@ -1366,7 +1400,10 @@ func _build_landmark_pillars() -> void:
 		var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 		if not _is_inside_border(pos):
 			continue
-		var height: float = _rng.randf_range(PILLAR_MIN_HEIGHT, PILLAR_MAX_HEIGHT)
+		# Piso-a-techo: el pilar SIEMPRE llega al techo de la cueva (Joan, 2026-07-18 —
+		# antes la altura era aleatoria 30-50m contra un techo fijo en 45m, así que la
+		# mayoría de las tiradas quedaban cortas y el pilar no tocaba el techo).
+		var height: float = CEILING_HEIGHT
 
 		var pillar: CSGCylinder3D = CSGCylinder3D.new()
 		pillar.name = "LandmarkPillar%d" % i
