@@ -56,3 +56,4 @@ game/tools/blender/_preview_golem.png
 game/tools/godot/anim_capture/
 *.blend1
 game/tools/blender/*/renders/anim/
+game/tools/blender/**/*_run.log
