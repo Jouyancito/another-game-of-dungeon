@@ -7,8 +7,21 @@
 ## 1. Silueta primero
 
 - El mob se reconoce por su SILUETA a 20 m, antes de ver color o detalle.
-- Formas simples y llenas (low-poly toon canon `_art_canon.md`); nada de greebles.
+- Formas simples y llenas; nada de greebles.
 - Máximo 3 colores por mob: base + secundario + acento.
+
+### 1.1 Vara de calidad (PO Joan, 2026-07-19): estilizado RICO, no low-poly barato
+
+"Low-poly" NO es la meta — era una muleta. La meta es **estilizado expresivo**
+(ref a_iwaac: "more expressive 3D art, less UE5 hyperrealism"):
+- Mallas densas y suaves (el polycount es gratis a esta escala) — el slime aprobado
+  ya es 96×48 smooth, no facetado.
+- Superficies con detalle esculpido (displacement/noise sobre subdivisión) donde
+  la materia lo pide: roca agrietada, caparazón, plumas sugeridas.
+- Materiales pintados/painterly con variación — nunca color plano (regla §2).
+- Sigue prohibido: fotorrealismo/PBR genérico, y greebles que ensucien la silueta.
+- `_art_canon.md` §2.1 ("low-poly stylized") queda matizado por esta decisión:
+  se conserva el eje "stylized/NO realista", se abandona el eje "barato/facetado".
 
 ## 2. El material ES el bicho (regla del slime)
 
