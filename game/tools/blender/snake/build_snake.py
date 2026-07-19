@@ -20,6 +20,7 @@ import bpy
 import bmesh
 import math
 import os
+import sys
 from mathutils import Vector
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -489,11 +490,35 @@ sk_ad.action = None
 for k in ALL_KEYS:      # actions leave the last evaluated values behind -- reset to rest
     kb[k].value = 0.0
 
+# ---------- hero still: scale silhouette (mob style contract §4, Pokedex rule) ----------
+# NOTE (2026-07-19): a naive world-X offset landed the silhouette almost on
+# top of the snake here — this camera is a genuine 3/4 view (cam offset on
+# BOTH X and Y), so world-X != screen-right. Placing along the camera's
+# ACTUAL right vector (ficha.camera_right_vector) fixed it.
+sys.path.insert(0, os.path.dirname(OUT_DIR))
+import _ficha_common as ficha
+
+MOB_HX, MOB_HY, MOB_ZMAX = 0.16, 0.36, 0.10  # snake lateral wiggle / nose-tail length / low profile
+SIL_DIST = (MOB_HX ** 2 + MOB_HY ** 2) ** 0.5 + 0.4 + 0.254
+right_dir = ficha.camera_right_vector(cam, target)
+sil_loc = (right_dir * SIL_DIST)
+sil_loc.z = 0.0
+sil = ficha.add_scale_silhouette(location=tuple(sil_loc))
+sil_xmin, sil_xmax, sil_ymin, sil_ymax, sil_zmin, sil_zmax = ficha.silhouette_bbox(location=tuple(sil_loc))
+old_target_loc, old_cam_loc = ficha.frame_hero_camera(
+    cam, target,
+    x_min=min(-MOB_HX, sil_xmin), x_max=max(MOB_HX, sil_xmax),
+    y_min=min(-MOB_HY, sil_ymin), y_max=max(MOB_HY, sil_ymax),
+    z_min=0.0, z_max=max(MOB_ZMAX, sil_zmax))
+
 scene.frame_set(1)
 scene.render.resolution_x = 1024
 scene.render.resolution_y = 1280
 scene.render.filepath = os.path.join(REN_DIR, "snake_hero.png")
 bpy.ops.render.render(write_still=True)
+
+ficha.restore_hero_camera(cam, target, old_target_loc, old_cam_loc)
+ficha.remove_scale_silhouette(sil)
 
 # ---------- push all actions to NLA tracks (one glTF animation per track name) ----------
 for name, (frames, act_sk) in actions.items():

@@ -14,6 +14,7 @@ import bpy
 import bmesh
 import math
 import os
+import sys
 from mathutils import Vector
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -748,6 +749,30 @@ def frame_camera_for_clip(name):
         cam.location = BASE_CAM_LOC
 
 
+# ---------- hero + crow stills: scale silhouette (mob style contract §4, Pokedex rule) ----------
+# Bird SOARS (HOVER_Z=1.0) — the silhouette stands on the ground (z=0) so the
+# still shows the TRUE height comparison. Silhouette is added ONCE and covers
+# both palette stills (identical camera/framing), then removed before the
+# anim-frame loop below (frame_camera_for_clip resets cam/target from the
+# BASE_* constants on its first call regardless, but we restore explicitly
+# for a clean .blend).
+sys.path.insert(0, os.path.dirname(OUT_DIR))
+import _ficha_common as ficha
+
+MOB_HX, MOB_HY = 0.62, 0.62  # bird wingspan half-extent (dihedral-projected) / beak-to-tail
+MOB_ZMAX = HOVER_Z + 0.30     # silhouette stands at z=0, bird soars — combined top is generous
+SIL_DIST = (MOB_HX ** 2 + MOB_HY ** 2) ** 0.5 + 0.4 + 0.254
+right_dir = ficha.camera_right_vector(cam, target)
+sil_loc = (right_dir * SIL_DIST)
+sil_loc.z = 0.0
+sil = ficha.add_scale_silhouette(location=tuple(sil_loc))
+sil_xmin, sil_xmax, sil_ymin, sil_ymax, sil_zmin, sil_zmax = ficha.silhouette_bbox(location=tuple(sil_loc))
+old_target_loc, old_cam_loc = ficha.frame_hero_camera(
+    cam, target,
+    x_min=min(-MOB_HX, sil_xmin), x_max=max(MOB_HX, sil_xmax),
+    y_min=min(-MOB_HY, sil_ymin), y_max=max(MOB_HY, sil_ymax),
+    z_min=0.0, z_max=max(MOB_ZMAX, sil_zmax))
+
 # ---------- hero render (eagle palette) ----------
 scene.frame_set(1)
 scene.render.resolution_x = 1024
@@ -760,6 +785,9 @@ set_palette(body_mat, wing_mat, beak_mat, talon_mat, eye_mat, PALETTES["crow"])
 scene.render.filepath = os.path.join(REN_DIR, "bird_crow.png")
 bpy.ops.render.render(write_still=True)
 set_palette(body_mat, wing_mat, beak_mat, talon_mat, eye_mat, PALETTES["eagle"])
+
+ficha.restore_hero_camera(cam, target, old_target_loc, old_cam_loc)
+ficha.remove_scale_silhouette(sil)
 
 # ---------- renders: preview frames per animation (eagle palette, shipped look) ----------
 scene.render.resolution_x = 512

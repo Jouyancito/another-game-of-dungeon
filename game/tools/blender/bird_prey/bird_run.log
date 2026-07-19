@@ -1,0 +1,103 @@
+C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\build_bird.py:341: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\build_bird.py:693: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+00:02.500  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\bird_hero.png'
+00:03.047  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\bird_crow.png'
+00:03.422  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_001.png'
+00:03.781  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_003.png'
+00:04.156  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_005.png'
+00:04.515  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_007.png'
+00:04.875  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_009.png'
+00:05.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_011.png'
+00:05.609  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_013.png'
+00:05.968  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_015.png'
+00:06.328  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_017.png'
+00:06.687  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_019.png'
+00:07.047  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_021.png'
+00:07.406  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_023.png'
+00:07.765  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_025.png'
+00:08.125  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_027.png'
+00:08.484  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_029.png'
+00:08.843  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_031.png'
+00:09.218  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_033.png'
+00:09.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_035.png'
+00:09.937  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_037.png'
+00:10.297  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_039.png'
+00:10.656  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_041.png'
+00:11.031  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_043.png'
+00:11.422  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_045.png'
+00:11.781  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\idle_047.png'
+00:12.140  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_001.png'
+00:12.515  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_003.png'
+00:12.875  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_005.png'
+00:13.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_007.png'
+00:13.593  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_009.png'
+00:13.937  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_011.png'
+00:14.297  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_013.png'
+00:14.672  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_015.png'
+00:15.031  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_017.png'
+00:15.390  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_019.png'
+00:15.750  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_021.png'
+00:16.093  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\move_023.png'
+00:16.453  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_001.png'
+00:16.797  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_003.png'
+00:17.140  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_005.png'
+00:17.500  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_007.png'
+00:17.859  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_009.png'
+00:18.203  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_011.png'
+00:18.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_013.png'
+00:18.922  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_015.png'
+00:19.281  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_017.png'
+00:19.640  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_019.png'
+00:19.984  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_021.png'
+00:20.343  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_023.png'
+00:20.687  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_025.png'
+00:21.031  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_027.png'
+00:21.390  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\attack_029.png'
+00:21.750  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_001.png'
+00:22.109  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_003.png'
+00:22.468  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_005.png'
+00:22.828  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_007.png'
+00:23.172  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_009.png'
+00:23.547  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_011.png'
+00:23.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\hit_013.png'
+00:24.265  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_001.png'
+00:24.625  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_003.png'
+00:24.968  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_005.png'
+00:25.312  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_007.png'
+00:25.672  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_009.png'
+00:26.015  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_011.png'
+00:26.359  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_013.png'
+00:26.718  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_015.png'
+00:27.062  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_017.png'
+00:27.406  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_019.png'
+00:27.765  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_021.png'
+00:28.109  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_023.png'
+00:28.468  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_025.png'
+00:28.812  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_027.png'
+00:29.156  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_029.png'
+00:29.515  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\bird_prey\renders\anim\death_031.png'
+BlenderMCP: cannot start server in background mode (blender -b) - commands would never execute
+BlenderMCP: run Blender with a GUI, or use a virtual display: xvfb-run -a blender
+BlenderMCP addon registered
+BlenderMCP server stopped
+BlenderMCP addon unregistered
+[bird] frames idle-loop
+[bird] frames move-loop
+[bird] frames attack
+[bird] frames hit
+[bird] frames death
+Info: Saved as "bird_wip.blend"
+INFO Draco mesh compression is available, use library at C:\Users\the_j\blender\blender-5.1.2-windows-x64\5.1\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+13:47:55 | INFO: Starting glTF 2.0 export
+13:47:55 | INFO: Extracting primitive: Sphere
+13:47:55 | INFO: Primitives created: 4
+13:47:55 | INFO: Extracting primitive: bird_wings_mesh
+13:47:55 | INFO: Primitives created: 1
+13:47:55 | INFO: Finished glTF 2.0 export in 0.07336878776550293 s
+
+[bird] DONE
+Blender 5.1.2 (hash ec6e62d40fa9 built 2026-05-19 01:37:34)
+
+Blender quit

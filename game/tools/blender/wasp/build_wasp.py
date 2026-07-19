@@ -12,6 +12,7 @@ import bpy
 import bmesh
 import math
 import os
+import sys
 from mathutils import Vector
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -590,11 +591,35 @@ reset_rest_pose()  # gotcha: actions leave last evaluated values behind
 target.location = (0.0, 0.0, BASE_TARGET_Z)
 cam.location = BASE_CAM_LOC
 
+# ---------- hero still: scale silhouette (mob style contract §4, Pokedex rule) ----------
+# Wasp HOVERS (HOVER_Z=0.5) — the silhouette stands on the ground (z=0) so the
+# still shows the TRUE height comparison (wasp floating around knee height),
+# not just a side-by-side same-baseline trick.
+sys.path.insert(0, os.path.dirname(OUT_DIR))
+import _ficha_common as ficha
+
+MOB_HX, MOB_HY = 0.20, 0.21  # wasp wingspan half-extent / head-to-abdomen-tip
+MOB_ZMAX = HOVER_Z + 0.20    # silhouette stands at z=0, wasp hovers — combined top is generous
+SIL_DIST = (MOB_HX ** 2 + MOB_HY ** 2) ** 0.5 + 0.4 + 0.254
+right_dir = ficha.camera_right_vector(cam, target)
+sil_loc = (right_dir * SIL_DIST)
+sil_loc.z = 0.0
+sil = ficha.add_scale_silhouette(location=tuple(sil_loc))
+sil_xmin, sil_xmax, sil_ymin, sil_ymax, sil_zmin, sil_zmax = ficha.silhouette_bbox(location=tuple(sil_loc))
+old_target_loc, old_cam_loc = ficha.frame_hero_camera(
+    cam, target,
+    x_min=min(-MOB_HX, sil_xmin), x_max=max(MOB_HX, sil_xmax),
+    y_min=min(-MOB_HY, sil_ymin), y_max=max(MOB_HY, sil_ymax),
+    z_min=0.0, z_max=max(MOB_ZMAX, sil_zmax))
+
 scene.frame_set(1)
 scene.render.resolution_x = 1024
 scene.render.resolution_y = 1280
 scene.render.filepath = os.path.join(REN_DIR, "wasp_hero.png")
 bpy.ops.render.render(write_still=True)
+
+ficha.restore_hero_camera(cam, target, old_target_loc, old_cam_loc)
+ficha.remove_scale_silhouette(sil)
 
 # ---------- push all actions to NLA tracks (same name across data-blocks) ----------
 for name, (frames, act_bsk, act_bobj, act_wsk) in actions.items():

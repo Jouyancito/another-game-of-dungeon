@@ -52,8 +52,13 @@
 - Todo mob se presenta igual: fondo plano morado (0.30, 0.22, 0.48), cámara 50 mm,
   key/fill/rim = 110/30/130 W (calibrado 2026-07-18 — más fuerte CLIPEA la textura),
   `view_transform = 'Standard'`.
-- Entregables por mob: 1 still hero 1024×1280 + 1 GIF por animación (512×640) +
-  GLB con las animaciones + .blend. Carpeta: `game/tools/blender/<mob>/`.
+- **Silueta de escala (PO Joan, 2026-07-19, regla Pokédex)**: TODO still hero lleva
+  al lado una silueta de jugador negra mate (humanoide simple, 1.75 m de alto) a
+  escala real contra el mob. La cámara hero encuadra AMBOS. Sin esto la ficha
+  miente la escala (la avispa de 0.4 m parecía insecto chico). Los GIFs de
+  animación siguen mostrando solo al mob.
+- Entregables por mob: 1 still hero 1024×1280 (mob + silueta de escala) + 1 GIF por
+  animación (512×640) + GLB con las animaciones + .blend. Carpeta: `game/tools/blender/<mob>/`.
 - El tablero `bestiario.html` junta todas las fichas — ahí se juzga la coherencia.
 
 ## 5. Reglas técnicas duras (gotchas pagados)

@@ -1,0 +1,118 @@
+C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\build_snake.py:385: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\build_snake.py:439: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+00:02.140  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_001.png'
+00:02.500  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_003.png'
+00:02.843  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_005.png'
+00:03.187  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_007.png'
+00:03.531  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_009.png'
+00:03.875  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_011.png'
+00:04.203  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_013.png'
+00:04.547  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_015.png'
+00:04.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_017.png'
+00:05.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_019.png'
+00:05.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_021.png'
+00:05.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_023.png'
+00:06.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_025.png'
+00:06.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_027.png'
+00:06.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_029.png'
+00:07.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_031.png'
+00:07.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_033.png'
+00:07.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_035.png'
+00:08.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_037.png'
+00:08.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_039.png'
+00:08.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_041.png'
+00:09.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_043.png'
+00:09.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_045.png'
+00:09.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_047.png'
+00:10.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_049.png'
+00:10.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_051.png'
+00:10.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_053.png'
+00:11.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_055.png'
+00:11.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_057.png'
+00:11.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\idle_059.png'
+00:12.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_001.png'
+00:12.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_003.png'
+00:12.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_005.png'
+00:13.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_007.png'
+00:13.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_009.png'
+00:13.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_011.png'
+00:14.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_013.png'
+00:14.593  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_015.png'
+00:14.922  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_017.png'
+00:15.265  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_019.png'
+00:15.625  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_021.png'
+00:15.953  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_023.png'
+00:16.281  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_025.png'
+00:16.625  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_027.png'
+00:16.968  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_029.png'
+00:17.297  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_031.png'
+00:17.625  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_033.png'
+00:17.953  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_035.png'
+00:18.281  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_037.png'
+00:18.625  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_039.png'
+00:18.953  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_041.png'
+00:19.281  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_043.png'
+00:19.609  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_045.png'
+00:19.937  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\move_047.png'
+00:20.265  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_001.png'
+00:20.609  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_003.png'
+00:20.937  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_005.png'
+00:21.281  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_007.png'
+00:21.609  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_009.png'
+00:21.937  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_011.png'
+00:22.265  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_013.png'
+00:22.593  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_015.png'
+00:22.937  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_017.png'
+00:23.265  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_019.png'
+00:23.593  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_021.png'
+00:23.922  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_023.png'
+00:24.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_025.png'
+00:24.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_027.png'
+00:24.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\attack_029.png'
+00:25.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_001.png'
+00:25.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_003.png'
+00:25.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_005.png'
+00:26.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_007.png'
+00:26.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_009.png'
+00:26.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_011.png'
+00:27.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\hit_013.png'
+00:27.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_001.png'
+00:27.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_003.png'
+00:28.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_005.png'
+00:28.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_007.png'
+00:28.890  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_009.png'
+00:29.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_011.png'
+00:29.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_013.png'
+00:29.906  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_015.png'
+00:30.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_017.png'
+00:30.578  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_019.png'
+00:30.890  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_021.png'
+00:31.234  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_023.png'
+00:31.562  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_025.png'
+00:31.890  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_027.png'
+00:32.218  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_029.png'
+00:32.547  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\anim\death_031.png'
+00:33.109  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\snake\renders\snake_hero.png'
+BlenderMCP: cannot start server in background mode (blender -b) - commands would never execute
+BlenderMCP: run Blender with a GUI, or use a virtual display: xvfb-run -a blender
+BlenderMCP addon registered
+BlenderMCP server stopped
+BlenderMCP addon unregistered
+[snake] frames idle-loop
+[snake] frames move-loop
+[snake] frames attack
+[snake] frames hit
+[snake] frames death
+Info: Saved as "snake_wip.blend"
+INFO Draco mesh compression is available, use library at C:\Users\the_j\blender\blender-5.1.2-windows-x64\5.1\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+13:43:18 | INFO: Starting glTF 2.0 export
+13:43:18 | INFO: Extracting primitive: snake_mesh
+13:43:18 | INFO: Primitives created: 1
+13:43:18 | INFO: Finished glTF 2.0 export in 0.04389476776123047 s
+
+[snake] DONE
+Blender 5.1.2 (hash ec6e62d40fa9 built 2026-05-19 01:37:34)
+
+Blender quit

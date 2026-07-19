@@ -21,6 +21,7 @@ import bmesh
 import math
 import os
 import random
+import sys
 from mathutils import Vector
 from mathutils import noise as mnoise
 
@@ -547,11 +548,32 @@ GLOW["obj"].location = GLOW["base"]
 GLOW["obj"].scale = Vector((1.0, 1.0, 1.0))
 GLOW_BSDF.inputs["Emission Strength"].default_value = GLOW_BASE_STRENGTH
 
+# ---------- hero still: scale silhouette (mob style contract §4, Pokedex rule) ----------
+sys.path.insert(0, os.path.dirname(OUT_DIR))
+import _ficha_common as ficha
+
+MOB_HX, MOB_HY = 1.9 * SCALE, 0.4 * SCALE   # floating fist spread / core+stone depth
+MOB_ZMAX = 2.42 * SCALE + 0.2 * SCALE        # crown stones + a little clearance
+SIL_DIST = (MOB_HX ** 2 + MOB_HY ** 2) ** 0.5 + 0.4 + 0.254
+right_dir = ficha.camera_right_vector(cam, target)
+sil_loc = (right_dir * SIL_DIST)
+sil_loc.z = 0.0
+sil = ficha.add_scale_silhouette(location=tuple(sil_loc))
+sil_xmin, sil_xmax, sil_ymin, sil_ymax, sil_zmin, sil_zmax = ficha.silhouette_bbox(location=tuple(sil_loc))
+old_target_loc, old_cam_loc = ficha.frame_hero_camera(
+    cam, target,
+    x_min=min(-MOB_HX, sil_xmin), x_max=max(MOB_HX, sil_xmax),
+    y_min=min(-MOB_HY, sil_ymin), y_max=max(MOB_HY, sil_ymax),
+    z_min=0.0, z_max=max(MOB_ZMAX, sil_zmax))
+
 scene.frame_set(1)
 scene.render.resolution_x = 1024
 scene.render.resolution_y = 1280
 scene.render.filepath = os.path.join(REN_DIR, "golem_hero.png")
 bpy.ops.render.render(write_still=True)
+
+ficha.restore_hero_camera(cam, target, old_target_loc, old_cam_loc)
+ficha.remove_scale_silhouette(sil)
 
 # =============================================================================
 # NLA PUSH + EXPORT

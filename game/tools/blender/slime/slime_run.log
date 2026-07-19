@@ -1,0 +1,118 @@
+C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\build_slime.py:190: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m.use_nodes = True
+C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\build_slime.py:297: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+00:02.485  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_001.png'
+00:02.922  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_003.png'
+00:03.360  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_005.png'
+00:03.797  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_007.png'
+00:04.235  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_009.png'
+00:04.657  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_011.png'
+00:05.094  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_013.png'
+00:05.532  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_015.png'
+00:05.954  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_017.png'
+00:06.391  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_019.png'
+00:06.829  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_021.png'
+00:07.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_023.png'
+00:07.688  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_025.png'
+00:08.125  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_027.png'
+00:08.563  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_029.png'
+00:09.000  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_031.png'
+00:09.438  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_033.png'
+00:09.875  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_035.png'
+00:10.313  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_037.png'
+00:10.750  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_039.png'
+00:11.188  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_041.png'
+00:11.610  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_043.png'
+00:12.063  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_045.png'
+00:12.485  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_047.png'
+00:12.938  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_049.png'
+00:13.360  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_051.png'
+00:13.797  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_053.png'
+00:14.235  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_055.png'
+00:14.657  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_057.png'
+00:15.094  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_059.png'
+00:15.516  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_061.png'
+00:15.954  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_063.png'
+00:16.391  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_065.png'
+00:16.829  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_067.png'
+00:17.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_069.png'
+00:17.688  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\idle_071.png'
+00:18.110  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_001.png'
+00:18.547  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_003.png'
+00:18.985  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_005.png'
+00:19.407  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_007.png'
+00:19.844  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_009.png'
+00:20.266  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_011.png'
+00:20.704  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_013.png'
+00:21.141  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_015.png'
+00:21.563  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_017.png'
+00:22.016  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_019.png'
+00:22.469  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_021.png'
+00:23.063  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_023.png'
+00:23.657  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_025.png'
+00:24.125  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_027.png'
+00:24.579  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_029.png'
+00:25.016  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_031.png'
+00:25.454  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_033.png'
+00:25.875  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_035.png'
+00:26.313  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_037.png'
+00:26.735  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_039.png'
+00:27.172  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_041.png'
+00:27.610  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_043.png'
+00:28.032  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_045.png'
+00:28.469  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hop_047.png'
+00:28.891  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hit_001.png'
+00:29.329  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hit_003.png'
+00:29.766  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hit_005.png'
+00:30.204  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hit_007.png'
+00:30.625  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hit_009.png'
+00:31.063  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\hit_011.png'
+00:31.485  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_001.png'
+00:31.969  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_003.png'
+00:32.391  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_005.png'
+00:32.829  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_007.png'
+00:33.250  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_009.png'
+00:33.704  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_011.png'
+00:34.141  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_013.png'
+00:34.594  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_015.png'
+00:35.047  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_017.png'
+00:35.500  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_019.png'
+00:35.938  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\attack_021.png'
+00:36.391  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_001.png'
+00:36.829  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_003.png'
+00:37.282  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_005.png'
+00:37.735  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_007.png'
+00:38.188  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_009.png'
+00:38.641  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_011.png'
+00:39.110  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_013.png'
+00:39.579  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_015.png'
+00:40.047  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_017.png'
+00:40.547  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_019.png'
+00:41.047  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_021.png'
+00:41.750  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_023.png'
+00:42.329  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_025.png'
+00:42.907  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\anim\death_027.png'
+00:44.110  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\slime_green.png'
+00:45.094  render           | Saved: 'C:\Users\the_j\Desktop\Juego\DungeonParty-A\game\tools\blender\slime\renders\slime_blue.png'
+BlenderMCP: cannot start server in background mode (blender -b) - commands would never execute
+BlenderMCP: run Blender with a GUI, or use a virtual display: xvfb-run -a blender
+BlenderMCP addon registered
+BlenderMCP server stopped
+BlenderMCP addon unregistered
+[slime] frames idle-loop
+[slime] frames hop-loop
+[slime] frames hit
+[slime] frames attack
+[slime] frames death
+Info: Saved as "slime_wip.blend"
+INFO Draco mesh compression is available, use library at C:\Users\the_j\blender\blender-5.1.2-windows-x64\5.1\scripts\addons_core\io_scene_gltf2\extern_draco.dll
+13:40:55 | INFO: Starting glTF 2.0 export
+13:40:55 | INFO: Extracting primitive: Sphere
+13:40:55 | INFO: Primitives created: 1
+13:40:55 | INFO: Finished glTF 2.0 export in 0.11335992813110352 s
+
+[slime] DONE
+Blender 5.1.2 (hash ec6e62d40fa9 built 2026-05-19 01:37:34)
+
+Blender quit
