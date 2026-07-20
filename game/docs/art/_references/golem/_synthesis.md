@@ -40,3 +40,43 @@ El golem actual es **cubos apilados, bastante simétrico, musgo verde brillante,
 - ❓ Núcleo: cyan actual vs magenta (06).
 
 Próxima iteración = construir DESDE estos puntos, no desde el cubo genérico.
+
+## Refs 10-15 (Joan, 2026-07-20) — corrección de forma sobre el golem_guardian actual
+
+Joan probó el awaken v2 (cueva + ojos tempranos + brazos secuenciales) y el veredicto
+es "más o menos bien, pero no tanto". Cuatro problemas concretos + 5 refs nuevas:
+
+| # | Qué es | Aporte clave |
+|---|---|---|
+| 10 | Golem musgoso sentado en el agua, pájaros alrededor, protuberancias en hombros/espalda que leen como que llevan AÑOS ahí | Continuidad: lo que crece en el cuerpo debe verse igual de viejo en pie que sentado — nada "aparece nuevo" al levantarse |
+| 11 | Golem cartoon naranja/cobre, puños levantados, agrietado | Rocas REDONDEADAS incluso en estilo agresivo/cartoon — ni ahí puntiagudas |
+| 12 | Golem con CARA-CALAVERA tallada en el pecho/cabeza, bosque con niebla | Rostro legible da personalidad y amenaza — hoy el guardián no tiene cara, solo 2 puntos de ojo |
+| 13 | "Stone Golem" — ojos azules brillantes, rostro estoico tallado, puño en alto, grietas+runas, musgo en manchas | Rostro definido + grietas-runa como el lenguaje de energía ya elegido (cyan) + puño CLARAMENTE una masa redondeada, no lasca |
+| 15 | "Stone Golem" pintura verde, cara ancha expresiva, postura amenazante | Mismo: cara ancha y legible vende la amenaza más que el tamaño solo |
+
+### Problemas diagnosticados en el build actual
+
+1. **Piedras puntiagudas en brazos/manos**: el generador de rocas actual (noise
+   displacement agresivo) da lascas afiladas. Las refs 10/11/13/15 muestran cantos
+   REDONDEADOS (river-stone), nunca puntas. Bajar la escala/fuerza del ruido en los
+   clusters de brazo y puño específicamente.
+2. **Sin continuidad de colonización**: los brazos que se ensamblan desde la tierra
+   deben aparecer YA musgosos/agrietados como el resto del cuerpo — no rocas limpias
+   que de repente tienen musgo. El musgo/color debe ser una propiedad de la malla
+   completa desde el dormant, no algo que se agrega después al standing pose.
+3. **El árbol no tiene mecanismo de sujeción visible todavía — esto es esperado, no
+   un bug**: el spec YA define cómo se agarra (`trunk_rip`, motion spec Move 3) —
+   arranque de la espalda → sostenido a dos manos como arma. Ese movimiento NO está
+   construido aún (solo existen idle/awaken/move/attack/hit/death). Falta además
+   que el árbol tenga secondary lag CONSTANTE durante idle/move (principio "the
+   ecosystem moves with it" de la identidad del golem) — hoy solo se mueve al final
+   del awaken.
+4. **Sin rostro legible**: agregar una cara tallada (ojos + rasgos simples, estilo
+   ref 12/13) en vez de solo 2 puntos de emisión — vende amenaza y personalidad.
+5. **Partículas de tierra cayendo al levantarse**: pedido explícito, hoy no existe.
+   Esto es capa VFX de Godot (GPUParticles3D, ver "Build target for Godot" en el
+   motion spec de `rock_movement`) — en Blender se puede aproximar con chunks de
+   escombro cayendo (ya existe el vocabulario de `rock_movement`), pero el polish
+   final de partículas de polvo es tarea de Godot, no de este pipeline.
+
+**Fuente**: 5 imágenes de Joan, 2026-07-20.
