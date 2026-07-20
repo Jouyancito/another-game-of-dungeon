@@ -25,6 +25,63 @@ Before any individual move: what makes the golem's motion RECOGNIZABLE as this s
 
 ---
 
+## Boss encounter structure (PO decisions, Joan 2026-07-19/20)
+
+The prairie's floor-1 **sub-boss** (roaming encounter, distinct from the floor's gated
+final boss). Confirms and extends the moveset above with the missing piece: the
+awaken/reveal, and the phase thresholds that connect the moves into one fight.
+
+### Dormant form — add a cave
+
+The mound is not just moss-and-rock: it has a small cave-like hollow ("mini gruta")
+the player can peek into before the fight starts. This was NOT in the original 7
+refs — new detail, no reference image yet (gap, flag for Joan to bring one if a
+specific look matters). Combine with ref 02's "indistinguishable from terrain" read
+— the cave should look like ordinary rock shadow until the awaken, not an obvious
+"boss door."
+
+### Awaken — refine the existing 6-beat build with 3 additions
+
+The `golem_guardian` build (`game/tools/blender/golem_guardian/`) already has a
+6-beat awaken. Joan's 2026-07-19/20 description adds specificity to beats 2 and 4:
+
+- **Eyes open as an explicit early beat**, not just "the look" at the end. The golem
+  opens its eyes and looks at the player BEFORE it finishes standing up — the look
+  starts early and holds through the rise, not a single beat at the very end.
+- **Each arm is a separately buried mass**, not part of the torso's own silhouette.
+  Right arm assembles/rises FROM THE GROUND first (its own dirt-fall, its own
+  crunch/creak), then left arm assembles the same way, sequentially not
+  simultaneously. This is more dramatic than "the shoulders emerge from the mound" —
+  it should read as two more golem-pieces climbing out of the earth to join the body.
+- **Scale/dread feel**: the player should feel small in comparison, aware it could
+  crush them if it gets close. Slow camera, no rush, low angle read — a
+  direction/staging note as much as an animation one.
+- Sound cues (movement creaks/groans, dirt-fall) are explicitly wanted — audio scope,
+  not yet built; flag for the audio pass (same placeholder-SFX pipeline as PR #67).
+
+### Phase structure (PO decision, 2026-07-19/20)
+
+Three-phase fight, confirmed thresholds:
+
+| Phase | HP range | Moveset | Trigger move |
+|---|---|---|---|
+| 1 — Unarmed | 100% → 70% | Fists (`ground_pound`-style single-arm punches, not yet specced as a standalone move), thrown rocks with a telegraphed wind-up ("saca una piedra con aviso") | — |
+| 2 — Armed | 70% → 25% | `trunk_rip` (once, on entering phase 2) → `trunk_sweep` x3 combo, repeatable | HP crosses 70% |
+| 3 — Desperation | 25% → 0% | Tree breaks/is discarded (visual event, not yet specced) → `ground_pound` unlocked as the finisher | HP crosses 25% |
+
+Combat pacing reference (Joan, 2026-07-19/20): Resident Evil Nemesis/Tyrant-class
+enemy — NOT glacially slow, but every hit is a critical, high-consequence
+commitment. This does not contradict the existing "serene guardian" identity line
+above — it confirms the SAME read from a different touchstone (add alongside SotC/
+GoW/Dark Souls in the reference touchstones per move).
+
+**Open/unspecced**: the phase-1 unarmed punch (currently only `ground_pound` two-arm
+slam is specced — a single-arm jab/punch for phase 1 needs its own move entry), the
+telegraphed rock-throw ("aviso" wind-up), and the tree-break visual event that gates
+phase 3. These are the next moves to spec before building.
+
+---
+
 ## Move 1 — `rock_movement` (base physics: loose rock tumbles and settles)
 
 > This is NOT a golem animation clip — it is the physical VOCABULARY that governs how EVERY stone
