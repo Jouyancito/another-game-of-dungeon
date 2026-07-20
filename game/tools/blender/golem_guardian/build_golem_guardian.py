@@ -16,15 +16,15 @@
 # suggested approach and avoiding the shape-key contamination gotcha (contract
 # §5) entirely.
 #
-# Parts (12 objects, no parenting — every sampler computes WORLD transforms
+# Parts (14 objects, no parenting — every sampler computes WORLD transforms
 # directly, staggering per Appendix A of the motion spec to avoid lockstep):
-#   torso, head, glow_chest, glow_head, arm_L, arm_R, fist_L, fist_R, tree,
-#   stone_1, stone_2, stone_3
+#   torso, head, glow_chest, glow_head, arm_L, arm_R, fist_L, fist_R,
+#   leg_L, leg_R, tree, stone_1, stone_2, stone_3
 #
 # Clips (standard 5 + the awaken deliverable):
 #   idle-loop (36f)  DORMANT breathing loop — mound rises/falls, tree sways.
 #   awaken    (168f) DORMANT -> STANDING, 6 PO-approved beats (see AWAKEN_BEATS).
-#   move-loop (48f)  STANDING knuckle-drag gait, 2-beat arm swing.
+#   move-loop (48f)  STANDING plodding gait, 2-beat arm swing + leg weight-shift.
 #   attack    (30f)  STANDING fist-raise-and-slam (placeholder full moveset).
 #   hit       (16f)  STANDING flinch — torso recoil + tree shudder.
 #   death     (48f)  STANDING -> forward collapse, ends mound-like (Move 8:
@@ -46,6 +46,31 @@
 #      each arm has its OWN buried-mass rise window (see
 #      ARM_RISE_WINDOW/arm_rise_progress/arm_dirt_pop/arm_settle_bounce): the
 #      RIGHT arm rises+settles fully, THEN the LEFT arm starts its own rise.
+#
+# UPDATE (2026-07-20+, PASS 4 — PO Joan, refs 10-15) — 6 corrective fixes,
+# 2 of them (crystal + eye embedding) previously raised and NEVER actually
+# fixed across earlier passes:
+#   1. Distinct stones, not a fused pillar — arm/fist blob spacing was an
+#      effective ~0.42 overlap ratio (over-fused); rebuilt via a generic
+#      chain_positions() helper (ports golem_floating's JOINT_TOUCH lesson)
+#      at ratio 0.65. Torso b0<->b1 loosened from ~0.52 to ~0.62 too.
+#   2. Legs added (leg_L/leg_R, NEW parts) — arms shortened (ARM_DIR_LOCAL)
+#      and freed from ground-support duty; each leg is a thigh/shin/foot
+#      chain built with the same chain_positions technique.
+#   3. Tree rigid-follow — tree_rigid_tilt_deg() reads the torso's own actual
+#      per-frame rotation (awaken clip; idle/move already did this in a
+#      prior pass) instead of an independent authored curve; the old curve
+#      (tree_tilt_deg) is kept as a smaller secondary whip layer on top.
+#   4. Crystal (glow_chest) re-nested INSIDE the torso_b0/b1/torso_lip seam
+#      (was floating ~1.2-1.7 units from any blob surface), shrunk+flattened
+#      into a shard, given a grime vertex-mask material (make_gem +
+#      mat_glow_grimy) and a rock "lip" chunk partially occluding it.
+#   5. Eyes recessed into actual carved sockets on head_b0 (make_rock's new
+#      `caves` list param — 2 sockets on one blob) instead of sitting flush/
+#      proud on the surface; glow_eye_L/R pulled back to nest at socket floor.
+#   6. Reveal choreography — legs now assemble (dirt-pop/settle) alongside
+#      the existing per-arm sequential rise; eyes-open + head-look timing
+#      reviewed and left as-is (already deliberate per the prior pass).
 import bpy
 import bmesh
 import math
@@ -127,7 +152,7 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
               moss=True, moss_bias=0.24, flat=True,
               dark=STONE_DARK, light=STONE_LIGHT, moss_col=MOSS_COL,
               cave_dir=None, cave_angle=0.55, cave_depth=0.0,
-              cave_color=(0.015, 0.017, 0.022)):
+              cave_color=(0.015, 0.017, 0.022), caves=None):
     """cave_dir (unit Vector, direction FROM the blob's own sphere-origin
     `center`) + cave_angle (half-angle, radians) + cave_depth: pulls verts
     inside the angular cone around cave_dir RADIALLY INWARD toward `center`
@@ -147,8 +172,18 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
     cave_t() is recomputed from v.co (not cached by index) in both the
     displacement pass and the color pass, deliberately — bmesh remove_doubles
     between the two passes can renumber vertex indices, so an index-keyed
-    mask dict would silently mismatch after that call."""
+    mask dict would silently mismatch after that call.
+    `caves` (fix 5, 2026-07-20+): optional LIST of extra cave specs
+    (dict(dir=Vector, angle=rad, depth=float, color=(r,g,b))) carved in
+    ADDITION to the single cave_dir/cave_angle/cave_depth/cave_color quad —
+    lets one blob carve MULTIPLE independent hollows (e.g. two eye sockets on
+    the same head_b0 blob) instead of only one. Single-cave params stay for
+    backward compat (torso's dormant-mound cave keeps using them); `caves`
+    is for the new multi-socket case."""
     center = center if center is not None else Vector((0.0, 0.0, 0.0))
+    all_caves = list(caves) if caves else []
+    if cave_dir is not None and cave_depth > 0.0:
+        all_caves.append(dict(dir=cave_dir, angle=cave_angle, depth=cave_depth, color=cave_color))
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=radius)
     seed_v = Vector((seed * 17.13, seed * 5.71, seed * 31.9))
@@ -182,28 +217,37 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
     for v in bm.verts:
         v.co += center
 
-    def cave_t(co):
-        if cave_dir is None or cave_depth <= 0.0:
-            return 0.0
+    def cave_t_single(co, spec):
         rel = co - center
         d = rel.length
         if d < 1e-6:
             return 0.0
-        cos_a = max(-1.0, min(1.0, rel.normalized().dot(cave_dir)))
+        cos_a = max(-1.0, min(1.0, rel.normalized().dot(spec["dir"])))
         ang = math.acos(cos_a)
-        if ang >= cave_angle:
+        if ang >= spec["angle"]:
             return 0.0
-        t = 1.0 - ang / cave_angle
+        t = 1.0 - ang / spec["angle"]
         return t * t * (3.0 - 2.0 * t)  # smoothstep falloff, 1 at cone axis, 0 at cone edge
 
-    if cave_dir is not None and cave_depth > 0.0:
+    def cave_max(co):
+        """Strongest single cave affecting this vertex (specs don't overlap
+        in practice — e.g. two eye sockets pointed at different local
+        directions — so max() picks whichever cone the vertex sits in)."""
+        best_t, best_spec = 0.0, None
+        for spec in all_caves:
+            t = cave_t_single(co, spec)
+            if t > best_t:
+                best_t, best_spec = t, spec
+        return best_t, best_spec
+
+    if all_caves:
         for v in bm.verts:
-            t_s = cave_t(v.co)
+            t_s, spec = cave_max(v.co)
             if t_s > 0.0:
                 rel = v.co - center
                 d = rel.length
                 if d > 1e-6:
-                    new_d = max(0.05, d - cave_depth * t_s)
+                    new_d = max(0.05, d - spec["depth"] * t_s)
                     v.co = center + rel.normalized() * new_d
 
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
@@ -247,9 +291,10 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
             mt = min(1.0, (nrm.z - moss_bias) / max(0.001, (1.0 - moss_bias) * 0.55))
             mt *= 0.7 + 0.3 * paint
             base = [base[i] + (moss_col[i] - base[i]) * mt * 0.95 for i in range(3)]
-        ct = cave_t(v.co)
+        ct, cspec = cave_max(v.co)
         if ct > 0.0:
-            base = [base[i] + (cave_color[i] - base[i]) * ct for i in range(3)]
+            ccol = cspec["color"]
+            base = [base[i] + (ccol[i] - base[i]) * ct for i in range(3)]
         vcol[v.index] = base
     for f in bm.faces:
         for loop in f.loops:
@@ -331,6 +376,94 @@ def mat_glow(name, color=(0.14, 0.82, 0.92), strength=2.0):
     return m, n
 
 
+def mat_glow_grimy(name, color=(0.14, 0.82, 0.92), grime_color=(0.085, 0.075, 0.065),
+                    strength=2.0):
+    """Fix 4 (2026-07-20+, embed the crystal): a per-vertex 'Grime' FLOAT_COLOR
+    attribute (built by make_gem, below) mixes the glow's Base/Emission Color
+    toward a dark desaturated patina wherever the mask is high — dirty regions
+    read darker/duller even at full Emission Strength, clean crack-lines still
+    shine through. Emission STRENGTH itself stays a single uniform BSDF input
+    (still keyframed per-frame by the existing awaken reveal curve,
+    glow_chest_strength/glow_head_strength) — only the COLOR fed into that
+    strength is grime-mixed, so the reveal animation is untouched."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    n = nt.nodes["Principled BSDF"]
+    n.inputs["Roughness"].default_value = 0.28
+
+    attr = nt.nodes.new("ShaderNodeAttribute")
+    attr.attribute_name = "Grime"
+
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = 'RGBA'
+    for s in mix.inputs:
+        if s.name == "Factor" and s.type == 'VALUE':
+            nt.links.new(attr.outputs["Fac"], s)
+        elif s.name == "A" and s.type == 'RGBA':
+            s.default_value = (*color, 1.0)
+        elif s.name == "B" and s.type == 'RGBA':
+            s.default_value = (*grime_color, 1.0)
+    mix_out = None
+    for s in mix.outputs:
+        if s.type == 'RGBA':
+            mix_out = s
+            break
+    nt.links.new(mix_out, n.inputs["Base Color"])
+    nt.links.new(mix_out, n.inputs["Emission Color"])
+    n.inputs["Emission Strength"].default_value = strength
+    return m, n
+
+
+def make_gem(name, center, radius, subdiv=2, seed=0, elongate=(1.0, 1.0, 1.0),
+             noise_strength=0.05, grime_bias=0.15, grime_amount=0.55):
+    """Small emissive gem/eye blob with a baked 'Grime' FLOAT_COLOR mask
+    (patchy noise, biased toward outward/upward-facing normals — dust settles
+    from above/outside, same directional logic as make_rock's moss) driving
+    mat_glow_grimy's Base/Emission-Color mix. Mirrors make_rock's FLOAT_COLOR
+    convention (NOT BYTE_COLOR — see the 2026-07-20 sRGB round-trip gotcha in
+    make_rock's own docstring, same bug would silently crush this mask too)."""
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=radius)
+    seed_v = Vector((seed * 11.3, seed * 41.7, seed * 3.2))
+    for v in bm.verts:
+        n = mnoise.noise(v.co * 4.0 + seed_v)
+        v.co += v.normal * ((n * 2.0 - 1.0) * noise_strength * radius)
+        v.co.x *= elongate[0]
+        v.co.y *= elongate[1]
+        v.co.z *= elongate[2]
+        v.co += center
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.normal_update()
+
+    grime_layer = bm.loops.layers.float_color.new("Grime")
+    bm.verts.ensure_lookup_table()
+    gmask = {}
+    for v in bm.verts:
+        nrm = v.normal
+        paint = mnoise.noise(v.co * 5.0 + seed_v + Vector((61.0, 7.0, 29.0)))
+        dirf = max(0.0, nrm.z * 0.4 + nrm.y * 0.4 + 0.2)  # up + outward-back bias
+        g = 0.0
+        if dirf > grime_bias:
+            g = min(1.0, (dirf - grime_bias) / max(0.001, 1.0 - grime_bias))
+            g *= (0.5 + 0.5 * paint) * grime_amount
+        gmask[v.index] = g
+    for f in bm.faces:
+        for loop in f.loops:
+            g = gmask[loop.vert.index]
+            loop[grime_layer] = (g, g, g, 1.0)
+
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for p in me.polygons:
+        p.use_smooth = True
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
 def mat_flat(name, color, rough=0.75):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -343,8 +476,8 @@ def mat_flat(name, color, rough=0.75):
 STONE_MAT = mat_stone("guardian_stone")
 BARK_MAT = mat_flat("tree_bark", (0.115, 0.085, 0.065), rough=0.9)
 FOLIAGE_MAT = mat_flat("tree_foliage", (0.145, 0.40, 0.36), rough=0.6)
-GLOW_CHEST_MAT, GLOW_CHEST_BSDF = mat_glow("glow_chest_mat")
-GLOW_HEAD_MAT, GLOW_HEAD_BSDF = mat_glow("glow_head_mat")
+GLOW_CHEST_MAT, GLOW_CHEST_BSDF = mat_glow_grimy("glow_chest_mat")
+GLOW_HEAD_MAT, GLOW_HEAD_BSDF = mat_glow_grimy("glow_head_mat", grime_color=(0.06, 0.055, 0.05))
 GLOW_BASE_STRENGTH = 2.0
 
 # =============================================================================
@@ -368,16 +501,43 @@ CAVE_DEPTH = 0.55
 # core") but is still rounded down from the original ridge_weight=0.9 default
 # — the unmodified torso next to smoothed-out arms/fists looked like a
 # mismatched thorny core bolted onto smooth limbs (fix 1 quality pass).
+# Fix 1 (2026-07-20+, distinct stones not a fused pillar): torso_b0<->b1 used
+# to sit at a center-to-center distance of ~0.99 vs a combined radius of 1.90
+# (ratio ~0.52) — tighter than the golem_floating-validated 0.58-0.75
+# cohesion regime, so the two biggest torso masses fused into one smooth dome
+# with no visible waist/seam between them (this IS most of the "reads like a
+# pillar" complaint — the torso is the biggest visual mass on the body).
+# Pushed b1 out along the SAME b0->b1 direction to land at ratio ~0.62 (still
+# genuinely overlapping/cohesive, just enough less than before for a real
+# facet-shadow seam to survive between them). b2 was already at ratio ~0.71
+# (b0->b2), left alone.
 TORSO_ROUND = dict(noise_scale=3.0, noise_strength=0.28, ridge_weight=0.55)
 torso_blobs = [
     make_rock("torso_b0", center=Vector((0.0, 0.05, 0.20)), radius=1.05, subdiv=3, seed=1,
               elongate=(1.05, 0.95, 1.0), taper=0.15,
               cave_dir=CAVE_DIR, cave_angle=CAVE_ANGLE, cave_depth=CAVE_DEPTH,
               cave_color=(0.006, 0.007, 0.010), **TORSO_ROUND),
-    make_rock("torso_b1", center=Vector((0.0, -0.22, 1.15)), radius=0.85, subdiv=3, seed=2,
+    make_rock("torso_b1", center=Vector((0.0, -0.272, 1.331)), radius=0.85, subdiv=3, seed=2,
               elongate=(1.05, 0.9, 0.95), **TORSO_ROUND),
     make_rock("torso_b2", center=Vector((0.05, 0.40, 1.35)), radius=0.65, subdiv=3, seed=3,
               elongate=(1.0, 1.05, 0.95), **TORSO_ROUND),
+    # Fix 4 (embed the crystal): a thin rock LIP near the mouth of torso_b0's
+    # own dormant-mound CAVE (below), grazing the crystal from the camera
+    # side so it's partially OCCLUDED instead of sitting in open air. Distance
+    # to the crystal center (see GLOW_CHEST_OFFSET below) is ~0.37, just under
+    # the two radii's sum (~0.39) — a grazing overlap, not a full envelope
+    # (a first attempt nested the crystal at the CAVE's own centerline, deep
+    # enough to sit BEHIND the cave's carved floor surface -- fully occluded,
+    # confirmed invisible by a dedicated close-up render -- fixed by moving
+    # it to a distance greater than the carved-floor depth, see below).
+    # Orchestrator fix (2026-07-20c): the 0.26-radius lip only grazed the
+    # crystal (~0.02 units of overlap past the two radii's sum) -- confirmed
+    # by closeup_crystal.png still showing the gem's FULL round silhouette,
+    # fully exposed. Doubling the radius so it genuinely overlaps and covers
+    # a real portion of the gem from camera, not just brushes its edge.
+    make_rock("torso_lip", center=Vector((-0.30, -0.50, 0.35)), radius=0.50, subdiv=2, seed=44,
+              elongate=(1.1, 0.7, 0.85), noise_scale=3.2, noise_strength=0.22,
+              ridge_weight=0.35, moss=True, moss_bias=0.10),
 ]
 for o in torso_blobs:
     o.data.materials.append(STONE_MAT)
@@ -395,10 +555,28 @@ HEAD_PIVOT = Vector((0.0, -0.20, 3.42))  # forward of the tree's trunk (Y=0.55) 
 # (verified by hand against the sphere-radius math, then confirmed by
 # render) — a flush blob wouldn't read as an overhang, it'd just look like
 # more rock. Eyes (glow_head, below) sit in the gap between brow and jaw.
+# Fix 5 (2026-07-20+, embed the eyes): two SOCKET cavities carved into
+# head_b0 itself (reusing make_rock's cave mechanism via the new `caves`
+# list — see its docstring) instead of the eyes sitting flush on the
+# nominal sphere surface. Directions point from head_b0's own sphere-origin
+# toward where the (now-recessed) glow_eye_L/R blobs sit, below — narrow
+# cone (22deg) sized to just fit an eye + a socket rim, moderate depth
+# (0.12) so the recess reads as a real hollow without punching through the
+# ~0.42-radius head.
+EYE_SOCKET_ANGLE = math.radians(22)
+EYE_SOCKET_DEPTH = 0.12
+EYE_SOCKET_DIR_L = Vector((-0.2956, -0.9552, 0.0))
+EYE_SOCKET_DIR_R = Vector((0.2956, -0.9552, 0.0))
 head_blobs = [
     make_rock("head_b0", center=Vector((0.0, 0.0, 0.30)), radius=0.42, subdiv=3, seed=4,
               elongate=(0.95, 0.95, 1.0),
-              noise_scale=3.2, noise_strength=0.20, ridge_weight=0.35, moss=True),
+              noise_scale=3.2, noise_strength=0.20, ridge_weight=0.35, moss=True,
+              caves=[
+                  dict(dir=EYE_SOCKET_DIR_L, angle=EYE_SOCKET_ANGLE, depth=EYE_SOCKET_DEPTH,
+                       color=(0.010, 0.011, 0.014)),
+                  dict(dir=EYE_SOCKET_DIR_R, angle=EYE_SOCKET_ANGLE, depth=EYE_SOCKET_DEPTH,
+                       color=(0.010, 0.011, 0.014)),
+              ]),
     # Tuned down from an earlier pass that used x-elongate=1.35 at z=0.56 —
     # rendered as a disconnected wide "hat brim" sitting ABOVE the skull
     # rather than a furrowed brow merged into it (confirmed by render: a
@@ -420,54 +598,95 @@ for _hb in head_blobs:
     _hb.data.materials.append(STONE_MAT)
 head = join_parts(head_blobs, "head", HEAD_PIVOT)
 
-GLOW_CHEST_OFFSET = Vector((0.0, -1.02, 1.35))  # torso_b1 front surface, world-space @ STANDING
-GLOW_HEAD_OFFSET = HEAD_PIVOT + Vector((0.0, -0.42, 0.30))  # head front, eye band (between brow/jaw)
+# Fix 4 (2026-07-20+, embed the crystal): nested INSIDE torso_b0's own
+# dormant-mound CAVE hollow (CAVE_DIR/CAVE_ANGLE/CAVE_DEPTH above), not
+# floating in open air below the torso (the OLD offset (0,-1.02,1.35)
+# measured ~1.2-1.7 units from the nearest torso blob center — clearly
+# outside every blob's surface, confirmed by render: a clean ball floating
+# under the mound). ITERATION 2 of this fix nested it at distance 0.35
+# along CAVE_DIR from torso_b0's center — confirmed INVISIBLE by a
+# dedicated close-up render, because the cave's carved FLOOR sits at
+# ~radius(1.05) - CAVE_DEPTH(0.55) =~0.50 from center, so a point at 0.35
+# is BEHIND that floor (inside solid rock, occluded by the floor itself),
+# not in the hollow's open air. The hollow's visible empty space is between
+# the carved floor (~0.50) and the original convex surface (~1.05) — this
+# position (distance 0.70 along CAVE_DIR) sits inside that range, so the
+# gem is visible peeking out of the cave mouth instead of buried behind it.
+GLOW_CHEST_OFFSET = Vector((0.0, -0.65, 1.90))
+GLOW_HEAD_OFFSET = HEAD_PIVOT + Vector((0.0, -0.2866, 0.30))  # head front, INSIDE the eye sockets
 
-glow_chest = make_rock("glow_chest", center=Vector((0.0, 0.0, 0.0)), radius=0.20, subdiv=2, seed=0,
-                        elongate=(1.0, 0.55, 1.0), noise_strength=0.05, moss=False, flat=False)
+glow_chest = make_gem("glow_chest", center=Vector((0.0, 0.0, 0.0)), radius=0.13, subdiv=2, seed=0,
+                       elongate=(1.0, 0.65, 1.2), noise_strength=0.08, grime_bias=-0.10, grime_amount=0.8)
 glow_chest.data.materials.append(GLOW_CHEST_MAT)
 glow_chest.location = GLOW_CHEST_OFFSET.copy()
 
-# Fix 3 cont.: 2 separate eye lobes (was 1 elongated ellipsoid reading as a
-# single slit) joined into the SAME "glow_head" object/pivot as before, so
-# every downstream animation line (glow_head.location keyframing etc.) needs
-# zero changes — join_parts already bakes each blob's own local `center`
-# offset before translating the joined mesh to the shared pivot (same
-# pattern as arm_L/fist_L's multi-blob assembly).
-glow_eye_L = make_rock("glow_eye_L", center=Vector((-0.13, 0.0, 0.0)), radius=0.085, subdiv=2, seed=0,
-                        elongate=(1.0, 0.55, 0.85), noise_strength=0.03, moss=False, flat=False)
-glow_eye_R = make_rock("glow_eye_R", center=Vector((0.13, 0.0, 0.0)), radius=0.085, subdiv=2, seed=0,
-                        elongate=(1.0, 0.55, 0.85), noise_strength=0.03, moss=False, flat=False)
+# Fix 5 cont.: eyes are now RECESSED (offset magnitude from head_b0's center
+# pulled in from ~0.44 -- outside the nominal 0.42-radius sphere, i.e.
+# sitting proud on the surface -- to ~0.30, i.e. nested at the floor of the
+# EYE_SOCKET_* cavities carved into head_b0 above) and smaller (0.085->0.065
+# radius) so they read as a small glow deep in a dark socket, not a sticker
+# disc on the surface. 2 separate eye lobes joined into the SAME "glow_head"
+# object/pivot as before, so downstream animation lines need zero changes.
+glow_eye_L = make_gem("glow_eye_L", center=Vector((-0.0887, 0.0, 0.0)), radius=0.065, subdiv=2, seed=0,
+                       elongate=(1.0, 0.6, 0.85), noise_strength=0.04, grime_bias=0.2, grime_amount=0.4)
+glow_eye_R = make_gem("glow_eye_R", center=Vector((0.0887, 0.0, 0.0)), radius=0.065, subdiv=2, seed=0,
+                       elongate=(1.0, 0.6, 0.85), noise_strength=0.04, grime_bias=0.2, grime_amount=0.4)
 for _eo in (glow_eye_L, glow_eye_R):
     _eo.data.materials.append(GLOW_HEAD_MAT)
 glow_head = join_parts([glow_eye_L, glow_eye_R], "glow_head", GLOW_HEAD_OFFSET)
 
 
-ARM_END_LOCAL = Vector((0.95, -0.50, -1.92))  # unsigned template (side multiplies X)
+def chain_positions(direction, radii, ratio=0.65, start=None):
+    """Places len(radii) blob centers along `direction` (only its direction
+    matters, any length) so each consecutive PAIR sits at
+    ratio*(r_i+r_{i+1}) apart — genuine interpenetration derived from BOTH
+    chunks' own size, not a fixed gap and not a fraction of a hand-picked
+    fixed end-vector. Ports golem_floating's iteration-4b lesson (its big
+    comment block documents 4 failed iterations before landing on this
+    exact formula): the OLD golem_guardian arm hand-picked 5 t-fractions of
+    a fixed ARM_END_LOCAL, which worked out to an effective overlap ratio of
+    ~0.42 — tighter than the validated 0.58-0.75 cohesion-but-distinguishable
+    regime, which is why the limb fused into one smooth pillar with almost
+    no visible seam (fix 1). Returns a list of Vector centers, `start`-
+    relative (`start` defaults to the origin, i.e. the first blob sits AT
+    the chain's own object pivot, same convention as the old arm's first
+    stop)."""
+    start = start if start is not None else Vector((0.0, 0.0, 0.0))
+    d = direction.normalized()
+    centers = [start.copy()]
+    cursor = 0.0
+    for i in range(1, len(radii)):
+        cursor += ratio * (radii[i - 1] + radii[i])
+        centers.append(start + d * cursor)
+    return centers
+
+
+# Fix 2 (add legs): arms are now SHORTER — they hang free at the sides
+# (brief: "freeing the arms to hang/gesture at the sides instead of
+# touching the ground") now that real legs (below) bear the golem's weight.
+# Direction is unsigned (side multiplies X): mostly down, slightly forward
+# (-Y) and outward (+X).
+ARM_DIR_LOCAL = Vector((0.44, -0.24, -0.87))
+ARM_RADII = [0.32, 0.27, 0.23, 0.19]
+ARM_TOUCH = 0.65  # fix 1: golem_floating's validated cohesion-but-distinguishable ratio
 
 
 def make_arm(side):
-    """side: -1.0 (left) or +1.0 (right). 5 blobs strung along the shoulder-
-    to-wrist path with GENEROUS radius overlap (spacing kept well under the
-    sum of consecutive radii) — first pass used 3 widely-spaced blobs whose
-    NOMINAL bounding spheres technically touched but read as disconnected
-    floating rocks once noise-displacement carved into them (caught via
-    render: satellite rocks with visible background gaps, not a limb).
-    Tapers thick-shoulder -> thin-wrist, swept outside the torso's own
-    silhouette (torso belly reaches X~=1.10 at the shoulder height — must
-    clear that or the limb fuses into the torso blob with no read at all).
-    Standing rest rotation is (0,0,0) — the "hang down, knuckle on ground"
-    shape is baked directly into the blob offsets, per the brief's approach."""
-    stops = [(0.06, 0.58), (0.27, 0.52), (0.48, 0.46), (0.69, 0.40), (0.90, 0.34)]
+    """side: -1.0 (left) or +1.0 (right). Blob centers come from
+    chain_positions (ARM_TOUCH ratio) instead of hand-picked t-fractions —
+    see that function's docstring for why. Standing rest rotation is
+    (0,0,0) — the "hang at the side" shape is baked directly into the blob
+    offsets. Returns (blobs, last_blob_center) — the wrist-end center is
+    needed by the caller to continue the SAME chain into the fist."""
+    d = Vector((side * ARM_DIR_LOCAL.x, ARM_DIR_LOCAL.y, ARM_DIR_LOCAL.z))
+    centers = chain_positions(d, ARM_RADII, ratio=ARM_TOUCH)
     blobs = []
-    for i, (t, r) in enumerate(stops):
-        c = Vector((side * ARM_END_LOCAL.x * t, ARM_END_LOCAL.y * t, ARM_END_LOCAL.z * t))
+    for i, (c, r) in enumerate(zip(centers, ARM_RADII)):
         # Fix 1 (round the limbs — river-stone, never a point, refs 10/11/13/
         # 15): low ridge_weight + lower strength + higher scale vs the torso's
-        # TORSO_ROUND preset. Fix 2 (moss continuity): moss=True on EVERY
-        # blob now (was `i < 2`, i.e. the 3 blobs nearer the wrist/fist had
-        # ZERO moss — that's exactly the "clean rock vs mossy torso" bug
-        # Joan flagged; the whole limb must read as one equally-ancient mass).
+        # TORSO_ROUND preset — UNCHANGED from the prior pass (still correct,
+        # do not reopen sharp facets). Fix 2 (moss continuity): moss=True on
+        # EVERY blob — UNCHANGED, still correct.
         b = make_rock(f"arm_b{i}_{side}", center=c, radius=r, subdiv=2, seed=10 + side + i,
                        elongate=(1.0, 1.0, 1.08),
                        noise_scale=3.8, noise_strength=0.15, ridge_weight=0.15,
@@ -475,38 +694,100 @@ def make_arm(side):
         blobs.append(b)
     for o in blobs:
         o.data.materials.append(STONE_MAT)
-    return blobs
+    return blobs, centers[-1]
 
 
 SHOULDER_L = Vector((-1.38, -0.10, 2.55))
 SHOULDER_R = Vector((1.38, -0.10, 2.55))
-arm_L = join_parts(list(make_arm(-1.0)), "arm_L", SHOULDER_L)
-arm_R = join_parts(list(make_arm(1.0)), "arm_R", SHOULDER_R)
+_arm_blobs_L, _wrist_L = make_arm(-1.0)
+_arm_blobs_R, _wrist_R = make_arm(1.0)
+arm_L = join_parts(list(_arm_blobs_L), "arm_L", SHOULDER_L)
+arm_R = join_parts(list(_arm_blobs_R), "arm_R", SHOULDER_R)
 
 
 def make_fist(side):
     """Terminal boulder-knuckle — the BIGGEST single mass on the limb (per
-    brief: "fist-boulders that rest on the ground"), bigger than the wrist
-    blob it attaches to so the arm visibly THICKENS toward its business end.
-    Fists were the WORST offender for sharp facets (biggest radius = most
-    displacement travel) and had moss=False (freshest-looking clean rock on
-    the whole body) — round them the most and moss them like everything else
-    (fix 1 + fix 2)."""
-    main = make_rock(f"fist_main_{side}", center=Vector((0.0, 0.0, 0.0)), radius=0.62, subdiv=3,
+    brief: "fist-boulders"), bigger than the wrist blob it attaches to so
+    the arm visibly THICKENS toward its business end. Knuckle offset is now
+    derived the same JOINT_TOUCH way as the arm chain (fix 1 — the old
+    offset ratio was ~0.43, over-fused) instead of a hand-picked vector."""
+    FIST_MAIN_R = 0.34
+    main = make_rock(f"fist_main_{side}", center=Vector((0.0, 0.0, 0.0)), radius=FIST_MAIN_R, subdiv=3,
                       seed=20 + side, elongate=(1.12, 1.05, 0.85),
                       noise_scale=4.0, noise_strength=0.14, ridge_weight=0.12, moss=True)
-    knuckle = make_rock(f"fist_kn_{side}", center=Vector((side * 0.24, -0.10, 0.30)), radius=0.30,
+    KNU_R = 0.20
+    knu_dir = Vector((side * 0.60, -0.25, 0.75))
+    knu_offset = knu_dir.normalized() * (ARM_TOUCH * (FIST_MAIN_R + KNU_R))
+    knuckle = make_rock(f"fist_kn_{side}", center=knu_offset, radius=KNU_R,
                          subdiv=2, seed=21 + side,
                          noise_scale=4.0, noise_strength=0.14, ridge_weight=0.12, moss=True)
     for o in (main, knuckle):
         o.data.materials.append(STONE_MAT)
-    return main, knuckle
+    return main, knuckle, FIST_MAIN_R
 
 
-FIST_L_STANDING = Vector((-2.33, -0.58, 0.55))
-FIST_R_STANDING = Vector((2.33, -0.58, 0.55))
-fist_L = join_parts(list(make_fist(-1.0)), "fist_L", FIST_L_STANDING)
-fist_R = join_parts(list(make_fist(1.0)), "fist_R", FIST_R_STANDING)
+FIST_MAIN_R = 0.34
+_arm_dir_L = Vector((-ARM_DIR_LOCAL.x, ARM_DIR_LOCAL.y, ARM_DIR_LOCAL.z)).normalized()
+_arm_dir_R = Vector((ARM_DIR_LOCAL.x, ARM_DIR_LOCAL.y, ARM_DIR_LOCAL.z)).normalized()
+_fist_gap = ARM_TOUCH * (ARM_RADII[-1] + FIST_MAIN_R)
+FIST_L_STANDING = SHOULDER_L + _wrist_L + _arm_dir_L * _fist_gap
+FIST_R_STANDING = SHOULDER_R + _wrist_R + _arm_dir_R * _fist_gap
+_fL = make_fist(-1.0)
+_fR = make_fist(1.0)
+fist_L = join_parts([_fL[0], _fL[1]], "fist_L", FIST_L_STANDING)
+fist_R = join_parts([_fR[0], _fR[1]], "fist_R", FIST_R_STANDING)
+
+
+# =============================================================================
+# LEGS (fix 2 — mandatory, previously NONE existed; arms doubled as ground
+# support). Same chain_positions technique as the arm, thicker/sturdier
+# radii (weight-bearing), hip pivot set so the standing silhouette reads as
+# torso-above-2-legs with arms free at the sides (see ARM_DIR_LOCAL above).
+# Each leg is ONE joined object (thigh+shin+foot chunks) — no separate
+# fist-style split needed since nothing needs independent wrist rotation.
+# =============================================================================
+LEG_DIR_LOCAL = Vector((0.28, -0.08, -0.95))  # unsigned (side multiplies X): outward flare +
+# slight forward lean + mostly straight down — the outward flare is what
+# makes the leg read APART from the torso's own belly silhouette as it
+# descends (same clearance logic as the shoulder note on the old arm).
+LEG_RADII = [0.34, 0.30, 0.26]  # thigh -> shin, thicker than the arm chain (weight-bearing)
+LEG_TOUCH = 0.62  # golem_floating's JOINT_TOUCH value for its own leg chain
+FOOT_R = 0.30
+
+
+def make_leg(side):
+    """side: -1.0 (left) or +1.0 (right). thigh/shin chain via
+    chain_positions, then a flattened/elongated FOOT chunk continuing the
+    same chain (forward = -Y, matches the body's own front convention) so
+    the leg visibly plants on the ground instead of ending in a round
+    stump. Standing rest rotation is (0,0,0) — pose is baked into offsets,
+    same convention as arm/torso/head."""
+    d = Vector((side * LEG_DIR_LOCAL.x, LEG_DIR_LOCAL.y, LEG_DIR_LOCAL.z))
+    centers = chain_positions(d, LEG_RADII, ratio=LEG_TOUCH)
+    blobs = []
+    for i, (c, r) in enumerate(zip(centers, LEG_RADII)):
+        b = make_rock(f"leg_b{i}_{side}", center=c, radius=r, subdiv=2, seed=50 + side + i,
+                       elongate=(1.0, 1.0, 1.10),
+                       noise_scale=3.6, noise_strength=0.16, ridge_weight=0.18,
+                       moss=True)
+        blobs.append(b)
+    foot_gap = LEG_TOUCH * (LEG_RADII[-1] + FOOT_R)
+    foot_c = centers[-1] + d.normalized() * foot_gap
+    foot = make_rock(f"leg_foot_{side}", center=foot_c, radius=FOOT_R, subdiv=2, seed=53 + side,
+                      elongate=(1.10, 1.40, 0.55), taper=-0.08,
+                      noise_scale=3.4, noise_strength=0.14, ridge_weight=0.15, moss=True)
+    blobs.append(foot)
+    for o in blobs:
+        o.data.materials.append(STONE_MAT)
+    return blobs, centers[-1], d.normalized()
+
+
+HIP_L = Vector((-0.66, 0.02, 1.21))
+HIP_R = Vector((0.66, 0.02, 1.21))
+_leg_blobs_L, _shin_L, _leg_dir_L = make_leg(-1.0)
+_leg_blobs_R, _shin_R, _leg_dir_R = make_leg(1.0)
+leg_L = join_parts(list(_leg_blobs_L), "leg_L", HIP_L)
+leg_R = join_parts(list(_leg_blobs_R), "leg_R", HIP_R)
 
 # ---- tree: trunk (cone frustum) + 3 foliage blobs, joined ----
 TREE_PIVOT = Vector((0.05, 0.55, 3.35))
@@ -548,7 +829,7 @@ for i, (nm, pos) in enumerate(STONE_STANDING.items()):
 
 PARTS = {
     "torso": torso, "head": head, "arm_L": arm_L, "arm_R": arm_R,
-    "fist_L": fist_L, "fist_R": fist_R, "tree": tree,
+    "fist_L": fist_L, "fist_R": fist_R, "leg_L": leg_L, "leg_R": leg_R, "tree": tree,
     "stone_1": stone_objs["stone_1"], "stone_2": stone_objs["stone_2"], "stone_3": stone_objs["stone_3"],
 }
 TRIS = 0
@@ -567,6 +848,8 @@ STANDING = {
     "arm_R": dict(loc=SHOULDER_R.copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "fist_L": dict(loc=FIST_L_STANDING.copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "fist_R": dict(loc=FIST_R_STANDING.copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
+    "leg_L": dict(loc=HIP_L.copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
+    "leg_R": dict(loc=HIP_R.copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "tree": dict(loc=TREE_PIVOT.copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "stone_1": dict(loc=STONE_STANDING["stone_1"].copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "stone_2": dict(loc=STONE_STANDING["stone_2"].copy(), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
@@ -583,10 +866,19 @@ DORMANT = {
     # Z lowered 1.00->0.40ish (addition #3, 2026-07-19/20): each arm must
     # read as a SEPARATE mass buried IN THE EARTH at the mound's base, not
     # folded mid-torso — this is what a sequential ground-rise needs to sell.
-    "arm_L": dict(loc=Vector((-0.46, 0.14, 0.40)), rot=Vector((math.radians(-65), 0, math.radians(-30))), scale=Vector((0.42, 0.42, 0.42))),
-    "arm_R": dict(loc=Vector((0.46, 0.14, 0.40)), rot=Vector((math.radians(-65), 0, math.radians(30))), scale=Vector((0.42, 0.42, 0.42))),
-    "fist_L": dict(loc=Vector((-0.56, 0.08, 0.20)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
-    "fist_R": dict(loc=Vector((0.56, 0.08, 0.20)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
+    # Fix 2 retune: the arm chain is now ~1.33m shoulder->fist (was ~2.27m
+    # before it was shortened to hang free at the sides — see ARM_DIR_LOCAL)
+    # so the dormant tuck no longer needs as aggressive a shrink to fit
+    # inside the mound (0.42 -> 0.52).
+    "arm_L": dict(loc=Vector((-0.42, 0.14, 0.38)), rot=Vector((math.radians(-60), 0, math.radians(-30))), scale=Vector((0.52, 0.52, 0.52))),
+    "arm_R": dict(loc=Vector((0.42, 0.14, 0.38)), rot=Vector((math.radians(-60), 0, math.radians(30))), scale=Vector((0.52, 0.52, 0.52))),
+    "fist_L": dict(loc=Vector((-0.52, 0.08, 0.20)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
+    "fist_R": dict(loc=Vector((0.52, 0.08, 0.20)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
+    # Legs (fix 2, new): tucked/buried near the mound's base, folded flat-ish
+    # (large X rotation) so the "standing vertical leg" shape lies low and
+    # close to the ground under the mound instead of poking straight up.
+    "leg_L": dict(loc=Vector((-0.34, 0.16, 0.16)), rot=Vector((math.radians(75), 0, math.radians(-18))), scale=Vector((0.42, 0.42, 0.42))),
+    "leg_R": dict(loc=Vector((0.34, 0.16, 0.16)), rot=Vector((math.radians(75), 0, math.radians(18))), scale=Vector((0.42, 0.42, 0.42))),
     "tree": dict(loc=Vector((0.05, 0.35, 2.00)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "stone_1": dict(loc=Vector((1.10, 0.60, 0.27)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "stone_2": dict(loc=Vector((-0.90, 0.75, 0.24)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
@@ -761,24 +1053,89 @@ def arm_settle_bounce(f, side):
     return 0.05 * (1.0 - u) * math.sin(2 * math.pi * 1.6 * u)
 
 
+# Fix 2 (legs, new): both legs rise TOGETHER (unlike the sequential arms —
+# the ground splitting open at the base is the FOUNDATION event the rest of
+# the rise stands on, not a per-limb spotlight beat) starting right as the
+# tremor (beat 2) ends, finishing partway through beat 3.
+LEG_RISE_WINDOW = (10, 50)
+
+
+def leg_rise_progress(f):
+    start, end = LEG_RISE_WINDOW
+    if f <= start:
+        return 0.0
+    if f >= end:
+        return 1.0
+    return ease_out_cubic((f - start) / (end - start))
+
+
+def leg_dirt_pop(f):
+    peak = LEG_RISE_WINDOW[0] + 5
+    if abs(f - peak) > 8:
+        return 0.0
+    return 0.12 * math.exp(-((f - peak) ** 2) / (2 * 4.0 ** 2))
+
+
+def leg_settle_bounce(f):
+    _, end = LEG_RISE_WINDOW
+    tail = end + 12
+    if f < end or f > tail:
+        return 0.0
+    u = (f - end) / (tail - end)
+    return 0.04 * (1.0 - u) * math.sin(2 * math.pi * 1.5 * u)
+
+
+# Fix 3 (2026-07-20+, tree rigidly follows its anchor): idle-loop and
+# move-loop ALREADY tie the tree's sway to the torso's own breath/sway
+# (TREE_LAG / torso_sway_lagged above, a prior pass) — awaken was the one
+# clip still running tree_tilt_deg as a fully independent authored curve
+# (20->27deg ramp with its own overshoot, never reading the torso's actual
+# rotation). torso_rot_awaken() factors out the SAME per-frame torso
+# rotation sample_awaken's own torso block computes, so the tree can read
+# it; tree_tilt_deg is kept as the WHIP/overshoot layer (secondary energy,
+# the tree's own inertia/lag/character) added ON TOP of that rigid base,
+# instead of being the tree's only source of motion.
+TREE_FOLLOW_GAIN = 1.9  # same gain sample_move already uses for its own torso-follow
+
+
+def torso_rot_awaken(f):
+    u = rise_progress(f)
+    return lerp_v(DORMANT["torso"]["rot"], STANDING["torso"]["rot"], u)
+
+
 def tree_tilt_deg(f):
-    """Tree sways with the emergence + rise, overshoots on the settle-back."""
+    """WHIP layer only (fix 3): the tree's own secondary sway/overshoot
+    character, ADDED to the rigid torso-follow base in sample_awaken —
+    reduced from the old full-authorship amplitude since the rigid term now
+    supplies part of the visible lean."""
     if f <= 31:
         return 0.0
     if f <= 67:
         u = (f - 31) / (67 - 31)
-        return 20.0 * ease_in_cubic(u)
+        return 11.0 * ease_in_cubic(u)
     if f <= 115:
         u = (f - 67) / (115 - 67)
-        return lerp(20.0, 27.0, smoothstep(u))
+        return lerp(11.0, 15.0, smoothstep(u))
     if f <= 144:
         u = (f - 115) / (144 - 115)
         # swings back through 0 with an overshoot (~8% of peak) then rests
-        overshoot = -27.0 * 0.08
+        overshoot = -15.0 * 0.08
         if u < 0.65:
-            return lerp(27.0, overshoot, ease_out_cubic(u / 0.65))
+            return lerp(15.0, overshoot, ease_out_cubic(u / 0.65))
         return lerp(overshoot, 0.0, ease_out_cubic((u - 0.65) / 0.35))
     return 0.0
+
+
+def tree_rigid_tilt_deg(f, lag_frames=4):
+    """The RIGID component (fix 3, mandatory): reads the torso's own actual
+    per-frame rotation (lagged a few frames for inertia — 'the tree...has
+    its own inertia and lags behind the body', same identity line the
+    idle/move fixes already use), relative to the torso's STANDING baseline
+    lean, amplified by TREE_FOLLOW_GAIN since the tree is a lever riding on
+    top of the torso (its swing reads bigger than the torso's own tilt)."""
+    lagged = torso_rot_awaken(max(0, f - lag_frames))
+    delta_x = lagged.x - STANDING["torso"]["rot"].x
+    return math.degrees(delta_x) * TREE_FOLLOW_GAIN
 
 
 def glow_chest_strength(f):
@@ -903,10 +1260,25 @@ def sample_awaken(f):
         f_scale = lerp_v(DORMANT[fist_name]["scale"], STANDING[fist_name]["scale"], fu)
         out[fist_name] = (f_loc, Vector((0, 0, 0)), f_scale)
 
-    # tree — base tracks torso's rise, plus its own tilt/overshoot sway
+    # legs — fix 2: rise TOGETHER (LEG_RISE_WINDOW), unlike the sequential
+    # arms — see LEG_RISE_WINDOW's own comment for why.
+    for side, leg_name, sign in (("L", "leg_L", -1.0), ("R", "leg_R", 1.0)):
+        lu = leg_rise_progress(f)
+        pop = leg_dirt_pop(f)
+        bounce = leg_settle_bounce(f)
+        l_loc = lerp_v(DORMANT[leg_name]["loc"], STANDING[leg_name]["loc"], lu)
+        l_loc = l_loc + Vector((sign * pop, 0, bounce))
+        l_rot = lerp_v(DORMANT[leg_name]["rot"], STANDING[leg_name]["rot"], lu)
+        l_scale = lerp_v(DORMANT[leg_name]["scale"], STANDING[leg_name]["scale"], lu)
+        out[leg_name] = (l_loc, l_rot, l_scale)
+
+    # tree — fix 3: base tracks torso's rise (position) AND a RIGID tilt
+    # derived from the torso's own actual per-frame rotation
+    # (tree_rigid_tilt_deg), with tree_tilt_deg now only the secondary
+    # whip/overshoot layered on top — see tree_rigid_tilt_deg's docstring.
     tree_u = rise_progress(max(0, f - 3))
     tr_loc = lerp_v(DORMANT["tree"]["loc"], STANDING["tree"]["loc"], tree_u)
-    tilt = math.radians(tree_tilt_deg(f))
+    tilt = math.radians(tree_rigid_tilt_deg(f) + tree_tilt_deg(f))
     out["tree"] = (tr_loc, Vector((tilt, 0, tilt * 0.25)), Vector((1, 1, 1)))
 
     # stones — stone_1/2 tumble a short hop during the tremor (beat 2), then
@@ -953,6 +1325,16 @@ def sample_move(f, frames=48):
     out["arm_R"] = (SHOULDER_R, rotR, Vector((1, 1, 1)))
     out["fist_L"] = (fistL, Vector((0, 0, 0)), Vector((1, 1, 1)))
     out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
+    # legs (fix 2): alternating weight-shift — each leg briefly lifts/knees
+    # as the OPPOSITE-phase leg takes the weight (plodding gait), instead of
+    # standing perfectly rigid while only the torso bobs.
+    for side, leg_name, sign in (("L", "leg_L", -1.0), ("R", "leg_R", 1.0)):
+        lphase = phase + (0.0 if side == "L" else math.pi)
+        lift = 0.05 * max(0.0, math.sin(lphase))
+        knee = math.radians(7) * max(0.0, math.sin(lphase))
+        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0, lift)),
+                          STANDING[leg_name]["rot"] + Vector((-knee, 0, sign * knee * 0.3)),
+                          Vector((1, 1, 1)))
     # Fix 4: tree lags the torso's own lateral sway/bob (was a flat 4deg tied
     # to the SAME un-lagged phase as the torso — no inertia at all) instead
     # of reacting a beat late, amplified since it's a lever arm riding on top
@@ -1002,6 +1384,8 @@ def sample_attack(f, frames=30):
     out["fist_L"] = (fistL, Vector((0, 0, 0)), Vector((1, 1, 1)))
     out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
     out["tree"] = (STANDING["tree"]["loc"], Vector((rx * 0.35, 0, 0)), Vector((1, 1, 1)))
+    for leg_name in ("leg_L", "leg_R"):
+        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0, tz * 0.3)), STANDING[leg_name]["rot"], Vector((1, 1, 1)))
     for s in ("stone_1", "stone_2", "stone_3"):
         out[s] = (STANDING[s]["loc"], Vector((0, 0, 0)), Vector((1, 1, 1)))
     return out, dict(chest=GLOW_BASE_STRENGTH, head=GLOW_BASE_STRENGTH)
@@ -1024,6 +1408,8 @@ def sample_hit(f, frames=16):
     out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
     shudder = math.radians(9) * math.sin(2 * math.pi * 4.0 * t) * (1.0 - t)
     out["tree"] = (STANDING["tree"]["loc"], Vector((shudder, 0, shudder * 0.5)), Vector((1, 1, 1)))
+    for leg_name in ("leg_L", "leg_R"):
+        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0.05 * env, -0.03 * env)), STANDING[leg_name]["rot"], Vector((1, 1, 1)))
     for s in ("stone_1", "stone_2", "stone_3"):
         out[s] = (STANDING[s]["loc"], Vector((0, 0, 0)), Vector((1, 1, 1)))
     return out, dict(chest=GLOW_BASE_STRENGTH, head=GLOW_BASE_STRENGTH)
@@ -1071,6 +1457,14 @@ def sample_death(f, frames=48):
 
     out["tree"] = (lerp_v(STANDING["tree"]["loc"], DORMANT["tree"]["loc"] + Vector((0, -0.3, -0.3)), drop_u),
                     Vector((torso_rot * 0.8, 0, 0)), Vector((1, 1, 1)))
+
+    # legs buckle as the torso topples — knees fold toward the dormant tuck
+    # (partial, 0.5x, same treatment as the arms above) instead of staying
+    # rigid while everything above them collapses.
+    for leg_name in ("leg_L", "leg_R"):
+        l_loc = lerp_v(STANDING[leg_name]["loc"], DORMANT[leg_name]["loc"], drop_u * 0.5)
+        l_rot = lerp_v(STANDING[leg_name]["rot"], DORMANT[leg_name]["rot"], drop_u * 0.5)
+        out[leg_name] = (l_loc, l_rot, Vector((1, 1, 1)))
 
     for nm in ("stone_1", "stone_2", "stone_3"):
         p, r = tumble(f, 10, 42, STANDING[nm]["loc"], STANDING[nm]["loc"] + (STANDING[nm]["loc"].normalized() * 0.9 if STANDING[nm]["loc"].length > 0 else Vector((0.5, 0, 0))),
