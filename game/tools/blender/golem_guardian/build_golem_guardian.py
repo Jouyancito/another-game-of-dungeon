@@ -116,11 +116,14 @@ def lerp_v(a, b, t):
 # =============================================================================
 STONE_DARK = (0.075, 0.088, 0.108)   # grey-blue desaturated, cool
 STONE_LIGHT = (0.44, 0.49, 0.56)
-MOSS_COL = (0.32, 0.38, 0.29)        # desaturated moss (not the saturated green of golem_floating)
+MOSS_COL = (0.26, 0.35, 0.185)       # desaturated moss (not the saturated green of golem_floating)
+# ^ fix 2: lowered blue / raised green-vs-blue separation vs the original
+# (0.32,0.38,0.29) — that version was nearly indistinguishable in hue from
+# the cool blue-grey stone once blended (see make_rock's moss comment).
 
 
 def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.0, 1.0),
-              taper=0.0, noise_scale=2.6, noise_strength=0.32,
+              taper=0.0, noise_scale=2.6, noise_strength=0.32, ridge_weight=0.9,
               moss=True, moss_bias=0.24, flat=True,
               dark=STONE_DARK, light=STONE_LIGHT, moss_col=MOSS_COL,
               cave_dir=None, cave_angle=0.55, cave_depth=0.0,
@@ -155,7 +158,14 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
         n1 = mnoise.noise(co * noise_scale + seed_v)
         n2 = mnoise.noise(co * noise_scale * 2.4 + seed_v + Vector((5.0, 5.0, 5.0)))
         ridged = 1.0 - abs(n1 * 2.0 - 1.0)
-        d = (n2 * 2.0 - 1.0) * 0.55 + (ridged - 0.5) * 0.9
+        # ridge_weight (fix 1, 2026-07-20): the ridged term is what CARVES the
+        # sharp mountain-crest facets (it saturates near 1 at n1's zero-
+        # crossings) — it's the main driver of the "spiky/pointy" look Joan
+        # flagged on arms/fists (refs 10/11/13/15 want ROUNDED river-stone,
+        # never a point). Callers turn this down hard for limbs (smooth
+        # boulder) and keep it higher only on the torso ("ancient core" can
+        # stay a bit more rugged).
+        d = (n2 * 2.0 - 1.0) * 0.55 + (ridged - 0.5) * ridge_weight
         v.co += v.normal * (d * noise_strength * radius)
         v.co.x *= elongate[0]
         v.co.y *= elongate[1]
@@ -200,7 +210,19 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.normal_update()
 
-    col_layer = bm.loops.layers.color.new("Col")
+    # FLOAT_COLOR, not BYTE_COLOR (fix 2 root cause, 2026-07-20): BYTE_COLOR
+    # corner attributes silently apply an sRGB DECODE when read back (by
+    # Python's color_attributes API and by the Attribute shader node) even
+    # though bmesh's loop-color WRITE does no corresponding encode — so a
+    # hand-authored "linear" tone like STONE_DARK=(0.075,0.088,0.108) came
+    # back as (0.0065,0.0080,0.0116) once rendered, and a fully-blended
+    # MOSS_COL patch (t_ao=1) came back barely distinguishable from plain
+    # dark stone. This is why moss read as invisible EVERYWHERE (not just on
+    # limbs) even though moss=True was already set on the torso from the
+    # start — confirmed empirically: a (0.075,0.088,0.108)/(0.32,0.38,0.29)
+    # round-trip through BYTE_COLOR crushes both toward black; the identical
+    # round-trip through FLOAT_COLOR returns the exact values written.
+    col_layer = bm.loops.layers.float_color.new("Col")
     bm.verts.ensure_lookup_table()
     vcol = {}
     for v in bm.verts:
@@ -209,9 +231,22 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
         t_ao = max(0.0, min(1.0, 0.20 + 0.55 * (nrm.z * 0.5 + 0.5) + 0.35 * paint))
         base = [dark[i] + (light[i] - dark[i]) * t_ao for i in range(3)]
         if moss and nrm.z > moss_bias:
-            mt = min(1.0, (nrm.z - moss_bias) / (1.0 - moss_bias))
-            mt *= 0.55 + 0.45 * paint
-            base = [base[i] + (moss_col[i] - base[i]) * mt * 0.80 for i in range(3)]
+            # Fix 2 cont. (2026-07-20): even with the color-space bug fixed,
+            # this blend was mathematically too weak to ever read as green —
+            # worked the numbers by hand: the OLD ramp (divide by the full
+            # 1.0-moss_bias span, cap blend at *0.80) only reaches ~60% blend
+            # at the single MOST upward-facing vertex on the whole mesh,
+            # giving a best-case green-vs-blue separation of ~0.03 — clamped
+            # by float rounding to invisible against the stone's own natural
+            # blue-grey tint. Steeper ramp (saturates well before the most
+            # extreme normals, so more of the "roughly upward" surface gets
+            # real coverage, not just the mathematical apex) + higher blend
+            # ceiling (0.95) now gives ~0.10+ separation at typical
+            # moss-eligible vertices — confirmed by hand-computing both old
+            # and new formulas against the same sample vertex before/after.
+            mt = min(1.0, (nrm.z - moss_bias) / max(0.001, (1.0 - moss_bias) * 0.55))
+            mt *= 0.7 + 0.3 * paint
+            base = [base[i] + (moss_col[i] - base[i]) * mt * 0.95 for i in range(3)]
         ct = cave_t(v.co)
         if ct > 0.0:
             base = [base[i] + (cave_color[i] - base[i]) * ct for i in range(3)]
@@ -329,15 +364,20 @@ TORSO_PIVOT = Vector((0.0, 0.0, 1.70))
 CAVE_DIR = Vector((0.0, -1.0, 0.0))
 CAVE_ANGLE = math.radians(42)
 CAVE_DEPTH = 0.55
+# Torso keeps somewhat more ruggedness than the limbs (it's the "ancient
+# core") but is still rounded down from the original ridge_weight=0.9 default
+# — the unmodified torso next to smoothed-out arms/fists looked like a
+# mismatched thorny core bolted onto smooth limbs (fix 1 quality pass).
+TORSO_ROUND = dict(noise_scale=3.0, noise_strength=0.28, ridge_weight=0.55)
 torso_blobs = [
     make_rock("torso_b0", center=Vector((0.0, 0.05, 0.20)), radius=1.05, subdiv=3, seed=1,
               elongate=(1.05, 0.95, 1.0), taper=0.15,
               cave_dir=CAVE_DIR, cave_angle=CAVE_ANGLE, cave_depth=CAVE_DEPTH,
-              cave_color=(0.006, 0.007, 0.010)),
+              cave_color=(0.006, 0.007, 0.010), **TORSO_ROUND),
     make_rock("torso_b1", center=Vector((0.0, -0.22, 1.15)), radius=0.85, subdiv=3, seed=2,
-              elongate=(1.05, 0.9, 0.95)),
+              elongate=(1.05, 0.9, 0.95), **TORSO_ROUND),
     make_rock("torso_b2", center=Vector((0.05, 0.40, 1.35)), radius=0.65, subdiv=3, seed=3,
-              elongate=(1.0, 1.05, 0.95)),
+              elongate=(1.0, 1.05, 0.95), **TORSO_ROUND),
 ]
 for o in torso_blobs:
     o.data.materials.append(STONE_MAT)
@@ -345,23 +385,62 @@ torso = join_parts(torso_blobs, "torso", TORSO_PIVOT)
 
 HEAD_PIVOT = Vector((0.0, -0.20, 3.42))  # forward of the tree's trunk (Y=0.55) so a near-
 # front camera reads them as separate silhouette elements, not the head sitting "on" the trunk
-head_blobs = [make_rock("head_b0", center=Vector((0.0, 0.0, 0.30)), radius=0.42, subdiv=3, seed=4,
-                         elongate=(0.95, 0.95, 1.0), moss=False)]
-head_blobs[0].data.materials.append(STONE_MAT)
+# Fix 3 (2026-07-20, PO refs 12/13): the head used to be a single blank rock
+# blob with 2 floating glow dots — no readable face. Add carved facial
+# FEATURES built the same way the body is (chunk/displacement geometry,
+# joined into the same "head" object) instead of a decal: a brow ridge
+# (overhang that shadows the eyes), a jaw mass (squares off the lower face),
+# and a nose bridge between the eyes. Positions are tuned so brow/jaw
+# protrude slightly FORWARD of head_b0's own sphere surface at their height
+# (verified by hand against the sphere-radius math, then confirmed by
+# render) — a flush blob wouldn't read as an overhang, it'd just look like
+# more rock. Eyes (glow_head, below) sit in the gap between brow and jaw.
+head_blobs = [
+    make_rock("head_b0", center=Vector((0.0, 0.0, 0.30)), radius=0.42, subdiv=3, seed=4,
+              elongate=(0.95, 0.95, 1.0),
+              noise_scale=3.2, noise_strength=0.20, ridge_weight=0.35, moss=True),
+    # Tuned down from an earlier pass that used x-elongate=1.35 at z=0.56 —
+    # rendered as a disconnected wide "hat brim" sitting ABOVE the skull
+    # rather than a furrowed brow merged into it (confirmed by render: a
+    # visible neck/gap read between the cap and the eyes). Narrower (closer
+    # to head_b0's own width so it doesn't wing out sideways) and lower/
+    # closer to the eye band so it overhangs the eyes directly.
+    make_rock("head_brow", center=Vector((0.0, -0.26, 0.44)), radius=0.26, subdiv=2, seed=40,
+              elongate=(1.05, 0.70, 0.55),
+              noise_scale=3.4, noise_strength=0.16, ridge_weight=0.25,
+              moss=True, moss_bias=0.15),
+    make_rock("head_jaw", center=Vector((0.0, -0.14, 0.00)), radius=0.34, subdiv=2, seed=41,
+              elongate=(1.15, 0.70, 0.65),
+              noise_scale=3.4, noise_strength=0.16, ridge_weight=0.25, moss=False),
+    make_rock("head_nose", center=Vector((0.0, -0.36, 0.30)), radius=0.11, subdiv=2, seed=42,
+              elongate=(0.55, 1.2, 1.5),
+              noise_scale=3.6, noise_strength=0.12, ridge_weight=0.2, moss=False),
+]
+for _hb in head_blobs:
+    _hb.data.materials.append(STONE_MAT)
 head = join_parts(head_blobs, "head", HEAD_PIVOT)
 
 GLOW_CHEST_OFFSET = Vector((0.0, -1.02, 1.35))  # torso_b1 front surface, world-space @ STANDING
-GLOW_HEAD_OFFSET = HEAD_PIVOT + Vector((0.0, -0.42, 0.30))  # head front, eye band
+GLOW_HEAD_OFFSET = HEAD_PIVOT + Vector((0.0, -0.42, 0.30))  # head front, eye band (between brow/jaw)
 
 glow_chest = make_rock("glow_chest", center=Vector((0.0, 0.0, 0.0)), radius=0.20, subdiv=2, seed=0,
                         elongate=(1.0, 0.55, 1.0), noise_strength=0.05, moss=False, flat=False)
 glow_chest.data.materials.append(GLOW_CHEST_MAT)
 glow_chest.location = GLOW_CHEST_OFFSET.copy()
 
-glow_head = make_rock("glow_head", center=Vector((0.0, 0.0, 0.0)), radius=0.10, subdiv=2, seed=0,
-                       elongate=(1.4, 0.45, 0.7), noise_strength=0.04, moss=False, flat=False)
-glow_head.data.materials.append(GLOW_HEAD_MAT)
-glow_head.location = GLOW_HEAD_OFFSET.copy()
+# Fix 3 cont.: 2 separate eye lobes (was 1 elongated ellipsoid reading as a
+# single slit) joined into the SAME "glow_head" object/pivot as before, so
+# every downstream animation line (glow_head.location keyframing etc.) needs
+# zero changes — join_parts already bakes each blob's own local `center`
+# offset before translating the joined mesh to the shared pivot (same
+# pattern as arm_L/fist_L's multi-blob assembly).
+glow_eye_L = make_rock("glow_eye_L", center=Vector((-0.13, 0.0, 0.0)), radius=0.085, subdiv=2, seed=0,
+                        elongate=(1.0, 0.55, 0.85), noise_strength=0.03, moss=False, flat=False)
+glow_eye_R = make_rock("glow_eye_R", center=Vector((0.13, 0.0, 0.0)), radius=0.085, subdiv=2, seed=0,
+                        elongate=(1.0, 0.55, 0.85), noise_strength=0.03, moss=False, flat=False)
+for _eo in (glow_eye_L, glow_eye_R):
+    _eo.data.materials.append(GLOW_HEAD_MAT)
+glow_head = join_parts([glow_eye_L, glow_eye_R], "glow_head", GLOW_HEAD_OFFSET)
 
 
 ARM_END_LOCAL = Vector((0.95, -0.50, -1.92))  # unsigned template (side multiplies X)
@@ -383,8 +462,16 @@ def make_arm(side):
     blobs = []
     for i, (t, r) in enumerate(stops):
         c = Vector((side * ARM_END_LOCAL.x * t, ARM_END_LOCAL.y * t, ARM_END_LOCAL.z * t))
+        # Fix 1 (round the limbs — river-stone, never a point, refs 10/11/13/
+        # 15): low ridge_weight + lower strength + higher scale vs the torso's
+        # TORSO_ROUND preset. Fix 2 (moss continuity): moss=True on EVERY
+        # blob now (was `i < 2`, i.e. the 3 blobs nearer the wrist/fist had
+        # ZERO moss — that's exactly the "clean rock vs mossy torso" bug
+        # Joan flagged; the whole limb must read as one equally-ancient mass).
         b = make_rock(f"arm_b{i}_{side}", center=c, radius=r, subdiv=2, seed=10 + side + i,
-                       elongate=(1.0, 1.0, 1.08), moss=(i < 2))
+                       elongate=(1.0, 1.0, 1.08),
+                       noise_scale=3.8, noise_strength=0.15, ridge_weight=0.15,
+                       moss=True)
         blobs.append(b)
     for o in blobs:
         o.data.materials.append(STONE_MAT)
@@ -400,11 +487,17 @@ arm_R = join_parts(list(make_arm(1.0)), "arm_R", SHOULDER_R)
 def make_fist(side):
     """Terminal boulder-knuckle — the BIGGEST single mass on the limb (per
     brief: "fist-boulders that rest on the ground"), bigger than the wrist
-    blob it attaches to so the arm visibly THICKENS toward its business end."""
+    blob it attaches to so the arm visibly THICKENS toward its business end.
+    Fists were the WORST offender for sharp facets (biggest radius = most
+    displacement travel) and had moss=False (freshest-looking clean rock on
+    the whole body) — round them the most and moss them like everything else
+    (fix 1 + fix 2)."""
     main = make_rock(f"fist_main_{side}", center=Vector((0.0, 0.0, 0.0)), radius=0.62, subdiv=3,
-                      seed=20 + side, elongate=(1.12, 1.05, 0.85), moss=False)
+                      seed=20 + side, elongate=(1.12, 1.05, 0.85),
+                      noise_scale=4.0, noise_strength=0.14, ridge_weight=0.12, moss=True)
     knuckle = make_rock(f"fist_kn_{side}", center=Vector((side * 0.24, -0.10, 0.30)), radius=0.30,
-                         subdiv=2, seed=21 + side, moss=False)
+                         subdiv=2, seed=21 + side,
+                         noise_scale=4.0, noise_strength=0.14, ridge_weight=0.12, moss=True)
     for o in (main, knuckle):
         o.data.materials.append(STONE_MAT)
     return main, knuckle
@@ -447,6 +540,7 @@ stone_objs = {}
 for i, (nm, pos) in enumerate(STONE_STANDING.items()):
     r = [0.30, 0.26, 0.34][i]
     blob = make_rock(nm, center=Vector((0, 0, 0)), radius=r, subdiv=2, seed=30 + i,
+                      noise_scale=3.2, noise_strength=0.22, ridge_weight=0.4,
                       moss=True, moss_bias=0.05)
     blob.data.materials.append(STONE_MAT)
     blob.location = pos
@@ -558,7 +652,14 @@ def sample_standing_static():
 
 
 def sample_idle(f, frames=36):
-    """DORMANT breathing loop — mound rises/falls ~2%, tree sways gently."""
+    """DORMANT breathing loop — mound rises/falls ~2%, tree sways gently.
+    Fix 4 (2026-07-20, motion spec identity line: 'the tree...has its own
+    inertia and lags behind the body'): the tree's sway used to run on a
+    fully INDEPENDENT sine (phase*0.85+0.4) unrelated to the torso's own
+    breath — so it never read as REACTING to the body. Now it's the SAME
+    breath curve, phase-delayed (TREE_LAG), so the tree visibly follows the
+    body's own bob a beat late — plus a slower independent wind sway layered
+    on top ('gentle, like a normal tree in light wind')."""
     t = (f - 1) / frames
     phase = t * 2 * math.pi
     out = {k: (v["loc"].copy(), v["rot"].copy(), v["scale"].copy()) for k, v in DORMANT.items()}
@@ -568,8 +669,14 @@ def sample_idle(f, frames=36):
     head_loc, head_rot, head_scale = out["head"]
     out["head"] = (head_loc + Vector((0, 0, breath * 1.6)), head_rot, head_scale)
     tree_loc, tree_rot, tree_scale = out["tree"]
-    sway = math.radians(3.0) * math.sin(phase * 0.85 + 0.4)
-    out["tree"] = (tree_loc + Vector((0, 0, breath * 1.6)), tree_rot + Vector((sway, 0, sway * 0.4)), tree_scale)
+    TREE_LAG = math.radians(75)
+    lag_breath = 0.020 * math.sin(phase - TREE_LAG)  # same breath curve as the
+    # torso/head, just delayed — this IS the "lags behind the body" reaction.
+    body_follow = math.radians(210.0) * lag_breath
+    wind = math.radians(2.4) * math.sin(phase * 0.4 + 1.2)  # own slow wind cycle
+    sway = body_follow + wind
+    out["tree"] = (tree_loc + Vector((0, 0, lag_breath * 1.6)),
+                    tree_rot + Vector((sway, 0, sway * 0.4)), tree_scale)
     return out, dict(chest=0.0, head=0.0)
 
 
@@ -846,7 +953,19 @@ def sample_move(f, frames=48):
     out["arm_R"] = (SHOULDER_R, rotR, Vector((1, 1, 1)))
     out["fist_L"] = (fistL, Vector((0, 0, 0)), Vector((1, 1, 1)))
     out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
-    out["tree"] = (STANDING["tree"]["loc"], Vector((math.radians(4) * math.sin(phase), 0, 0)), Vector((1, 1, 1)))
+    # Fix 4: tree lags the torso's own lateral sway/bob (was a flat 4deg tied
+    # to the SAME un-lagged phase as the torso — no inertia at all) instead
+    # of reacting a beat late, amplified since it's a lever arm riding on top
+    # of the torso (its swing should read BIGGER than the torso's own tilt).
+    MOVE_LAG = math.radians(60)
+    torso_sway_lagged = math.radians(3.5) * math.sin(phase - MOVE_LAG)
+    tree_follow = torso_sway_lagged * 1.9
+    wind = math.radians(1.6) * math.sin(phase * 0.55 + 0.6)
+    tree_sway = tree_follow + wind
+    tree_bob_lag = bob * 0.5  # reuses the SAME lagged phase idea via bob's own
+    # abs(sin) shape — kept simple: partial follow of the torso's own bob
+    out["tree"] = (STANDING["tree"]["loc"] + Vector((0, 0, tree_bob_lag)),
+                    Vector((tree_sway, 0, tree_sway * 0.3)), Vector((1, 1, 1)))
     for s in ("stone_1", "stone_2", "stone_3"):
         out[s] = (STANDING[s]["loc"], Vector((0, 0, 0)), Vector((1, 1, 1)))
     return out, dict(chest=GLOW_BASE_STRENGTH, head=GLOW_BASE_STRENGTH)
