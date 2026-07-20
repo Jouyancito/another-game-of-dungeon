@@ -32,6 +32,20 @@
 #                    callback to the dormant silhouette).
 #
 # Run: blender.exe --background --python build_golem_guardian.py
+#
+# UPDATE (2026-07-19/20, PO Joan) — 3 additions to the awaken sequence per the
+# new "Boss encounter structure" section in
+# game/docs/art/_references/golem/motion/_motion_spec.md:
+#   1. Dormant mound gets a small cave-like hollow (torso_b0 carve, see
+#      CAVE_CENTER/CAVE_RADIUS/CAVE_DEPTH + make_rock's cave_* params).
+#   2. Eyes (glow_head) now open on an explicit EARLY beat (a quick pop
+#      inside beat 2, ~frame 18-24) instead of only lighting at the very end;
+#      head-look-at-player also now starts partway through the rise (beat 4)
+#      and holds, instead of snapping only in the final beat.
+#   3. Arms are no longer a shared/simultaneous "shoulders split" motion —
+#      each arm has its OWN buried-mass rise window (see
+#      ARM_RISE_WINDOW/arm_rise_progress/arm_dirt_pop/arm_settle_bounce): the
+#      RIGHT arm rises+settles fully, THEN the LEFT arm starts its own rise.
 import bpy
 import bmesh
 import math
@@ -108,7 +122,29 @@ MOSS_COL = (0.32, 0.38, 0.29)        # desaturated moss (not the saturated green
 def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.0, 1.0),
               taper=0.0, noise_scale=2.6, noise_strength=0.32,
               moss=True, moss_bias=0.24, flat=True,
-              dark=STONE_DARK, light=STONE_LIGHT, moss_col=MOSS_COL):
+              dark=STONE_DARK, light=STONE_LIGHT, moss_col=MOSS_COL,
+              cave_dir=None, cave_angle=0.55, cave_depth=0.0,
+              cave_color=(0.015, 0.017, 0.022)):
+    """cave_dir (unit Vector, direction FROM the blob's own sphere-origin
+    `center`) + cave_angle (half-angle, radians) + cave_depth: pulls verts
+    inside the angular cone around cave_dir RADIALLY INWARD toward `center`
+    (smoothstep falloff on angle) to carve a physical concave hollow — no
+    separate interior geometry needed, the dent + a dark vertex-color blend
+    (cave_color) is enough to read as a shadowed opening (2026-07-19/20
+    dormant-cave add). Deliberately ANGULAR, not a fixed-point Euclidean
+    radius: a first attempt targeted a single fixed 3D point on the NOMINAL
+    (un-noised) sphere surface and a Euclidean cave_radius around it — caught
+    via an isolated debug render (instrumented vert count) that this touched
+    only 9 of 642 verts, because noise_strength displaces the ACTUAL surface
+    up to +-0.34 units off the nominal radius, so a fixed point mostly floats
+    in empty space or deep inside solid rock instead of sitting where the
+    bumpy surface actually is. Measuring by ANGLE from the blob's own center
+    is immune to that — it always finds and carves the real surface in that
+    direction, regardless of local noise/taper variance.
+    cave_t() is recomputed from v.co (not cached by index) in both the
+    displacement pass and the color pass, deliberately — bmesh remove_doubles
+    between the two passes can renumber vertex indices, so an index-keyed
+    mask dict would silently mismatch after that call."""
     center = center if center is not None else Vector((0.0, 0.0, 0.0))
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=radius)
@@ -135,6 +171,31 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
             v.co.y *= s
     for v in bm.verts:
         v.co += center
+
+    def cave_t(co):
+        if cave_dir is None or cave_depth <= 0.0:
+            return 0.0
+        rel = co - center
+        d = rel.length
+        if d < 1e-6:
+            return 0.0
+        cos_a = max(-1.0, min(1.0, rel.normalized().dot(cave_dir)))
+        ang = math.acos(cos_a)
+        if ang >= cave_angle:
+            return 0.0
+        t = 1.0 - ang / cave_angle
+        return t * t * (3.0 - 2.0 * t)  # smoothstep falloff, 1 at cone axis, 0 at cone edge
+
+    if cave_dir is not None and cave_depth > 0.0:
+        for v in bm.verts:
+            t_s = cave_t(v.co)
+            if t_s > 0.0:
+                rel = v.co - center
+                d = rel.length
+                if d > 1e-6:
+                    new_d = max(0.05, d - cave_depth * t_s)
+                    v.co = center + rel.normalized() * new_d
+
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.normal_update()
@@ -151,6 +212,9 @@ def make_rock(name, center=None, radius=0.5, subdiv=2, seed=0, elongate=(1.0, 1.
             mt = min(1.0, (nrm.z - moss_bias) / (1.0 - moss_bias))
             mt *= 0.55 + 0.45 * paint
             base = [base[i] + (moss_col[i] - base[i]) * mt * 0.80 for i in range(3)]
+        ct = cave_t(v.co)
+        if ct > 0.0:
+            base = [base[i] + (cave_color[i] - base[i]) * ct for i in range(3)]
         vcol[v.index] = base
     for f in bm.faces:
         for loop in f.loops:
@@ -254,9 +318,22 @@ GLOW_BASE_STRENGTH = 2.0
 # +Y, so the -Y-facing surface is what the camera/player sees).
 # =============================================================================
 TORSO_PIVOT = Vector((0.0, 0.0, 1.70))
+# Dormant-mound cave (addition #1, 2026-07-19/20): a shadowed hollow carved
+# into torso_b0's own front-lower surface (-Y = camera/player-facing side,
+# per the file's front-direction convention; low Z-ish = the taper-widened
+# base). Angular cone (not a fixed 3D point — see make_rock's cave_dir
+# docstring for why) centered on the (0,-0.989,-0.148) direction from
+# torso_b0's own sphere-origin, i.e. mostly straight front with a slight
+# downward tilt. Subtle per ref_02 ("indistinguishable from terrain until it
+# wakes") — angle/depth kept moderate, not a gaping hole.
+CAVE_DIR = Vector((0.0, -1.0, 0.0))
+CAVE_ANGLE = math.radians(42)
+CAVE_DEPTH = 0.55
 torso_blobs = [
     make_rock("torso_b0", center=Vector((0.0, 0.05, 0.20)), radius=1.05, subdiv=3, seed=1,
-              elongate=(1.05, 0.95, 1.0), taper=0.15),
+              elongate=(1.05, 0.95, 1.0), taper=0.15,
+              cave_dir=CAVE_DIR, cave_angle=CAVE_ANGLE, cave_depth=CAVE_DEPTH,
+              cave_color=(0.006, 0.007, 0.010)),
     make_rock("torso_b1", center=Vector((0.0, -0.22, 1.15)), radius=0.85, subdiv=3, seed=2,
               elongate=(1.05, 0.9, 0.95)),
     make_rock("torso_b2", center=Vector((0.05, 0.40, 1.35)), radius=0.65, subdiv=3, seed=3,
@@ -409,10 +486,13 @@ DORMANT = {
     # 2.2m-tall mound needs SCALE, not rotation alone (a pure-rotation fold
     # of a limb this long swings its end ~1.7m away from the pivot, well
     # outside the mound). Shrink + tuck close + fold up against the torso.
-    "arm_L": dict(loc=Vector((-0.50, 0.20, 1.00)), rot=Vector((math.radians(-65), 0, math.radians(-30))), scale=Vector((0.42, 0.42, 0.42))),
-    "arm_R": dict(loc=Vector((0.50, 0.20, 1.00)), rot=Vector((math.radians(-65), 0, math.radians(30))), scale=Vector((0.42, 0.42, 0.42))),
-    "fist_L": dict(loc=Vector((-0.62, 0.12, 0.40)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
-    "fist_R": dict(loc=Vector((0.62, 0.12, 0.40)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
+    # Z lowered 1.00->0.40ish (addition #3, 2026-07-19/20): each arm must
+    # read as a SEPARATE mass buried IN THE EARTH at the mound's base, not
+    # folded mid-torso — this is what a sequential ground-rise needs to sell.
+    "arm_L": dict(loc=Vector((-0.46, 0.14, 0.40)), rot=Vector((math.radians(-65), 0, math.radians(-30))), scale=Vector((0.42, 0.42, 0.42))),
+    "arm_R": dict(loc=Vector((0.46, 0.14, 0.40)), rot=Vector((math.radians(-65), 0, math.radians(30))), scale=Vector((0.42, 0.42, 0.42))),
+    "fist_L": dict(loc=Vector((-0.56, 0.08, 0.20)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
+    "fist_R": dict(loc=Vector((0.56, 0.08, 0.20)), rot=Vector((0, 0, 0)), scale=Vector((0.62, 0.62, 0.62))),
     "tree": dict(loc=Vector((0.05, 0.35, 2.00)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "stone_1": dict(loc=Vector((1.10, 0.60, 0.27)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
     "stone_2": dict(loc=Vector((-0.90, 0.75, 0.24)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
@@ -532,6 +612,48 @@ def settle_wobble(f, start=115, end=144, cycles=2.2, amp=1.0):
     return amp * decay * math.sin(2 * math.pi * cycles * u)
 
 
+ARM_RISE_WINDOW = {"R": (34, 74), "L": (80, 120)}  # RIGHT completes fully
+# (74) before LEFT even starts (80) — sequential, not simultaneous.
+
+
+def arm_rise_progress(f, side):
+    """Addition #3 (2026-07-19/20): each arm gets its OWN buried-mass rise
+    curve instead of sharing one 'shoulders split from the mass' progress
+    with the other arm. RIGHT (34-74f, inside/around beat 3) rises and fully
+    settles first; LEFT (80-120f, beat 4) only starts once RIGHT is done.
+    Joan: 'right arm finishes assembling, THEN left arm begins' — two
+    separate golem-pieces climbing out of the earth to join the body, not
+    one shoulder-split motion happening to both sides at once."""
+    start, end = ARM_RISE_WINDOW[side]
+    if f <= start:
+        return 0.0
+    if f >= end:
+        return 1.0
+    return ease_out_cubic((f - start) / (end - start))
+
+
+def arm_dirt_pop(f, side):
+    """Brief outward 'breaks free from the ground' jolt right as THIS arm's
+    own rise begins — rock_movement Move 1's Displacement phase (near-zero
+    then an immediate jump, not a smooth ramp-up)."""
+    start, _ = ARM_RISE_WINDOW[side]
+    peak = start + 6
+    if abs(f - peak) > 9:
+        return 0.0
+    return 0.16 * math.exp(-((f - peak) ** 2) / (2 * 4.5 ** 2))
+
+
+def arm_settle_bounce(f, side):
+    """Small settle micro-oscillation right after THIS arm finishes its own
+    rise (rock_movement's low-bounce settle phase, applied per-arm)."""
+    _, end = ARM_RISE_WINDOW[side]
+    tail = end + 14
+    if f < end or f > tail:
+        return 0.0
+    u = (f - end) / (tail - end)
+    return 0.05 * (1.0 - u) * math.sin(2 * math.pi * 1.6 * u)
+
+
 def tree_tilt_deg(f):
     """Tree sways with the emergence + rise, overshoots on the settle-back."""
     if f <= 31:
@@ -565,20 +687,72 @@ def glow_chest_strength(f):
     return lerp(0.12, GLOW_BASE_STRENGTH, ease_out_cubic(u))
 
 
-def glow_head_strength(f):
-    if f < 124:
+def head_rise_progress(f):
+    """The head un-buries FASTER than the rest of the body — motion-spec
+    Appendix A #8 ('head should telegraph intent... head turns first, body
+    follows') taken further per addition #2. Necessary, not just stylistic:
+    the head/eye object is spatially NESTED inside the torso's dormant mass,
+    so no amount of rotating it or raising its emission strength makes it
+    visible until its LOCATION has risen far enough to clear the torso's
+    silhouette — confirmed by render (a lit eye at f=25, using the original
+    hu=rise_progress(f-4) curve, was completely invisible; it only became
+    visible once that curve's progress crossed roughly ~0.75-0.85, around
+    f=85-88). This curve front-loads that same exposure level to f=50 (deep
+    in beat 3, 31-67f) instead of f=88, holds there, then rejoins the
+    original late curve once IT catches up — so the final standing timing
+    (full by ~115) is unchanged, only the early approach is faster."""
+    if f <= 14:
         return 0.0
+    if f <= 50:
+        u = (f - 14) / (50 - 14)
+        return 0.85 * smoothstep(u)
+    return max(0.85, rise_progress(max(0, f - 4)))
+
+
+EYES_OPEN_START, EYES_OPEN_END = 44, 52  # beat 3 (31-67f) — timed to land
+# right as head_rise_progress crosses its exposure threshold (see above), so
+# the eyes visibly snap on right as the head becomes visible, not before.
+EYES_OPEN_LEVEL = 1.15  # "eyes open" plateau — clearly lit but short of full power
+
+
+def glow_head_strength(f):
+    """Addition #2 (2026-07-19/20): an explicit EARLY eyes-open beat inside
+    beat 2, not just the final-beat ramp. A HARD/QUICK pop (6 frames,
+    ease_out_expo) from 0 -> EYES_OPEN_LEVEL — Joan: 'a hard or quick-eased
+    transition reads better than a slow fade... like a creature waking up,
+    not a light dimmer'. Holds at that plateau through beats 3-4 (visibly
+    lit the whole time), THEN brightens further to full GLOW_BASE_STRENGTH
+    near the climax (unchanged from the original final-beat ramp) — so the
+    eyes are lit long before the end, and gain intensity rather than
+    appearing from nothing at the very end."""
+    if f < EYES_OPEN_START:
+        return 0.0
+    if f < EYES_OPEN_END:
+        u = (f - EYES_OPEN_START) / (EYES_OPEN_END - EYES_OPEN_START)
+        return EYES_OPEN_LEVEL * ease_out_expo(u)
+    if f < 124:
+        return EYES_OPEN_LEVEL
     u = clamp01((f - 124) / (142 - 124))
-    return lerp(0.0, GLOW_BASE_STRENGTH, ease_out_cubic(u))
+    return lerp(EYES_OPEN_LEVEL, GLOW_BASE_STRENGTH, ease_out_cubic(u))
+
+
+LOOK_START, LOOK_END = 54, 78  # right after the eyes-open beat (44-52) — now
+# that head_rise_progress exposes the head by ~f50 (beat 3), the look-turn
+# can follow immediately after: eyes snap open, THEN the head tilts to hold
+# on the player, well before frame 144 and holding through the rest of the
+# rise + settle, per Joan's brief.
 
 
 def head_look_rot(f, entering_rot):
-    """Beat 6 (144-168f): head settles/turns toward camera and holds."""
-    if f < 144:
-        return entering_rot
-    u = clamp01((f - 144) / (166 - 144))
+    """Addition #2 (2026-07-19/20): head starts tracking/holding toward the
+    player during beat 4 (LOOK_START=82), not only in the final beat — holds
+    the look through the rest of the rise + settle, instead of snapping at
+    frame 144. `entering_rot` is the head's natural un-bury rotation (from
+    the DORMANT->STANDING rot blend); this layers the extra 'look at camera'
+    tilt on top of it and locks it in once LOOK_END is reached."""
+    p = 0.0 if f < LOOK_START else (1.0 if f > LOOK_END else ease_out_cubic((f - LOOK_START) / (LOOK_END - LOOK_START)))
     final_rx = math.radians(9)
-    rx = lerp(entering_rot.x, final_rx, ease_out_cubic(u))
+    rx = lerp(entering_rot.x, final_rx, p)
     return Vector((rx, entering_rot.y, entering_rot.z))
 
 
@@ -595,26 +769,29 @@ def sample_awaken(f):
     t_loc = t_loc + Vector((0, 0, trem + wob * 0.05))
     out["torso"] = (t_loc, t_rot, t_scale)
 
-    # head — delayed a few frames behind torso, then looks at camera (beat 6)
-    hu = rise_progress(max(0, f - 4))
+    # head — LEADS the torso's own rise (addition #2: head_rise_progress is
+    # ahead of the body so it's exposed early enough for the beat-3 eyes-open
+    # + head-look beats to actually be visible), then looks at camera.
+    hu = head_rise_progress(f)
     h_loc = lerp_v(DORMANT["head"]["loc"], STANDING["head"]["loc"], hu)
     h_rot = lerp_v(DORMANT["head"]["rot"], STANDING["head"]["rot"], hu)
     h_rot = head_look_rot(f, h_rot)
     h_scale = lerp_v(DORMANT["head"]["scale"], STANDING["head"]["scale"], hu)
     out["head"] = (h_loc + Vector((0, 0, trem * 0.6)), h_rot, h_scale)
 
-    # arms — delayed further (shoulders emerge in beat 3), separate outward
-    # slightly extra at the peak of beat 3 (frame ~55) for a clear "the hump
-    # splits" silhouette beat before folding into the smooth rise.
-    au = rise_progress(max(0, f - 7))
-    a_pop = 0.14 * math.exp(-((f - 55) ** 2) / (2 * 9.0 ** 2)) if 40 <= f <= 70 else 0.0
+    # arms — SEQUENTIAL per addition #3: RIGHT rises+settles as its own
+    # buried mass, fully done, THEN LEFT starts its own separate rise (see
+    # ARM_RISE_WINDOW). Each side has its own dirt-fall pop + settle bounce.
     for side, arm_name, fist_name, sign in (("L", "arm_L", "fist_L", -1.0), ("R", "arm_R", "fist_R", 1.0)):
+        au = arm_rise_progress(f, side)
+        pop = arm_dirt_pop(f, side)
+        bounce = arm_settle_bounce(f, side)
         a_loc = lerp_v(DORMANT[arm_name]["loc"], STANDING[arm_name]["loc"], au)
-        a_loc = a_loc + Vector((sign * a_pop, 0, 0))
+        a_loc = a_loc + Vector((sign * pop, 0, bounce))
         a_rot = lerp_v(DORMANT[arm_name]["rot"], STANDING[arm_name]["rot"], au)
         a_scale = lerp_v(DORMANT[arm_name]["scale"], STANDING[arm_name]["scale"], au)
         out[arm_name] = (a_loc, a_rot, a_scale)
-        fu = rise_progress(max(0, f - 11))
+        fu = arm_rise_progress(max(0, f - 3), side)  # fist trails its own arm slightly
         f_loc = lerp_v(DORMANT[fist_name]["loc"], STANDING[fist_name]["loc"], fu)
         f_scale = lerp_v(DORMANT[fist_name]["scale"], STANDING[fist_name]["scale"], fu)
         out[fist_name] = (f_loc, Vector((0, 0, 0)), f_scale)
