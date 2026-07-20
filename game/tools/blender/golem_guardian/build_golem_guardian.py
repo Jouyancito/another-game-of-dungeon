@@ -71,10 +71,48 @@
 #   6. Reveal choreography — legs now assemble (dirt-pop/settle) alongside
 #      the existing per-arm sequential rise; eyes-open + head-look timing
 #      reviewed and left as-is (already deliberate per the prior pass).
+#
+# UPDATE (2026-07-20+, PASS 6 — PO Joan, live Blender inspection) — 3 fixes,
+# one of them (ground plane) new SHARED infrastructure the whole
+# motor-blender pipeline needs, not just this mob:
+#   1. Irregular limb stones — arm/leg chains still read as uniform-size
+#      "stacked beads on an antenna" despite PASS 4's spacing fix (spacing
+#      alone doesn't fix SIZE uniformity). jitter_radii() breaks the smooth
+#      ARM_RADII/LEG_RADII taper into genuinely mixed big/small stones per
+#      chain; each blob also gets its own elongate/seed/noise_scale jitter
+#      so silhouettes differ stone-to-stone. Added ONE thin arcane glow seam
+#      (make_seam_glow, reuses the core/eye cyan) per arm/leg at the
+#      shoulder/hip-side joint — a hint of magical binding, not a light show.
+#   2. True cascading FK lag — TREE_LAG/MOVE_LAG were single fixed-phase
+#      delays on ONE object, not a chain. New CHAIN_DEPTH + cascade_frame()
+#      generalize this: torso (root, depth0) leads on its own true motion
+#      curve; arm/leg/head (depth1) and fist (depth2) replay the SAME
+#      per-clip driver function delayed by depth*DELAY_PER_JOINT frames
+#      (chunk_i_pose(f) = root_motion(f - i*DELAY_PER_JOINT)) instead of
+#      computing their own motion at the current frame in lockstep. Applied
+#      to idle/move/attack/hit/death; awaken's already-approved sequential
+#      per-arm rise (addition #3) is left untouched, only its fist-trails-arm
+#      offset is re-expressed via the same DELAY_PER_JOINT constant.
+#   3. Ground plane + floating debris — NEW shared `_ground_common.py`
+#      (sibling to `_ficha_common.py`) provides build_ground()/ground_height()
+#      (same noise formula for the visible mesh and the query function, so
+#      they can't drift apart). This build now: (a) samples ground_height()
+#      once at the golem's own footprint origin as a uniform Z offset for
+#      every rigid-body pivot (TORSO_PIVOT, HEAD_PIVOT, SHOULDER_*, HIP_*,
+#      TREE_PIVOT, GLOW_CHEST_OFFSET, TARGET_Z) so the rig plants on the
+#      real (irregular) terrain instead of an implicit Z=0; (b) the 3 loose
+#      moss stones get their OWN per-XY ground_height() query, both at rest
+#      (STANDING/DORMANT) and at their DEATH-clip tumble destination (fixes
+#      the literal "a stone falls, ends up floating" bug — a stone that
+#      rolls to a new XY on uneven terrain used to keep the Z it had before
+#      it moved); (c) build_ground() adds a large visible ground mesh to the
+#      scene so floating errors are self-evident in every future render.
 import bpy
 import bmesh
 import math
 import os
+import sys
+import random as pyrandom
 from mathutils import Vector, Euler
 from mathutils import noise as mnoise
 
@@ -83,11 +121,28 @@ REN_DIR = os.path.join(OUT_DIR, "renders")
 ANIM_DIR = os.path.join(REN_DIR, "anim")
 os.makedirs(ANIM_DIR, exist_ok=True)
 
+sys.path.insert(0, os.path.dirname(OUT_DIR))
+import _ground_common as groundlib  # noqa: E402 — PASS 6 fix 3, shared ground utility
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 FPS = 24
 scene.render.fps = FPS
 SEED = 20260719
+
+# PASS 6 fix 3 (2026-07-20+, PO Joan — "generating floating models... generate
+# a ground/floor reference"): sample the real (irregular, not flat) terrain
+# height once at the golem's own footprint origin and use it as a uniform Z
+# offset for every rigid-body pivot below (TORSO_PIVOT, HEAD_PIVOT,
+# SHOULDER_*, HIP_*, TREE_PIVOT, GLOW_CHEST_OFFSET) — this is an
+# APPROXIMATION (a single sample under the whole rig, not per-foot IK) but is
+# enough to genuinely plant the golem on its local terrain instead of the
+# old implicit Z=0 assumption, and is cheap/safe: it doesn't touch any
+# part-to-part relationship, only where the whole rig sits vertically. The
+# 3 loose moss stones get their OWN per-XY ground_height() query below
+# instead (they're independent falling/resting objects, not part of the
+# rigid body — see STONE_STANDING/STONE_DORMANT).
+GROUND_OFFSET_Z = groundlib.ground_height(0.0, 0.0)
 
 
 # =============================================================================
@@ -485,7 +540,7 @@ GLOW_BASE_STRENGTH = 2.0
 # golem_floating's camera convention: cam sits at negative Y, looks toward
 # +Y, so the -Y-facing surface is what the camera/player sees).
 # =============================================================================
-TORSO_PIVOT = Vector((0.0, 0.0, 1.70))
+TORSO_PIVOT = Vector((0.0, 0.0, 1.70 + GROUND_OFFSET_Z))
 # Dormant-mound cave (addition #1, 2026-07-19/20): a shadowed hollow carved
 # into torso_b0's own front-lower surface (-Y = camera/player-facing side,
 # per the file's front-direction convention; low Z-ish = the taper-widened
@@ -543,7 +598,7 @@ for o in torso_blobs:
     o.data.materials.append(STONE_MAT)
 torso = join_parts(torso_blobs, "torso", TORSO_PIVOT)
 
-HEAD_PIVOT = Vector((0.0, -0.20, 3.42))  # forward of the tree's trunk (Y=0.55) so a near-
+HEAD_PIVOT = Vector((0.0, -0.20, 3.42 + GROUND_OFFSET_Z))  # forward of the tree's trunk (Y=0.55) so a near-
 # front camera reads them as separate silhouette elements, not the head sitting "on" the trunk
 # Fix 3 (2026-07-20, PO refs 12/13): the head used to be a single blank rock
 # blob with 2 floating glow dots — no readable face. Add carved facial
@@ -612,7 +667,7 @@ head = join_parts(head_blobs, "head", HEAD_PIVOT)
 # the carved floor (~0.50) and the original convex surface (~1.05) — this
 # position (distance 0.70 along CAVE_DIR) sits inside that range, so the
 # gem is visible peeking out of the cave mouth instead of buried behind it.
-GLOW_CHEST_OFFSET = Vector((0.0, -0.65, 1.90))
+GLOW_CHEST_OFFSET = Vector((0.0, -0.65, 1.90 + GROUND_OFFSET_Z))
 GLOW_HEAD_OFFSET = HEAD_PIVOT + Vector((0.0, -0.2866, 0.30))  # head front, INSIDE the eye sockets
 
 glow_chest = make_gem("glow_chest", center=Vector((0.0, 0.0, 0.0)), radius=0.13, subdiv=2, seed=0,
@@ -661,6 +716,86 @@ def chain_positions(direction, radii, ratio=0.65, start=None):
     return centers
 
 
+# =============================================================================
+# PASS 6 fix 1 (2026-07-20+, PO Joan — "practically a stone antenna made of
+# overlapping circular stones... IRREGULAR stones, overlapping, fused in an
+# arcane way"). Two helpers:
+#   jitter_radii() — breaks chain_positions' smooth taper into genuinely
+#   mixed big/small stones (a real assembled pile, not a size gradient).
+#   make_seam_glow() — a thin cyan crack at ONE joint per limb, reusing the
+#   existing core/eye glow color/material language, suggesting the stones
+#   are held together by magic rather than mechanically stacked. Deliberately
+#   subtle (low emission strength, small radius) — "a hint, not another
+#   light show" per the brief.
+# =============================================================================
+def jitter_radii(base_radii, jitter=0.38, seed=0):
+    """Real assembled rock piles mix big and small stones, not a smooth
+    taper. Applies an independent +-jitter fraction to EACH radius in a
+    chain (seeded/deterministic) instead of the untouched smooth-taper list
+    chain_positions used to receive verbatim."""
+    rng = pyrandom.Random(seed)
+    return [max(0.06, r * (1.0 + rng.uniform(-jitter, jitter))) for r in base_radii]
+
+
+SEAM_GLOW_COLOR = (0.14, 0.82, 0.92)  # same cyan as the core/eyes — "arcane binding" language
+
+
+def seam_joint_geometry(c0, r0, c1, r1, pad=1.12):
+    """Analytic two-sphere intersection circle — the ACTUAL visible crease
+    between two overlapping chain blobs. First attempt placed the seam at
+    the pair's volumetric midpoint ((c0+c1)*0.5) — confirmed by render to
+    be INVISIBLE, because once two blobs genuinely interpenetrate (as
+    intended, per chain_positions' whole cohesion mechanism) that midpoint
+    sits buried deep inside solid fused rock, not on any visible surface —
+    same class of bug as the crystal/eye-socket 'floating vs buried' fixes
+    documented earlier in this file. The two-sphere intersection circle is
+    where the surfaces ACTUALLY cross, so a ring built there sits exactly on
+    the real crease. `pad` (>1) slightly oversizes the ring so it pokes past
+    the blobs' own noise displacement instead of being swallowed by it.
+    Returns (point, radius, direction) for make_seam_glow."""
+    d_vec = c1 - c0
+    dist = d_vec.length
+    if dist < 1e-6:
+        return (c0 + c1) * 0.5, min(r0, r1) * 0.5, Vector((0, 0, 1))
+    d = d_vec / dist
+    x = (dist * dist + r0 * r0 - r1 * r1) / (2.0 * dist)
+    circle_r = math.sqrt(max(0.02, r0 * r0 - x * x))
+    return c0 + d * x, circle_r * pad, d
+
+
+def make_seam_glow(name, center, direction, radius=0.075, thickness=0.020, strength=0.38):
+    """A thin flattened glowing ring at a limb joint — reads as a magical
+    seam binding two separately-assembled stones together, instead of
+    mechanical stacking. Oriented perpendicular to the chain direction (so
+    it wraps the joint like a crack, not a floating coin) and joined into
+    the same limb object as everything else, so it inherits that limb's
+    per-frame transform for free. Static (not part of the awaken glow
+    reveal) — an always-present ancient binding, not a power-up cue."""
+    d = direction.normalized() if direction.length > 1e-6 else Vector((0, 0, 1))
+    bm = bmesh.new()
+    bmesh.ops.create_circle(bm, cap_ends=True, cap_tris=False, segments=14, radius=radius)
+    bmesh.ops.solidify(bm, geom=list(bm.faces), thickness=thickness)
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(d.dot(up)) < 0.999:
+        rot = up.rotation_difference(d)
+        for v in bm.verts:
+            v.co = rot @ v.co
+    for v in bm.verts:
+        v.co += center
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.normal_update()
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for p in me.polygons:
+        p.use_smooth = True
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    m, _ = mat_glow(f"{name}_mat", color=SEAM_GLOW_COLOR, strength=strength)
+    obj.data.materials.append(m)
+    return obj
+
+
 # Fix 2 (add legs): arms are now SHORTER — they hang free at the sides
 # (brief: "freeing the arms to hang/gesture at the sides instead of
 # touching the ground") now that real legs (below) bear the golem's weight.
@@ -676,31 +811,46 @@ def make_arm(side):
     chain_positions (ARM_TOUCH ratio) instead of hand-picked t-fractions —
     see that function's docstring for why. Standing rest rotation is
     (0,0,0) — the "hang at the side" shape is baked directly into the blob
-    offsets. Returns (blobs, last_blob_center) — the wrist-end center is
-    needed by the caller to continue the SAME chain into the fist."""
+    offsets. Returns (blobs, last_blob_center, last_blob_radius) — the
+    wrist-end center/radius are needed by the caller to continue the SAME
+    chain into the fist.
+    PASS 6 fix 1: radii come through jitter_radii() (genuinely mixed
+    big/small stones, not a smooth taper) and each blob gets its OWN
+    elongate/seed/noise_scale/noise_strength jitter so silhouettes differ
+    stone-to-stone — the "identical sphere / stacked-bead antenna" fix. One
+    arcane glow seam is added at the shoulder-side joint (blob0<->blob1)."""
     d = Vector((side * ARM_DIR_LOCAL.x, ARM_DIR_LOCAL.y, ARM_DIR_LOCAL.z))
-    centers = chain_positions(d, ARM_RADII, ratio=ARM_TOUCH)
+    radii = jitter_radii(ARM_RADII, jitter=0.38, seed=100 + int(side))
+    centers = chain_positions(d, radii, ratio=ARM_TOUCH)
     blobs = []
-    for i, (c, r) in enumerate(zip(centers, ARM_RADII)):
+    for i, (c, r) in enumerate(zip(centers, radii)):
         # Fix 1 (round the limbs — river-stone, never a point, refs 10/11/13/
         # 15): low ridge_weight + lower strength + higher scale vs the torso's
         # TORSO_ROUND preset — UNCHANGED from the prior pass (still correct,
         # do not reopen sharp facets). Fix 2 (moss continuity): moss=True on
         # EVERY blob — UNCHANGED, still correct.
-        b = make_rock(f"arm_b{i}_{side}", center=c, radius=r, subdiv=2, seed=10 + side + i,
-                       elongate=(1.0, 1.0, 1.08),
-                       noise_scale=3.8, noise_strength=0.15, ridge_weight=0.15,
+        rng = pyrandom.Random(700 + int(side) * 10 + i)
+        elong = (1.0 + rng.uniform(-0.18, 0.18), 1.0 + rng.uniform(-0.18, 0.18),
+                 1.08 + rng.uniform(-0.15, 0.20))
+        b = make_rock(f"arm_b{i}_{side}", center=c, radius=r, subdiv=2,
+                       seed=10 + side + i * 3 + rng.randint(0, 9),
+                       elongate=elong,
+                       noise_scale=3.8 + rng.uniform(-0.6, 0.6),
+                       noise_strength=0.15 + rng.uniform(-0.03, 0.05), ridge_weight=0.15,
                        moss=True)
         blobs.append(b)
     for o in blobs:
         o.data.materials.append(STONE_MAT)
-    return blobs, centers[-1]
+    seam_pt, seam_r, seam_dir = seam_joint_geometry(centers[0], radii[0], centers[1], radii[1])
+    seam = make_seam_glow(f"arm_seam_{side}", seam_pt, seam_dir, radius=seam_r)
+    blobs.append(seam)
+    return blobs, centers[-1], radii[-1]
 
 
-SHOULDER_L = Vector((-1.38, -0.10, 2.55))
-SHOULDER_R = Vector((1.38, -0.10, 2.55))
-_arm_blobs_L, _wrist_L = make_arm(-1.0)
-_arm_blobs_R, _wrist_R = make_arm(1.0)
+SHOULDER_L = Vector((-1.38, -0.10, 2.55 + GROUND_OFFSET_Z))
+SHOULDER_R = Vector((1.38, -0.10, 2.55 + GROUND_OFFSET_Z))
+_arm_blobs_L, _wrist_L, _wrist_r_L = make_arm(-1.0)
+_arm_blobs_R, _wrist_R, _wrist_r_R = make_arm(1.0)
 arm_L = join_parts(list(_arm_blobs_L), "arm_L", SHOULDER_L)
 arm_R = join_parts(list(_arm_blobs_R), "arm_R", SHOULDER_R)
 
@@ -729,9 +879,14 @@ def make_fist(side):
 FIST_MAIN_R = 0.34
 _arm_dir_L = Vector((-ARM_DIR_LOCAL.x, ARM_DIR_LOCAL.y, ARM_DIR_LOCAL.z)).normalized()
 _arm_dir_R = Vector((ARM_DIR_LOCAL.x, ARM_DIR_LOCAL.y, ARM_DIR_LOCAL.z)).normalized()
-_fist_gap = ARM_TOUCH * (ARM_RADII[-1] + FIST_MAIN_R)
-FIST_L_STANDING = SHOULDER_L + _wrist_L + _arm_dir_L * _fist_gap
-FIST_R_STANDING = SHOULDER_R + _wrist_R + _arm_dir_R * _fist_gap
+# PASS 6 fix 1: gap sized off the ACTUAL (jittered) wrist-blob radius per
+# side, not the nominal ARM_RADII[-1] — the two can now differ by up to 38%
+# since make_arm jitters its radii, and using the stale nominal value would
+# silently under/over-size the wrist<->fist gap relative to the real blob.
+_fist_gap_L = ARM_TOUCH * (_wrist_r_L + FIST_MAIN_R)
+_fist_gap_R = ARM_TOUCH * (_wrist_r_R + FIST_MAIN_R)
+FIST_L_STANDING = SHOULDER_L + _wrist_L + _arm_dir_L * _fist_gap_L
+FIST_R_STANDING = SHOULDER_R + _wrist_R + _arm_dir_R * _fist_gap_R
 _fL = make_fist(-1.0)
 _fR = make_fist(1.0)
 fist_L = join_parts([_fL[0], _fL[1]], "fist_L", FIST_L_STANDING)
@@ -761,36 +916,48 @@ def make_leg(side):
     same chain (forward = -Y, matches the body's own front convention) so
     the leg visibly plants on the ground instead of ending in a round
     stump. Standing rest rotation is (0,0,0) — pose is baked into offsets,
-    same convention as arm/torso/head."""
+    same convention as arm/torso/head.
+    PASS 6 fix 1: same jitter_radii() + per-blob shape variety + one arcane
+    glow seam treatment as make_arm — see that function's docstring."""
     d = Vector((side * LEG_DIR_LOCAL.x, LEG_DIR_LOCAL.y, LEG_DIR_LOCAL.z))
-    centers = chain_positions(d, LEG_RADII, ratio=LEG_TOUCH)
+    radii = jitter_radii(LEG_RADII, jitter=0.32, seed=300 + int(side))
+    centers = chain_positions(d, radii, ratio=LEG_TOUCH)
     blobs = []
-    for i, (c, r) in enumerate(zip(centers, LEG_RADII)):
-        b = make_rock(f"leg_b{i}_{side}", center=c, radius=r, subdiv=2, seed=50 + side + i,
-                       elongate=(1.0, 1.0, 1.10),
-                       noise_scale=3.6, noise_strength=0.16, ridge_weight=0.18,
+    for i, (c, r) in enumerate(zip(centers, radii)):
+        rng = pyrandom.Random(800 + int(side) * 10 + i)
+        elong = (1.0 + rng.uniform(-0.15, 0.15), 1.0 + rng.uniform(-0.15, 0.15),
+                 1.10 + rng.uniform(-0.12, 0.18))
+        b = make_rock(f"leg_b{i}_{side}", center=c, radius=r, subdiv=2,
+                       seed=50 + side + i * 3 + rng.randint(0, 9),
+                       elongate=elong,
+                       noise_scale=3.6 + rng.uniform(-0.5, 0.5),
+                       noise_strength=0.16 + rng.uniform(-0.03, 0.05), ridge_weight=0.18,
                        moss=True)
         blobs.append(b)
-    foot_gap = LEG_TOUCH * (LEG_RADII[-1] + FOOT_R)
+    foot_gap = LEG_TOUCH * (radii[-1] + FOOT_R)
     foot_c = centers[-1] + d.normalized() * foot_gap
-    foot = make_rock(f"leg_foot_{side}", center=foot_c, radius=FOOT_R, subdiv=2, seed=53 + side,
+    foot_r_j = FOOT_R * (1.0 + pyrandom.Random(899 + int(side)).uniform(-0.15, 0.15))
+    foot = make_rock(f"leg_foot_{side}", center=foot_c, radius=foot_r_j, subdiv=2, seed=53 + side,
                       elongate=(1.10, 1.40, 0.55), taper=-0.08,
                       noise_scale=3.4, noise_strength=0.14, ridge_weight=0.15, moss=True)
     blobs.append(foot)
     for o in blobs:
         o.data.materials.append(STONE_MAT)
+    seam_pt, seam_r, seam_dir = seam_joint_geometry(centers[0], radii[0], centers[1], radii[1])
+    seam = make_seam_glow(f"leg_seam_{side}", seam_pt, seam_dir, radius=seam_r)
+    blobs.append(seam)
     return blobs, centers[-1], d.normalized()
 
 
-HIP_L = Vector((-0.66, 0.02, 1.21))
-HIP_R = Vector((0.66, 0.02, 1.21))
+HIP_L = Vector((-0.66, 0.02, 1.21 + GROUND_OFFSET_Z))
+HIP_R = Vector((0.66, 0.02, 1.21 + GROUND_OFFSET_Z))
 _leg_blobs_L, _shin_L, _leg_dir_L = make_leg(-1.0)
 _leg_blobs_R, _shin_R, _leg_dir_R = make_leg(1.0)
 leg_L = join_parts(list(_leg_blobs_L), "leg_L", HIP_L)
 leg_R = join_parts(list(_leg_blobs_R), "leg_R", HIP_R)
 
 # ---- tree: trunk (cone frustum) + 3 foliage blobs, joined ----
-TREE_PIVOT = Vector((0.05, 0.55, 3.35))
+TREE_PIVOT = Vector((0.05, 0.55, 3.35 + GROUND_OFFSET_Z))
 bpy.ops.mesh.primitive_cone_add(radius1=0.20, radius2=0.11, depth=1.65, vertices=10,
                                  location=(0.0, 0.0, 0.825))
 trunk = bpy.context.object
@@ -812,10 +979,20 @@ for o in (foliage_a, foliage_b, foliage_c):
 tree = join_parts([trunk, foliage_a, foliage_b, foliage_c], "tree", TREE_PIVOT)
 
 # ---- moss stones (2-3 small stones around the base, per brief) ----
+# PASS 6 fix 3: these are independent loose rocks (exactly the "if a stone
+# falls, it ends up floating" case Joan flagged) — each gets its OWN
+# ground_height() query at its own (x, y), not a hand-picked Z literal or
+# the rig's single origin-sampled GROUND_OFFSET_Z. STONE_SETTLE_Z preserves
+# the ORIGINAL hand-tuned settle depth (how far each stone's center sits
+# above its own contact point, e.g. partially embedded) — previously added
+# to an implicit flat Z=0, now added to the real local terrain height.
+STONE_SETTLE_Z = {"stone_1": 0.27, "stone_2": 0.24, "stone_3": 0.31}
+STONE_XY_STANDING = {
+    "stone_1": (1.55, 0.85), "stone_2": (-1.25, 1.05), "stone_3": (0.30, -1.55),
+}
 STONE_STANDING = {
-    "stone_1": Vector((1.55, 0.85, 0.27)),
-    "stone_2": Vector((-1.25, 1.05, 0.24)),
-    "stone_3": Vector((0.30, -1.55, 0.31)),
+    nm: Vector((x, y, groundlib.ground_height(x, y) + STONE_SETTLE_Z[nm]))
+    for nm, (x, y) in STONE_XY_STANDING.items()
 }
 stone_objs = {}
 for i, (nm, pos) in enumerate(STONE_STANDING.items()):
@@ -880,10 +1057,29 @@ DORMANT = {
     "leg_L": dict(loc=Vector((-0.34, 0.16, 0.16)), rot=Vector((math.radians(75), 0, math.radians(-18))), scale=Vector((0.42, 0.42, 0.42))),
     "leg_R": dict(loc=Vector((0.34, 0.16, 0.16)), rot=Vector((math.radians(75), 0, math.radians(18))), scale=Vector((0.42, 0.42, 0.42))),
     "tree": dict(loc=Vector((0.05, 0.35, 2.00)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
-    "stone_1": dict(loc=Vector((1.10, 0.60, 0.27)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
-    "stone_2": dict(loc=Vector((-0.90, 0.75, 0.24)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
-    "stone_3": dict(loc=Vector((0.15, -0.80, 0.31)), rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
+    "stone_1": dict(loc=None, rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
+    "stone_2": dict(loc=None, rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
+    "stone_3": dict(loc=None, rot=Vector((0, 0, 0)), scale=Vector((1, 1, 1))),
 }
+# PASS 6 fix 3: dormant stone XY (unchanged from the original hand-tuned
+# tuck positions) resolved to a REAL ground_height() Z, same treatment as
+# STONE_STANDING above — these are still independent loose rocks, not part
+# of the rigid body's uniform GROUND_OFFSET_Z shift below.
+_STONE_XY_DORMANT = {
+    "stone_1": (1.10, 0.60), "stone_2": (-0.90, 0.75), "stone_3": (0.15, -0.80),
+}
+for _nm, (_x, _y) in _STONE_XY_DORMANT.items():
+    DORMANT[_nm]["loc"] = Vector((_x, _y, groundlib.ground_height(_x, _y) + STONE_SETTLE_Z[_nm]))
+
+# PASS 6 fix 3: every OTHER dormant part (rigid body — torso/head/arms/
+# fists/legs/tree) shifts by the same single-sample GROUND_OFFSET_Z used for
+# the STANDING pivots above, so the dormant mound sits on the real local
+# terrain too, not an implicit Z=0. Stones are excluded (already resolved
+# per-XY, immediately above) — applying both would double-shift them.
+for _nm, _d in DORMANT.items():
+    if _nm in _STONE_XY_DORMANT:
+        continue
+    _d["loc"] = _d["loc"] + Vector((0, 0, GROUND_OFFSET_Z))
 
 PART_NAMES = list(STANDING.keys())
 FIST_REL = {"L": FIST_L_STANDING - SHOULDER_L, "R": FIST_R_STANDING - SHOULDER_R}
@@ -929,6 +1125,49 @@ def tumble(f, start_f, end_f, start_pos, end_pos, bounce_h=0.10):
 
 
 # =============================================================================
+# PASS 6 fix 2 (2026-07-20+, PO Joan — "move as if there's an invisible
+# skeleton/rig underneath, and the stones follow that rig with a delay that
+# increases from the center out toward the tips of the limbs"). Generalizes
+# the file's existing single-fixed-phase-delay patterns (TREE_LAG in
+# sample_idle, MOVE_LAG in sample_move — kept as-is, they're already correct
+# "prior art for lag" per the brief, just not a CHAIN) into an actual
+# cascading chain for the two real multi-link chains this rig has: torso
+# (root, depth0) -> arm (depth1) -> fist (depth2), and torso -> leg (depth1,
+# no separate depth2 object). head is included at depth1 too (light touch —
+# "head should telegraph... torso follows" per the motion spec's own
+# Appendix A #8, applied in reverse here since torso IS the root).
+#
+# chunk_i_pose(f) = root_motion(f - i * DELAY_PER_JOINT), literally: wherever
+# a part's motion is driven by evaluating some f-dependent function (a phase,
+# an angle, a lerp factor), a non-root part evaluates that SAME function at a
+# frame delayed by its own chain depth instead of at the current frame — see
+# cascade_frame() below.
+# =============================================================================
+DELAY_PER_JOINT = 3  # frames at 24fps — tuned by eye: a few frames per joint
+# step reads as believable heavy drag without becoming either a chaotic
+# jumble (too large) or an imperceptible non-effect (too small).
+CHAIN_DEPTH = {
+    "torso": 0,
+    "head": 1, "arm_L": 1, "arm_R": 1, "leg_L": 1, "leg_R": 1,
+    "fist_L": 2, "fist_R": 2,
+}
+
+
+def cascade_frame(f, part_name, frames, loop=False):
+    """Frame at which to SAMPLE the shared motion driver for `part_name`,
+    delayed by its chain depth (0=root/torso, 1=first joint out, 2=tip).
+    `loop` wraps into the clip's own [1, frames] range (for -loop clips, so
+    there's no pop at the seam); one-shot clips clamp to frame 1 instead
+    (holds the rest pose — correct, since a one-shot's frame 1 IS its rest
+    pose by construction)."""
+    depth = CHAIN_DEPTH.get(part_name, 0)
+    raw = f - depth * DELAY_PER_JOINT
+    if loop:
+        return ((raw - 1) % frames) + 1
+    return max(1, raw)
+
+
+# =============================================================================
 # CLIP SAMPLERS — each returns (dict part_name -> (loc, rot, scale),
 # dict glow -> strength). No parenting: every part's world transform is
 # computed directly per frame.
@@ -943,25 +1182,39 @@ def sample_standing_static():
     return out, dict(chest=GLOW_BASE_STRENGTH, head=GLOW_BASE_STRENGTH)
 
 
+def breath_curve(f, frames=36):
+    t = (f - 1) / frames
+    phase = t * 2 * math.pi
+    return 0.020 * math.sin(phase)  # ~2% of mound height (~2.1m -> ~0.04m peak-peak)
+
+
 def sample_idle(f, frames=36):
     """DORMANT breathing loop — mound rises/falls ~2%, tree sways gently.
     Fix 4 (2026-07-20, motion spec identity line: 'the tree...has its own
-    inertia and lags behind the body'): the tree's sway used to run on a
-    fully INDEPENDENT sine (phase*0.85+0.4) unrelated to the torso's own
-    breath — so it never read as REACTING to the body. Now it's the SAME
-    breath curve, phase-delayed (TREE_LAG), so the tree visibly follows the
-    body's own bob a beat late — plus a slower independent wind sway layered
-    on top ('gentle, like a normal tree in light wind')."""
-    t = (f - 1) / frames
-    phase = t * 2 * math.pi
+    inertia and lags behind the body'): tree keeps its own bespoke bigger
+    lag (TREE_LAG, kept as prior art — already correct, not part of the new
+    generic chain). PASS 6 fix 2 (cascading lag): head/arms/legs now sample
+    the SAME breath_curve driver at their own cascade_frame() delay instead
+    of moving in lockstep with torso (arms/legs are buried in the mound at
+    this point, so amplitude is intentionally small — present, not showy)."""
     out = {k: (v["loc"].copy(), v["rot"].copy(), v["scale"].copy()) for k, v in DORMANT.items()}
-    breath = 0.020 * math.sin(phase)  # ~2% of mound height (~2.1m -> ~0.04m peak-peak)
+
+    breath = breath_curve(f, frames)
     torso_loc, torso_rot, torso_scale = out["torso"]
     out["torso"] = (torso_loc + Vector((0, 0, breath * 2.0)), torso_rot, torso_scale)
+
+    head_breath = breath_curve(cascade_frame(f, "head", frames, loop=True), frames)
     head_loc, head_rot, head_scale = out["head"]
-    out["head"] = (head_loc + Vector((0, 0, breath * 1.6)), head_rot, head_scale)
+    out["head"] = (head_loc + Vector((0, 0, head_breath * 1.6)), head_rot, head_scale)
+
+    for name, amp in (("arm_L", 0.35), ("arm_R", 0.35), ("leg_L", 0.30), ("leg_R", 0.30)):
+        b = breath_curve(cascade_frame(f, name, frames, loop=True), frames)
+        loc, rot, sc = out[name]
+        out[name] = (loc + Vector((0, 0, b * amp)), rot, sc)
+
     tree_loc, tree_rot, tree_scale = out["tree"]
     TREE_LAG = math.radians(75)
+    phase = (f - 1) / frames * 2 * math.pi
     lag_breath = 0.020 * math.sin(phase - TREE_LAG)  # same breath curve as the
     # torso/head, just delayed — this IS the "lags behind the body" reaction.
     body_follow = math.radians(210.0) * lag_breath
@@ -1255,7 +1508,11 @@ def sample_awaken(f):
         a_rot = lerp_v(DORMANT[arm_name]["rot"], STANDING[arm_name]["rot"], au)
         a_scale = lerp_v(DORMANT[arm_name]["scale"], STANDING[arm_name]["scale"], au)
         out[arm_name] = (a_loc, a_rot, a_scale)
-        fu = arm_rise_progress(max(0, f - 3), side)  # fist trails its own arm slightly
+        fu = arm_rise_progress(max(0, f - DELAY_PER_JOINT), side)  # fist trails its own arm
+        # PASS 6 fix 2: reuses the shared DELAY_PER_JOINT constant instead of a
+        # separately hand-picked "3" — same cascading-chain idea, depth1->depth2,
+        # layered on top of the already-approved sequential per-arm rise design,
+        # which stays untouched here since it's PO-approved (addition #3).
         f_loc = lerp_v(DORMANT[fist_name]["loc"], STANDING[fist_name]["loc"], fu)
         f_scale = lerp_v(DORMANT[fist_name]["scale"], STANDING[fist_name]["scale"], fu)
         out[fist_name] = (f_loc, Vector((0, 0, 0)), f_scale)
@@ -1308,38 +1565,74 @@ def sample_awaken(f):
 
 
 # ---- MOVE-LOOP (48f) — heavy knuckle-drag gait, 2-beat arm swing ----
-def sample_move(f, frames=48):
+def move_phase(f, frames=48):
     t = (f - 1) / frames
-    phase = t * 2 * math.pi
-    swing = math.radians(38) * math.sin(phase)  # boosted from 22 deg — too subtle vs the
-    # multi-blob arm's own bulk to read at showcase-camera distance (render-verified)
+    return t * 2 * math.pi
+
+
+def move_swing_angle(f, frames=48):
+    """The shared driver for the arm-swing chain (fix 2) — root motion the
+    arm/fist links replay at increasing delay. Sign (L vs R) is applied by
+    the caller."""
+    return math.radians(38) * math.sin(move_phase(f, frames))  # boosted from 22 deg — too
+    # subtle vs the multi-blob arm's own bulk to read at showcase-camera distance (render-verified)
+
+
+def move_bob(f, frames=48):
+    return -0.16 * abs(math.sin(move_phase(f, frames)))
+
+
+def sample_move(f, frames=48):
+    """PASS 6 fix 2 (cascading lag): arm_L/arm_R (depth1) and fist_L/fist_R
+    (depth2) no longer share the CURRENT frame's swing angle in lockstep
+    (Appendix A red flag #4) — each samples move_swing_angle() at its own
+    cascade_frame() delay, so the shoulder-equivalent (arm) visibly leads
+    and the fingertip-equivalent (fist) visibly trails, increasing delay
+    toward the tip. head/legs get the same depth1 treatment on torso's own
+    bob/sway. Tree keeps its existing bespoke MOVE_LAG (prior art, already
+    correct, bigger lag than a single joint step since it's a whole lever
+    riding on top of the torso, not a body-chain link)."""
     out = {}
-    bob = -0.16 * abs(math.sin(phase))
+    bob = move_bob(f, frames)
+    torso_sway = math.radians(3.5) * math.sin(move_phase(f, frames))
     out["torso"] = (STANDING["torso"]["loc"] + Vector((0, 0, bob)),
-                     STANDING["torso"]["rot"] + Vector((0, 0, math.radians(3.5) * math.sin(phase))),
+                     STANDING["torso"]["rot"] + Vector((0, 0, torso_sway)),
                      Vector((1, 1, 1)))
-    out["head"] = (STANDING["head"]["loc"] + Vector((0, 0, bob * 0.6)), STANDING["head"]["rot"], Vector((1, 1, 1)))
-    rotL, fistL = arm_end("L", swing)
-    rotR, fistR = arm_end("R", -swing)
-    out["arm_L"] = (SHOULDER_L, rotL, Vector((1, 1, 1)))
-    out["arm_R"] = (SHOULDER_R, rotR, Vector((1, 1, 1)))
-    out["fist_L"] = (fistL, Vector((0, 0, 0)), Vector((1, 1, 1)))
-    out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
-    # legs (fix 2): alternating weight-shift — each leg briefly lifts/knees
-    # as the OPPOSITE-phase leg takes the weight (plodding gait), instead of
-    # standing perfectly rigid while only the torso bobs.
+
+    head_f = cascade_frame(f, "head", frames, loop=True)
+    out["head"] = (STANDING["head"]["loc"] + Vector((0, 0, move_bob(head_f, frames) * 0.6)),
+                    STANDING["head"]["rot"], Vector((1, 1, 1)))
+
+    for side, arm_name, fist_name, sign in (("L", "arm_L", "fist_L", 1.0), ("R", "arm_R", "fist_R", -1.0)):
+        arm_f = cascade_frame(f, arm_name, frames, loop=True)
+        fist_f = cascade_frame(f, fist_name, frames, loop=True)
+        arm_angle = sign * move_swing_angle(arm_f, frames)
+        fist_angle = sign * move_swing_angle(fist_f, frames)
+        rot, _ = arm_end(side, arm_angle)
+        _, fist_pos = arm_end(side, fist_angle)
+        out[arm_name] = (SHOULDER_L if side == "L" else SHOULDER_R, rot, Vector((1, 1, 1)))
+        out[fist_name] = (fist_pos, Vector((0, 0, 0)), Vector((1, 1, 1)))
+
+    # legs (fix 2 numbering from the PRIOR pass — kept): alternating
+    # weight-shift, each leg briefly lifts/knees as the OPPOSITE-phase leg
+    # takes the weight. PASS 6 fix 2 (this pass): the phase driving that
+    # lift/knee now samples move_phase() at the leg's own cascade_frame()
+    # delay, so the hip motion trails the torso's own core rotation a beat,
+    # same cascading-chain treatment as the arms above.
     for side, leg_name, sign in (("L", "leg_L", -1.0), ("R", "leg_R", 1.0)):
-        lphase = phase + (0.0 if side == "L" else math.pi)
+        leg_f = cascade_frame(f, leg_name, frames, loop=True)
+        lphase = move_phase(leg_f, frames) + (0.0 if side == "L" else math.pi)
         lift = 0.05 * max(0.0, math.sin(lphase))
         knee = math.radians(7) * max(0.0, math.sin(lphase))
         out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0, lift)),
                           STANDING[leg_name]["rot"] + Vector((-knee, 0, sign * knee * 0.3)),
                           Vector((1, 1, 1)))
-    # Fix 4: tree lags the torso's own lateral sway/bob (was a flat 4deg tied
-    # to the SAME un-lagged phase as the torso — no inertia at all) instead
-    # of reacting a beat late, amplified since it's a lever arm riding on top
-    # of the torso (its swing should read BIGGER than the torso's own tilt).
+    # Fix 4 (prior pass, kept as-is): tree lags the torso's own lateral
+    # sway/bob via its own bigger MOVE_LAG — a whole lever riding on the
+    # torso, not a single chain link, so it deliberately lags MORE than the
+    # generic DELAY_PER_JOINT arms/legs use above.
     MOVE_LAG = math.radians(60)
+    phase = move_phase(f, frames)
     torso_sway_lagged = math.radians(3.5) * math.sin(phase - MOVE_LAG)
     tree_follow = torso_sway_lagged * 1.9
     wind = math.radians(1.6) * math.sin(phase * 0.55 + 0.6)
@@ -1354,7 +1647,13 @@ def sample_move(f, frames=48):
 
 
 # ---- ATTACK (30f) — raise both fists overhead, slam down, hold ----
-def sample_attack(f, frames=30):
+def attack_state(f, frames=30):
+    """(rx, tz) driver as a function of frame — extracted so the cascading
+    chain (fix 2) can sample it at delayed frames for arm/fist instead of
+    every part sharing the exact same rx (the old code's #4 Appendix-A
+    'lockstep parts' red flag: arm rotation AND fist position were both
+    derived from the SAME rx at the SAME frame, so the fist never lagged the
+    arm's own swing at all)."""
     t = (f - 1) / (frames - 1)
     if t < 0.40:
         u = t / 0.40
@@ -1374,83 +1673,118 @@ def sample_attack(f, frames=30):
         u = (t - 0.68) / 0.32
         rx = lerp(math.radians(8), 0.0, ease_out_cubic(u))
         tz = lerp(-0.18, 0.0, ease_out_cubic(u))
+    return rx, tz
+
+
+def sample_attack(f, frames=30):
+    rx, tz = attack_state(f, frames)
     out = {}
     out["torso"] = (STANDING["torso"]["loc"] + Vector((0, 0, tz)), STANDING["torso"]["rot"], Vector((1, 1, 1)))
-    out["head"] = (STANDING["head"]["loc"] + Vector((0, 0, tz * 0.6)), STANDING["head"]["rot"], Vector((1, 1, 1)))
-    rotL, fistL = arm_end("L", rx)
-    rotR, fistR = arm_end("R", rx)
-    out["arm_L"] = (SHOULDER_L, rotL, Vector((1, 1, 1)))
-    out["arm_R"] = (SHOULDER_R, rotR, Vector((1, 1, 1)))
-    out["fist_L"] = (fistL, Vector((0, 0, 0)), Vector((1, 1, 1)))
-    out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
+    head_f = cascade_frame(f, "head", frames)
+    _, tz_h = attack_state(head_f, frames)
+    out["head"] = (STANDING["head"]["loc"] + Vector((0, 0, tz_h * 0.6)), STANDING["head"]["rot"], Vector((1, 1, 1)))
+    for side, arm_name, fist_name in (("L", "arm_L", "fist_L"), ("R", "arm_R", "fist_R")):
+        arm_f = cascade_frame(f, arm_name, frames)
+        fist_f = cascade_frame(f, fist_name, frames)
+        rx_arm, _ = attack_state(arm_f, frames)
+        rx_fist, _ = attack_state(fist_f, frames)
+        rot, _ = arm_end(side, rx_arm)
+        _, fist_pos = arm_end(side, rx_fist)
+        out[arm_name] = (SHOULDER_L if side == "L" else SHOULDER_R, rot, Vector((1, 1, 1)))
+        out[fist_name] = (fist_pos, Vector((0, 0, 0)), Vector((1, 1, 1)))
     out["tree"] = (STANDING["tree"]["loc"], Vector((rx * 0.35, 0, 0)), Vector((1, 1, 1)))
     for leg_name in ("leg_L", "leg_R"):
-        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0, tz * 0.3)), STANDING[leg_name]["rot"], Vector((1, 1, 1)))
+        leg_f = cascade_frame(f, leg_name, frames)
+        _, tz_l = attack_state(leg_f, frames)
+        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0, tz_l * 0.3)), STANDING[leg_name]["rot"], Vector((1, 1, 1)))
     for s in ("stone_1", "stone_2", "stone_3"):
         out[s] = (STANDING[s]["loc"], Vector((0, 0, 0)), Vector((1, 1, 1)))
     return out, dict(chest=GLOW_BASE_STRENGTH, head=GLOW_BASE_STRENGTH)
 
 
 # ---- HIT (16f) — flinch: torso recoils, tree shudders ----
-def sample_hit(f, frames=16):
+def hit_env(f, frames=16):
     t = (f - 1) / (frames - 1)
-    env = math.sin(math.pi * min(1.0, t * 1.5))
+    return math.sin(math.pi * min(1.0, t * 1.5))
+
+
+def sample_hit(f, frames=16):
+    env = hit_env(f, frames)
+    t = (f - 1) / (frames - 1)
     out = {}
     out["torso"] = (STANDING["torso"]["loc"] + Vector((0, 0.22 * env, -0.16 * env)),
                      STANDING["torso"]["rot"] + Vector((-math.radians(11) * env, 0, 0)), Vector((1, 1, 1)))
-    out["head"] = (STANDING["head"]["loc"] + Vector((0, 0.14 * env, -0.07 * env)), STANDING["head"]["rot"], Vector((1, 1, 1)))
-    rx = -math.radians(26) * env
-    rotL, fistL = arm_end("L", rx)
-    rotR, fistR = arm_end("R", rx)
-    out["arm_L"] = (SHOULDER_L, rotL, Vector((1, 1, 1)))
-    out["arm_R"] = (SHOULDER_R, rotR, Vector((1, 1, 1)))
-    out["fist_L"] = (fistL, Vector((0, 0, 0)), Vector((1, 1, 1)))
-    out["fist_R"] = (fistR, Vector((0, 0, 0)), Vector((1, 1, 1)))
+    head_f = cascade_frame(f, "head", frames)
+    env_h = hit_env(head_f, frames)
+    out["head"] = (STANDING["head"]["loc"] + Vector((0, 0.14 * env_h, -0.07 * env_h)), STANDING["head"]["rot"], Vector((1, 1, 1)))
+    for side, arm_name, fist_name in (("L", "arm_L", "fist_L"), ("R", "arm_R", "fist_R")):
+        arm_f = cascade_frame(f, arm_name, frames)
+        fist_f = cascade_frame(f, fist_name, frames)
+        rx_arm = -math.radians(26) * hit_env(arm_f, frames)
+        rx_fist = -math.radians(26) * hit_env(fist_f, frames)
+        rot, _ = arm_end(side, rx_arm)
+        _, fist_pos = arm_end(side, rx_fist)
+        out[arm_name] = (SHOULDER_L if side == "L" else SHOULDER_R, rot, Vector((1, 1, 1)))
+        out[fist_name] = (fist_pos, Vector((0, 0, 0)), Vector((1, 1, 1)))
     shudder = math.radians(9) * math.sin(2 * math.pi * 4.0 * t) * (1.0 - t)
     out["tree"] = (STANDING["tree"]["loc"], Vector((shudder, 0, shudder * 0.5)), Vector((1, 1, 1)))
     for leg_name in ("leg_L", "leg_R"):
-        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0.05 * env, -0.03 * env)), STANDING[leg_name]["rot"], Vector((1, 1, 1)))
+        leg_f = cascade_frame(f, leg_name, frames)
+        env_l = hit_env(leg_f, frames)
+        out[leg_name] = (STANDING[leg_name]["loc"] + Vector((0, 0.05 * env_l, -0.03 * env_l)), STANDING[leg_name]["rot"], Vector((1, 1, 1)))
     for s in ("stone_1", "stone_2", "stone_3"):
         out[s] = (STANDING[s]["loc"], Vector((0, 0, 0)), Vector((1, 1, 1)))
     return out, dict(chest=GLOW_BASE_STRENGTH, head=GLOW_BASE_STRENGTH)
 
 
 # ---- DEATH (48f) — forward collapse, ends mound-like (Move 8, NOT reverse-awaken) ----
-def sample_death(f, frames=48):
+def death_state(f, frames=48):
+    """(lean_deg, drop_u) driver as a function of frame — extracted so the
+    cascading chain (fix 2) can sample it at delayed frames: the torso
+    (root) leads on the TRUE curve, arms (depth1) replay it slightly
+    delayed, fists (depth2) replay it delayed further still — a topple
+    where the fingertip-equivalent visibly hasn't caught up to where the
+    shoulder-equivalent already is, instead of the whole rig collapsing in
+    rigid lockstep."""
     t = (f - 1) / (frames - 1)
-    out = {}
     if t < 0.12:  # recognition delay
-        lean = 0.0
-        drop_u = 0.0
-    elif t < 0.40:  # the lean — slow start (tree_fall Stage-A)
+        return 0.0, 0.0
+    if t < 0.40:  # the lean — slow start (tree_fall Stage-A)
         u = (t - 0.12) / 0.28
-        lean = 60.0 * ease_in_cubic(u)
-        drop_u = 0.0
-    elif t < 0.63:  # the fall — accelerating
+        return 60.0 * ease_in_cubic(u), 0.0
+    if t < 0.63:  # the fall — accelerating
         u = (t - 0.40) / 0.23
-        lean = lerp(60.0, 92.0, ease_in_expo(u))
-        drop_u = ease_in_expo(u)
-    elif t < 0.71:  # impact hold
-        lean = 92.0
-        drop_u = 1.0
-    else:  # settle
-        u = (t - 0.71) / 0.29
-        wob = 4.0 * (1.0 - u) * math.sin(2 * math.pi * 2.5 * u)
-        lean = 92.0 + wob
-        drop_u = 1.0
+        return lerp(60.0, 92.0, ease_in_expo(u)), ease_in_expo(u)
+    if t < 0.71:  # impact hold
+        return 92.0, 1.0
+    # settle
+    u = (t - 0.71) / 0.29
+    wob = 4.0 * (1.0 - u) * math.sin(2 * math.pi * 2.5 * u)
+    return 92.0 + wob, 1.0
 
+
+def sample_death(f, frames=48):
+    out = {}
+    lean, drop_u = death_state(f, frames)
     torso_rot = math.radians(lean)
     torso_loc = lerp_v(STANDING["torso"]["loc"], DORMANT["torso"]["loc"] + Vector((0, -0.15, 0)), drop_u)
     out["torso"] = (torso_loc, Vector((torso_rot, 0, 0)), Vector((1, 1, 1)))
-    head_loc = lerp_v(STANDING["head"]["loc"], DORMANT["head"]["loc"] + Vector((0, -0.20, 0)), drop_u)
-    out["head"] = (head_loc, Vector((torso_rot * 0.9, 0, 0)), Vector((1, 1, 1)))
 
-    fly = lerp(0.0, 55.0, drop_u)
+    head_f = cascade_frame(f, "head", frames)
+    h_lean, h_drop_u = death_state(head_f, frames)
+    head_loc = lerp_v(STANDING["head"]["loc"], DORMANT["head"]["loc"] + Vector((0, -0.20, 0)), h_drop_u)
+    out["head"] = (head_loc, Vector((math.radians(h_lean) * 0.9, 0, 0)), Vector((1, 1, 1)))
+
     for side, arm_name, fist_name, sign in (("L", "arm_L", "fist_L", -1.0), ("R", "arm_R", "fist_R", 1.0)):
-        rx = math.radians(-fly)
-        rz = math.radians(sign * fly * 0.4)
-        rot, fistpos = arm_end(side, rx, 0.0, rz)
-        a_loc = lerp_v(STANDING[arm_name]["loc"], DORMANT[arm_name]["loc"], drop_u * 0.5)
+        arm_f = cascade_frame(f, arm_name, frames)
+        fist_f = cascade_frame(f, fist_name, frames)
+        _, a_drop_u = death_state(arm_f, frames)
+        _, f_drop_u = death_state(fist_f, frames)
+        fly_a = lerp(0.0, 55.0, a_drop_u)
+        fly_f = lerp(0.0, 55.0, f_drop_u)
+        rot, _ = arm_end(side, math.radians(-fly_a), 0.0, math.radians(sign * fly_a * 0.4))
+        _, fistpos = arm_end(side, math.radians(-fly_f), 0.0, math.radians(sign * fly_f * 0.4))
+        a_loc = lerp_v(STANDING[arm_name]["loc"], DORMANT[arm_name]["loc"], a_drop_u * 0.5)
         out[arm_name] = (a_loc, rot, Vector((1, 1, 1)))
         f_loc = fistpos + (torso_loc - STANDING["torso"]["loc"])
         out[fist_name] = (f_loc, Vector((0, 0, 0)), Vector((1, 1, 1)))
@@ -1459,18 +1793,33 @@ def sample_death(f, frames=48):
                     Vector((torso_rot * 0.8, 0, 0)), Vector((1, 1, 1)))
 
     # legs buckle as the torso topples — knees fold toward the dormant tuck
-    # (partial, 0.5x, same treatment as the arms above) instead of staying
-    # rigid while everything above them collapses.
+    # (partial, 0.5x, same treatment as the arms above), sampled at their own
+    # depth1 cascade delay same as the arms above, instead of staying rigid/
+    # lockstep while everything above them collapses.
     for leg_name in ("leg_L", "leg_R"):
-        l_loc = lerp_v(STANDING[leg_name]["loc"], DORMANT[leg_name]["loc"], drop_u * 0.5)
-        l_rot = lerp_v(STANDING[leg_name]["rot"], DORMANT[leg_name]["rot"], drop_u * 0.5)
+        leg_f = cascade_frame(f, leg_name, frames)
+        _, l_drop_u = death_state(leg_f, frames)
+        l_loc = lerp_v(STANDING[leg_name]["loc"], DORMANT[leg_name]["loc"], l_drop_u * 0.5)
+        l_rot = lerp_v(STANDING[leg_name]["rot"], DORMANT[leg_name]["rot"], l_drop_u * 0.5)
         out[leg_name] = (l_loc, l_rot, Vector((1, 1, 1)))
 
+    # PASS 6 fix 3: a stone rolling to a NEW xy on uneven terrain must
+    # resample its own resting height THERE, not carry over the Z it had
+    # before it moved — that carry-over is exactly the "debris ends up
+    # floating" bug Joan flagged (a stone displaced sideways onto a locally
+    # higher/lower patch of ground used to keep its old Z, so it visibly
+    # hovered or clipped once the terrain stopped being flat).
     for nm in ("stone_1", "stone_2", "stone_3"):
-        p, r = tumble(f, 10, 42, STANDING[nm]["loc"], STANDING[nm]["loc"] + (STANDING[nm]["loc"].normalized() * 0.9 if STANDING[nm]["loc"].length > 0 else Vector((0.5, 0, 0))),
-                      bounce_h=0.12)
+        start = STANDING[nm]["loc"]
+        start_xy = Vector((start.x, start.y, 0.0))
+        dir_xy = start_xy.normalized() if start_xy.length > 0 else Vector((0.5, 0, 0))
+        end_xy = start_xy + dir_xy * 0.9
+        end_z = groundlib.ground_height(end_xy.x, end_xy.y) + STONE_SETTLE_Z[nm]
+        end = Vector((end_xy.x, end_xy.y, end_z))
+        p, r = tumble(f, 10, 42, start, end, bounce_h=0.12)
         out[nm] = (p, r, Vector((1, 1, 1)))
 
+    t = (f - 1) / (frames - 1)
     chest = lerp(GLOW_BASE_STRENGTH, 0.0, clamp01((t - 0.63) / 0.25))
     head_g = lerp(GLOW_BASE_STRENGTH, 0.0, clamp01((t - 0.63) / 0.25))
     return out, dict(chest=chest, head=head_g)
@@ -1599,7 +1948,7 @@ add_light("key", (-6.3, -9.5, 5.5), 950, 6.0)
 add_light("fill", (5.8, -8.5, 2.6), 260, 5.8)
 add_light("rim", (1.2, 9.0, 5.0), 1130, 5.8)
 
-TARGET_Z = 2.75
+TARGET_Z = 2.75 + GROUND_OFFSET_Z
 target = bpy.data.objects.new("target", None)
 target.location = (0.0, 0.0, TARGET_Z)
 bpy.context.collection.objects.link(target)
@@ -1612,6 +1961,13 @@ cam.location = BASE_CAM_LOC
 bpy.context.collection.objects.link(cam)
 cam.constraints.new(type='TRACK_TO').target = target
 scene.camera = cam
+
+# PASS 6 fix 3: visible ground plane under the golem in EVERY render (hero,
+# dormant, every clip) — irregular terrain (build_ground/ground_height share
+# the exact same noise formula, see _ground_common.py), not a flat slab.
+# Static object, never keyframed, so it's free background geometry for every
+# render call below without touching the animation system.
+GROUND_OBJ = groundlib.build_ground(scene, size=9.0)
 
 try:
     scene.render.engine = 'BLENDER_EEVEE_NEXT'
@@ -1697,6 +2053,76 @@ for clip_name, data in clip_actions.items():
         bpy.ops.render.render(write_still=True)
     print("[golem_guardian] frames", clip_name)
 
+# =============================================================================
+# PASS 6 fix 2 VERIFICATION RENDER — a dedicated side-on close-up on one arm
+# across 4 move-loop frames, applied by directly calling sample_move() and
+# setting object transforms (NOT via NLA — avoids ambiguity about which
+# stacked NLA track is "active" at a given frame; this is the same data the
+# NLA strips are built from moments later). The main showcase camera looks
+# from roughly -Y (near-frontal), and the walk-cycle arm swing rotates
+# mostly in the Y-Z (fore-aft) plane — foreshortened almost to nothing from
+# that angle even though the underlying angle DOES change ~50 degrees across
+# the cycle (confirmed numerically). A side camera (looking down -X) shows
+# the fore-aft swing edge-on, where the cascade is actually legible.
+# =============================================================================
+scene.render.resolution_x = 700
+scene.render.resolution_y = 700
+# The walk swing is fore-aft (world Y, per this rig's "front=-Y" convention)
+# — a camera framed anywhere near "looking at the golem's front" (including
+# closeups.py's own arm shot, and the first attempt at THIS camera) puts Y
+# largely ALONG the view axis, foreshortening the exact motion we need to
+# show (confirmed: fist_L.y swings -0.77 to +0.10, a real 0.87-unit change,
+# invisible in 2 earlier framing attempts because Y was depth, not screen
+# lateral). True side-on: camera separated from the target ONLY along world
+# X, so Y maps to screen-horizontal and Z to screen-vertical.
+side_target = Vector((-1.7, -0.34, 1.39 + GROUND_OFFSET_Z))
+side_cam_loc = side_target + Vector((-3.5, 0.0, 0.35))
+side_target_obj = bpy.data.objects.new("side_target", None)
+side_target_obj.location = side_target
+bpy.context.collection.objects.link(side_target_obj)
+side_cam_d = bpy.data.cameras.new("side_cam")
+side_cam_d.lens = 60
+side_cam = bpy.data.objects.new("side_cam", side_cam_d)
+side_cam.location = side_cam_loc
+bpy.context.collection.objects.link(side_cam)
+side_cam.constraints.new(type='TRACK_TO').target = side_target_obj
+scene.camera = side_cam
+
+# GOTCHA (caught via pixel-diff — 4 "different" frames rendered byte-
+# identical): every PARTS object still has the LAST main-loop clip's Action
+# ("death") actively assigned at this point — the depsgraph evaluates that
+# Action's keyframes at the current (stale, left at frame 47) scene frame on
+# every render, SILENTLY OVERRIDING the manual obj.location/rotation_euler/
+# scale sets below (a Python property set only sticks until the next
+# depsgraph evaluation; an active Action wins that evaluation every time).
+# Clear actions here (redundant with the later full cleanup, which still
+# needs to run for glow objects/materials) so the manual pose actually reads.
+for _name in PARTS:
+    anim_data[_name].action = None
+
+CASCADE_FRAMES = [1, 13, 25, 37]
+for cf in CASCADE_FRAMES:
+    pose, glow = sample_move(cf)
+    for name, obj in PARTS.items():
+        loc, rot, sc = pose[name]
+        obj.location = loc
+        obj.rotation_euler = rot
+        obj.scale = sc
+    glow_chest.location = GLOW_CHEST_OFFSET + (pose["torso"][0] - STANDING["torso"]["loc"])
+    glow_head.location = GLOW_HEAD_OFFSET + (pose["head"][0] - STANDING["head"]["loc"])
+    GLOW_CHEST_BSDF.inputs["Emission Strength"].default_value = glow["chest"]
+    GLOW_HEAD_BSDF.inputs["Emission Strength"].default_value = glow["head"]
+    scene.render.filepath = os.path.join(REN_DIR, f"cascade_move_{cf:03d}.png")
+    bpy.ops.render.render(write_still=True)
+print("[golem_guardian] cascade verification frames done")
+
+bpy.data.objects.remove(side_cam, do_unlink=True)
+bpy.data.objects.remove(side_target_obj, do_unlink=True)
+scene.camera = cam
+scene.render.resolution_x = 512
+scene.render.resolution_y = 640
+reset_to_standing()
+
 for name in PARTS:
     anim_data[name].action = None
 glow_chest_ad.action = None
@@ -1704,6 +2130,14 @@ glow_head_ad.action = None
 glow_chest_mat_ad.action = None
 glow_head_mat_ad.action = None
 reset_to_standing()
+
+# PASS 6 fix 3: the ground plane is a RENDER AID (so floating errors are
+# visible in every still/GIF above) — it must NOT ship in the mob's GLB
+# (style contract: a mob's asset is the mob, not its showcase stage; the
+# ground is scene-only, same reasoning as the hero-still scale silhouette in
+# _ficha_common.py). Remove it from the scene now, after the last render,
+# before export (which uses use_selection=False / whole-scene export).
+bpy.data.objects.remove(GROUND_OBJ, do_unlink=True)
 
 # =============================================================================
 # NLA PUSH + EXPORT
