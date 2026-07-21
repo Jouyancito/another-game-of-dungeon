@@ -74,22 +74,45 @@ func _proc_scale() -> float:
 const BORDER_RADIUS_BASE: float = 250.0
 const BORDER_NOISE_AMP: float = 45.0
 const BORDER_NOISE_FREQ: float = 4.0
-const BORDER_WALL_HEIGHT: float = 25.0
+const BORDER_WALL_HEIGHT: float = 32.0  # Task 1 (2026-07-20): 25->32 — extra margin above the taller/rugged mountain-slope terrain now leading up to it
 const BORDER_WALL_SEGMENTS: int = 64
 
 # Ceiling — NO projeta sombras para evitar oscuridad invertida
-const CEILING_HEIGHT: float = 45.0
+# Task 3 (2026-07-20, Joan): 45->68 — taller ceiling so the light source reads as
+# ambiguous/deep rather than "obviously one flat plane up there" (crystal_ceiling_
+# lightning gap doc). Every CEILING_HEIGHT-relative system (crystal field, landmark
+# pillars, biolum) scales up automatically with this constant.
+const CEILING_HEIGHT: float = 68.0
 
-# Crystal field — cuarzos distribuidos en curva S (vía láctea mineral)
-const CRYSTAL_PATH_CLUSTERS: int = 35       # clusters a lo largo de la curva
+# Crystal field — Task 3 (2026-07-20): "lightning bolt" branching distribution
+# across MULTIPLE height bands (see _build_lightning_branch_points +
+# CRYSTAL_BAND_RANGES) replaces the old single sine-curve path at one narrow band.
+## Joan (2026-07-20): the crystals must read as "un cúmulo de cristales de
+## diferentes tamaños y formas como techo, y de ahí sale la iluminación" — a
+## sparse scatter of a few small shards does not sell that. Doubled the
+## cluster count and raised light output since the key light is now gone and
+## these are the prairie's ONLY light source.
+const CRYSTAL_PATH_CLUSTERS: int = 70       # clusters a lo largo de las ramas
 const CRYSTAL_SCATTER_WIDTH: float = 60.0    # ancho de dispersión lateral
-const CRYSTAL_MIN_HEIGHT: float = 32.0       # altura mínima (cuelgan del techo)
-const CRYSTAL_MAX_HEIGHT: float = 42.0
+const CRYSTAL_MIN_HEIGHT: float = 20.0       # altura mínima (banda más baja)
+const CRYSTAL_MAX_HEIGHT: float = 66.0       # altura máxima (banda más alta, casi al techo)
+## Distinct height bands a lightning-branch point can land in — index = branch
+## `band` (its generation/fork depth). Overlap a little at the edges so clusters
+## blend naturally instead of showing a hard seam between tiers.
+const CRYSTAL_BAND_RANGES: Array[Vector2] = [
+	Vector2(20.0, 32.0),
+	Vector2(30.0, 45.0),
+	Vector2(42.0, 56.0),
+	Vector2(54.0, 66.0),
+]
 const CRYSTAL_LIGHT_RANGE: float = 22.0      # quick-win: 10→22 for visible colored ground pools (clamp raised below)
-const CRYSTAL_LIGHT_ENERGY: float = 3.0      # Wave1.5: boosted 1.1→3.0 — OmniLights now actually illuminate ground
+# 3.0->4.5 (2026-07-20): crystals now carry the WHOLE scene's illumination
+# (key light removed) — the old value was tuned as a fill light alongside a
+# directional sun, not as the sole light source.
+const CRYSTAL_LIGHT_ENERGY: float = 4.5
 const CRYSTAL_AMBIENT_ENERGY: float = 0.25   # legacy — ya no se usa (flood gigante eliminado; fill en WorldEnv)
 const CRYSTAL_MONARCH_COUNT: int = 3         # cristales gigantes "príncipe"
-const CRYSTAL_LIGHTS_EVERY: int = 3          # luz real cada N clusters (reduce OmniLights)
+const CRYSTAL_LIGHTS_EVERY: int = 2          # 3->2: more real lights per cluster now that they're the only source
 const CEILING_BIOLUM_PATCHES: int = 50       # parches bioluminiscentes en el techo
 const CEILING_BIOLUM_COLOR: Color = Color(0.4, 0.7, 0.55)  # verde azulado orgánico
 
@@ -128,7 +151,6 @@ const STREAM_SEGMENTS: int = 5          # control points per stream (interpolate
 # Procedural greens/browns desaturated ~28% vs Wave1 — Kimetsu rule: biome is quiet,
 # skills and crystals are the saturated pixels. Crystals remain as jewel accents only.
 const COLOR_FLOOR: Color       = Color(0.286, 0.406, 0.220)  # olive-green, -28% sat
-const COLOR_TRUNK: Color       = Color(0.320, 0.234, 0.163)  # bark brown, -27% sat
 const COLOR_CANOPY: Color      = Color(0.214, 0.302, 0.176)  # cavern leaf, -28% sat
 const COLOR_CANOPY_DARK: Color = Color(0.165, 0.240, 0.131)  # dark understory, -27% sat
 const COLOR_TALL_GRASS: Color  = Color(0.173, 0.252, 0.118)  # dim grass, -27% sat
@@ -146,23 +168,13 @@ const COLOR_CRYSTAL_COOL: Color = Color(0.37, 0.85, 1.0)   # cyan frío #5FD8FF
 const COLOR_CRYSTAL_ROSE: Color = Color(0.69, 0.44, 1.0)   # violeta #B06FFF
 const COLOR_PILLAR: Color      = Color(0.400, 0.380, 0.340)  # stone pillar (already muted)
 const COLOR_WATER: Color       = Color(0.2, 0.4, 0.6, 0.6)
-const COLOR_CAMP_TENT: Color   = Color(0.476, 0.340, 0.230)  # canvas, -26% sat
 const COLOR_ALTAR: Color       = Color(0.635, 0.603, 0.548)  # stone altar, -25% sat
 const COLOR_GIANT_TRUNK: Color = Color(0.270, 0.210, 0.155)  # old bark, -26% sat
 const COLOR_GIANT_CANOPY: Color = Color(0.172, 0.262, 0.136)  # dense canopy, -27% sat
 
-# ── Cavern key light (direccional cálido con sombras — el "sol filtrado") ──
-# D2-ACT-1 HYBRID: warm gold key vs cool-dark fill = high contrast defined shadows.
-# Key is the HERO light (warm gold #F5D8A0); fill stays cool-dark from crystal ceiling.
-# Energy 0.8 — strong enough to rim figures warmly against cool shadow but not bleaching.
-@export var key_light_energy: float = 0.8
-@export var key_light_pitch: float = -52.0
-@export var key_light_yaw: float = -35.0
-@export var key_light_color: Color = Color(0.961, 0.847, 0.627)  # #F5D8A0 warm gold
-
 # ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
 @export var monarch_shadows: bool = false      # true = sombra dinámica (perf red-line; off by default)
-@export var monarch_light_energy: float = 1.5
+@export var monarch_light_energy: float = 2.6  # 1.5->2.6 (2026-07-20): monarchs are the "sun" now that the key light is gone
 @export var monarch_spot_angle: float = 52.0
 
 # ── Scene references ──────────────────────────────────────────────────────────
@@ -209,6 +221,17 @@ var _swell_noise: FastNoiseLite
 ## Round-B: micro-jitter for stream centrelines. Low frequency so curves are gentle,
 ## not jagged. Seeded from world_seed+71 to stay independent of all other noise layers.
 var _stream_jitter_noise: FastNoiseLite
+## Task 1 (2026-07-20): high-frequency noise that breaks the border-ring mountain
+## rise into broken rock-face masses instead of a perfectly smooth radial ramp.
+## Sampled in raw world coords (scale-independent), only applied outside
+## flat_radius — see _compute_height_at.
+var _ridge_detail_noise: FastNoiseLite
+## Deterministic per-seed phase offsets for _ridge_factor_at_angle() — hashed from
+## world_seed (same idiom as _build_stream_polylines' hash_offset) so each seed
+## gets a different azimuthal ruggedness pattern without needing an _rng draw.
+var _ridge_phase_a: float = 0.0
+var _ridge_phase_b: float = 0.0
+var _ridge_phase_c: float = 0.0
 ## Precomputed stream polylines (xz pairs). Built once by _build_stream_polylines()
 ## which is called from _setup_terrain_noise(). Each stream is an Array[Vector2].
 var _stream_polylines: Array = []
@@ -230,19 +253,11 @@ var _baseline_children: Array[Node] = []
 ## Reset in regenerate() to avoid holding stale materials across reseeds.
 var _cave_mat_cache: Dictionary = {}
 
-## Cavern key light — UN DirectionalLight CÁLIDO con sombras: el "sol filtrado"
-## dorado del golden-hour ACOGEDOR (DanMachi F18). Da forma/profundidad y aporta la
-## mitad cálida del contraste warm-key/cool-shadow. Perf: shadow-caster principal.
-func _build_key_light() -> void:
-	var key := DirectionalLight3D.new()
-	key.name = "CavernKeyLight"
-	key.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
-	key.light_color = key_light_color
-	key.light_energy = key_light_energy
-	key.shadow_enabled = true
-	key.shadow_bias = 0.04
-	add_child(key)
-
+## Task 3 (2026-07-20): the single CrystalCeiling instance for this floor — either
+## the one declared in floor1_prairie.tscn (the real 600m demo map) or one
+## instantiated on demand (proc_lab's bare Floor1Prairie root has no pre-declared
+## child nodes). Set once per generate() call by _get_or_build_crystal_ceiling().
+var _crystal_ceiling: CrystalCeiling = null
 
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
@@ -291,11 +306,26 @@ func generate() -> void:
 	_border_radius_base = BORDER_RADIUS_BASE * _scale
 	_precalculate_border()
 	_setup_terrain_noise()
-	_build_key_light()
 
-	# 1. Atmósfera
-	if active_layers.get("ceiling", true):
-		_build_ceiling()
+	# 1. Atmósfera — CrystalCeiling ahora es el dueño único del techo: geometría del
+	# techo de roca + AMBAS luces ambientales (sus propias CeilingLight/FocusLight,
+	# más el ex CavernKeyLight fusionado adentro) — Task 3 (2026-07-20) reconciliación
+	# de los 4 sistemas antes independientes descritos en _prairie_environment_rework.md
+	# §4. Reemplaza los antiguos _build_ceiling()/_build_key_light() duplicados.
+	_crystal_ceiling = _get_or_build_crystal_ceiling()
+	_crystal_ceiling.size = Vector2(proc_bounds.x, proc_bounds.y)
+	# CEILING_HEIGHT is intentionally NOT scaled by _scale — it never was (the old
+	# _build_ceiling() used it unscaled too), so proc_lab's small cells keep the same
+	# absolute roof height as the full 600m map instead of squashing it down to a
+	# few metres.
+	_crystal_ceiling.height = CEILING_HEIGHT
+	_crystal_ceiling.build_rock_roof = active_layers.get("ceiling", true)
+	# Joan (2026-07-20): the crystals ARE the light source of the prairie — they
+	# replace the sun, not sit alongside it. A separate warm directional key
+	# light washed the whole scene in one uniform tone (indistinguishable from
+	# the roof's own warm emission), which is why the ceiling read as a flat
+	# "mancha café" instead of a cluster of glowing crystals. Key light OFF.
+	_crystal_ceiling.build_key_light = false
 	if active_layers.get("crystals", true):
 		_build_crystal_field()
 	if active_layers.get("pillars", true):
@@ -524,6 +554,21 @@ func _setup_terrain_noise() -> void:
 	_stream_jitter_noise.fractal_lacunarity = 2.0
 	_stream_jitter_noise.fractal_gain = 0.5
 
+	# Task 1 (2026-07-20): ridge detail noise — big broken-rock masses (~80m
+	# features) layered onto the border-ring rise, on top of the existing
+	# 20m-scale _outcrop_noise texture. Two different feature sizes read as real
+	# rock, not a single procedural frequency repeating at one scale.
+	_ridge_detail_noise = FastNoiseLite.new()
+	_ridge_detail_noise.seed = world_seed + 89
+	_ridge_detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_ridge_detail_noise.frequency = 0.012
+	_ridge_detail_noise.fractal_octaves = 2
+	_ridge_detail_noise.fractal_lacunarity = 2.0
+	_ridge_detail_noise.fractal_gain = 0.5
+	_ridge_phase_a = float(hash(world_seed ^ 0x5EED1) % 6283) / 1000.0
+	_ridge_phase_b = float(hash(world_seed ^ 0x5EED2) % 6283) / 1000.0
+	_ridge_phase_c = float(hash(world_seed ^ 0x5EED3) % 6283) / 1000.0
+
 	# Build stream polylines ONCE here, so _compute_height_at can use them without
 	# any _rng calls. polylines reference only _stream_jitter_noise + world_seed hashes.
 	_build_stream_polylines()
@@ -613,6 +658,21 @@ func _dist_sq_to_streams(px: float, pz: float) -> Array:
 	return [best_dist_sq, best_si]
 
 
+## Task 1 (2026-07-20): deterministic azimuthal ruggedness index for the border-ring
+## mountain slope, 0..1. 0 = the gentlest sections (still the old smooth-bowl rise
+## below — the whole ring stays part of the mountain, nothing goes back to flat),
+## 1 = the steepest, most broken rock-face sections. Three incommensurate sine
+## frequencies (same layering idiom as _precalculate_border's noise blend) keep the
+## silhouette from repeating in an obvious pattern; phases are hashed per-seed.
+func _ridge_factor_at_angle(angle_rad: float) -> float:
+	var w: float = (
+		sin(angle_rad * 2.0 + _ridge_phase_a) * 0.45 +
+		sin(angle_rad * 5.0 + _ridge_phase_b) * 0.35 +
+		sin(angle_rad * 9.0 + _ridge_phase_c) * 0.20
+	)  # roughly -1..1
+	return clampf(remap(clampf(w, -1.0, 1.0), -1.0, 1.0, 0.0, 1.0), 0.0, 1.0)
+
+
 ## Calcula la altura en una coordenada world (x, z).
 ## Suma: noise base + broad swell + subida hacia bordes + flattening en el centro
 ## + dirt/rock outcrops (outside flat_radius only).
@@ -677,8 +737,24 @@ func _compute_height_at(x: float, z: float) -> float:
 	# vertical rise MUST scale too — otherwise a small proc_lab cell keeps the full
 	# 16m rise crushed into a much shorter radius, reading as a steep crater instead
 	# of the intended gentle slope.
+	#
+	# Task 1 (2026-07-20 — Joan's Resolutions note, see _prairie_environment_rework.md):
+	# NOT a separate landmark mound — the border ring ITSELF gets reshaped into an
+	# irregular, non-climbable MOUNTAIN SLOPE across its whole circumference. The old
+	# baseline rise below stays (every angle keeps at least this much — the ring never
+	# goes back to a bare wall), and a NEW azimuthal "mountain extra" term + a
+	# high-frequency jag noise are layered on top, both driven by _ridge_factor_at_angle
+	# (0=gentle scree, 1=steep broken rock face) so the rim reads as ONE continuous
+	# rugged massif with real variation, not a uniform smooth bowl-wall.
+	# Non-climbability: the actual physical guarantee is BorderWall's CSGBox3D collision
+	# ring (_build_organic_border), independently anchored to this same height function —
+	# see that function's comment. The extra height/jag here is the VISUAL read of a
+	# mountain leading up to that wall, not itself required to exceed the engine's floor
+	# slope limit.
 	const BOWL_RISE_BASE: float = 12.0      # metres gained from flat_radius edge to border
 	const BOWL_LIP_RISE_BASE: float = 4.0   # extra metres in the last 15% (visual border lip)
+	const MOUNTAIN_EXTRA_MAX: float = 14.0  # extra metres at full ridge (on top of the baseline)
+	const MOUNTAIN_JAG_MAX: float = 7.0     # extra metres of broken-rock detail at full ridge
 	var bowl_blend: float = 0.0
 	if dist_center >= flat_radius:
 		var bowl_span: float = max_r - flat_radius
@@ -690,6 +766,23 @@ func _compute_height_at(x: float, z: float) -> float:
 			if bowl_t > 0.85:
 				var lip_t: float = (bowl_t - 0.85) / 0.15
 				h += smoothstep(0.0, 1.0, lip_t) * BOWL_LIP_RISE_BASE * _scale
+
+			var ridge: float = _ridge_factor_at_angle(atan2(z, x))
+			# Steeper sections front-load the extra rise into a shorter remaining
+			# span (start later) — reads as a genuinely steeper local gradient, not
+			# just a taller version of the same gentle curve. Gradual sections start
+			# earlier and spread the same extra height over more distance.
+			var mountain_start: float = lerpf(0.35, 0.80, ridge)
+			if bowl_t > mountain_start:
+				var mountain_t: float = (bowl_t - mountain_start) / (1.0 - mountain_start)
+				h += smoothstep(0.0, 1.0, mountain_t) * ridge * MOUNTAIN_EXTRA_MAX * _scale
+			# Rock-face jag — breaks the ring into individual broken masses instead
+			# of a smooth azimuthal wave. Fades in with bowl_blend (never touches the
+			# flat spawn bowl) and scales with ridge (steep sections get bigger jags).
+			if _ridge_detail_noise != null:
+				var rd: float = _ridge_detail_noise.get_noise_2d(x, z)  # -1..1
+				rd = (rd + 1.0) * 0.5
+				h += bowl_blend * ridge * rd * MOUNTAIN_JAG_MAX * _scale
 
 	# Round-A #2: Dirt/rock outcrops — ONLY outside the flat_radius spawn bowl.
 	# _outcrop_noise is scale-independent (sampled in world coords, freq=0.05).
@@ -721,6 +814,14 @@ func _compute_height_at(x: float, z: float) -> float:
 			var t_ch: float = sqrt(sd2) / STREAM_HALF_WIDTH   # 0..1
 			var profile: float = 1.0 - smoothstep(0.0, 1.0, t_ch)  # 1 at center, 0 at edge
 			h -= profile * STREAM_DEPTH
+
+	# Safety clamp: Task 1's mountain-slope extras (rise + lip + jag, all layered on
+	# the border ring) can theoretically stack near CEILING_HEIGHT at rare
+	# constructive-noise peaks. CEILING_HEIGHT is a flat plane, not terrain-aware, so
+	# an unclamped peak could poke through the roof geometry. Clamp only outside
+	# flat_radius (the spawn bowl never approaches this regardless).
+	if dist_center >= flat_radius:
+		h = minf(h, CEILING_HEIGHT - 10.0)
 
 	return h
 
@@ -1030,28 +1131,84 @@ func _build_organic_border() -> void:
 		wall.use_collision = true
 		# FIX #5: cave stone material — roughness + triplanar noise instead of flat color
 		wall.material_override = _make_cave_material(COLOR_BORDER)
-		wall.position = mid + Vector3(0, BORDER_WALL_HEIGHT * 0.5, 0)
+		# Task 1 (2026-07-20): anchor the wall's BASE to the local terrain height
+		# instead of assuming y=0. This is THE actual non-climbable guarantee for the
+		# new border-ring mountain slope (see _compute_height_at's Task 1 comment) —
+		# a CSGBox3D with collision blocks movement regardless of terrain gradient.
+		# Before this fix the wall's base silently assumed flat ground at y=0; with
+		# the reshaped ring rising well above that near the edge, an unanchored wall
+		# would end up partially buried with a shrinking exposed height wherever the
+		# terrain is tall. _compute_height_at is safe to call here: _setup_terrain_noise()
+		# already ran earlier in generate(), so every noise/stream input it needs exists.
+		var ground_y: float = _compute_height_at(mid.x, mid.z)
+		wall.position = mid + Vector3(0, ground_y + BORDER_WALL_HEIGHT * 0.5, 0)
 		wall.rotation.y = -seg_angle
 		add_child(wall)
 
 # ── Atmosphere ────────────────────────────────────────────────────────────────
 
-func _build_ceiling() -> void:
-	var ceiling: CSGBox3D = CSGBox3D.new()
-	ceiling.name = "CavernCeiling"
-	ceiling.size = Vector3(proc_bounds.x + 100, 2.0, proc_bounds.y + 100)
-	ceiling.position = Vector3(0, CEILING_HEIGHT, 0)
-	ceiling.use_collision = false
-	ceiling.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+const CRYSTAL_CEILING_SCENE: PackedScene = preload("res://scenes/levels/components/crystal_ceiling.tscn")
 
-	# El techo NECESITA emisión propia — Godot no tiene GI, sin esto es negro
-	var ceil_mat: StandardMaterial3D = StandardMaterial3D.new()
-	ceil_mat.albedo_color = Color(0.35, 0.32, 0.28)
-	ceil_mat.emission_enabled = true
-	ceil_mat.emission = Color(0.24, 0.22, 0.20)  # quick-win: brighter so overhead reads as stone dome, not void
-	ceil_mat.emission_energy_multiplier = 1.4
-	ceiling.material_override = ceil_mat
-	add_child(ceiling)
+## Task 3 (2026-07-20): finds the floor's CrystalCeiling child, or instantiates one
+## if none exists. The real 600m demo (floor1_prairie.tscn) already declares one
+## statically — reused as-is (never duplicated). proc_lab's bare Floor1Prairie root
+## (proc_lab.tscn only wires WorldEnvironment + ProcLabController as children, no
+## CrystalCeiling) gets one created here; being outside _baseline_children, it is
+## freed and rebuilt every regenerate() cycle exactly like the other procedural
+## nodes (crystal field, pillars) — no special-casing needed at the cleanup site.
+func _get_or_build_crystal_ceiling() -> CrystalCeiling:
+	var existing: CrystalCeiling = get_node_or_null("CrystalCeiling") as CrystalCeiling
+	if existing != null:
+		return existing
+	var inst: CrystalCeiling = CRYSTAL_CEILING_SCENE.instantiate() as CrystalCeiling
+	inst.name = "CrystalCeiling"
+	add_child(inst)
+	return inst
+
+## Task 3 (2026-07-20): recursive branching walk producing a "lightning bolt"
+## silhouette instead of the old single sine-curve path — Joan's verbal brief
+## (crystal_ceiling_lightning gap doc): "generación más tipo rayo... cristales de
+## diferentes altura". 2-3 independent trunks branch outward and occasionally fork;
+## each returned point carries a `band` (0 = trunk, higher = deeper into a fork)
+## that _build_crystal_field() maps to a distinct CRYSTAL_BAND_RANGES height tier,
+## so clusters land at genuinely varied heights along the branch instead of one
+## narrow shared range. Bounded to `target_count` points (matches the old
+## CRYSTAL_PATH_CLUSTERS budget — same perf envelope, no extra multimesh cost).
+func _build_lightning_branch_points(target_count: int) -> Array:
+	var points: Array = []
+	var stack: Array = []
+	var trunk_count: int = _rng.randi_range(2, 3)
+	for t in range(trunk_count):
+		var start_angle: float = (TAU / float(trunk_count)) * float(t) + _rng.randf_range(-0.4, 0.4)
+		stack.append({
+			"pos": Vector2.ZERO, "angle": start_angle,
+			"len": 220.0 * _scale, "band": 0,
+		})
+	while not stack.is_empty() and points.size() < target_count:
+		var branch: Dictionary = stack.pop_front()
+		var pos: Vector2 = branch["pos"]
+		var angle: float = branch["angle"]
+		var remaining: float = branch["len"]
+		var band: int = branch["band"]
+		var steps: int = _rng.randi_range(3, 6)
+		var seg_len: float = remaining / float(steps)
+		for s in range(steps):
+			if points.size() >= target_count:
+				break
+			angle += _rng.randf_range(-0.55, 0.55)   # jagged kink — reads as "lightning"
+			pos += Vector2(cos(angle), sin(angle)) * seg_len
+			points.append({"pos": pos, "band": band})
+			# Fork occasionally, one generation deeper (taller/shorter band) —
+			# capped depth via band so it can't recurse past the last band tier.
+			if s > 0 and band < CRYSTAL_BAND_RANGES.size() - 1 and _rng.randf() < 0.3:
+				var fork_sign: float = 1.0 if _rng.randf() < 0.5 else -1.0
+				var fork_angle: float = angle + _rng.randf_range(0.6, 1.4) * fork_sign
+				stack.append({
+					"pos": pos, "angle": fork_angle,
+					"len": remaining * 0.5, "band": band + 1,
+				})
+	return points
+
 
 func _build_crystal_field() -> void:
 	# NOTE: el flood OmniLight gigante (omni_range=350, CRYSTAL_AMBIENT_ENERGY) fue ELIMINADO (2026-06-06).
@@ -1123,14 +1280,31 @@ func _build_crystal_field() -> void:
 
 		# (sin luz up secundaria — el techo ya tiene emisión propia)
 
-	# ── 2. Clusters regulares — variedad de tamaños ──────────────────────────
-	for i in range(CRYSTAL_PATH_CLUSTERS):
-		var t: float = float(i) / float(CRYSTAL_PATH_CLUSTERS - 1)
+	# Task 3 (2026-07-20): two-tier hierarchy formalization — monarch 0 is the
+	# designated CORE (brightest, "sun") and anchors CrystalCeiling's FocusLight so
+	# the two independently-authored systems (this field's crystals + the
+	# component's ambient lights) agree on where the "sun" actually is, instead of
+	# each picking its own unrelated position. SKY accents are the regular cluster
+	# field below — already trends cooler by construction (2 of 3 crystal_colors —
+	# cool cyan + violet — outweigh the 1 warm amber in the random draw).
+	if not monarch_positions.is_empty() and _crystal_ceiling != null:
+		_crystal_ceiling.anchor_focus_light(Vector2(monarch_positions[0].x, monarch_positions[0].z))
 
-		var path_x: float = lerp(-200.0 * _scale, 200.0 * _scale, t)
-		var path_z: float = sin(t * PI * 1.6 + 0.3) * 130.0 * _scale
-		path_x += _rng.randf_range(-25.0, 25.0) * _scale
-		path_z += _rng.randf_range(-CRYSTAL_SCATTER_WIDTH * 0.5, CRYSTAL_SCATTER_WIDTH * 0.5) * _scale
+	# ── 2. Clusters — "lightning bolt" branching distribution across MULTIPLE
+	# height bands (Task 3, 2026-07-20 — Joan: DanMachi's crystal-sky is one
+	# mostly-flat layer; ours should read taller/deeper, with clusters at varying
+	# heights along a branching path so the light source stops reading as one flat
+	# plane — see crystal_ceiling_lightning gap doc). Replaces the old single
+	# sine-curve path + flat [MIN,MAX] height roll shared by the whole field.
+	var branch_points: Array = _build_lightning_branch_points(CRYSTAL_PATH_CLUSTERS)
+	for i in range(branch_points.size()):
+		var bp: Dictionary = branch_points[i]
+		var p2: Vector2 = bp["pos"]
+		var band: int = bp["band"]
+		var band_range: Vector2 = CRYSTAL_BAND_RANGES[band % CRYSTAL_BAND_RANGES.size()]
+
+		var path_x: float = p2.x
+		var path_z: float = p2.y
 
 		var cluster_pos: Vector3 = Vector3(path_x, 0, path_z)
 		if not _is_inside_border(cluster_pos):
@@ -1151,7 +1325,7 @@ func _build_crystal_field() -> void:
 		var cluster_type: float = _rng.randf()
 		if cluster_type < 0.2:
 			# Tipo A: Un cristal grande dominante + muchos chiquitos
-			var cy: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT + 4.0, CRYSTAL_MAX_HEIGHT)
+			var cy: float = _rng.randf_range(band_range.x, band_range.y)
 			_spawn_crystal_shard("Crystal%d_Dom" % i,
 				Vector3(path_x, cy, path_z), cluster_color,
 				4.0, 10.0, 1.5, 3.0)
@@ -1161,14 +1335,14 @@ func _build_crystal_field() -> void:
 					0.3, 2.0, 0.15, 0.6)
 		elif cluster_type < 0.5:
 			# Tipo B: Formación densa — muchos medianos agrupados
-			var cy: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT, CRYSTAL_MAX_HEIGHT)
+			var cy: float = _rng.randf_range(band_range.x, band_range.y)
 			for s in range(_rng.randi_range(5, 9)):
 				_spawn_crystal_shard("Crystal%d_%d" % [i, s],
 					Vector3(path_x, cy, path_z), cluster_color,
 					1.0, 5.0, 0.4, 1.5)
 		elif cluster_type < 0.75:
 			# Tipo C: Disperso — pocos cristales sueltos esparcidos
-			var cy: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT, CRYSTAL_MAX_HEIGHT)
+			var cy: float = _rng.randf_range(band_range.x, band_range.y)
 			for s in range(_rng.randi_range(2, 4)):
 				var spread: float = 8.0
 				_spawn_crystal_shard("Crystal%d_%d" % [i, s],
@@ -1179,9 +1353,12 @@ func _build_crystal_field() -> void:
 					), cluster_color,
 					1.5, 6.0, 0.5, 1.8)
 		else:
-			# Tipo D: Cascada — cristales que bajan del techo en escalera
+			# Tipo D: Cascada — desciende DENTRO de la banda del propio punto de
+			# rama, en vez de arrancar siempre desde el techo — así hay cascadas
+			# en cada altura, no solo cerca del techo.
+			var cascade_top: float = band_range.y
 			for s in range(_rng.randi_range(4, 7)):
-				var step_y: float = CEILING_HEIGHT - 2.0 - float(s) * _rng.randf_range(1.5, 3.0)
+				var step_y: float = cascade_top - float(s) * _rng.randf_range(1.5, 3.0)
 				var drift: float = float(s) * _rng.randf_range(0.5, 1.5)
 				_spawn_crystal_shard("Crystal%d_%d" % [i, s],
 					Vector3(path_x + drift, step_y, path_z + drift * 0.5),
@@ -1189,9 +1366,9 @@ func _build_crystal_field() -> void:
 					0.8, 4.5, 0.3, 1.2)
 
 		# Luz real solo cada N clusters — Wave1.5: tight pool (range 7-12m) at energy 3.0
-		# so cluster omnis actually reach the ground ~35m below the ceiling.
+		# so cluster omnis actually reach the ground below the ceiling.
 		if i % CRYSTAL_LIGHTS_EVERY == 0:
-			var cy_light: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT - 2.0, CRYSTAL_MAX_HEIGHT - 2.0)
+			var cy_light: float = _rng.randf_range(band_range.x, band_range.y)
 			var cl: OmniLight3D = OmniLight3D.new()
 			cl.name = "CrystalLight%d" % i
 			# Tint-matched to crystal color (saturated, not washed toward white)
@@ -1396,14 +1573,30 @@ func _get_crystal_mesh() -> Mesh:
 func _build_landmark_pillars() -> void:
 	for i in range(PILLAR_COUNT):
 		var angle: float = (float(i) / float(PILLAR_COUNT)) * TAU + _rng.randf_range(-0.2, 0.2)
-		var dist: float = _rng.randf_range(100.0 * _scale, 200.0 * _scale)
-		var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+		# Task 1 (2026-07-20): the first half of the pillars now crown the new
+		# rugged mountain rim (per the spec's own "_build_landmark_pillars() is the
+		# natural hook" suggestion) instead of all 6 scattering at the old mid-ring
+		# distance — reinforces the border-ring reshape visually. The rest stay at
+		# the old distance so the floor doesn't read as ringed-by-pillars-only.
+		var crown: bool = i < int(PILLAR_COUNT / 2)
+		var dist: float = _rng.randf_range(190.0, 235.0) * _scale if crown \
+			else _rng.randf_range(100.0, 200.0) * _scale
+		var base_x: float = cos(angle) * dist
+		var base_z: float = sin(angle) * dist
+		var pos: Vector3 = Vector3(base_x, 0, base_z)
 		if not _is_inside_border(pos):
 			continue
+		# Snap the pillar's BASE to the actual terrain height instead of assuming
+		# y=0 — with the mountain-slope rework the ring terrain is no longer near-
+		# flat out here, so an unsnapped base used to end up partially buried.
+		# _compute_height_at is safe here: _setup_terrain_noise() already ran.
+		var ground_y: float = _compute_height_at(base_x, base_z)
 		# Piso-a-techo: el pilar SIEMPRE llega al techo de la cueva (Joan, 2026-07-18 —
 		# antes la altura era aleatoria 30-50m contra un techo fijo en 45m, así que la
 		# mayoría de las tiradas quedaban cortas y el pilar no tocaba el techo).
-		var height: float = CEILING_HEIGHT
+		var height: float = CEILING_HEIGHT - ground_y
+		if height <= 1.0:
+			continue
 
 		var pillar: CSGCylinder3D = CSGCylinder3D.new()
 		pillar.name = "LandmarkPillar%d" % i
@@ -1413,7 +1606,7 @@ func _build_landmark_pillars() -> void:
 		pillar.use_collision = true
 		# Round-A #1: landmark pillars use cave material (worked stone, not flat color)
 		pillar.material_override = _make_cave_material(COLOR_PILLAR)
-		pillar.position = pos + Vector3(0, height * 0.5, 0)
+		pillar.position = Vector3(base_x, ground_y + height * 0.5, base_z)
 		add_child(pillar)
 
 # ── POI builders ──────────────────────────────────────────────────────────────
@@ -1594,104 +1787,38 @@ func _on_boss_died(boss: BaseEnemy) -> void:
 	descent.global_position = spot
 
 
-## Bandit camp dressing — REAL gltf props (2026-07-17), replaces the flat-box-only
-## look. These 15 assets sat imported and unused since the 2026-05-25 batch (see
-## _estado_vivo.md gap list). Only the props that read as "bandit camp" are used
-## here (wood/fence/banner/cart/lantern); civic-village pieces (fountain, hedge,
-## chimney, planks) are left for a future dedicated Outpost POI — mixing them in
-## here would misread the camp's identity. Bounding boxes measured from the glb
-## accessors are a uniform 2x2x2m pack-grid unit, so props are placed at NATIVE
-## scale (no bespoke visual reference exists for this pack — flagged per the
-## reference-first protocol; re-scale after an in-game eyeball pass if it reads
-## off).
-const SCENE_CAMP_FENCE: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_fence_01.glb")
-const SCENE_CAMP_FENCE_GATE: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_fence_gate_01.glb")
-const SCENE_CAMP_BANNER: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_banner_red_01.glb")
-const SCENE_CAMP_LANTERN: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_lantern_01.glb")
-const SCENE_CAMP_CART: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_cart_01.glb")
-const SCENE_CAMP_PILLAR: PackedScene = preload("res://assets/art/piso1_pradera/props/outpost/prop_pillar_wood_01.glb")
-
+## Bandit camp dressing — delegates to VillageBuilder (2026-07-18), a terrain/
+## biome-aware village generator that replaced the old ad-hoc fence-ring +
+## flat-box layout. Structure (palisade ring, double-gate airlock, watchtower,
+## central hut, inner ring, patches, scatter) lives in
+## `game/scripts/village_builder.gd`; the "bandit_prairie" style Dictionary
+## there carries all asset paths for this pack. See
+## `game/docs/village_builder.md` and `game/docs/art/_references/bandit_camp/_synthesis.md`.
+##
 ## Instances a real-prop PackedScene as pure set dressing — visual only, no
 ## collision (fence/banner/lantern are thin geometry; a solid StaticBody here
 ## risks snagging bandit AI pathing around the camp, which this dressing pass
-## must not touch).
-func _add_camp_prop(scene: PackedScene, node_name: String, world_pos: Vector3, rot_y: float, scale: float = 1.0) -> void:
+## must not touch). `lean_rad` is an optional extra tilt around the prop's own
+## yaw-relative forward axis — used by VillageBuilder's palisade jitter for the
+## "desparejo" (uneven) look; 0.0 keeps the old straight-up behavior.
+func _add_camp_prop(scene: PackedScene, node_name: String, world_pos: Vector3, rot_y: float, scale: float = 1.0, lean_rad: float = 0.0) -> void:
 	if scene == null:
 		return
 	var inst: Node3D = scene.instantiate() as Node3D
 	if inst == null:
 		return
 	inst.name = node_name
-	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(scale, scale, scale)), world_pos)
+	var yaw_basis: Basis = Basis(Vector3.UP, rot_y)
+	var prop_basis: Basis = yaw_basis.scaled(Vector3(scale, scale, scale))
+	if lean_rad != 0.0:
+		prop_basis = prop_basis.rotated(yaw_basis * Vector3.FORWARD, lean_rad)
+	inst.transform = Transform3D(prop_basis, world_pos)
 	inst.add_to_group("grounded")
 	_scatter_apply_geo_flags(inst, 80.0)
 	add_child(inst)
 
 func _build_camp(poi: POISystem.POI) -> void:
-	var pos: Vector3 = poi.position
-	var sz: Vector2 = poi.size
-
-	_add_csg_box("CampGround", pos + Vector3(0, 0.02, 0),
-		Vector3(sz.x, 0.04, sz.y), COLOR_PATH, false)
-
-	var tent_count: int = _rng.randi_range(2, 3)
-	for i in range(tent_count):
-		var tx: float = _rng.randf_range(-sz.x * 0.25, sz.x * 0.25)
-		var tz: float = _rng.randf_range(-sz.y * 0.25, sz.y * 0.25)
-		_add_csg_box("CampTent%d" % i,
-			pos + Vector3(tx, 1.2, tz),
-			Vector3(4.0, 2.4, 3.0), COLOR_CAMP_TENT, true)
-
-	var fire: CSGCylinder3D = CSGCylinder3D.new()
-	fire.name = "CampFire"
-	fire.radius = 0.6
-	fire.height = 0.3
-	fire.use_collision = false
-	fire.material_override = _make_material(Color(0.2, 0.1, 0.05))
-	fire.position = pos + Vector3(0, 0.15, 0)
-	add_child(fire)
-
-	var fire_light: OmniLight3D = OmniLight3D.new()
-	fire_light.name = "CampFireLight"
-	fire_light.light_color = Color(1.0, 0.6, 0.2)
-	fire_light.light_energy = 0.6
-	fire_light.omni_range = 15.0
-	fire_light.position = pos + Vector3(0, 1.0, 0)
-	add_child(fire_light)
-
-	for i in range(3):
-		var angle: float = float(i) * TAU / 3.0
-		_add_csg_box("CampLog%d" % i,
-			pos + Vector3(cos(angle) * 2.0, 0.2, sin(angle) * 2.0),
-			Vector3(2.0, 0.4, 0.5), COLOR_TRUNK, true)
-
-	# Loose fence perimeter — bandit camps are staked, not walled: a few
-	# segments per side read as "marked territory" without enclosing the POI
-	# (an enclosing collider would risk trapping AI/player pathing here).
-	var fence_radius: float = minf(sz.x, sz.y) * 0.42
-	var fence_segments: int = 10
-	var gate_index: int = _rng.randi_range(0, fence_segments - 1)
-	for i in range(fence_segments):
-		var angle: float = float(i) * TAU / float(fence_segments)
-		var fpos: Vector3 = pos + Vector3(cos(angle) * fence_radius, 0, sin(angle) * fence_radius)
-		# Face outward along the ring tangent.
-		var facing: float = angle + PI * 0.5
-		if i == gate_index:
-			_add_camp_prop(SCENE_CAMP_FENCE_GATE, "CampFenceGate", fpos, facing)
-		else:
-			_add_camp_prop(SCENE_CAMP_FENCE, "CampFence%d" % i, fpos, facing)
-
-	_add_camp_prop(SCENE_CAMP_LANTERN, "CampLantern",
-		pos + Vector3(2.2, 0, 1.6), _rng.randf() * TAU)
-	_add_camp_prop(SCENE_CAMP_PILLAR, "CampPillar",
-		pos + Vector3(-2.5, 0, -2.0), _rng.randf() * TAU)
-	_add_camp_prop(SCENE_CAMP_CART, "CampCart",
-		pos + Vector3(sz.x * 0.2, 0, -sz.y * 0.2), _rng.randf() * TAU)
-	for i in range(2):
-		var bx: float = _rng.randf_range(-sz.x * 0.15, sz.x * 0.15)
-		var bz: float = _rng.randf_range(-sz.y * 0.15, sz.y * 0.15)
-		_add_camp_prop(SCENE_CAMP_BANNER, "CampBanner%d" % i,
-			pos + Vector3(bx, 0, bz), _rng.randf() * TAU)
+	VillageBuilder.build(self, poi, get_terrain_height, _rng, _add_camp_prop, VillageBuilder.STYLE_BANDIT_PRAIRIE)
 
 ## Landmark tree uses a REAL scaled gltf, not the old green-box-on-a-stick.
 const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf")
@@ -2212,6 +2339,148 @@ const SCENE_LAETIPORUS: PackedScene = preload("res://assets/art/piso1_pradera/ve
 ## Common mushroom — spawned in the SHADE at the base of trees (see
 ## _scatter_understory_mushrooms), never in open field.
 const SCENE_MUSHROOM_COMMON: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf")
+
+# ── Task 2 (2026-07-20): humidity + shade niche system ───────────────────────
+# Lightweight proxy system (spec §3) — NOT the full per-cell procedural_ecology.md
+# grid (that design is generic multi-floor and never got implemented; too big for
+# what floor 1 needs). Reuses data that already exists: _stream_polylines + pond
+# POIs for humidity, _tree_positions for shade. Only wired into the CONNECTIVE-
+# TISSUE scatter (_scatter_pool, the flat-percentage part) — the hand-authored
+# POI-anchored clusters (pond/boss/giant_tree/entrance/camp/ruins/altar/well) stay
+# exactly as curated, per the spec's "keep them as an authored override layer".
+
+## Humidity/shade range [min, max] on a 0..1 scale, per POOL entry (keyed by
+## resource_path — stable across POOL_TREES' duplicate preload() slots, unlike
+## PackedScene object identity). Populated directly from the ecological reasoning
+## already recorded in _coherence_target_sheet.md's shade-tolerance column and the
+## FIX #1-#5 comments already baked into this file (see POOL_TREES/POOL_BUSHES/
+## POOL_GROUND above). humidity 1 = at the water's edge; shade 1 = directly under a
+## tree canopy. Entries with no key here (POOL_ROCKS — minerals have no ecological
+## niche) fall back to a neutral weight in _pick_flora_for_point, i.e. uniform
+## random selection exactly like before this system existed.
+const FLORA_NICHES: Dictionary = {
+	# Birch — shade-intolerant pioneer (BREAK #4): confine it to the brightest
+	# ground instead of relying on luck, per its own comment ("sparse, near
+	# crystal-spotlight zones by chance").
+	"res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf":
+		{"humidity": [0.15, 0.75], "shade": [0.0, 0.3]},
+	"res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf":
+		{"humidity": [0.15, 0.75], "shade": [0.0, 0.3]},
+	# Maple — the coherence sheet's best-fit understory tree (medium-high shade
+	# tolerance); belongs UNDER canopy, not in the open.
+	"res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf":
+		{"humidity": [0.1, 0.85], "shade": [0.3, 1.0]},
+	"res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf":
+		{"humidity": [0.1, 0.85], "shade": [0.3, 1.0]},
+	"res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf":
+		{"humidity": [0.1, 0.85], "shade": [0.3, 1.0]},
+	# Common broadleaf — low-medium shade tolerance, sits between birch and maple.
+	"res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf":
+		{"humidity": [0.1, 0.7], "shade": [0.0, 0.55]},
+	"res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf":
+		{"humidity": [0.1, 0.7], "shade": [0.0, 0.55]},
+	"res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf":
+		{"humidity": [0.1, 0.7], "shade": [0.0, 0.55]},
+	# Bushes — generic understory shrubs, medium shade tolerance, mesic.
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf":
+		{"humidity": [0.1, 0.8], "shade": [0.2, 0.9]},
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf":
+		{"humidity": [0.1, 0.8], "shade": [0.2, 0.9]},
+	# Clover — the one entry left in POOL_GROUND after BREAK #1 removed the
+	# full-sun wildflowers. White clover tolerates up to ~50% shade.
+	"res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf":
+		{"humidity": [0.15, 1.0], "shade": [0.0, 0.7]},
+	# Registered for completeness (spec §3 lists them explicitly) even though these
+	# three are placed by their OWN substrate-aware passes (_scatter_dead_trees,
+	# _scatter_understory_mushrooms), not through _pick_flora_for_point — a dead
+	# snag's "any open ground" rule and a fungus's wood/shade-base rule are already
+	# stronger, more specific placement logic than a flat humidity/shade query.
+	"res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf":
+		{"humidity": [0.0, 1.0], "shade": [0.0, 1.0]},
+	"res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf":
+		{"humidity": [0.3, 1.0], "shade": [0.5, 1.0]},
+	"res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf":
+		{"humidity": [0.25, 1.0], "shade": [0.4, 1.0]},
+}
+
+## Distance-based humidity proxy (0..1): 1 at a stream centerline or pond POI,
+## falling off to 0 across a halo radius. Reuses the "humidity halo = 1.5-3x water
+## body radius" rule already established in game/docs/art/_world_coherence.md §2
+## instead of building a new per-cell grid.
+func _humidity_at(x: float, z: float, pois: Array) -> float:
+	var best: float = 0.0
+	if not _stream_polylines.is_empty():
+		var sr: Array = _dist_sq_to_streams(x, z)
+		var d: float = sqrt(sr[0])
+		var halo: float = STREAM_HALF_WIDTH * 3.0
+		best = maxf(best, clampf(1.0 - d / halo, 0.0, 1.0))
+	for poi in pois:
+		var p: POISystem.POI = poi as POISystem.POI
+		if p.type != "pond":
+			continue
+		var pond_r: float = p.size.x * 0.5
+		var halo_p: float = maxf(pond_r * 2.5, 1.0)   # midpoint of the 1.5-3x range
+		var d2: float = Vector2(x - p.position.x, z - p.position.z).length()
+		best = maxf(best, clampf(1.0 - d2 / halo_p, 0.0, 1.0))
+	return best
+
+## Distance-based shade proxy (0..1): 1 directly under a recorded tree, falling off
+## across a canopy-sized radius. Generalizes the ad-hoc proximity check
+## _scatter_understory_mushrooms() already did (grow fungi near a tree base) into a
+## reusable query any candidate point can use, not just mushroom clumps.
+func _shade_at(x: float, z: float) -> float:
+	if _tree_positions.is_empty():
+		return 0.0
+	const SHADE_RADIUS: float = 12.0
+	var best_d2: float = SHADE_RADIUS * SHADE_RADIUS
+	for tp in _tree_positions:
+		var d2: float = Vector2(x - tp.x, z - tp.z).length_squared()
+		if d2 < best_d2:
+			best_d2 = d2
+	return clampf(1.0 - sqrt(best_d2) / SHADE_RADIUS, 0.0, 1.0)
+
+## 1.0 inside [bounds[0], bounds[1]], decaying linearly to 0 across a margin equal
+## to the range's own span outside it — a point just past the edge still gets a
+## meaningful chance, a point far outside effectively never does.
+func _niche_fit(bounds: Array, value: float) -> float:
+	var lo: float = bounds[0]
+	var hi: float = bounds[1]
+	if value >= lo and value <= hi:
+		return 1.0
+	var span: float = maxf(hi - lo, 0.1)
+	var dist: float = (lo - value) if value < lo else (value - hi)
+	return clampf(1.0 - dist / span, 0.0, 1.0)
+
+## Picks one scene from `pool` weighted by how well its FLORA_NICHES humidity/shade
+## range matches (x, z). Un-registered entries (e.g. POOL_ROCKS) get a neutral
+## weight, so calling this on a pool with no niche data is equivalent to the old
+## uniform `_rng.randi() % pool.size()`. Soft-matches outside the registered range
+## (see _niche_fit) instead of a hard cutoff, so a point with no perfect-fit species
+## still gets something — avoids empty scatter holes.
+func _pick_flora_for_point(pool: Array, x: float, z: float, pois: Array) -> PackedScene:
+	if pool.size() <= 1:
+		return pool[0]
+	var humidity: float = _humidity_at(x, z, pois)
+	var shade: float = _shade_at(x, z)
+	var weights: Array[float] = []
+	var total: float = 0.0
+	for scene in pool:
+		var w: float = 0.5   # neutral fallback for un-registered entries
+		var niche: Variant = FLORA_NICHES.get((scene as PackedScene).resource_path, null)
+		if niche != null:
+			w = _niche_fit(niche["humidity"], humidity) * _niche_fit(niche["shade"], shade)
+			w = maxf(w, 0.05)   # never fully zero out a species — keeps variety
+		weights.append(w)
+		total += w
+	if total <= 0.0:
+		return pool[_rng.randi() % pool.size()]
+	var roll: float = _rng.randf() * total
+	var acc: float = 0.0
+	for i in range(pool.size()):
+		acc += weights[i]
+		if roll <= acc:
+			return pool[i]
+	return pool[pool.size() - 1]
 
 ## ── Ground detail scatter (S4) ───────────────────────────────────────────────
 ## Sparse pebble + small-rock + clover-clump pass. No colliders. Low count.
@@ -2748,6 +3017,11 @@ func _scatter_cluster(
 		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)
 
 ## Scatter uniforme por el mapa abierto, evitando POIs (tejido conectivo).
+## Task 2 (2026-07-20): candidate scene now comes from _pick_flora_for_point()
+## instead of a flat `_rng.randi() % pool.size()` — the connective tissue reacts to
+## humidity (near water) and shade (near trees) instead of picking blind. Passing a
+## single-scene "pool" of size 1 into _place_instance reuses its existing
+## trunk-position-recording / collider logic unchanged.
 ## collider_kind: "" = none, "trunk" = CapsuleShape3D for trees, "rock" = BoxShape3D for rocks.
 func _scatter_pool(
 	pool: Array, count: int, pois: Array,
@@ -2761,7 +3035,8 @@ func _scatter_pool(
 		if pos == Vector3.INF:
 			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
-		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)
+		var chosen: PackedScene = _pick_flora_for_point(pool, pos.x, pos.z, pois)
+		_place_instance([chosen], pos, scale_min, scale_max, parent, collider_kind)
 
 ## FIX #2 — Scatter dead trees as open-field connective tissue, then attach
 ## laetiporus bracket fungus at the trunk base with 40% probability.

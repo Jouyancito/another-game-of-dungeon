@@ -59,6 +59,54 @@ class_name CrystalCeiling
 		if is_inside_tree() and _mesh != null:
 			_mesh.visible = show_ceiling_plane
 
+## Task 3 (2026-07-20) ceiling reconciliation: when true, builds a solid rock-roof
+## CSGBox3D sized to `size` (+100m padding, same margin the old geometry used) at
+## `height` — the floor's actual VISIBLE cave ceiling. This used to be a separate
+## duplicate system (floor1_prairie.gd's old _build_ceiling(), unrelated to this
+## component's tint/light system) — merged in here so ONE object owns the roof
+## mesh + tint + both ambient lights instead of four independently-authored pieces.
+@export var build_rock_roof: bool = true:
+	set(value):
+		build_rock_roof = value
+		if is_inside_tree():
+			_apply_rock_roof()
+
+## Task 3 (2026-07-20): when true, builds the warm shadow-casting-turned-soft key
+## light that used to be floor1_prairie.gd's standalone `_build_key_light()`
+## (node name "CavernKeyLight", art_canon.md still refers to it by that name).
+## Merged in here — single ceiling-lighting owner, per spec §4 item 2 full merge.
+@export var build_key_light: bool = true:
+	set(value):
+		build_key_light = value
+		if is_inside_tree():
+			_apply_key_light()
+
+# ── Merged CavernKeyLight — D2-ACT-1 HYBRID: warm gold key vs cool-dark fill.
+# Key is the HERO light (warm gold #F5D8A0); fill stays cool-dark from CeilingLight.
+@export var key_light_energy: float = 0.8:
+	set(value):
+		key_light_energy = value
+		if _key_light != null:
+			_key_light.light_energy = value
+
+@export var key_light_pitch: float = -52.0:
+	set(value):
+		key_light_pitch = value
+		if _key_light != null:
+			_key_light.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
+
+@export var key_light_yaw: float = -35.0:
+	set(value):
+		key_light_yaw = value
+		if _key_light != null:
+			_key_light.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
+
+@export var key_light_color: Color = Color(0.961, 0.847, 0.627):  # #F5D8A0 warm gold
+	set(value):
+		key_light_color = value
+		if _key_light != null:
+			_key_light.light_color = value
+
 # Tints canon por bioma — ver game/docs/art/crystal_ceiling.md para justificación.
 const BIOMA_TINTS := {
 	"pradera":        Color("#C8E68A"),  # verde-amarillo cálido — día primaveral
@@ -81,6 +129,8 @@ const HERO_ENERGY := 1.8   # dropped 2.6->1.8 — the gold pool was still desert
 @onready var _focus_light: OmniLight3D = $FocusLight
 
 var _material: StandardMaterial3D = null
+var _rock_roof: CSGBox3D = null
+var _key_light: DirectionalLight3D = null
 
 
 func _ready() -> void:
@@ -93,6 +143,8 @@ func _ready() -> void:
 	_apply_size()
 	_apply_height()
 	_apply_bioma()
+	_apply_rock_roof()
+	_apply_key_light()
 	if _focus_light != null:
 		_focus_light.visible = enable_focus_light
 	if _mesh != null:
@@ -118,6 +170,7 @@ func _apply_bioma() -> void:
 func _apply_size() -> void:
 	if _mesh != null and _mesh.mesh is PlaneMesh:
 		(_mesh.mesh as PlaneMesh).size = size
+	_apply_rock_roof()
 
 
 func _apply_height() -> void:
@@ -125,3 +178,69 @@ func _apply_height() -> void:
 		_mesh.position.y = height
 	if _focus_light != null:
 		_focus_light.position.y = height * 0.5
+	_apply_rock_roof()
+
+
+## Task 3 (2026-07-20): builds/updates the solid rock-roof CSGBox3D — the floor's
+## actual visible cave ceiling, moved in from floor1_prairie.gd's old
+## _build_ceiling(). +100m padding on each axis matches that function's own margin
+## (roof must extend past the border so there's never a visible gap/void at the edge).
+func _apply_rock_roof() -> void:
+	if not build_rock_roof:
+		if _rock_roof != null:
+			_rock_roof.visible = false
+		return
+	if _rock_roof == null:
+		_rock_roof = CSGBox3D.new()
+		_rock_roof.name = "RockRoof"
+		_rock_roof.use_collision = false
+		_rock_roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var mat := StandardMaterial3D.new()
+		# Joan (2026-07-20): with the key light gone, the roof must NOT self-glow —
+		# a bright uniform emissive slab is exactly what read as a flat "mancha
+		# café" dominating the frame. The rock ceiling is now dark bare stone;
+		# it only shows form where the crystals' own light happens to graze it.
+		# The crystal FIELD is the ceiling's visual identity now, not this box.
+		mat.albedo_color = Color(0.10, 0.09, 0.08)
+		mat.emission_enabled = false
+		mat.roughness = 0.95
+		_rock_roof.material_override = mat
+		add_child(_rock_roof)
+	_rock_roof.visible = true
+	_rock_roof.size = Vector3(size.x + 100.0, 2.0, size.y + 100.0)
+	_rock_roof.position = Vector3(0, height, 0)
+
+
+## Task 3 (2026-07-20): the merged CavernKeyLight — moved in from floor1_prairie.gd's
+## old _build_key_light(). shadow_enabled is OFF (was ON in the standalone version):
+## the crystal_ceiling reference synthesis (5 DanMachi screenshots) found the
+## crystal-sky reads as soft/near-absent shadow, not one hard directional cut —
+## applying that finding now that the ceiling itself is being reconciled, per the
+## reference doc's own note ("aplicar DESPUÉS del remodelado del techo").
+func _apply_key_light() -> void:
+	if not build_key_light:
+		if _key_light != null:
+			_key_light.visible = false
+		return
+	if _key_light == null:
+		_key_light = DirectionalLight3D.new()
+		_key_light.name = "CavernKeyLight"
+		_key_light.shadow_enabled = false
+		add_child(_key_light)
+	_key_light.visible = true
+	_key_light.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
+	_key_light.light_color = key_light_color
+	_key_light.light_energy = key_light_energy
+
+
+## Task 3 (2026-07-20): repositions FocusLight's XZ (the "diamond cave-sun") to sit
+## above the crystal field's designated CORE cluster — formalizes the two-tier
+## crystal hierarchy (CORE=brightest/sun, SKY=cooler accents) by making this
+## component's own light and the crystal field's brightest cluster agree on where
+## the "sun" is, instead of each picking an independent position. Y is left alone
+## (owned by _apply_height/height*0.5 — that's a lighting-practicality height, not
+## meant to match the crystal's own decorative height near the roof).
+func anchor_focus_light(world_xz: Vector2) -> void:
+	if _focus_light != null:
+		_focus_light.position.x = world_xz.x
+		_focus_light.position.z = world_xz.y
