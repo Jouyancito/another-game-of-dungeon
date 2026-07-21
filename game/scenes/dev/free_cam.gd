@@ -17,6 +17,14 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	current = true
 	rotation_order = EULER_ORDER_YXZ
+	# Judgment Day fix (2026-07-21): sync _yaw/_pitch FROM the node's current
+	# rotation (already reflecting whatever the caller's look_at() set — the
+	# caller sets position/look_at before add_child(), and add_child() invokes
+	# _ready() synchronously). Without this, _yaw/_pitch stayed at their 0.0
+	# init value and the FIRST MouseMotion snapped rotation away from the
+	# look_at()-set framing instantly.
+	_pitch = rotation.x
+	_yaw = rotation.y
 
 
 func _unhandled_input(event: InputEvent) -> void:

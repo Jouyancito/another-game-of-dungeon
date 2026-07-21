@@ -37,7 +37,7 @@ class_name CrystalCeiling
 
 ## Altura del techo sobre el piso (Y). La luz direccional apunta hacia abajo
 ## desde arriba del cristal.
-@export_range(5.0, 60.0, 0.5) var height: float = 15.0:
+@export_range(5.0, 80.0, 0.5) var height: float = 15.0:
 	set(value):
 		height = value
 		if is_inside_tree():

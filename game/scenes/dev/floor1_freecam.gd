@@ -24,11 +24,15 @@ func _ready() -> void:
 
 	var cam := Camera3D.new()
 	cam.set_script(load("res://scenes/dev/free_cam.gd"))
-	add_child(cam)
-	# Start centered over the map, a bit above ground, angled slightly down —
-	# a good orientation point before flying wherever.
+	# Judgment Day fix (2026-07-21): position/look_at MUST be set BEFORE
+	# add_child(cam) — add_child() invokes _ready() synchronously once the tree
+	# is running, and free_cam.gd's _ready() now syncs _yaw/_pitch FROM the
+	# node's current rotation so the first mouse move doesn't snap away from
+	# this framing. Start centered over the map, a bit above ground, angled
+	# slightly down — a good orientation point before flying wherever.
 	cam.global_position = Vector3(0.0, 25.0, 40.0)
 	cam.look_at(Vector3(0.0, 5.0, 0.0), Vector3.UP)
+	add_child(cam)
 
 
 func _disable_other_cameras(node: Node) -> void:

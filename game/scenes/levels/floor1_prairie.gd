@@ -76,6 +76,11 @@ const BORDER_NOISE_AMP: float = 45.0
 const BORDER_NOISE_FREQ: float = 4.0
 const BORDER_WALL_HEIGHT: float = 32.0  # Task 1 (2026-07-20): 25->32 — extra margin above the taller/rugged mountain-slope terrain now leading up to it
 const BORDER_WALL_SEGMENTS: int = 64
+## Judgment Day fix (2026-07-21): min gap kept between a border wall segment's
+## TOP and CEILING_HEIGHT. At high-ridge azimuthal sections the flat
+## BORDER_WALL_HEIGHT addition on top of real terrain height could reach/exceed
+## the roof plane — see the per-segment clamp in _build_organic_border().
+const BORDER_WALL_CEILING_MARGIN: float = 4.0
 
 # Ceiling — NO projeta sombras para evitar oscuridad invertida
 # Task 3 (2026-07-20, Joan): 45->68 — taller ceiling so the light source reads as
@@ -326,6 +331,14 @@ func generate() -> void:
 	# the roof's own warm emission), which is why the ceiling read as a flat
 	# "mancha café" instead of a cluster of glowing crystals. Key light OFF.
 	_crystal_ceiling.build_key_light = false
+	# Judgment Day fix (2026-07-21): the rock roof (build_rock_roof above) is now
+	# the ceiling's real visible geometry — the legacy tinted PlaneMesh is
+	# redundant and z-fights it. floor1_prairie.tscn's pre-declared CrystalCeiling
+	# already sets show_ceiling_plane=false statically, but _get_or_build_crystal_
+	# ceiling() also instantiates a FRESH CrystalCeiling for proc_lab (bare root,
+	# no pre-declared child) that keeps the export's `true` default — set it here
+	# so both paths agree.
+	_crystal_ceiling.show_ceiling_plane = false
 	if active_layers.get("crystals", true):
 		_build_crystal_field()
 	if active_layers.get("pillars", true):
@@ -1127,7 +1140,6 @@ func _build_organic_border() -> void:
 
 		var wall: CSGBox3D = CSGBox3D.new()
 		wall.name = "BorderWall%d" % i
-		wall.size = Vector3(seg_len + 0.5, BORDER_WALL_HEIGHT, 3.0)
 		wall.use_collision = true
 		# FIX #5: cave stone material — roughness + triplanar noise instead of flat color
 		wall.material_override = _make_cave_material(COLOR_BORDER)
@@ -1141,7 +1153,18 @@ func _build_organic_border() -> void:
 		# terrain is tall. _compute_height_at is safe to call here: _setup_terrain_noise()
 		# already ran earlier in generate(), so every noise/stream input it needs exists.
 		var ground_y: float = _compute_height_at(mid.x, mid.z)
-		wall.position = mid + Vector3(0, ground_y + BORDER_WALL_HEIGHT * 0.5, 0)
+		# Judgment Day fix (2026-07-21): clamp the wall's effective height so its
+		# top never exceeds CEILING_HEIGHT (minus a small margin) — at high-ridge
+		# azimuthal sections (common by construction of the terrain rework) the flat
+		# BORDER_WALL_HEIGHT addition on top of real ground_y could reach/exceed the
+		# roof plane. Clamped PER-SEGMENT using the real ground height at that
+		# segment; BORDER_WALL_HEIGHT's own constant is untouched. Floored at 1.0 so
+		# a pathological ground_y (already at/above the ceiling) never collapses the
+		# CSGBox3D to a zero/negative-size degenerate shape.
+		var actual_wall_height: float = maxf(
+			minf(BORDER_WALL_HEIGHT, CEILING_HEIGHT - ground_y - BORDER_WALL_CEILING_MARGIN), 1.0)
+		wall.size = Vector3(seg_len + 0.5, actual_wall_height, 3.0)
+		wall.position = mid + Vector3(0, ground_y + actual_wall_height * 0.5, 0)
 		wall.rotation.y = -seg_angle
 		add_child(wall)
 
@@ -1184,7 +1207,18 @@ func _build_lightning_branch_points(target_count: int) -> Array:
 			"pos": Vector2.ZERO, "angle": start_angle,
 			"len": 220.0 * _scale, "band": 0,
 		})
-	while not stack.is_empty() and points.size() < target_count:
+	while points.size() < target_count:
+		if stack.is_empty():
+			# Judgment Day fix (2026-07-21): the walk used to stop as soon as the
+			# initial 2-3 trunks + their forks drained, stalling well short of
+			# target_count (~48/70 realized) — forking alone can't be relied on
+			# to reach the budget since it's capped by CRYSTAL_BAND_RANGES depth
+			# and a 30% roll per step. Keep seeding fresh trunks with the SAME
+			# pattern as the initial loop above until points.size() >= target_count.
+			stack.append({
+				"pos": Vector2.ZERO, "angle": _rng.randf_range(0.0, TAU),
+				"len": 220.0 * _scale, "band": 0,
+			})
 		var branch: Dictionary = stack.pop_front()
 		var pos: Vector2 = branch["pos"]
 		var angle: float = branch["angle"]
@@ -1296,9 +1330,32 @@ func _build_crystal_field() -> void:
 	# heights along a branching path so the light source stops reading as one flat
 	# plane — see crystal_ceiling_lightning gap doc). Replaces the old single
 	# sine-curve path + flat [MIN,MAX] height roll shared by the whole field.
-	var branch_points: Array = _build_lightning_branch_points(CRYSTAL_PATH_CLUSTERS)
-	for i in range(branch_points.size()):
-		var bp: Dictionary = branch_points[i]
+	# Judgment Day fix (2026-07-21): border/monarch-proximity rejections below
+	# (both `continue`) used to drop points with no replacement, so the
+	# REALIZED cluster count landed ~30% short of CRYSTAL_PATH_CLUSTERS even
+	# with a one-shot over-generated batch (measured: some seeds still landed
+	# ~50/70 with a flat 1.3x margin). Index-driven loop: once the current
+	# batch is exhausted and the target isn't met yet, top up with another
+	# batch sized to the remaining shortfall instead of stopping — bounded by
+	# MAX_TOPUP_TRIES so a pathological seed can't loop forever.
+	const MAX_TOPUP_TRIES: int = 4
+	var branch_points: Array = _build_lightning_branch_points(int(ceil(float(CRYSTAL_PATH_CLUSTERS) * 1.3)))
+	var realized_clusters: int = 0
+	var topup_tries: int = 0
+	var idx: int = 0
+	while realized_clusters < CRYSTAL_PATH_CLUSTERS:
+		if idx >= branch_points.size():
+			if topup_tries >= MAX_TOPUP_TRIES:
+				break
+			var shortfall: int = CRYSTAL_PATH_CLUSTERS - realized_clusters
+			var before_size: int = branch_points.size()
+			branch_points.append_array(_build_lightning_branch_points(int(ceil(float(shortfall) * 1.5))))
+			topup_tries += 1
+			if branch_points.size() <= before_size:
+				break  # generator produced nothing new — bail out safely
+		var i: int = idx
+		var bp: Dictionary = branch_points[idx]
+		idx += 1
 		var p2: Vector2 = bp["pos"]
 		var band: int = bp["band"]
 		var band_range: Vector2 = CRYSTAL_BAND_RANGES[band % CRYSTAL_BAND_RANGES.size()]
@@ -1318,6 +1375,7 @@ func _build_crystal_field() -> void:
 				break
 		if too_close:
 			continue
+		realized_clusters += 1
 
 		var cluster_color: Color = crystal_colors[_rng.randi_range(0, crystal_colors.size() - 1)]
 
@@ -2458,6 +2516,14 @@ func _niche_fit(bounds: Array, value: float) -> float:
 ## (see _niche_fit) instead of a hard cutoff, so a point with no perfect-fit species
 ## still gets something — avoids empty scatter holes.
 func _pick_flora_for_point(pool: Array, x: float, z: float, pois: Array) -> PackedScene:
+	# Judgment Day fix (2026-07-21): guard size()==0 SEPARATELY, before the
+	# size<=1 fast path — `pool[0]` on an empty pool throws out-of-range. No
+	# POOL_* is empty today, but this file's own history shows pools being
+	# trimmed toward zero/one entries. Caller (_scatter_pool) checks for null
+	# and skips placement for that point instead of crashing.
+	if pool.size() == 0:
+		push_error("_pick_flora_for_point called with an empty pool")
+		return null
 	if pool.size() <= 1:
 		return pool[0]
 	var humidity: float = _humidity_at(x, z, pois)
@@ -3036,6 +3102,8 @@ func _scatter_pool(
 			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
 		var chosen: PackedScene = _pick_flora_for_point(pool, pos.x, pos.z, pois)
+		if chosen == null:
+			continue
 		_place_instance([chosen], pos, scale_min, scale_max, parent, collider_kind)
 
 ## FIX #2 — Scatter dead trees as open-field connective tissue, then attach
