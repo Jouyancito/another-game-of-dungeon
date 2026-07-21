@@ -3,6 +3,7 @@
 Dungeon crawler cooperativo en primera persona, 1-6 jugadores. Torre de 5 pisos temáticos con dificultad progresiva, loot, clases y progresión persistente.
 
 **Repo**: https://github.com/Jouyancito/another-game-of-dungeon (público desde 2026-07-21, código fuente visible, ver `LICENSE.md`)
+**Discord**: https://discord.gg/Jyp5QcfNMR — comunidad, avances, feedback
 
 ## ⚙️ Modos de trabajo SIEMPRE activos en este repo
 
