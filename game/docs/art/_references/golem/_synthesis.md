@@ -13,6 +13,7 @@
 | 05 | Estatua de placas **angulares** + **arbolitos en hombros** + vides, tipo Shadow of the Colossus | Placas angulares (alt a redondeado), árboles en hombros, imponente erguido |
 | 06 | Guardián tierno Ghibli: cara-calavera blanca, **sostiene luz MAGENTA en manos-cuenca**, hongos, vides | Núcleo glow MAGENTA (alt a cyan), manos que sostienen algo, vibe espíritu sereno |
 | 07 | Golem cobblestone simple, rocas apiladas, knuckle-drag | Base limpia de construcción apilada + pose nudillos |
+| party_vs_golem_intimidante | Party de 6 (arquero, escudero, líder con capa de piel, healer capucha blanca, 2 encapuchados rojos) parados de espaldas/perfil frente a un golem gigante musgo+piedra en cañón boscoso con niebla, luz filtrada | **Referencia de ENCUENTRO, no solo de modelo** (Joan, 2026-07-20): esto es lo que quiere sentir al llegar al golem del piso 1 — escala intimidante (golem domina el frame), silencio/tensión antes del combate, composición "de espaldas mirando la amenaza". Aporta blocking de cámara/momento de reveal, no geometría nueva del golem en sí. |
 
 ## Síntesis (el esquema)
 

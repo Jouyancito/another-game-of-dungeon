@@ -116,6 +116,11 @@ roughness = 0.6
 script = ExtResource("1_script")
 
 ; ── Lighting — crystal ceiling es la fuente principal (tint bioma)
+; Task 3 (2026-07-20): size/height are overwritten every generate() call from
+; proc_bounds/CEILING_HEIGHT (floor1_prairie.gd), so the values below are only the
+; pre-generate() defaults shown in the editor, not the actual runtime geometry.
+; build_rock_roof/build_key_light default true — this instance now also owns the
+; roof mesh + merged CavernKeyLight (see crystal_ceiling.gd Task 3 comments).
 
 [node name="CrystalCeiling" parent="." instance=ExtResource("2_ceiling")]
 bioma = "pradera"

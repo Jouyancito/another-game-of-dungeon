@@ -831,6 +831,25 @@ Ligera, relajada, desenfadada. En reposo parece desarmado. Silueta baja desequil
 | Necromancer | 0.6 | 0.25s | gaunt, slight hover |
 | Danzante | 0.4 | 0.10s | fluid, fast transitions |
 
+### §6.8 Marcas de identidad + personalidad por clase (Joan, 2026-07-20 — pendiente de integrar al pilotar cada clase)
+
+Capturado tal como lo dijo Joan durante la sesión de personajes, ancla Diablo II ("tienen esencia"). No construir todavía — se aplica clase por clase cuando le toque el pilot, siguiendo el mismo orden que Warrior.
+
+**Marcas visuales (cuerpo/rostro) por clase:**
+- **Mage/Hechicera**: marcas faciales/corporales ligadas a magia y esoterismo — runas o símbolos, no solo túnica.
+- **Warrior**: cicatrices + buena musculatura visible (ancla: Barbarian de Diablo II).
+- **Necromancer**: refuerza el DARK ya canon (§6.5) — asociación directa a artes oscuras.
+- **Archer**: armadura ligera, contextura delgada/ágil — contraste directo con el Warrior bulky.
+- Cleric / Danzante: sin marcas específicas dadas todavía — gap, preguntar cuando toque su pilot.
+
+**Personalidad ligada al diseño visual** (Joan: "colocarle personalidades a estas cosas... relacionada más a su diseño"):
+- **Warrior**: brusco, resuelve las cosas de forma directa/simple.
+- **Mage**: reflexivo ("satérico" en el audio original — sin confirmar si quiso decir sarcástico o certero, preguntar), busca significado y relaciones antes de actuar.
+- **Archer**: mejor visión de conjunto, mejor planificación — piensa antes de disparar.
+- Cleric / Necromancer / Danzante: sin personalidad asignada todavía — gap.
+
+**Referencia de estilo**: Diablo II — "se nota que una hechicera tiene [las marcas], un guerrero tiene cicatrices" — mismo principio ya sintetizado en `_references/warrior_archetype/_synthesis.md` (Diablo II Barbarian, imágenes 11-12), extender la misma lógica multi-fuente a Sorceress/Necromancer/Amazon cuando se pilotee esa clase — no existe carpeta de referencia para esas todavía.
+
 ---
 
 ## §7. Pipeline de Renderizado
