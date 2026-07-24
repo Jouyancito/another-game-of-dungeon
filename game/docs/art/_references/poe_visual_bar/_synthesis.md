@@ -15,6 +15,7 @@ architecture, it's every layer PoE invests in that DP hasn't matched yet.
 | `poe_dock_ruins_skill_vfx_cape.jpeg` | Dockside ruins fight: weathered scaffold/crane, white-cloak character with cape, green slash + gold burst skill VFX, undead swarm |
 | `poe2_temple_columns_torchlight_beam.png` | PoE 2 (sequel — higher fidelity tier than PoE 1): temple/ruins courtyard, carved statue + fluted columns, a vertical light beam through a doorway, torch braziers (streamer overlay/captions in shot, ignore — the game footage is the reference) |
 | `poe2_chimera_ground_materials_realtime_shadow.png` | PoE 2 boss arena (Xyclucian the Chimera): 3-4 distinct ground materials in ONE shot (trampled dirt path / cracked earth / bone-littered dirt / plant-covered soil), dragon wing casting a real-time projected shadow, engraved stone ruin (bottom-right) whose relief reads as true surface depth |
+| `poe_desert_lightning_storm_varied_bolts.png` | Desert battlefield: lightning-storm skill striking a whole crowd — every bolt DIFFERENT (thick core strikes + thin branches, no two identical), sky-to-target direction, impact flashes at ground contact; wind-ripple sand + palm-frond shadows |
 
 ## Qué se VE (Joan's own read, cross-checked against the images)
 
@@ -143,6 +144,33 @@ key conceptual arrival, 2026-07-23):**
   enough). This is EXACTLY what the PolyHaven CC0 sets already integrated in
   village_gen.py v12 contain — the walls use them; the gap is coverage
   (ground, props, rocks) and light that makes them read.
+
+**Lightning skill anatomy (desert image — what makes the bolt read "bien
+hecho" per Joan, decomposed):**
+- **Variation is the core trick**: no two bolts share a path or thickness —
+  each strike rolls its own jagged polyline. A repeated identical bolt
+  sprite is the #1 amateur tell; PoE mixes thick white-core strikes with
+  thin secondary branches in the SAME cast.
+- **Directionality**: bolts come FROM the sky's perspective down TO each
+  target — the skill reads as weather, not as a projectile from the caster.
+- **Speed**: single-frame flash + brief afterglow. Joan's own words: "es un
+  relámpago, tiene que ser rápido" — lightning lives or dies on timing, not
+  on texture quality.
+- **Layered color**: white-hot core, electric-blue falloff, plus a ground
+  impact flash + debris kick at each contact point — the strike ends in
+  something, never just disappears.
+- **Godot recipe** (concrete, for the future VFX pass): per-strike procedural
+  jagged line (ImmediateMesh or ribbon with midpoint-displacement
+  randomization), emissive white core + blue outer pass, 2-3 frame lifetime,
+  one-shot GPUParticles burst at the impact point, slight screen flash.
+  Randomize per strike — never reuse one baked bolt mesh. Cross-link: the
+  prairie ceiling already has a lightning ref (`crystal_ceiling_lightning/`)
+  — same anatomy applies to ambient crystal-storm flashes there.
+- Sand shows the same lessons as the chimera image, cross-validated: dune
+  wind-ripples = normal-map territory (surface, not silhouette), and
+  palm-frond shadows project coherently — third consecutive image where
+  Joan's eye went to shadow coherence, cementing lighting as a first-class
+  gap.
 
 ## Qué capturar
 
