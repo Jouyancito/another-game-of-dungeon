@@ -1324,3 +1324,92 @@ All procedural CSG surfaces share a consistent visual language:
 - **Crystals**: gem glass material (`_create_multimesh_emissive` gem_mode=true) stays separate (translucent + emissive — jewel accent family).
 
 ---
+
+## §17 — Visual Bar Canon: the PoE bar (Joan, 2026-07-23)
+
+**Status**: canon vigente. Sourced from Joan's image-by-image walkthrough of 5
+PoE screenshots — full observations + images in
+`_references/poe_visual_bar/_synthesis.md` (environment/creatures/VFX) and
+`_references/village_poe_style/_synthesis.md` (architecture materials).
+This section unifies them into ONE main theme + decision rules. It EXTENDS
+the mob style contract's "estilizado rico, no low-poly barato" (2026-07-19)
+from creatures to the ENTIRE game surface.
+
+### §17.1 El tema principal — una frase
+
+> **"PoE 1 en primera persona, estilizado": mundo desgastado y con historia,
+> materiales que se leen como lo que son, luz en charcos cálidos contra
+> ambiente frío-oscuro, y saturación reservada para lo mágico.**
+
+- **PoE 1 = la vara realista** (Lioneye's Watch, beach, desert). PoE 2 =
+  techo aspiracional, no baseline.
+- **Dark and Darker queda descartado como ancla** (veredicto Joan 2026-07-23:
+  "bonito pero básico").
+- NO es fotorealismo: es "imagen bien definida encima del polígono" (Joan) —
+  texturas painterly/foto bien resueltas sobre geometría low-mid poly, no
+  PBR AAA wholesale.
+
+### §17.2 Reglas de decisión (aplican a TODO asset desde hoy)
+
+1. **Silueta = geometría, superficie = textura.** Si el detalle cambia el
+   contorno (borde roto, grieta pisable, columna acanalada de cerca) →
+   modelar. Si solo cambia cómo juega la luz (grabado, veta, pelo, arena
+   rizada) → albedo + normal map. Nadie modela pelo por pelo.
+2. **Textura de imagen real, no solo ruido procedural.** Nodos de ruido dan
+   "moteado", nunca tierra/madera/paja — esos materiales tienen ESTRUCTURA.
+   Fuente: PolyHaven CC0 (ya integrado en village_gen v12; falta cobertura:
+   suelo, rocas, props).
+3. **Luz en charcos.** Fuente cálida acotada (fogata, antorcha, brasero)
+   contra ambiente frío-oscuro. La luz plana de mediodía mata las sombras, y
+   las sombras coherentes son lo primero que el ojo de Joan lee (3 imágenes
+   seguidas). Compatible con §9.1 (warm key + cool fill) — esto lo RADICALIZA:
+   más contraste, ambiente más oscuro.
+4. **Variación por instancia, nunca clone stamp.** Rocas: escala no-uniforme
+   + fractura noise (receta en `_references/rocks/`). Rayos: trazado
+   procedural por strike. Techos: bandas 2 tonos. Casas: tint por casa (v13).
+5. **Saturación solo para lo mágico.** Desaturado general; el color vivo se
+   gana (fuego, cristales, VFX de skill). Ya era regla Kimetsu (§9.4) — ahora
+   también gobierna props (hongos pastel, banderas chicle = violación).
+6. **Suelo = mezcla de materiales por uso implícito**, no una textura tileada:
+   camino pisoteado donde se camina, vegetación donde no pasa nada grande,
+   escombros junto a la actividad. Godot: texture splatting / vertex-color
+   blend. Blender (aldea): material por zona.
+7. **Dressing narrativo.** El scatter cuenta la historia local (playa =
+   restos de naufragio; campamento = botín), no relleno genérico de bioma.
+8. **Materiales honestos, construcción honesta.** Piedra solo donde carga
+   (fundación, cara mojada), madera arriba, paja/teja según riqueza; nada
+   flota, todo se sostiene (knee-braces, riostras). Ya canon en village_*,
+   ratificado 3ª vez por PoE.
+
+### §17.3 Tensión declarada con §9.2 (resuelta, no silenciada)
+
+§9.2 dice "detail in notches, not albedo complexity" — era la regla correcta
+para la fase CSG-only. La vara PoE la SUPERA para assets nuevos: el detalle
+de superficie ahora SÍ vive en albedo+normal (regla §17.2.1-2). El toon ramp
+(DP_ToonGrounded) no se descarta: el objetivo es **toon ramp + textura** —
+respuesta de luz estilizada sobre albedo/normal reales ("estilizado rico").
+CSG legacy del piso 1 migra cuando le toque pase, no retroactivamente.
+
+### §17.4 Plan de prioridades (village_gen v14+ / floor1)
+
+Orden por impacto/esfuerzo — silueta/layout de la aldea ya está bien (v13):
+
+1. **Mood/luz** — bajar ambiente, contraste agresivo, charcos cálidos
+   (lookdev/mood_valheim.py). Lo más barato, lo que más cambia la foto.
+2. **Suelo** — cobblestone/tierra PolyHaven + mezcla por uso (§17.2.6).
+3. **Rocas** — aplicar receta `rocks/` (no-uniform + noise fracture) a las
+   icosferas lisas del anillo.
+4. **Repaleta de props saturados** — techos salmón → grey-straw/terracota
+   apagado (village_roofs ya lo había corregido), hongos/banderas, antorchas
+   low-poly-juguete → geometría acorde a la fidelidad de las paredes.
+5. **Casona compuesta** — plinto + escalinata + anexo (village_casona spec,
+   nunca construido). Geometría hero, la más cara.
+6. **Diferido a topic propio** (NO en el pase de aldea): VFX flipbook/skills,
+   rayos procedurales (receta en poe_visual_bar), volumétricos god-ray,
+   telas con pliegues. Cada uno se escopea aparte.
+
+**Filtro scope-reset intacto**: todo lo anterior aparece en el video de 10
+min del demo (la aldea es POI del piso 1). Los diferidos del punto 6, no
+necesariamente — por eso se difieren.
+
+---
