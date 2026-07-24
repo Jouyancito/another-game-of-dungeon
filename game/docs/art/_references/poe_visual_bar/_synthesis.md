@@ -14,6 +14,7 @@ architecture, it's every layer PoE invests in that DP hasn't matched yet.
 | `poe_beach_tide_strider_wetsand.png` | Beach ambush: party vs. Tide Strider water-elementals + castaway "bandits", wet/dry sand gradient, driftwood, animated water |
 | `poe_dock_ruins_skill_vfx_cape.jpeg` | Dockside ruins fight: weathered scaffold/crane, white-cloak character with cape, green slash + gold burst skill VFX, undead swarm |
 | `poe2_temple_columns_torchlight_beam.png` | PoE 2 (sequel — higher fidelity tier than PoE 1): temple/ruins courtyard, carved statue + fluted columns, a vertical light beam through a doorway, torch braziers (streamer overlay/captions in shot, ignore — the game footage is the reference) |
+| `poe2_chimera_ground_materials_realtime_shadow.png` | PoE 2 boss arena (Xyclucian the Chimera): 3-4 distinct ground materials in ONE shot (trampled dirt path / cracked earth / bone-littered dirt / plant-covered soil), dragon wing casting a real-time projected shadow, engraved stone ruin (bottom-right) whose relief reads as true surface depth |
 
 ## Qué se VE (Joan's own read, cross-checked against the images)
 
@@ -106,6 +107,43 @@ architecture, it's every layer PoE invests in that DP hasn't matched yet.
   1:1 with a low-poly toon pipeline; PoE 1's bar (already documented) is the
   nearer, more realistic target.
 
+**Ground-material VARIETY + relief-by-texture (PoE 2 chimera image — Joan's
+key conceptual arrival, 2026-07-23):**
+- One arena shows 3-4 DISTINCT ground materials, each telling a story:
+  trampled bare dirt where traffic flows, cracked dry earth, bone/debris
+  litter, and plant-choked soil where "no pasan cosas grandes" (Joan's own
+  read — vegetation grows exactly where traffic doesn't). Ground is a
+  MATERIAL MAP keyed to implied use, not one tiled texture. Engine-side this
+  is texture splatting / material blending by mask — Godot supports it
+  (shader with a blend mask, or vertex-color-driven material mix).
+- The dragon's wing casts a real-time projected shadow onto the ground —
+  shadows are coherent with every object. Godot gives this for free
+  (DirectionalLight3D shadows); the lesson is ART-side: the scene is LIT so
+  shadows READ (strong key light, mid-dark ambient), which flat noon
+  lighting kills.
+- The engraved stone ruin (bottom-right) reads as REAL relief — and Joan
+  independently arrived at the exact industry technique: "ponerle una imagen
+  de un relieve encima del polígono". That IS a **normal map** (+ optionally
+  displacement). His caveat is also exactly the technique's known limit:
+  a normal map fakes light response, so it holds up at mid distance but
+  breaks at grazing angles / extreme close-up ("que no sea un hoyo PNG
+  haciéndose pasar por un hoyo"). The industry rule that resolves it:
+  **silhouette = geometry, surface = texture.** If the detail changes the
+  outline (a broken column edge, a deep crack you could step into), model
+  it; if it only changes how light plays on a surface (engraving, grain,
+  pores, fur), map it.
+- Joan's fur example nails the same principle at the other extreme: nobody
+  models "pelo por pelo" — fur/hair at asset scale is texture + normal (+
+  shell/card layers when close-up matters). Confirms the corpóreo fur
+  approach and DP's mob style contract both live on the texture side of the
+  rule.
+- PBR texture stack, named for the record: **albedo** (color) + **normal**
+  (fake relief) + **roughness** (matte/glossy response) + optional
+  **displacement** (true geometric offset, for when normal maps aren't
+  enough). This is EXACTLY what the PolyHaven CC0 sets already integrated in
+  village_gen.py v12 contain — the walls use them; the gap is coverage
+  (ground, props, rocks) and light that makes them read.
+
 ## Qué capturar
 
 1. **Environment gradient-by-proximity** is a reusable pattern beyond sand:
@@ -142,6 +180,18 @@ architecture, it's every layer PoE invests in that DP hasn't matched yet.
    a PoE2-style god-ray through a doorway — a concrete, scoped technique to
    prototype for the crystal-ceiling / torch-lit interior work already
    underway, not a research unknown.
+8. **Silhouette = geometry, surface = texture** — the decision rule for every
+   asset from here on. Engravings, wood grain, fur, dirt: normal map. Broken
+   edges, deep cracks, anything that changes the outline: model it. Joan
+   arrived at this independently from the chimera image; canonize it so no
+   future pass models micro-detail (or worse, flat-colors macro-detail).
+9. **Ground needs a material-variety pass, not one texture**: DP terrain
+   (floor1_prairie + village floors) should blend 2-4 ground materials by
+   implied use — worn path where walking happens, vegetation where it
+   doesn't, debris near activity. Texture splatting in Godot, material
+   assignment per zone in the Blender village floor. Ties into the existing
+   `_village_expansion_canon.md` path/plaza logic — the paths already exist
+   structurally, they just all share one material today.
 
 ## Fuente
 
