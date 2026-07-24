@@ -16,6 +16,10 @@ architecture, it's every layer PoE invests in that DP hasn't matched yet.
 | `poe2_temple_columns_torchlight_beam.png` | PoE 2 (sequel — higher fidelity tier than PoE 1): temple/ruins courtyard, carved statue + fluted columns, a vertical light beam through a doorway, torch braziers (streamer overlay/captions in shot, ignore — the game footage is the reference) |
 | `poe2_chimera_ground_materials_realtime_shadow.png` | PoE 2 boss arena (Xyclucian the Chimera): 3-4 distinct ground materials in ONE shot (trampled dirt path / cracked earth / bone-littered dirt / plant-covered soil), dragon wing casting a real-time projected shadow, engraved stone ruin (bottom-right) whose relief reads as true surface depth |
 | `poe_desert_lightning_storm_varied_bolts.png` | Desert battlefield: lightning-storm skill striking a whole crowd — every bolt DIFFERENT (thick core strikes + thin branches, no two identical), sky-to-target direction, impact flashes at ground contact; wind-ripple sand + palm-frond shadows |
+| `poe_wall_stone_base_wood_spikes_lashing.png` | Twilight Strand fortification: STONE wall carries WOOD spikes on top, rope lashing at every joint, boulder footing, debris at base — construction coherence reference |
+| `poe_town_square_cobble_lightpools.png` | Town square: varied cobble, torch light pools, long real-time shadows, props (chest/barrels) clustered at activity points |
+| `poe_ruins_grass_reclaim_stake_barricade.png` | River Crossings ruins: grass/moss RECLAIMING stone pavement, stake barricade with every stake at a different lean/height |
+| `poe_cobble_grass_joints_moss.png` | Greust camp close-up: grass tufts growing IN pavement joints, moss on stone edges, small flowers — the "time passing" ground layer |
 
 ## Qué se VE (Joan's own read, cross-checked against the images)
 
@@ -171,6 +175,31 @@ hecho" per Joan, decomposed):**
   palm-frond shadows project coherently — third consecutive image where
   Joan's eye went to shadow coherence, cementing lighting as a first-class
   gap.
+
+**Construction coherence + vegetation reclaim (images 6-9, Joan 2026-07-24 —
+his own critique of our v14 render, verbatim principles):**
+- Joan's construction-coherence law: "no podemos colocar una cuestión de 200
+  kilos en una pica de medio kilo hecha de arena" — weight sits on strength.
+  The PoE wall proves it: a STONE wall (load-bearing mass) carries the WOOD
+  spikes on top; boulders form the footing; rope lashing joins every
+  wood-to-wood and wood-to-stone joint; broken planks/debris accumulate at
+  the base. Nothing structural floats or stands on dirt alone.
+- Joan's clone-stamp callout on OUR v14 palisade: "son palos idénticos,
+  puestos uno al lado del otro... misma textura, mismo orden, misma
+  coordenada. No hay coherencia, no hay continuidad." Confirmed by my own
+  eye: every stake shares height, diameter, lean, and — the subtle killer —
+  the SAME texture phase (same wood grain repeating per log). PoE stakes:
+  every one differs in angle, length, thickness; barricades lean chaotically
+  (ruins image); rope coils tie members together.
+- Vegetation RECLAIM as the "time passing" layer (Joan: our village has "no
+  change of grass at all"): PoE grows grass tufts IN the pavement joints,
+  moss on stone lower edges, small flowers at path margins — vegetation
+  colonizes exactly where feet DON'T wear it away. This is the same
+  ground-contact-biased dressing rule already logged in
+  `world_mood_ig/_synthesis.md`, now demanded for the village pass. NOTE:
+  the grass/rock/flower detail packs were already BUILT (2026-07-20,
+  `game/tools/blender/{grass,rock,flower}_pack/`) and never connected — this
+  is a wiring gap, not a modeling gap.
 
 ## Qué capturar
 
