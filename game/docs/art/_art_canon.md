@@ -1341,10 +1341,11 @@ from creatures to the ENTIRE game surface.
 > materiales que se leen como lo que son, luz en charcos cálidos contra
 > ambiente frío-oscuro, y saturación reservada para lo mágico.**
 
-- **PoE 1 = la vara realista** (Lioneye's Watch, beach, desert). PoE 2 =
-  techo aspiracional, no baseline.
-- **Dark and Darker queda descartado como ancla** (veredicto Joan 2026-07-23:
-  "bonito pero básico").
+- **Escalera de calidad (Joan, 2026-07-23)**: Dark and Darker = el PISO
+  aceptable ("bonito pero básico" — buena base, mínimo digno) → PoE 1 = la
+  VARA objetivo (Lioneye's Watch, beach, desert) → PoE 2 = el TECHO ideal
+  (ultrarealista, aspiracional). Un asset que llega a DnD ya sirve; se pule
+  hacia PoE 1 cuando el presupuesto de la pasada lo permita.
 - NO es fotorealismo: es "imagen bien definida encima del polígono" (Joan) —
   texturas painterly/foto bien resueltas sobre geometría low-mid poly, no
   PBR AAA wholesale.
