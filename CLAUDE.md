@@ -263,7 +263,7 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 
 - GDD en `GDD_DungeonParty.md` — consultar antes de decisiones de diseño
 - Godot standalone en la raíz del proyecto
-- Estilo visual: low-poly, modelos simples, texturas planas
+- Estilo visual: **modelo Valheim** (Joan, 2026-07-25) — geometría low-poly simple PERO materiales/texturas ricos + luz y atmósfera dramática. Ya NO es "low-poly texturas planas". Canon completo: `_art_canon.md` §17 (escalera DnD→PoE1→PoE2)
 - Herencia BasePlayer para todas las clases
 - Señales para comunicar estado entre sistemas
 - @export para todo valor de balance

@@ -1349,6 +1349,12 @@ from creatures to the ENTIRE game surface.
 - NO es fotorealismo: es "imagen bien definida encima del polígono" (Joan) —
   texturas painterly/foto bien resueltas sobre geometría low-mid poly, no
   PBR AAA wholesale.
+- **Modelo de fidelidad = Valheim** (Joan, 2026-07-25: "recrear un Valheim").
+  La fórmula Valheim es la prueba viva de esta sección: geometría low-poly
+  humilde + materiales pintados ricos + luz/atmósfera dramática (niebla,
+  volumétricos) = nadie lo lee como "low-poly barato". El presupuesto de
+  detalle va a MATERIAL y LUZ, no a polycount. "Low poly total" (texturas
+  planas) queda oficialmente enterrado.
 
 ### §17.2 Reglas de decisión (aplican a TODO asset desde hoy)
 
