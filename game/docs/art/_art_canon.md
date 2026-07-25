@@ -1388,14 +1388,24 @@ from creatures to the ENTIRE game surface.
    flota, todo se sostiene (knee-braces, riostras). Ya canon en village_*,
    ratificado 3ª vez por PoE.
 
-### §17.3 Tensión declarada con §9.2 (resuelta, no silenciada)
+### §17.3 Shading del mundo: PBR suave — toon ramp RETIRADO del entorno (Joan, 2026-07-25)
 
-§9.2 dice "detail in notches, not albedo complexity" — era la regla correcta
-para la fase CSG-only. La vara PoE la SUPERA para assets nuevos: el detalle
-de superficie ahora SÍ vive en albedo+normal (regla §17.2.1-2). El toon ramp
-(DP_ToonGrounded) no se descarta: el objetivo es **toon ramp + textura** —
-respuesta de luz estilizada sobre albedo/normal reales ("estilizado rico").
-CSG legacy del piso 1 migra cuando le toque pase, no retroactivamente.
+§9.2 decía "detail in notches, not albedo complexity" y §17.3 (versión
+anterior) proponía "toon ramp + textura". Ambos quedan SUPERADOS por decisión
+explícita de Joan tras la comparación PoE/Valheim:
+
+- **Mundo (terreno, arquitectura, props, criaturas): sombreado suave PBR** —
+  respuesta de luz continua y realista, como PoE y Valheim (ninguno de los
+  dos usa cel-shading en el mundo). La textura y la atmósfera mandan.
+  DP_ToonGrounded's 3-band ramp queda RETIRADO para entorno — migración a
+  StandardMaterial3D/PBR + luz bien hecha, pase por pase, no retroactivo
+  de golpe.
+- **VFX de skills: Kimetsu sobrevive SOLO acá** (Joan: "ese tono de Kimetsu
+  podemos cubrirlo solamente en los efectos... las danzas de espada, las
+  posturas — los efectos son re bonitos. Pero esos son efectos"). Flipbooks
+  2D anime, colores por clase (§3 sigue vigente para VFX). Efectos
+  estilizados sobre mundo realista = exactamente lo que hace PoE; el
+  contraste los hace brillar más.
 
 ### §17.4 Plan de prioridades (village_gen v14+ / floor1)
 
