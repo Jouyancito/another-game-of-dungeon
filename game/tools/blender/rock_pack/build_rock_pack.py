@@ -565,4 +565,23 @@ bpy.ops.export_scene.gltf(
     export_apply=True,
     export_yup=True,
 )
+print("[rock_pack] combined GLB exported")
+
+# per-variant GLBs — object names already follow the props/rocks folder's
+# prop_rock_<name>_01 convention (see VARIANTS above), so the object name
+# doubles as the filename. Mirrors grass_pack's per-variant export pattern
+# so floor1_prairie.gd's POOL_ROCKS can preload individual scenes.
+for name, obj in built:
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    fname = f"{name}.glb"
+    bpy.ops.export_scene.gltf(
+        filepath=os.path.join(OUT_DIR, fname),
+        use_selection=True,
+        export_animations=False,
+        export_apply=True,
+        export_yup=True,
+    )
+print("[rock_pack] per-variant GLBs exported")
 print("[rock_pack] DONE")

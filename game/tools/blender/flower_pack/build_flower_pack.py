@@ -482,6 +482,30 @@ except TypeError:
     bpy.ops.export_scene.gltf(**export_kwargs)
 print("[flower_pack] EXPORTED -> flower_pack.glb")
 
+# per-variant GLBs, named env_<obj.name>_01 to match the vegetation folder's
+# env_<cat>_<name>_01 convention (obj.name is already "flower_<variant>", e.g.
+# "flower_pale_glow" -> "env_flower_pale_glow_01.glb"). Mirrors grass_pack's
+# per-variant export pattern so individual variants (e.g. the cave-coherent
+# pale_glow) can be preloaded on their own without pulling in the other 5.
+for o in objects:
+    bpy.ops.object.select_all(action='DESELECT')
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    variant_kwargs = dict(
+        filepath=os.path.join(OUT_DIR, f"env_{o.name}_01.glb"),
+        use_selection=True,
+        export_format='GLB',
+        export_apply=True,
+        export_animations=False,
+        export_cameras=False,
+        export_lights=False,
+    )
+    try:
+        bpy.ops.export_scene.gltf(**variant_kwargs, export_yup=True)
+    except TypeError:
+        bpy.ops.export_scene.gltf(**variant_kwargs)
+print("[flower_pack] per-variant GLBs exported")
+
 # =============================================================================
 # SHOWCASE RENDER -- ficha-style (mob_style_contract §4): flat purple stage,
 # 50mm cam, key/fill/rim 110/30/130, Standard view transform. Ground plane

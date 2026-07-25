@@ -2369,11 +2369,23 @@ const POOL_BUSHES: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
 ]
+## 2026-07-25: +6 rock_pack variants (game/tools/blender/rock_pack/build_rock_pack.py,
+## ref game/docs/art/_references/rocks/_synthesis.md). Coherence sheet §L72-74 rates
+## every rock/pebble entry "Y" — mineral scatter has no light/water/shade niche, so no
+## FLORA_NICHES registration needed (same treatment as the pre-existing 3 rocks below).
+## §17.2.4 per-instance variation (non-uniform scale + noise fracture) is already baked
+## into each variant's own generator, on top of _place_instance's existing scale/rot jitter.
 const POOL_ROCKS: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"),
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"),
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_wide_01.glb"),
 	preload("res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_scatter_pebbles_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_mossy_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_slab_flat_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_cluster_broken_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_large_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_outcrop_hollow_01.glb"),
 ]
 ## FIX #1 (CRITICAL) — flower_clump_01/02/03 removed from general scatter.
 ## Full-sun wildflowers are incoherent in a dim cavern. Their weight replaced with
@@ -2387,8 +2399,35 @@ const POOL_ROCKS: Array[PackedScene] = [
 ## SHADE FIX — mushrooms removed from this open-field pool. Fungi need shade, not
 ## full open ground, so they are now placed at tree bases by _scatter_understory_
 ## mushrooms() instead of scattered uniformly. POOL_GROUND is low ground cover only.
+##
+## 2026-07-25: grass_pack (game/tools/blender/grass_pack/build_grass_pack.py, ref
+## foliage_painterly/_synthesis.md — painterly dark-base/lime-tip vertex-color clumps)
+## wired in as 6 accent-clump variants. Same "fantasy biome compromise" already accepted
+## for the GRASS_MESH_PATHS carpet (coherence sheet §L59: "keep carpet but acknowledge
+## it is a compromise") — no FLORA_NICHES entry needed, same neutral-weight treatment as
+## POOL_ROCKS. wildflower_mix carries 2 tiny yellow accent buds INSIDE the grass mass
+## (not a standalone bloom field) — same compromise tier, not the BREAK #1 offense.
+##
+## 2026-07-25: flower_pack (game/tools/blender/flower_pack/build_flower_pack.py) built
+## 6 variants total; only flower_pale_glow is wired in here. The other 5 (violet_cluster,
+## yellow_clover, white_star, bicolor_mix, tall_stalk) are saturated full-sun wildflower
+## colors — the EXACT species profile BREAK #1 removed (env_flower_clump_*). They stay
+## unwired in game/tools/blender/flower_pack/ (assets exist, just not promoted to
+## assets/) rather than reintroducing that break. pale_glow was purpose-built as the
+## "cave-coherent variant" (see its build_flower_pack.py docstring) — pale blue-white +
+## subtle emission reads as damp-cave/bioluminescent-adjacent flora, not a sunlit bloom,
+## so it gets a FLORA_NICHES entry biased to high humidity + high shade (same "damp
+## shaded ground" niche already used for env_mushroom_laetiporus_01/common below) instead
+## of the "no niche" treatment given to grass/rocks.
 const POOL_GROUND: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_broad_clump_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_sparse_dry_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_windswept_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_wildflower_mix_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb"),
 ]
 
 ## The laetiporus scene — spawned at base of dead trees only (see _generate_vegetation).
@@ -2444,10 +2483,19 @@ const FLORA_NICHES: Dictionary = {
 		{"humidity": [0.1, 0.8], "shade": [0.2, 0.9]},
 	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf":
 		{"humidity": [0.1, 0.8], "shade": [0.2, 0.9]},
-	# Clover — the one entry left in POOL_GROUND after BREAK #1 removed the
-	# full-sun wildflowers. White clover tolerates up to ~50% shade.
+	# Clover — the surviving flower-adjacent entry after BREAK #1 removed the
+	# full-sun wildflowers (grass_pack/flower_pale_glow added 2026-07-25 don't
+	# change this verdict). White clover tolerates up to ~50% shade.
 	"res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf":
 		{"humidity": [0.15, 1.0], "shade": [0.0, 0.7]},
+	# flower_pale_glow (2026-07-25) — the ONE flower_pack variant wired into scatter
+	# (see the POOL_GROUND comment above for why the other 5 stay excluded). Pale
+	# blue-white + subtle emission reads as damp-cave/bioluminescent-adjacent flora,
+	# not a sunlit bloom — biased to the same high-humidity, high-shade "damp shaded
+	# ground" niche as the mushroom entries below, i.e. near water AND under canopy,
+	# never the open dry field a BREAK #1-style wildflower would need.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb":
+		{"humidity": [0.4, 1.0], "shade": [0.5, 1.0]},
 	# Registered for completeness (spec §3 lists them explicitly) even though these
 	# three are placed by their OWN substrate-aware passes (_scatter_dead_trees,
 	# _scatter_understory_mushrooms), not through _pick_flora_for_point — a dead
