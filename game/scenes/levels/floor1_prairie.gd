@@ -325,12 +325,14 @@ func generate() -> void:
 	# few metres.
 	_crystal_ceiling.height = CEILING_HEIGHT
 	_crystal_ceiling.build_rock_roof = active_layers.get("ceiling", true)
-	# Joan (2026-07-20): the crystals ARE the light source of the prairie — they
-	# replace the sun, not sit alongside it. A separate warm directional key
-	# light washed the whole scene in one uniform tone (indistinguishable from
-	# the roof's own warm emission), which is why the ceiling read as a flat
-	# "mancha café" instead of a cluster of glowing crystals. Key light OFF.
-	_crystal_ceiling.build_key_light = false
+	# DAYLIGHT canon (2026-07-27, Joan): the prairie is a REAL open biome inside
+	# the tower (DanMachi 18F model) — full daylight applies. This supersedes the
+	# 2026-07-20 "crystals replace the sun" cavern-night model: the sun key light
+	# is back ON with hard shadows (Valheim fidelity: dramatic directional light),
+	# and the crystal monarchs downgrade from sole light source to accents.
+	_crystal_ceiling.build_key_light = true
+	_crystal_ceiling.key_light_energy = 1.25
+	_crystal_ceiling.key_light_shadow = true
 	# Judgment Day fix (2026-07-21): the rock roof (build_rock_roof above) is now
 	# the ceiling's real visible geometry — the legacy tinted PlaneMesh is
 	# redundant and z-fights it. floor1_prairie.tscn's pre-declared CrystalCeiling
@@ -362,6 +364,12 @@ func generate() -> void:
 		# Gated on vegetation layer so it toggles with the rest of scatter.
 		if active_layers.get("vegetation", true):
 			_scatter_stream_banks()
+			# river_pack wiring (2026-07-27, _references/prairie_rivers/_synthesis.md):
+			# _scatter_stream_banks() above only populates the bank OUTSIDE the channel.
+			# These two passes fill the gap the synthesis called out - rocks INSIDE the
+			# wet/dry channel bed, and reeds rooted right at the waterline.
+			_scatter_stream_channel_rocks()
+			_scatter_stream_reeds()
 
 	# 3. POIs — ajustar al terreno antes de construir
 	var pois: Array = []
@@ -937,6 +945,12 @@ func _generate_terrain_mesh() -> void:
 	# vertex_color_use_as_albedo stays ON — the detail layer multiplies on top.
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
+	# The _height_to_color* palette was authored as DISPLAY (sRGB) tones. Without
+	# this flag Godot feeds vertex colors to the shader as linear, which washes
+	# the olive greens to pale cream ("nieve/desierto" ground, visible the moment
+	# daylight landed on it, 2026-07-28). Same color-space family bug as the
+	# Blender FLOAT_COLOR gotcha in blender-asset-smith.
+	mat.vertex_color_is_srgb = true
 	mat.roughness = 0.6  # Wave1.5: 0.92→0.6 — damp sheen so crystal/river light streaks across ground
 	mat.metallic = 0.0
 
@@ -1992,6 +2006,34 @@ func _build_pond(poi: POISystem.POI) -> void:
 			Vector3(_rng.randf_range(0.6, 1.2), 0.5, _rng.randf_range(0.6, 1.2)),
 			COLOR_ROCK, true)
 
+	# river_pack wiring (2026-07-27) — sparse reed_clump_small at the pond edge, same
+	# waterline-rooting idea as _scatter_stream_reeds() but scaled down + rarer: a
+	# pond POI is a small water feature, reeds should read as an occasional accent,
+	# not a full ring around it. RNG save/restore — invisible to enemy placement.
+	const REED_SMALL_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_small_01.glb"
+	var reed_small_scene: PackedScene = load(REED_SMALL_PATH) if ResourceLoader.exists(REED_SMALL_PATH) else null
+	if reed_small_scene != null:
+		var rng_state_pond_reeds: int = _rng.state
+		for i in range(8):
+			# Sparse: only ~35% of the 8 angle slots get a reed.
+			if _rng.randf() > 0.35:
+				continue
+			var angle: float = float(i) * TAU / 8.0 + _rng.randf_range(-0.2, 0.2)
+			var br: float = sz.x * 0.4 + _rng.randf_range(-0.2, 0.3)
+			var rx: float = pos.x + cos(angle) * br
+			var rz: float = pos.z + sin(angle) * br
+			var s: float = _rng.randf_range(0.5, 0.9)
+			var rot_y: float = _rng.randf_range(0.0, TAU)
+			var reed_inst: Node3D = reed_small_scene.instantiate() as Node3D
+			if reed_inst != null:
+				reed_inst.transform = Transform3D(
+					Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+					Vector3(rx, get_terrain_height(rx, rz), rz)
+				)
+				_detail_apply_geo_flags(reed_inst, 45.0)
+				add_child(reed_inst)
+		_rng.state = rng_state_pond_reeds
+
 ## Fix 2 — Riparian bank scatter.
 ## Along every stream polyline, in the band [STREAM_HALF_WIDTH .. STREAM_HALF_WIDTH+4m]
 ## from the centreline, scatter a wet-edge environment:
@@ -2329,6 +2371,225 @@ func _build_stream_ribbons() -> void:
 	print("[StreamRibbons] %d streams built (%d wet, 1 dry)" % [_stream_polylines.size(), _stream_polylines.size() - 1])
 
 
+## river_pack wiring (2026-07-27) — In-channel rocks.
+## _scatter_stream_banks() (Fix 2, above) only populates the BANK — the band OUTSIDE
+## the channel rim (STREAM_HALF_WIDTH..+4m). The _synthesis.md gap (game/docs/art/
+## _references/prairie_rivers/_synthesis.md) is that the channel itself has no rocks
+## for the two wet streams; only the dry watercourse gets a pebble line
+## (_build_stream_ribbons' dry branch). This pass adds rocks INSIDE the channel,
+## following the centreline with irregular per-segment spacing (not a grid), slightly
+## sunk into the terrain so they read as settled in the streambed rather than
+## floating on the water ribbon (ribbon sits at terrain_height + STREAM_DEPTH*0.40;
+## sinking the rock base below terrain_height lets its geometry poke back up through
+## that surface).
+## Wet streams (si 0, 1): env_river_rock_river_wet_01 (common) + _wet_cluster_01
+## (rarer accent — CLUSTER_CHANCE). Dry stream (si 2): env_river_rock_river_dry_01.
+## Target density ~2-4 rocks per ~15m of stream length (moderate accent, not fill) —
+## ROCK_SPACING_TARGET=6m averages ~2.5 candidates per 15m.
+## RNG save/restore — invisible to enemy placement, same convention as Fix 2.
+func _scatter_stream_channel_rocks() -> void:
+	if _stream_polylines.is_empty():
+		return
+
+	const ROCK_WET_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_01.glb"
+	const ROCK_WET_CLUSTER_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_cluster_01.glb"
+	const ROCK_DRY_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
+
+	var rock_wet_scene: PackedScene = load(ROCK_WET_PATH) if ResourceLoader.exists(ROCK_WET_PATH) else null
+	var rock_wet_cluster_scene: PackedScene = load(ROCK_WET_CLUSTER_PATH) if ResourceLoader.exists(ROCK_WET_CLUSTER_PATH) else null
+	var rock_dry_scene: PackedScene = load(ROCK_DRY_PATH) if ResourceLoader.exists(ROCK_DRY_PATH) else null
+
+	if rock_wet_scene == null and rock_dry_scene == null:
+		return
+
+	var container := Node3D.new()
+	container.name = "StreamChannelRocks"
+	add_child(container)
+
+	const ROCK_SPACING_TARGET: float = 6.0   # ~2.5 candidates per 15m of stream
+	const CLUSTER_CHANCE: float = 0.22       # "menos frecuente" — roughly 1 in 4-5
+
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH
+
+	var rng_state_channel: int = _rng.state
+
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+		var is_dry: bool = (si == 2)
+		if is_dry and rock_dry_scene == null:
+			continue
+		if not is_dry and rock_wet_scene == null:
+			continue
+
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+			var seg_dx: float = b2.x - a2.x
+			var seg_dz: float = b2.y - a2.y
+			var seg_len: float = sqrt(seg_dx * seg_dx + seg_dz * seg_dz)
+			if seg_len < 0.001:
+				continue
+			var inv_len: float = 1.0 / seg_len
+			var perp_x: float = -seg_dz * inv_len   # left perpendicular
+			var perp_z: float =  seg_dx * inv_len
+
+			var candidate_count: int = maxi(1, int(round(seg_len / ROCK_SPACING_TARGET)))
+			for _c in range(candidate_count):
+				# Irregular spacing: random t along the segment, not evenly gridded.
+				var t_seg: float = _rng.randf()
+				var cx_s: float = lerpf(a2.x, b2.x, t_seg)
+				var cz_s: float = lerpf(a2.y, b2.y, t_seg)
+
+				var dc: float = sqrt(cx_s * cx_s + cz_s * cz_s)
+				if dc < spawn_safe_r:
+					continue
+
+				# Lateral jitter INSIDE the channel (stays within STREAM_HALF_WIDTH so
+				# rocks sit in the bed, never out on the bank — that's Fix 2's job).
+				var lat: float = _rng.randf_range(-STREAM_HALF_WIDTH * 0.75, STREAM_HALF_WIDTH * 0.75)
+				var px: float = cx_s + perp_x * lat
+				var pz: float = cz_s + perp_z * lat
+
+				if not _is_inside_border(Vector3(px, 0.0, pz)):
+					continue
+
+				# Settle into the streambed — small sink so the rock reads as sitting IN
+				# the channel floor (poking through the water ribbon), not resting on top.
+				var sink: float = _rng.randf_range(0.04, 0.14)
+				var terrain_y: float = get_terrain_height(px, pz) - sink
+				var rot_y: float = _rng.randf_range(0.0, TAU)
+
+				var scene: PackedScene = null
+				var s: float = 1.0
+				if is_dry:
+					scene = rock_dry_scene
+					s = _rng.randf_range(0.45, 0.95)
+				else:
+					var cluster_roll: float = _rng.randf()
+					if cluster_roll < CLUSTER_CHANCE and rock_wet_cluster_scene != null:
+						scene = rock_wet_cluster_scene
+						s = _rng.randf_range(0.7, 1.3)
+					else:
+						scene = rock_wet_scene
+						s = _rng.randf_range(0.5, 1.1)
+
+				if scene == null:
+					continue
+				var inst: Node3D = scene.instantiate() as Node3D
+				if inst == null:
+					continue
+				inst.transform = Transform3D(
+					Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+					Vector3(px, terrain_y, pz)
+				)
+				_detail_apply_geo_flags(inst, 55.0)
+				container.add_child(inst)
+
+	_rng.state = rng_state_channel
+	print("[StreamChannelRocks] %d channel rocks placed" % container.get_child_count())
+
+
+## river_pack wiring (2026-07-27) — Waterline reeds.
+## _synthesis.md (heron_riverbank_reeds.jpg) confirms reeds root IN the water at the
+## bank's edge, not set back on dry ground. This pass places env_river_reed_clump_01
+## in occasional clumps straddling the channel rim — from inside the visible water
+## ribbon out to the rim itself — so they read as "in shallow water or touching it",
+## never out on the dry bank (that band belongs to Fix 2's bank scatter).
+## Wet streams only (si 0, 1) — the dry channel has no waterline to root reeds in.
+## Target density ~1-2 clump groups per ~15m — REED_SPACING_TARGET=10m averages ~1.5
+## candidates per 15m, each candidate additionally gated by a 55% spawn roll so
+## clumps read as occasional accents, not a continuous fringe.
+## RNG save/restore — invisible to enemy placement, same convention as Fix 2.
+func _scatter_stream_reeds() -> void:
+	if _stream_polylines.is_empty():
+		return
+
+	const REED_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_01.glb"
+	var reed_scene: PackedScene = load(REED_PATH) if ResourceLoader.exists(REED_PATH) else null
+	if reed_scene == null:
+		return
+
+	var container := Node3D.new()
+	container.name = "StreamReeds"
+	add_child(container)
+
+	const REED_SPACING_TARGET: float = 10.0   # ~1.5 candidates per 15m of stream
+	const CLUMP_SPAWN_CHANCE: float = 0.55    # occasional, not continuous fringe
+
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH
+
+	var rng_state_reeds: int = _rng.state
+
+	for si in range(_stream_polylines.size()):
+		if si == 2:   # dry channel — no waterline to root reeds in
+			continue
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+			var seg_dx: float = b2.x - a2.x
+			var seg_dz: float = b2.y - a2.y
+			var seg_len: float = sqrt(seg_dx * seg_dx + seg_dz * seg_dz)
+			if seg_len < 0.001:
+				continue
+			var inv_len: float = 1.0 / seg_len
+			var perp_x: float = -seg_dz * inv_len   # left perpendicular
+			var perp_z: float =  seg_dx * inv_len
+			var dir_x: float = seg_dx * inv_len
+			var dir_z: float = seg_dz * inv_len
+
+			var candidate_count: int = maxi(1, int(round(seg_len / REED_SPACING_TARGET)))
+			for _c in range(candidate_count):
+				var t_seg: float = _rng.randf()
+				var cx_s: float = lerpf(a2.x, b2.x, t_seg)
+				var cz_s: float = lerpf(a2.y, b2.y, t_seg)
+
+				var dc: float = sqrt(cx_s * cx_s + cz_s * cz_s)
+				if dc < spawn_safe_r:
+					continue
+
+				# Occasional clump, not every candidate — keeps reeds a natural accent.
+				if _rng.randf() > CLUMP_SPAWN_CHANCE:
+					continue
+
+				var side: float = 1.0 if _rng.randf() > 0.5 else -1.0
+				var clump_count: int = _rng.randi_range(1, 3)
+				for _cp in range(clump_count):
+					# Waterline band: from inside the visible water ribbon (ribbon_hw is
+					# STREAM_HALF_WIDTH*0.65 in _build_stream_ribbons) out to the channel
+					# rim — "in shallow water or touching it", never out on the dry bank.
+					var dist_from_center: float = _rng.randf_range(STREAM_HALF_WIDTH * 0.5, STREAM_HALF_WIDTH * 0.98)
+					var jitter_along: float = _rng.randf_range(-0.6, 0.6)
+					var px: float = cx_s + perp_x * dist_from_center * side + dir_x * jitter_along
+					var pz: float = cz_s + perp_z * dist_from_center * side + dir_z * jitter_along
+
+					if not _is_inside_border(Vector3(px, 0.0, pz)):
+						continue
+
+					var terrain_y: float = get_terrain_height(px, pz)
+					var s: float = _rng.randf_range(0.7, 1.25)
+					var rot_y: float = _rng.randf_range(0.0, TAU)
+					var inst: Node3D = reed_scene.instantiate() as Node3D
+					if inst == null:
+						continue
+					inst.transform = Transform3D(
+						Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+						Vector3(px, terrain_y, pz)
+					)
+					_detail_apply_geo_flags(inst, 50.0)
+					container.add_child(inst)
+
+	_rng.state = rng_state_reeds
+	print("[StreamReeds] %d reed clumps placed" % container.get_child_count())
+
+
 # ── Vegetation (gltf scatter — assets reales CC0) ────────────────────────────
 # Pools de assets reales para scatter procedural. Reemplaza el viejo BoxMesh
 # placeholder: el mapa entero se puebla con los gltf integrados, no cajas planas.
@@ -2339,6 +2600,12 @@ func _build_stream_ribbons() -> void:
 ##   Before: 5 birch / 3 maple / 3 common / 1 dead = 12
 ##   After:  2 birch / 7 maple / 3 common / 0 dead = 12
 ## See _coherence_target_sheet.md §BREAK #4.
+## 2026-07-27 (bespoke tree_pack wiring, pradera canon): +12 slots for the 5 new
+## tree_pack variants (game/assets/art/piso1_pradera/vegetation/tree_pack/), kept
+## roughly comparable to the 12 legacy slots below (Joan: legacy stays, new ones
+## convive con pesos comparables — total replacement is a future decision). The
+## combined tree_pack.glb is intentionally NOT wired — only the 5 individual
+## variants. See FLORA_NICHES below for the humidity/shade niche of each.
 const POOL_TREES: Array[PackedScene] = [
 	# 2 birch (down from 5) — sparse, near crystal-spotlight zones by chance
 	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf"),
@@ -2355,6 +2622,23 @@ const POOL_TREES: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf"),
+	# 5 tree_prairie — dominant generalist (highest single weight among the new set)
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
+	# 2 tree_prairie_tall — approximated "map edge" niche (see FLORA_NICHES comment)
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb"),
+	# 1 tree_prairie_wide — shade tree in clearings, deliberately rare/standout
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_wide_01.glb"),
+	# 2 tree_young — transition sapling between denser tree masses
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_young_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_young_01.glb"),
+	# 2 tree_dry — dry-zone companion to bush_dry
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_01.glb"),
 ]
 
 ## Dead tree scene — managed separately so laetiporus can attach at spawn time.
@@ -2365,9 +2649,21 @@ const SCENE_DEAD_TREE: PackedScene = preload("res://assets/art/piso1_pradera/veg
 ## dim cavern (same rationale as flower_clump removal in POOL_GROUND).
 ## env_bush_flowers_01 + env_bush_small_flowers_01 dropped; pool reduced to 2
 ## base shrub types that read as shade-tolerant understory brush.
+## 2026-07-27 (bespoke bush_pack wiring, pradera canon): +5 slots for the 5 new
+## bush_pack variants (game/assets/art/piso1_pradera/vegetation/bush/, filenames
+## env_bush_{round,large,flowering,low,dry}_01.glb — note env_bush_large_01.glb is
+## a DIFFERENT file from the legacy env_bush_large_01.gltf below, coexisting by
+## extension). 1 slot per species (old and new alike) keeps every species'
+## per-species weight comparable — visible but none monopolizes. The combined
+## bush_pack.glb is intentionally NOT wired. See FLORA_NICHES for niches.
 const POOL_BUSHES: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_round_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_dry_01.glb"),
 ]
 ## 2026-07-25: +6 rock_pack variants (game/tools/blender/rock_pack/build_rock_pack.py,
 ## ref game/docs/art/_references/rocks/_synthesis.md). Coherence sheet §L72-74 rates
@@ -2408,17 +2704,28 @@ const POOL_ROCKS: Array[PackedScene] = [
 ## POOL_ROCKS. wildflower_mix carries 2 tiny yellow accent buds INSIDE the grass mass
 ## (not a standalone bloom field) — same compromise tier, not the BREAK #1 offense.
 ##
-## 2026-07-25: flower_pack (game/tools/blender/flower_pack/build_flower_pack.py) built
-## 6 variants total; only flower_pale_glow is wired in here. The other 5 (violet_cluster,
-## yellow_clover, white_star, bicolor_mix, tall_stalk) are saturated full-sun wildflower
-## colors — the EXACT species profile BREAK #1 removed (env_flower_clump_*). They stay
-## unwired in game/tools/blender/flower_pack/ (assets exist, just not promoted to
-## assets/) rather than reintroducing that break. pale_glow was purpose-built as the
-## "cave-coherent variant" (see its build_flower_pack.py docstring) — pale blue-white +
-## subtle emission reads as damp-cave/bioluminescent-adjacent flora, not a sunlit bloom,
-## so it gets a FLORA_NICHES entry biased to high humidity + high shade (same "damp
-## shaded ground" niche already used for env_mushroom_laetiporus_01/common below) instead
-## of the "no niche" treatment given to grass/rocks.
+## 2026-07-27 CANON UPDATE (Joan decision, engram topic bioma/pradera-canon):
+## floor 1 is now a REAL, large prairie inside the tower (DanMachi 18F style), not a
+## dim cavern. Full-sun flora is valid canon. This REVERSES the 2026-07-25 call kept
+## below for history — the other 5 flower_pack variants (violet_cluster, yellow_clover,
+## white_star, bicolor_mix, tall_stalk) are wired in below with their own FLORA_NICHES
+## entries (full-sun open ground / tree semi-shade / water's edge per species — see
+## FLORA_NICHES comments). The 3 env_flower_clump_* legacy texture-card variants
+## (BREAK #1, still cavern-era photoreal cards) stay excluded — this is a different,
+## purpose-built low-poly pack, not a reintroduction of that break.
+##
+## 2026-07-25 (superseded by the above): flower_pack
+## (game/tools/blender/flower_pack/build_flower_pack.py) built 6 variants total; only
+## flower_pale_glow is wired in here. The other 5 (violet_cluster, yellow_clover,
+## white_star, bicolor_mix, tall_stalk) are saturated full-sun wildflower colors — the
+## EXACT species profile BREAK #1 removed (env_flower_clump_*). They stay unwired in
+## game/tools/blender/flower_pack/ (assets exist, just not promoted to assets/) rather
+## than reintroducing that break. pale_glow was purpose-built as the "cave-coherent
+## variant" (see its build_flower_pack.py docstring) — pale blue-white + subtle emission
+## reads as damp-cave/bioluminescent-adjacent flora, not a sunlit bloom, so it gets a
+## FLORA_NICHES entry biased to high humidity + high shade (same "damp shaded ground"
+## niche already used for env_mushroom_laetiporus_01/common below) instead of the
+## "no niche" treatment given to grass/rocks.
 const POOL_GROUND: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"),
 	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"),
@@ -2428,6 +2735,11 @@ const POOL_GROUND: Array[PackedScene] = [
 	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_windswept_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_wildflower_mix_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_yellow_clover_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_bicolor_mix_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_violet_cluster_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_white_star_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb"),
 ]
 
 ## The laetiporus scene — spawned at base of dead trees only (see _generate_vegetation).
@@ -2488,14 +2800,33 @@ const FLORA_NICHES: Dictionary = {
 	# change this verdict). White clover tolerates up to ~50% shade.
 	"res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf":
 		{"humidity": [0.15, 1.0], "shade": [0.0, 0.7]},
-	# flower_pale_glow (2026-07-25) — the ONE flower_pack variant wired into scatter
-	# (see the POOL_GROUND comment above for why the other 5 stay excluded). Pale
-	# blue-white + subtle emission reads as damp-cave/bioluminescent-adjacent flora,
-	# not a sunlit bloom — biased to the same high-humidity, high-shade "damp shaded
-	# ground" niche as the mushroom entries below, i.e. near water AND under canopy,
-	# never the open dry field a BREAK #1-style wildflower would need.
+	# flower_pale_glow (2026-07-25) — pale blue-white + subtle emission reads as
+	# damp-cave/bioluminescent-adjacent flora, not a sunlit bloom — biased to the
+	# same high-humidity, high-shade "damp shaded ground" niche as the mushroom
+	# entries below, i.e. near water AND under canopy. Kept as-is post the
+	# 2026-07-27 pradera canon update — it is still the "damp corner" variant even
+	# in an open-air prairie (pond edges, deep tree shade pockets).
 	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb":
 		{"humidity": [0.4, 1.0], "shade": [0.5, 1.0]},
+	# yellow_clover + bicolor_mix (2026-07-27, pradera canon) — saturated full-sun
+	# wildflowers, the species profile the old cavern canon rejected (BREAK #1).
+	# Now correct: open, dry, sun-exposed prairie ground, away from tree canopy.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_yellow_clover_01.glb":
+		{"humidity": [0.0, 0.55], "shade": [0.0, 0.25]},
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_bicolor_mix_01.glb":
+		{"humidity": [0.0, 0.55], "shade": [0.0, 0.25]},
+	# violet_cluster + white_star (2026-07-27, pradera canon) — woodland-margin
+	# bloomers, biased to the semi-shade band under tree canopy (same range family
+	# as env_bush_01/large_01) rather than full open sun or deep shade.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_violet_cluster_01.glb":
+		{"humidity": [0.1, 0.85], "shade": [0.35, 0.85]},
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_white_star_01.glb":
+		{"humidity": [0.1, 0.85], "shade": [0.35, 0.85]},
+	# tall_stalk (2026-07-27, pradera canon) — reads as a marginal/wetland spike
+	# (tall, upright silhouette), biased to high humidity near stream/pond edges,
+	# tolerant of open sun since banks are rarely deep-canopy.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb":
+		{"humidity": [0.55, 1.0], "shade": [0.0, 0.5]},
 	# Registered for completeness (spec §3 lists them explicitly) even though these
 	# three are placed by their OWN substrate-aware passes (_scatter_dead_trees,
 	# _scatter_understory_mushrooms), not through _pick_flora_for_point — a dead
@@ -2507,6 +2838,48 @@ const FLORA_NICHES: Dictionary = {
 		{"humidity": [0.3, 1.0], "shade": [0.5, 1.0]},
 	"res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf":
 		{"humidity": [0.25, 1.0], "shade": [0.4, 1.0]},
+	# ── 2026-07-27 tree_pack + bush_pack (pradera canon) ────────────────────
+	# tree_prairie — dominant generalist: broadest tolerance of the new trees,
+	# open sun through light-medium shade, the "fills everywhere" species.
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.6]},
+	# tree_prairie_tall — "map edge/border" is not a modeled axis in this
+	# humidity/shade proxy system (no distance-to-border query exists here).
+	# Approximated the same way birch's "near crystal-spotlight zones by chance"
+	# comment already does: bias to the driest, most open band, which correlates
+	# with the outer ring (streams run from the outer ring toward the center, so
+	# open/dry ground away from them tends toward the map's margins).
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb":
+		{"humidity": [0.0, 0.5], "shade": [0.0, 0.25]},
+	# tree_prairie_wide — shade tree standing in open clearings (low pool weight
+	# keeps it a rare, deliberate "spot" tree rather than a common filler).
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_wide_01.glb":
+		{"humidity": [0.1, 0.85], "shade": [0.0, 0.35]},
+	# tree_young — sapling reads as a transition species between denser tree
+	# masses: medium shade tolerance, same family as common broadleaf.
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_young_01.glb":
+		{"humidity": [0.1, 0.75], "shade": [0.15, 0.6]},
+	# tree_dry — dry-zone tree, paired with bush_dry below on the same low-
+	# humidity band (away from streams/ponds).
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_01.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.35]},
+	# bush_round + bush_large (new) — clearing-edge shrubs, semi-shade, same
+	# family as the legacy env_bush_01/large_01 generic-understory niche above.
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_round_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.3, 0.8]},
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.35, 0.9]},
+	# bush_flowering — full-sun shrub paired with the open-ground wildflowers
+	# (same band as yellow_clover/bicolor_mix).
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb":
+		{"humidity": [0.0, 0.55], "shade": [0.0, 0.25]},
+	# bush_low — ground-hugging open-prairie shrub, broad humidity tolerance,
+	# needs full sun (low shade).
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb":
+		{"humidity": [0.0, 0.7], "shade": [0.0, 0.2]},
+	# bush_dry — dry-zone shrub, low humidity band shared with tree_dry above.
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_dry_01.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.4]},
 }
 
 ## Distance-based humidity proxy (0..1): 1 at a stream centerline or pond POI,

@@ -89,6 +89,15 @@ class_name CrystalCeiling
 		if _key_light != null:
 			_key_light.light_energy = value
 
+## Daylight canon (2026-07-27, Joan): open-prairie floors want a real sun with
+## hard shadows (Valheim fidelity model). Default false preserves the soft
+## crystal-sky read the DanMachi reference synthesis asked for on cavern floors.
+@export var key_light_shadow: bool = false:
+	set(value):
+		key_light_shadow = value
+		if _key_light != null:
+			_key_light.shadow_enabled = value
+
 @export var key_light_pitch: float = -52.0:
 	set(value):
 		key_light_pitch = value
@@ -225,9 +234,9 @@ func _apply_key_light() -> void:
 	if _key_light == null:
 		_key_light = DirectionalLight3D.new()
 		_key_light.name = "CavernKeyLight"
-		_key_light.shadow_enabled = false
 		add_child(_key_light)
 	_key_light.visible = true
+	_key_light.shadow_enabled = key_light_shadow
 	_key_light.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
 	_key_light.light_color = key_light_color
 	_key_light.light_energy = key_light_energy

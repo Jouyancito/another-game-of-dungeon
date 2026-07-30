@@ -72,15 +72,18 @@
 
 ; ── Sky / Environment ──────────────────────────────────────────────────────────
 
+; Daylight rework (2026-07-28) — prairie is a REAL open biome (DanMachi 18F
+; canon, Joan 2026-07-27): bright sky, warm sun via CavernKeyLight (shadows on,
+; set from floor1_prairie.gd), sky-blue ambient fill, light aerial haze.
 [sub_resource type="Environment" id="env_resource"]
 background_mode = 1
-background_color = Color(0.1, 0.11, 0.15, 1)
+background_color = Color(0.47, 0.62, 0.8, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.35, 0.4, 0.52, 1)
-ambient_light_energy = 0.13
+ambient_light_color = Color(0.62, 0.68, 0.78, 1)
+ambient_light_energy = 0.55
 reflected_light_source = 1
 tonemap_mode = 3
-tonemap_exposure = 0.85
+tonemap_exposure = 1.0
 tonemap_white = 3.0
 glow_enabled = true
 glow_blend_mode = 1
@@ -91,12 +94,12 @@ glow_bloom = 0.0
 glow_levels/4 = 0.6
 glow_levels/5 = 0.6
 fog_enabled = true
-fog_light_color = Color(0.16, 0.20, 0.30, 1)
-fog_density = 0.0035
+fog_light_color = Color(0.6, 0.7, 0.85, 1)
+fog_density = 0.0015
 fog_aerial_perspective = 0.5
-fog_sun_scatter = 0.1
+fog_sun_scatter = 0.25
 adjustment_enabled = true
-adjustment_brightness = 0.9
+adjustment_brightness = 1.0
 adjustment_contrast = 1.05
 adjustment_saturation = 1.1
 ssao_enabled = false
