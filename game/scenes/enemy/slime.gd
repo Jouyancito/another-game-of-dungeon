@@ -35,12 +35,34 @@ const LEAN_SATURATION_SPEED := 3.2
 ## Cuánto se inclina como máximo. Por encima de ~0.85 el domo se ve tumbado en
 ## vez de derramado.
 const LEAN_MAX := 0.8
-## Rapidez con la que el gel ALCANZA su forma inclinada. Bajo a propósito: el
-## retraso es lo que lo hace leer como gel y no como un sólido pintado de verde,
-## y sobrepasa al frenar porque la masa sigue de largo.
-const LEAN_RESPONSE := 6.5
+## El gel se maneja como una masa con resorte, NO como una interpolación suave.
+##
+## Una aproximación exponencial llega a su destino y se queda ahí: se lee como
+## sólido. Una gelatina PASA DE LARGO y vuelve — al arrancar la masa se queda
+## atrás y después rebota, al frenar sigue viajando y oscila hasta asentarse.
+## Ese rebote es literalmente la diferencia entre "verde" y "gelatinoso"
+## (Joan 2026-07-30: "ese movimiento gelatinoso le falta").
+##
+## Subamortiguado a propósito: con damping >= 2*sqrt(stiffness) no oscila.
+## A 34 / 4.6 el cociente queda en ~0.39 — rebota varias veces antes de calmarse.
+## La primera pasada usó 6.4 (ratio 0.55) y el resultado se leía inclinado pero
+## no bamboleante: se asentaba demasiado rápido para notarse.
+const LEAN_STIFFNESS := 34.0
+const LEAN_DAMPING := 4.6
+
+## Bamboleo sostenido mientras se desplaza. El resorte reacciona a los CAMBIOS
+## de velocidad; a velocidad constante se asienta y el gel volvería a leer como
+## sólido. Esto lo mantiene vivo, con amplitud proporcional a la velocidad.
+const WOBBLE_HZ := 2.7
+const WOBBLE_AMOUNT := 0.30
+
+## Techo duro de la inclinación, sobrepaso incluido. Por encima de esto el domo
+## se lee volcándose en vez de bamboleándose.
+const LEAN_OVERSHOOT_CEILING := 1.05
 
 var _lean := Vector2.ZERO
+var _lean_vel := Vector2.ZERO
+var _wobble_t := 0.0
 var _lean_mesh: MeshInstance3D = null
 var _lean_idx_x := -1
 var _lean_idx_y := -1
@@ -162,9 +184,33 @@ func _process(delta: float) -> void:
 	if target.length() > 1.0:
 		target = target.normalized()
 	target *= LEAN_MAX
-	# Exponential approach: frame-rate independent, and the lag IS the effect.
-	var k := 1.0 - exp(-LEAN_RESPONSE * delta)
-	_lean = _lean.lerp(target, k)
+
+	# Sustained jiggle, perpendicular to travel so it reads as the body wobbling
+	# rather than steering. Scaled by speed: a slime at rest does not shimmy.
+	var speed_frac: float = clampf(
+		Vector2(local_vel.x, local_vel.z).length() / LEAN_SATURATION_SPEED, 0.0, 1.0)
+	_wobble_t += delta
+	if speed_frac > 0.02:
+		var travel := Vector2(target.x, target.y)
+		if travel.length() > 0.001:
+			var across := Vector2(-travel.y, travel.x).normalized()
+			target += across * (sin(_wobble_t * TAU * WOBBLE_HZ)
+				* WOBBLE_AMOUNT * speed_frac)
+
+	# Spring integration, substepped so a long frame cannot make it explode: an
+	# undamped-looking blow-up here would read as the mesh tearing apart.
+	var remaining := delta
+	while remaining > 0.0:
+		var step: float = minf(remaining, 1.0 / 120.0)
+		var accel := (target - _lean) * LEAN_STIFFNESS - _lean_vel * LEAN_DAMPING
+		_lean_vel += accel * step
+		_lean += _lean_vel * step
+		remaining -= step
+	# Overshoot is the point, but it still needs a ceiling: past this the dome
+	# reads as toppling over rather than wobbling.
+	if _lean.length() > LEAN_OVERSHOOT_CEILING:
+		_lean = _lean.normalized() * LEAN_OVERSHOOT_CEILING
+		_lean_vel *= 0.5
 	if _lean_idx_x >= 0:
 		_lean_mesh.set_blend_shape_value(_lean_idx_x, _lean.x)
 	if _lean_idx_y >= 0:

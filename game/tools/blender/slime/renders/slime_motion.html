@@ -77,25 +77,43 @@
 </p>
 <div class="grid">
   <figure class="hero">
+    <img src="jelly_motion.gif" alt="El slime arrancando y desplazándose como gelatina">
+    <figcaption>
+      <b>desplazándose — arranque desde quieto a 3 m/s</b>
+      <span>
+        Cámara fija: lo único que cambia es el gel. La masa se queda atrás al arrancar,
+        <b>pasa de largo</b> y rebota antes de asentarse, y sigue bamboleándose mientras
+        avanza.
+      </span>
+    </figcaption>
+  </figure>
+  <figure class="hero">
     <img src="lean_directional.gif" alt="Barrido de inclinación direccional del slime">
     <figcaption>
-      <b>lean direccional</b>
+      <b>las cuatro direcciones</b>
       <span>
         Dos shape keys (<code>lean_x</code>, <code>lean_y</code>) con pesos con signo cubren
-        las cuatro direcciones. Los maneja <code>slime.gd</code> desde la velocidad real, no
-        un clip, porque depende de una variable de gameplay. Tiene retraso viscoso a
-        propósito: el gel llega tarde a su forma y sobrepasa al frenar.
+        todas las direcciones. Los maneja <code>slime.gd</code> desde la velocidad real, no
+        un clip, porque depende de una variable de gameplay.
       </span>
     </figcaption>
   </figure>
 </div>
+<p class="note">
+  El gel se simula como <b>masa con resorte</b>, no como una interpolación suave. Una
+  interpolación llega a su destino y se queda ahí — eso se lee sólido. Una gelatina se pasa
+  y vuelve. El resorte está subamortiguado (cociente ~0.39) para que rebote varias veces, y
+  encima lleva un bamboleo sostenido en el eje perpendicular al avance, porque a velocidad
+  constante el resorte solo se asienta y volvería a parecer rígido.
+</p>
 
 <table>
   <tr><th>Qué</th><th>Valor</th></tr>
   <tr><td>Velocidad a la que satura</td><td><code>3.2 m/s</code> (el slime llega a 3.0 saltando)</td></tr>
-  <tr><td>Inclinación máxima</td><td><code>0.8</code> — más arriba se ve tumbado, no derramado</td></tr>
-  <tr><td>Respuesta del gel</td><td><code>6.5</code> — el retraso ES el efecto</td></tr>
-  <tr><td>Test end-to-end</td><td class="ok">velocidad (0, 0, −3.0) → <code>lean_y = 0.674</code>, <code>lean_x = 0.000</code></td></tr>
+  <tr><td>Inclinación máxima</td><td><code>0.8</code>, con techo de sobrepaso en <code>1.05</code></td></tr>
+  <tr><td>Resorte</td><td>rigidez <code>34</code> / amortiguación <code>4.6</code> → cociente ~0.39 (rebota)</td></tr>
+  <tr><td>Bamboleo sostenido</td><td><code>2.7 Hz</code>, amplitud <code>0.30</code> escalada por velocidad</td></tr>
+  <tr><td>Test end-to-end</td><td class="ok">velocidad (0, 0, −3.0) → <code>lean_y = 0.739</code>, <code>lean_x = 0.123</code> (bamboleando)</td></tr>
 </table>
 
 <h2>Set de animación completo</h2>
@@ -165,7 +183,9 @@
   <li class="warn"><b>Las burbujas no tienen borde.</b> El vertex color no puede: interpola entre vértices. Para burbujas con contorno hay que pasar a textura bakeada, que es un nivel por encima del actual.</li>
   <li class="ok"><b>Muerte por reventón</b> lista, y de paso apareció que el mesh estaba <b>enterrado 0.40 m</b> (base en z=−0.28 en vez de 0). Corregido, con las hitboxes reajustadas.</li>
   <li class="bad"><b>El timing del salto no cuadra</b>: <code>hop_interval</code> es 1.6 s y el clip dura 1.96 s, así que se corta antes de asentarse. Se ve jugando, no en un GIF.</li>
-  <li class="warn"><b>Falta decidir qué es "movimiento"</b> aparte del salto — ver la nota al pie.</li>
+  <li class="ok"><b>Movimiento gelatinoso</b> resuelto con resorte subamortiguado + bamboleo. 10 tests lo cubren, incluido uno que se cae si alguien cambia el resorte por una interpolación suave.</li>
+  <li class="ok"><b>Ya no se pone rojo al morir.</b> Era un bug de TODOS los enemigos: el flash de daño se restauraba salvo que el bicho muriera durante los 0.2 s — y el golpe que mata siempre cae en pleno flash.</li>
+  <li class="warn"><b>Animaciones por estado de IA</b> (alerta, huida) pendientes: hace falta definir el vocabulario para todo el bestiario, no solo el slime.</li>
   <li><b>King Slime</b> sigue en la versión vieja — llega blanco. Es lo siguiente.</li>
 </ul>
 

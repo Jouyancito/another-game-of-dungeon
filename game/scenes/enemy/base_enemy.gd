@@ -863,9 +863,12 @@ func _flash_damage() -> void:
 		if material and material is StandardMaterial3D:
 			material.albedo_color = Color(1, 0, 0)
 			await get_tree().create_timer(0.2).timeout
-			if not is_instance_valid(self) or is_dead:
+			if not is_instance_valid(self):
 				_is_flashing = false
 				return
+			# Restored even when the blow was fatal. Bailing out on is_dead left
+			# the red tint applied for the whole death animation — and the blow
+			# that kills is ALWAYS mid-flash, so every enemy died bright red.
 			material.albedo_color = default_color
 
 	# Flash the gltf Model subtree (golem, bandits, slimes, and any enemy using
@@ -890,10 +893,14 @@ func _flash_damage() -> void:
 		red_mat.albedo_color = Color(1.0, 0.2, 0.2)
 		mi.material_override = red_mat
 	await get_tree().create_timer(0.2).timeout
-	if not is_instance_valid(self) or is_dead:
+	if not is_instance_valid(self):
 		_is_flashing = false
 		return
 	# Restore originals (null = no override, correct to restore too).
+	# Deliberately NOT skipped when is_dead: the killing blow always lands
+	# mid-flash, so returning early here left the red override on for the entire
+	# death animation. Joan on the slime: "se pone rojo cuando lo matas, y se ve
+	# raro" — it was every enemy, not just this one.
 	for i in range(mesh_nodes.size()):
 		if is_instance_valid(mesh_nodes[i]):
 			mesh_nodes[i].material_override = originals[i]

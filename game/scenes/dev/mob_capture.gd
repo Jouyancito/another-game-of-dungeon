@@ -427,6 +427,9 @@ func _capture_all() -> void:
 	if _lean_sweep > 0:
 		await _capture_lean_sweep(mob_name, players)
 
+	if _drive_script and _anim_frames > 0:
+		await _capture_moving(mob_name, players)
+
 	if _clip != "" and _anim_frames > 0 and not players.is_empty():
 		await _capture_clip(players[0], mob_name)
 
@@ -466,6 +469,39 @@ func _capture_lean_sweep(mob_name: String, players: Array[AnimationPlayer]) -> v
 		mi.set_blend_shape_value(idx, value)
 	mi.set_blend_shape_value(idx, 0.0)
 	_report.append("lean sweep = %d frames, lean_y from -0.8 to +0.8" % _lean_sweep)
+
+
+func _capture_moving(mob_name: String, players: Array[AnimationPlayer]) -> void:
+	## Frames of the mob TRAVELLING, so a velocity-driven deformation can be seen
+	## as motion instead of inferred from one settled still.
+	##
+	## The spring only shows itself while it is reacting: sampled after it has
+	## come to rest, a wobbling gel and a rigid one look identical.
+	var box := _rest_bounds()
+	var h: float = box.size.y
+	var widest: float = max(box.size.x, box.size.z)
+	var look := Vector3(0.0, box.get_center().y, 0.0)
+	_aim(270.0, max(2.2, max(widest, h) * 2.4), h * 0.30, look)
+
+	if not players.is_empty():
+		players[0].callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+
+	# Start from rest so the launch — the most legible part of a spring — is in
+	# frame rather than already over.
+	if _mob is CharacterBody3D:
+		(_mob as CharacterBody3D).velocity = Vector3.ZERO
+	for _i in 12:
+		await get_tree().process_frame
+
+	for i in _anim_frames:
+		if _mob is CharacterBody3D:
+			(_mob as CharacterBody3D).velocity = _fake_velocity
+		# A few sim frames per captured frame: enough motion between shots to
+		# read as movement rather than a series of near-identical poses.
+		for _s in 3:
+			await get_tree().process_frame
+		await _save("%s_moving_%02d" % [mob_name, i])
+	_report.append("moving sequence = %d frames at velocity %s" % [_anim_frames, _fake_velocity])
 
 
 func _capture_clip(ap: AnimationPlayer, mob_name: String) -> void:

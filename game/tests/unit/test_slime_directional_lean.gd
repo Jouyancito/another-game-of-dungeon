@@ -122,6 +122,68 @@ func test_sideways_movement_uses_the_other_axis() -> void:
 		"moverse de costado no debe inclinar hacia adelante")
 
 
+func test_the_gel_overshoots_before_settling() -> void:
+	# Lo que separa "gelatina" de "sólido verde": la masa PASA DE LARGO y vuelve.
+	# Una interpolación suave llega a su destino y se queda; un resorte
+	# subamortiguado se pasa primero. Si alguien cambia el resorte por un lerp
+	# "porque es más simple", el bamboleo desaparece sin que nada falle — salvo
+	# esto.
+	var mi := _mesh_with_shapes(_slime)
+	var idx := _shape_index(mi, "lean_y")
+	const STEP := 1.0 / 60.0
+	_slime.velocity = Vector3(0.0, 0.0, -3.0)
+	var peak := 0.0
+	var elapsed := 0.0
+	while elapsed < 1.2:
+		_slime._process(STEP)
+		peak = maxf(peak, mi.get_blend_shape_value(idx))
+		elapsed += STEP
+	var settled: float = mi.get_blend_shape_value(idx)
+	assert_gt(peak, settled + 0.02,
+		"el gel tiene que sobrepasar su inclinación de reposo antes de asentarse")
+
+
+func test_the_overshoot_has_a_ceiling() -> void:
+	# El sobrepaso es deseado, pero sin techo el domo se vuelca en vez de
+	# bambolearse. Arranque violento, en el peor caso.
+	var mi := _mesh_with_shapes(_slime)
+	var idx_x := _shape_index(mi, "lean_x")
+	var idx_y := _shape_index(mi, "lean_y")
+	const STEP := 1.0 / 60.0
+	var elapsed := 0.0
+	while elapsed < 2.0:
+		# Invertir la dirección a cada rato es lo que más excita el resorte.
+		var flip: float = -1.0 if fmod(elapsed, 0.4) < 0.2 else 1.0
+		_slime.velocity = Vector3(0.0, 0.0, -40.0 * flip)
+		_slime._process(STEP)
+		var magnitude := Vector2(mi.get_blend_shape_value(idx_x),
+			mi.get_blend_shape_value(idx_y)).length()
+		assert_lte(magnitude, 1.06,
+			"la inclinación nunca puede pasar el techo de sobrepaso")
+		elapsed += STEP
+
+
+func test_moving_wobbles_the_perpendicular_axis() -> void:
+	# Avanzando en línea recta, el resorte solo se asienta y el gel volvería a
+	# leer como sólido. El bamboleo sostenido vive en el eje perpendicular.
+	var mi := _mesh_with_shapes(_slime)
+	var idx_x := _shape_index(mi, "lean_x")
+	const STEP := 1.0 / 60.0
+	_slime.velocity = Vector3(0.0, 0.0, -3.0)
+	var lo := 999.0
+	var hi := -999.0
+	var elapsed := 0.0
+	while elapsed < 1.6:
+		_slime._process(STEP)
+		if elapsed > 0.8:      # tras el asentamiento inicial del resorte
+			var x: float = mi.get_blend_shape_value(idx_x)
+			lo = minf(lo, x)
+			hi = maxf(hi, x)
+		elapsed += STEP
+	assert_gt(hi - lo, 0.03,
+		"desplazándose en recta, el eje perpendicular tiene que seguir oscilando")
+
+
 func test_the_animation_player_does_not_overwrite_the_lean() -> void:
 	# La trampa medida: glTF anima el array COMPLETO de pesos en un canal, así que un clip
 	# reescribe lean_x/lean_y (en 0) cada vez que evalúa. El script se queda con el reloj

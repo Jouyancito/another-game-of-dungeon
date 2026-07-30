@@ -484,7 +484,10 @@ def _lean_key(name, axis):
     k = add_key(name)
     for i, v in enumerate(me.vertices):
         zn = (v.co.z - Z_MIN) / H
-        carry = 0.185 * (zn ** 1.35) + 0.035     # top leads, base drags along
+        # Top leads, base drags along. Raised from 0.185 after the first pass
+        # read as a tilt rather than a gel spilling — at this size the shape key
+        # is the ceiling on how much wobble the driver can ever express.
+        carry = 0.235 * (zn ** 1.35) + 0.045
         x, y = v.co.x, v.co.y
         if axis == 0:
             x += carry
