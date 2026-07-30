@@ -82,10 +82,14 @@ func _cache_lean_shapes(model_root: Node3D) -> void:
 		return
 	var mesh := _lean_mesh.mesh
 	for i in mesh.get_blend_shape_count():
-		match mesh.get_blend_shape_name(i):
-			&"lean_x":
+		# Compared as String on purpose: get_blend_shape_name returns a
+		# StringName and matching it against a &"literal" is easy to get subtly
+		# wrong, which would leave the indices at -1 and silently disable the
+		# whole deformation.
+		match String(mesh.get_blend_shape_name(i)):
+			"lean_x":
 				_lean_idx_x = i
-			&"lean_y":
+			"lean_y":
 				_lean_idx_y = i
 	if _lean_idx_x < 0 and _lean_idx_y < 0:
 		return
@@ -134,8 +138,14 @@ func _find_mesh_with_blendshapes(n: Node) -> MeshInstance3D:
 
 
 func _process(delta: float) -> void:
+	# Retry the lookup if _ready's attempt came up empty. The cache depends on the
+	# imported GLB's children being in place, which is not something to bet the
+	# whole deformation on: when it missed, the lean silently stayed at 0 and
+	# looked like a broken shape key rather than a lookup that ran too early.
 	if _lean_mesh == null:
-		return
+		_cache_lean_shapes(get_node_or_null("SlimeMesh"))
+		if _lean_mesh == null:
+			return
 	# Advance the clip FIRST (it owns squash/stretch/sway/lunge/melt), then write
 	# the lean on top. Manual mode makes this order a guarantee.
 	if _lean_anim != null and _lean_anim.is_playing():

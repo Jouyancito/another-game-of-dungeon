@@ -46,6 +46,22 @@ func _shape_index(mi: MeshInstance3D, shape_name: String) -> int:
 	return -1
 
 
+func _drive(vel: Vector3, seconds: float) -> void:
+	## Avanza la deformación con un delta FIJO, en vez de esperar frames reales.
+	##
+	## Esperar frames no sirve acá: en headless corren sin vsync, así que 30 frames
+	## pueden ser 30 ms de tiempo simulado y el suavizado exponencial apenas
+	## arranca. Medido: el test de movimiento lateral llegaba a 0.051 en la suite
+	## completa y a más de 0.3 corriendo solo — el mismo código, distinto
+	## framerate. Con un paso fijo el resultado es el mismo siempre.
+	const STEP := 1.0 / 60.0
+	_slime.velocity = vel
+	var elapsed := 0.0
+	while elapsed < seconds:
+		_slime._process(STEP)
+		elapsed += STEP
+
+
 func test_the_mesh_ships_both_lean_shape_keys() -> void:
 	# Sin estas dos, la deformación direccional no tiene con qué deformar y el resto del
 	# sistema queda no-op silencioso.
@@ -60,8 +76,7 @@ func test_moving_forward_leans_the_gel_forward() -> void:
 	# lean_y POSITIVO: ese es el signo que corre la masa hacia la cara.
 	var mi := _mesh_with_shapes(_slime)
 	var idx := _shape_index(mi, "lean_y")
-	_slime.velocity = Vector3(0.0, 0.0, -3.0)
-	await wait_frames(30)
+	_drive(Vector3(0.0, 0.0, -3.0), 1.0)
 	assert_gt(mi.get_blend_shape_value(idx), 0.3,
 		"avanzar (-Z local) tiene que inclinar el gel hacia adelante, no hacia atrás")
 
@@ -70,8 +85,7 @@ func test_moving_backward_leans_the_gel_backward() -> void:
 	# El signo opuesto, para que un valor absoluto no pase por correcto.
 	var mi := _mesh_with_shapes(_slime)
 	var idx := _shape_index(mi, "lean_y")
-	_slime.velocity = Vector3(0.0, 0.0, 3.0)
-	await wait_frames(30)
+	_drive(Vector3(0.0, 0.0, 3.0), 1.0)
 	assert_lt(mi.get_blend_shape_value(idx), -0.3,
 		"retroceder (+Z local) tiene que inclinar el gel hacia atrás")
 
@@ -80,10 +94,8 @@ func test_standing_still_settles_back_to_no_lean() -> void:
 	# Un slime quieto con el gel torcido se ve roto. Tiene que volver al reposo.
 	var mi := _mesh_with_shapes(_slime)
 	var idx := _shape_index(mi, "lean_y")
-	_slime.velocity = Vector3(0.0, 0.0, -3.0)
-	await wait_frames(30)
-	_slime.velocity = Vector3.ZERO
-	await wait_frames(40)
+	_drive(Vector3(0.0, 0.0, -3.0), 1.0)
+	_drive(Vector3.ZERO, 1.5)
 	assert_almost_eq(mi.get_blend_shape_value(idx), 0.0, 0.1,
 		"al frenar, el gel tiene que asentarse en reposo")
 
@@ -93,8 +105,7 @@ func test_the_lean_is_capped_so_the_blob_never_lies_down() -> void:
 	# o a velocidades altas el domo se ve tumbado en vez de derramado.
 	var mi := _mesh_with_shapes(_slime)
 	var idx := _shape_index(mi, "lean_y")
-	_slime.velocity = Vector3(0.0, 0.0, -40.0)
-	await wait_frames(40)
+	_drive(Vector3(0.0, 0.0, -40.0), 2.0)
 	assert_lte(mi.get_blend_shape_value(idx), 0.81,
 		"la inclinación tiene que estar topeada en LEAN_MAX")
 
@@ -104,8 +115,7 @@ func test_sideways_movement_uses_the_other_axis() -> void:
 	var mi := _mesh_with_shapes(_slime)
 	var idx_x := _shape_index(mi, "lean_x")
 	var idx_y := _shape_index(mi, "lean_y")
-	_slime.velocity = Vector3(3.0, 0.0, 0.0)
-	await wait_frames(30)
+	_drive(Vector3(3.0, 0.0, 0.0), 1.0)
 	assert_gt(absf(mi.get_blend_shape_value(idx_x)), 0.3,
 		"moverse en X tiene que inclinar sobre lean_x")
 	assert_almost_eq(mi.get_blend_shape_value(idx_y), 0.0, 0.1,
@@ -131,7 +141,6 @@ func test_the_animation_player_does_not_overwrite_the_lean() -> void:
 	var idx := _shape_index(mi, "lean_y")
 	if ap.has_animation("idle"):
 		ap.play("idle")
-	_slime.velocity = Vector3(0.0, 0.0, -3.0)
-	await wait_frames(30)
+	_drive(Vector3(0.0, 0.0, -3.0), 1.0)
 	assert_gt(mi.get_blend_shape_value(idx), 0.3,
 		"con un clip reproduciéndose, la inclinación tiene que sobrevivir")
