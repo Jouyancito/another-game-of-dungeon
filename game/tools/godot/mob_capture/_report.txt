@@ -7,4 +7,6 @@ material   = slime albedo=(1.0, 1.0, 1.0, 0.78) vcol_albedo=true transparency=4
 surface 0  = COLOR array present: true
 material   = HPBarBG albedo=(0.2, 0.2, 0.2, 0.8) vcol_albedo=false transparency=1
 material   = HPBarFill albedo=(0.2, 0.8, 0.2, 0.9) vcol_albedo=false transparency=1
+hid HUD node 'HPBarBG'
+hid HUD node 'HPBarFill'
 clip 'hop' captured 4 frames over 1.96s

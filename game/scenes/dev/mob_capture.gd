@@ -30,6 +30,7 @@ var _mob_path := "res://scenes/enemy/slime.tscn"
 var _clip := ""
 var _anim_frames := 0
 var _report: Array[String] = []
+var _hidden_hud: Array[String] = []
 
 
 func _ready() -> void:
@@ -135,6 +136,37 @@ func _build_viewport() -> void:
 	_mob.set_physics_process(false)
 	_mob.set_process(false)
 	_mob.global_position = Vector3.ZERO
+	_hide_hud_nodes(_mob)
+
+
+func _hide_hud_nodes(n: Node) -> void:
+	## Hide in-world HUD (health bar, nameplate) so it cannot be mistaken for the
+	## asset — judging a mob with its own UI drawn over it is judging the wrong
+	## thing, and on a translucent body the bar is visible through the mesh.
+	##
+	## It is NOT the cause of the horizontal band across a translucent mob: that
+	## band survives with both bars hidden and is simply the ground horizon seen
+	## THROUGH the gel (body colour over purple sky above the line, over brown
+	## ground below it). The side shot settles it — the red scale post is plainly
+	## visible through the slime. Transparency working, not a sorting defect.
+	var name_lower := n.name.to_lower()
+	for marker in ["hpbar", "healthbar", "health_bar", "nameplate", "name_label", "hud"]:
+		if name_lower.contains(marker):
+			var was_visible := true
+			if n is Node3D:
+				was_visible = (n as Node3D).visible
+				(n as Node3D).visible = false
+			elif n is CanvasItem:
+				was_visible = (n as CanvasItem).visible
+				(n as CanvasItem).visible = false
+			if was_visible and not _hidden_hud.has(n.name):
+				_hidden_hud.append(n.name)
+				_report.append("hid HUD node '%s'" % n.name)
+			break
+	# Keep walking siblings and children regardless — HPBarBG and HPBarFill are
+	# separate nodes, so returning on the first match left one of them visible.
+	for c in n.get_children():
+		_hide_hud_nodes(c)
 
 
 func _make_scale_post() -> Node3D:
@@ -206,6 +238,9 @@ func _save(name: String) -> void:
 	# it (empty frames once the sequence moved far).
 	if _mob != null:
 		_mob.global_position = Vector3.ZERO   # belt and braces against any drift
+		# Re-hide every shot: the health bar is built during runtime setup, so
+		# hiding it once right after add_child() ran before it existed.
+		_hide_hud_nodes(_mob)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
