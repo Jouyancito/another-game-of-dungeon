@@ -346,16 +346,28 @@ def anim_idle(t):
 
 
 def anim_hop(t):
-    v = {"squash": 0.0, "stretch": 0.0, "sway": 0.0, "z": 0.0}
+    """Deformation ONLY — the arc belongs to physics.
+
+    This clip used to raise the body 0.45 m itself, which double-jumped the
+    slime in game: slime.gd already drives the hop with `velocity.y =
+    hop_force` on the CharacterBody3D, so the animation's lift stacked on top
+    (0.45 x 1.45 scale = 0.65 m extra) and floated the mesh off its own
+    collision shape. Measured in the GLB: hop-loop was the only clip carrying a
+    `translation` channel; every other clip animates weights alone.
+
+    Keeping the squash/stretch here and the travel in physics is also the better
+    split — real gravity gives weight for free, and the clip stays correct at any
+    hop_force the designer tunes to.
+    """
+    v = {"squash": 0.0, "stretch": 0.0, "sway": 0.0}
     if t < 0.20:                    # anticipation: crouch
         v["squash"] = lerp(0.0, 0.75, t / 0.20)
-    elif t < 0.30:                  # launch
+    elif t < 0.30:                  # launch: gel pulls up off the ground
         u = (t - 0.20) / 0.10
         v["squash"] = lerp(0.75, 0.0, u)
         v["stretch"] = lerp(0.0, 0.55, u)
-    elif t < 0.70:                  # airborne: parabola, stretch relaxes
+    elif t < 0.70:                  # airborne: stretch relaxes toward the apex
         u = (t - 0.30) / 0.40
-        v["z"] = 0.45 * (1.0 - (2 * u - 1.0) ** 2)
         v["stretch"] = lerp(0.55, 0.25, u)
     elif t < 0.80:                  # impact
         u = (t - 0.70) / 0.10
@@ -417,8 +429,12 @@ for name, (frames, sampler) in ANIMS.items():
         for k in ALL_KEYS:
             kb[k].value = vals.get(k, 0.0)
             kb[k].keyframe_insert("value", frame=f)
-        body.location.z = vals.get("z", 0.0)
-        body.keyframe_insert("location", frame=f)
+        # Object translation is keyed ONLY if a sampler asks for it. No sampler
+        # does any more (see anim_hop): travel is physics' job, and an unwanted
+        # translation channel fights the CharacterBody3D that owns the movement.
+        if "z" in vals:
+            body.location.z = vals["z"]
+            body.keyframe_insert("location", frame=f)
     actions[name] = (frames, act_sk, act_obj)
 sk_ad.action = None
 obj_ad.action = None
