@@ -1,73 +1,295 @@
-# build_slime.py — faceless slime defined by MOTION: full gameplay animation set.
-# Joan approved the viscous wobble (2026-07-18); this adds the gameplay set:
-#   idle-loop  breathing wobble (approved)
-#   hop-loop   locomotion — slimes don't walk, they hop (approach AND retreat)
+# build_slime.py — gelatinous prairie slime, motor tier M3.
+#
+# Motion set (approved by Joan 2026-07-18, unchanged):
+#   idle-loop  breathing wobble
+#   hop-loop   locomotion — slimes don't walk, they hop
 #   hit        flinch on taking a blow
 #   attack     crouch + forward lunge
 #   death      melts into a puddle
 # Fast/slow variants are playback speed in Godot (speed_scale), not extra anims.
-# Elemental steam (water slime killed by fire) is Godot particles, not mesh anim.
 # "-loop" suffix => Godot glTF import auto-loops. Export mode: NLA tracks.
-# Run: blender -b --python build_slime.py
+#
+# M3 REWORK (2026-07-30). The previous build shaded the gel with procedural
+# shader nodes (TexNoise / TexVoronoi / LayerWeight). glTF cannot express
+# procedurals, so the exporter dropped them and wrote baseColorFactor 1,1,1 —
+# the GLB reaching Godot was an untinted WHITE dome, while the showcase render
+# showed green jelly with bubbles. The old code even said so in a comment
+# ("a bake pass is required before the GLB carries these into Godot") and the
+# bake never happened. See docs/art/_motor_tiers.md.
+#
+# What changed, per the M3 checklist:
+#   * All colour now lives in a FLOAT_COLOR vertex layer, which DOES export.
+#     Depth gradient + suspended bubbles + equator rim + socket occlusion are
+#     baked per-vertex instead of evaluated by nodes.
+#   * Perlin surface displacement so the body is a settled gel mass, not a
+#     mathematically perfect dome.
+#   * Facial features as RELIEF of the gel surface (eye sockets + faint mouth),
+#     read by self-shadow — per the Tensura rule in
+#     _references/slime_tensura/_synthesis.md: no teeth, no nose, no pupils.
+#   * Seeded shape variants (the seed changes FORM, not just colour).
+#   * Habitat palettes are vertex-colour swaps: prairie green, water blue.
+#   * Tri budget asserted and printed at build time.
+#   * shape_key_add wrapped to force from_mix=False (see gotcha below).
+#
+# Run: blender -b --factory-startup --python-exit-code 1 --python build_slime.py
+#      [-- --seed N] [--no-face]
 import bpy
+import bmesh
 import math
 import os
+import random
 import sys
-from mathutils import Vector
+from mathutils import Vector, noise as mnoise
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 REN_DIR = os.path.join(OUT_DIR, "renders")
 ANIM_DIR = os.path.join(REN_DIR, "anim")
 os.makedirs(ANIM_DIR, exist_ok=True)
 
+TRI_BUDGET = 5200
+
+# ---------- CLI ----------
+_argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+SEED = 20260730
+WANT_FACE = True
+for _i, _a in enumerate(_argv):
+    if _a == "--seed" and _i + 1 < len(_argv):
+        SEED = int(_argv[_i + 1])
+    elif _a == "--no-face":
+        WANT_FACE = False
+rng = random.Random(SEED)
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 
-# ---------- body: gelatinous dome (dense mesh, no subsurf: shape keys must export) ----------
-bpy.ops.mesh.primitive_uv_sphere_add(segments=96, ring_count=48, radius=0.5)
+# ---------- body: gelatinous dome ----------
+# Dense-but-not-wasteful: shape keys must export, so no subsurf — the vert count
+# is the deformation resolution AND the vertex-colour resolution.
+SEGMENTS, RINGS = 72, 36
+bpy.ops.mesh.primitive_uv_sphere_add(segments=SEGMENTS, ring_count=RINGS, radius=0.5)
 body = bpy.context.object
 body.name = "slime"
 me = body.data
+
+# Seeded proportion: some slimes sit low and wide, others hold a taller mound.
+squat = rng.uniform(0.72, 0.86)          # top compression
+spread_amt = rng.uniform(0.16, 0.26)     # how much mass pools at the base
+lean_x = rng.uniform(-0.05, 0.05)        # one asymmetric break (contract §1)
+
 for v in me.vertices:
     z = v.co.z
-    v.co.z = z * (0.78 if z > 0.0 else 0.55)
+    v.co.z = z * (squat if z > 0.0 else 0.55)
+    # Mass pools toward the bottom — bottom-weighted silhouette.
     t = max(0.0, min(1.0, (0.08 - v.co.z) / 0.35))
-    s = 1.0 + 0.20 * t
+    s = 1.0 + spread_amt * t
     v.co.x *= s
     v.co.y *= s
+    v.co.x += lean_x * (v.co.z + 0.3)
+
+# ---------- Perlin settling: a gel mass, not a perfect dome ----------
+# Low frequency, low amplitude. Enough to break the mathematical silhouette,
+# far below the level that would read as a rocky/noisy surface.
+NOISE_SCALE = rng.uniform(1.7, 2.3)
+NOISE_AMP = 0.022
+noise_off = Vector((rng.uniform(-8, 8), rng.uniform(-8, 8), rng.uniform(-8, 8)))
+for v in me.vertices:
+    n = mnoise.noise(v.co * NOISE_SCALE + noise_off)
+    # Fade the displacement out at the very bottom so the slime keeps a clean
+    # contact with the ground instead of developing a wavy skirt.
+    ground_fade = min(1.0, max(0.0, (v.co.z + 0.28) / 0.18))
+    v.co += v.normal * (n * NOISE_AMP * ground_fade)
+
+# ---------- facial features as RELIEF (Tensura rule) ----------
+# Sunken sockets and a faint mouth pressed INTO the gel. No separate pieces, no
+# teeth, no nose, no pupils — the face reads by its own shadow.
+# -Y is the facing direction (the lunge shape key throws that way).
+#
+# Placement matters more than depth here. Pass 1 put the sockets close together
+# and low on the face with a round dimple under them: read as a pig snout —
+# two nostrils and a muzzle. Fix is geometric, not a depth tweak: push the
+# sockets WIDE and UP into the upper dome, flatten them into lidded almonds,
+# and turn the mouth into a wide shallow crease instead of a round hole.
+FACE_PARTS = []
+if WANT_FACE:
+    eye_z = 0.150
+    eye_x = 0.255
+    FACE_PARTS = [
+        # (centre, radius, depth, x_stretch, z_stretch)
+        (Vector((-eye_x, -0.40, eye_z)), 0.125, 0.042, 1.35, 0.52),
+        (Vector((eye_x, -0.40, eye_z)), 0.125, 0.042, 1.35, 0.52),
+        (Vector((0.0, -0.46, 0.005)), 0.185, 0.014, 2.40, 0.30),
+    ]
+
+    def relief_weight(co):
+        """How deeply this vertex is pressed in, 0..1, summed over features."""
+        total = 0.0
+        for centre, radius, depth, xs, zs in FACE_PARTS:
+            d = co - centre
+            d.x /= xs
+            d.z /= zs
+            dist = d.length
+            if dist < radius:
+                # Smooth cosine falloff — a hard edge would read as a cut, not
+                # a socket in something soft.
+                fall = 0.5 + 0.5 * math.cos(math.pi * (dist / radius))
+                total = max(total, fall * depth)
+        return total
+
+    for v in me.vertices:
+        w = relief_weight(v.co)
+        if w > 0.0:
+            v.co -= v.normal * w
+
 for p in me.polygons:
     p.use_smooth = True
 
 Z_MIN = min(v.co.z for v in me.vertices)
 Z_MAX = max(v.co.z for v in me.vertices)
 H = Z_MAX - Z_MIN
+R_MAX = max(math.hypot(v.co.x, v.co.y) for v in me.vertices)
+
+# ---------- vertex colour: the gel, baked so it actually ships ----------
+# Everything the old node graph did, evaluated per-vertex instead:
+#   depth gradient   deep tone low in the body, bright tone up top
+#   bubbles          light blooms where a suspended bubble meets the surface
+#   equator rim      the widest band catches light (view-independent stand-in
+#                    for the old Fresnel rim, which cannot be baked)
+#   socket occlusion slight darkening inside the facial relief
+# Palettes are (deep, bright, bubble) triplets — habitat = palette swap.
+#
+# Values are tuned for the contract's ficha rig (key/fill/rim 110/30/130 W,
+# view_transform Standard), which multiplies them up hard — pass 1 used albedo
+# picked as if it were the final screen colour and rendered as pale mint. These
+# are deliberately deep so the lit result lands on saturated jelly.
+PALETTES = {
+    "green": ((0.014, 0.105, 0.028), (0.055, 0.330, 0.085), (0.230, 0.620, 0.290)),
+    "blue": ((0.012, 0.055, 0.150), (0.075, 0.230, 0.400), (0.300, 0.560, 0.720)),
+}
+
+N_BUBBLES = rng.randint(18, 26)
+bubbles = []
+for _ in range(N_BUBBLES):
+    # Sample inside the body volume, biased toward the upper half where the
+    # gel is thinner and a bubble would actually read. Small radii with a hard
+    # falloff: pass 1 used wide soft blooms that read as grime patches rather
+    # than discrete suspended bubbles.
+    ang = rng.uniform(0.0, math.tau)
+    rad = R_MAX * math.sqrt(rng.uniform(0.0, 0.86))
+    bz = Z_MIN + H * rng.uniform(0.25, 0.95)
+    bubbles.append((Vector((math.cos(ang) * rad, math.sin(ang) * rad, bz)),
+                    rng.uniform(0.030, 0.070)))
+
+
+def lerp3(a, b, t):
+    t = max(0.0, min(1.0, t))
+    return (a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t)
+
+
+def gel_color(co, palette):
+    deep, bright, bubble = palette
+    zn = (co.z - Z_MIN) / H
+    # Depth gradient. Exponent > 1 keeps the deep tone across the lower body so
+    # the mass reads as thick gel; pass 1's 0.72 let the bright tone flood
+    # almost the whole dome and the body came out uniform.
+    col = lerp3(deep, bright, zn ** 1.25)
+    # Equator rim: brightest where the body is widest.
+    r = math.hypot(co.x, co.y) / R_MAX
+    rim = max(0.0, (r - 0.80) / 0.20) * (1.0 - abs(zn - 0.42) * 1.5)
+    if rim > 0.0:
+        col = lerp3(col, bright, min(1.0, rim) * 0.55)
+    # Bubbles: distance to the nearest suspended bubble centre. Squared falloff
+    # keeps a defined edge so each one reads as a bubble, not a smudge.
+    best = 0.0
+    for centre, radius in bubbles:
+        d = (co - centre).length
+        if d < radius:
+            fall = 0.5 + 0.5 * math.cos(math.pi * (d / radius))
+            best = max(best, fall * fall)
+    if best > 0.0:
+        col = lerp3(col, bubble, best * 0.95)
+    # Socket occlusion — reinforces the relief's own shadow, never a feature
+    # colour of its own (Tensura rule: the face is not painted on).
+    if WANT_FACE:
+        w = relief_weight(co)
+        if w > 0.0:
+            # Carries most of the face's read: baked occlusion is fixed data, so
+            # the sockets stay legible from any angle. Relying on the relief's
+            # own lit shadow alone made the key-lit side visible and the fill
+            # side almost disappear.
+            occ = min(1.0, w / 0.042)
+            col = (col[0] * (1.0 - 0.46 * occ),
+                   col[1] * (1.0 - 0.46 * occ),
+                   col[2] * (1.0 - 0.46 * occ))
+    return col
+
+
+def bake_vcol(palette_name):
+    """(Re)write the FLOAT_COLOR layer for a habitat palette.
+
+    FLOAT_COLOR, never BYTE_COLOR: BYTE_COLOR applies an implicit sRGB decode
+    on readback with no matching encode on write, crushing hand-picked tones
+    ~12x darker. Confirmed project-wide bug (golem_guardian, 2026-07-20).
+    """
+    palette = PALETTES[palette_name]
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    layer = bm.loops.layers.float_color.get("Col") or bm.loops.layers.float_color.new("Col")
+    for face in bm.faces:
+        for loop in face.loops:
+            c = gel_color(loop.vert.co, palette)
+            loop[layer] = (c[0], c[1], c[2], 1.0)
+    bm.to_mesh(me)
+    bm.free()
+
+
+bake_vcol("green")
+
+# ---------- tri budget ----------
+me.calc_loop_triangles()
+TRIS = len(me.loop_triangles)
+print(f"[slime] tris={TRIS} budget={TRI_BUDGET} "
+      f"{'OK' if TRIS <= TRI_BUDGET else '!! OVER BUDGET !!'}")
+print(f"[slime] seed={SEED} height={H:.3f}m width={R_MAX * 2:.3f}m face={WANT_FACE}")
+
 
 # ---------- shape keys: the viscous vocabulary ----------
-body.shape_key_add(name="Basis")
+def add_key(name):
+    """shape_key_add defaults to value=1.0 + from_mix=True, which makes each new
+    key's untouched vertices inherit the SUM of every prior key at full weight —
+    silent multi-metre corruption on any mob with several keys (cost hours on
+    the turtle, 2026-07-18). Force both off, always."""
+    k = body.shape_key_add(name=name, from_mix=False)
+    k.value = 0.0
+    return k
 
-sk = body.shape_key_add(name="squash")     # sat-down blob, mass pushed out
+
+add_key("Basis")
+
+sk = add_key("squash")      # sat-down blob, mass pushed out
 for i, v in enumerate(me.vertices):
     zn = (v.co.z - Z_MIN) / H
     nz = Z_MIN + (v.co.z - Z_MIN) * 0.80
     spread = 1.0 + 0.14 * (1.0 - zn)
     sk.data[i].co = Vector((v.co.x * spread, v.co.y * spread, nz))
 
-sk = body.shape_key_add(name="stretch")    # gel pulls upward, waist narrows
+sk = add_key("stretch")     # gel pulls upward, waist narrows
 for i, v in enumerate(me.vertices):
     nz = Z_MIN + (v.co.z - Z_MIN) * 1.16
     sk.data[i].co = Vector((v.co.x * 0.93, v.co.y * 0.93, nz))
 
-sk = body.shape_key_add(name="sway")       # top mass lags sideways (viscous lag)
+sk = add_key("sway")        # top mass lags sideways (viscous lag)
 for i, v in enumerate(me.vertices):
     zn = (v.co.z - Z_MIN) / H
     sk.data[i].co = v.co + Vector((0.10 * zn ** 1.6, 0.0, 0.0))
 
-sk = body.shape_key_add(name="lunge")      # top mass throws FORWARD (-Y = face side)
+sk = add_key("lunge")       # top mass throws FORWARD (-Y = face side)
 for i, v in enumerate(me.vertices):
     zn = (v.co.z - Z_MIN) / H
     sk.data[i].co = v.co + Vector((0.0, -0.22 * zn ** 1.5, 0.0))
 
-sk = body.shape_key_add(name="melt")       # collapses into a wide puddle
+sk = add_key("melt")        # collapses into a wide puddle
 for i, v in enumerate(me.vertices):
     nz = Z_MIN + (v.co.z - Z_MIN) * 0.16
     sk.data[i].co = Vector((v.co.x * 1.45, v.co.y * 1.45, nz))
@@ -81,7 +303,7 @@ def lerp(a, b, t):
     return a + (b - a) * max(0.0, min(1.0, t))
 
 
-# ---------- animation definitions: name -> (frames, sampler(t) -> {key: value, z: obj_z}) ----------
+# ---------- animation definitions ----------
 def anim_idle(t):
     w = math.sin(2 * math.pi * t)
     return {"squash": max(0.0, w) * 0.55, "stretch": max(0.0, -w) * 0.40,
@@ -166,132 +388,46 @@ for name, (frames, sampler) in ANIMS.items():
 sk_ad.action = None
 obj_ad.action = None
 
-# ---------- habitat materials (canon PO 2026-07-17; Joan 2026-07-18: each habitat
-# gets its PHYSICS, not just its color — water reads as water, earth as mud,
-# prairie as jelly. "Too solid" was the rejected look.) ----------
-# Joan (2026-07-18): solid flat color reads dead — each habitat gets procedural
-# texture so it looks like ITS material: jelly = inner variation + bubbles + rim,
-# water = depth gradient + ripple, mud = patches + chunky grit.
-# NOTE: node textures do NOT survive glTF export — a bake pass (to image textures)
-# is required before the GLB carries these into Godot. Look-approval first.
-
-def _mix_rgba(nt):
-    """ShaderNodeMix has float/vector/color sockets all named A/B — grab the RGBA ones."""
-    node = nt.nodes.new("ShaderNodeMix")
-    node.data_type = 'RGBA'
-    a = [s for s in node.inputs if s.name == 'A' and s.type == 'RGBA'][0]
-    b = [s for s in node.inputs if s.name == 'B' and s.type == 'RGBA'][0]
-    out = [o for o in node.outputs if o.type == 'RGBA'][0]
-    return node, a, b, out
-
-
-def _base(name, alpha):
-    m = bpy.data.materials.new(f"slime_{name}")
+# ---------- material: thin, and it EXPORTS ----------
+# The gel colour is in the vertex layer, so the material only has to carry what
+# glTF can actually represent: translucency (alphaMode BLEND + alpha), a low
+# roughness for the wet highlight, and baseColor left WHITE so COLOR_0
+# multiplies through untouched (glTF guarantees COLOR_0 x baseColorFactor).
+# No SSS, no transmission: Godot 4 ignores KHR_materials_transmission, and SSS
+# has no glTF equivalent at all.
+def mat_gel(alpha=0.78):
+    m = bpy.data.materials.new("slime_gel")
     m.use_nodes = True
     nt = m.node_tree
     n = nt.nodes["Principled BSDF"]
+    n.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+    # Gel, not polished plastic. At 0.16 the key light produced one small hard
+    # white blowout across the top of the dome; a wetter-looking gel wants a
+    # broad soft highlight, so the roughness goes up and the specular level
+    # comes down.
+    n.inputs["Roughness"].default_value = 0.38
+    if "Specular IOR Level" in n.inputs:
+        n.inputs["Specular IOR Level"].default_value = 0.35
     n.inputs["IOR"].default_value = 1.33
     n.inputs["Alpha"].default_value = alpha
-    if alpha < 1.0:
-        if hasattr(m, "surface_render_method"):
-            m.surface_render_method = 'BLENDED'
-        if hasattr(m, "blend_method"):
-            m.blend_method = 'BLEND'
-        # closed blob + alpha blend: cull backfaces or the far side sorts in front
-        m.use_backface_culling = True
-    return m, nt, n
-
-
-def mat_jelly():
-    m, nt, n = _base("green", 0.75)
-    n.inputs["Roughness"].default_value = 0.18
-    n.inputs["Subsurface Weight"].default_value = 0.35
-    n.inputs["Subsurface Radius"].default_value = (0.10, 0.30, 0.10)
-    noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 4.0
-    noise.inputs["Detail"].default_value = 3.0
-    ramp, ra, rb, rout = _mix_rgba(nt)
-    ra.default_value = (0.03, 0.32, 0.055, 1.0)   # deep jelly
-    rb.default_value = (0.10, 0.60, 0.15, 1.0)    # bright jelly
-    nt.links.new(noise.outputs["Fac"], ramp.inputs["Factor"])
-    # suspended bubbles (Joan 2026-07-18: varied sizes, drifting through the gel).
-    # Two voronoi layers = small + big bubbles; a slowly rising Mapping offset
-    # makes them travel through the body. Object-space coords already make them
-    # flow when the mesh squashes/stretches.
-    coord = nt.nodes.new("ShaderNodeTexCoord")
-    bmap = nt.nodes.new("ShaderNodeMapping")
-    nt.links.new(coord.outputs["Object"], bmap.inputs["Vector"])
-    loc_curve = bmap.inputs["Location"]
-    loc_curve.default_value = (0.0, 0.0, 0.0)
-    loc_curve.keyframe_insert("default_value", frame=1)
-    loc_curve.default_value = (0.0, 0.0, -0.22)     # bubbles rise as offset sinks
-    loc_curve.keyframe_insert("default_value", frame=72)
-
-    def bubble_layer(scale, thr_v):
-        vor = nt.nodes.new("ShaderNodeTexVoronoi")
-        vor.inputs["Scale"].default_value = scale
-        nt.links.new(bmap.outputs["Vector"], vor.inputs["Vector"])
-        thr = nt.nodes.new("ShaderNodeMath")
-        thr.operation = 'LESS_THAN'
-        thr.inputs[1].default_value = thr_v
-        nt.links.new(vor.outputs["Distance"], thr.inputs[0])
-        return thr
-
-    small = bubble_layer(18.0, 0.10)
-    big = bubble_layer(6.0, 0.20)
-    both = nt.nodes.new("ShaderNodeMath")
-    both.operation = 'MAXIMUM'
-    nt.links.new(small.outputs["Value"], both.inputs[0])
-    nt.links.new(big.outputs["Value"], both.inputs[1])
-    bub, ba, bb, bout = _mix_rgba(nt)
-    bb.default_value = (0.35, 0.85, 0.45, 1.0)     # bubble glint
-    nt.links.new(rout, ba)
-    nt.links.new(both.outputs["Value"], bub.inputs["Factor"])
-    # gel rim: edges catch light
-    fres = nt.nodes.new("ShaderNodeLayerWeight")
-    fres.inputs["Blend"].default_value = 0.25
-    rim, ma, mb, mout = _mix_rgba(nt)
-    mb.default_value = (0.45, 0.95, 0.55, 1.0)
-    nt.links.new(bout, ma)
-    nt.links.new(fres.outputs["Facing"], rim.inputs["Factor"])
-    nt.links.new(mout, n.inputs["Base Color"])
+    # Drive Base Color from the exported vertex layer so the Blender preview
+    # matches what Godot will show — same data, same result, no divergence.
+    attr = nt.nodes.new("ShaderNodeAttribute")
+    attr.attribute_name = "Col"
+    nt.links.new(attr.outputs["Color"], n.inputs["Base Color"])
+    if hasattr(m, "surface_render_method"):
+        m.surface_render_method = 'BLENDED'
+    if hasattr(m, "blend_method"):
+        m.blend_method = 'BLEND'
+    # Closed blob + alpha blend: cull backfaces or the far side sorts in front.
+    m.use_backface_culling = True
     return m
 
 
-def mat_water():
-    m, nt, n = _base("blue", 0.42)
-    n.inputs["Roughness"].default_value = 0.04
-    # depth gradient: dark deep blue below, light cyan up top
-    geo = nt.nodes.new("ShaderNodeNewGeometry")
-    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
-    nt.links.new(geo.outputs["Position"], sep.inputs["Vector"])
-    mapr = nt.nodes.new("ShaderNodeMapRange")
-    mapr.inputs["From Min"].default_value = -0.30
-    mapr.inputs["From Max"].default_value = 0.40
-    nt.links.new(sep.outputs["Z"], mapr.inputs["Value"])
-    grad, ga, gb, gout = _mix_rgba(nt)
-    ga.default_value = (0.03, 0.15, 0.40, 1.0)    # deep
-    gb.default_value = (0.25, 0.60, 0.85, 1.0)    # surface
-    nt.links.new(mapr.outputs["Result"], grad.inputs["Factor"])
-    nt.links.new(gout, n.inputs["Base Color"])
-    # fine ripple
-    rip = nt.nodes.new("ShaderNodeTexNoise")
-    rip.inputs["Scale"].default_value = 14.0
-    rip.inputs["Detail"].default_value = 4.0
-    bump = nt.nodes.new("ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.12
-    nt.links.new(rip.outputs["Fac"], bump.inputs["Height"])
-    nt.links.new(bump.outputs["Normal"], n.inputs["Normal"])
-    return m
+gel = mat_gel()
+me.materials.append(gel)
 
-
-# Mud slime PARKED (Joan 2026-07-18: read as solid dough, unconvinced an earth
-# slime is worth it). If it returns it needs its own identity (embedded pebbles,
-# grass), not a flat color swap. Old builder recoverable at commit ee7e900.
-mats = {"green": mat_jelly(), "blue": mat_water()}
-body.data.materials.append(mats["green"])
-
-# ---------- showcase-ficha scene ----------
+# ---------- showcase-ficha scene (mob style contract §4) ----------
 world = bpy.data.worlds.new("ficha")
 scene.world = world
 world.use_nodes = True
@@ -307,6 +443,7 @@ def add_light(name, loc, energy, size):
     bpy.context.collection.objects.link(lo)
     lo.rotation_mode = 'QUATERNION'
     lo.rotation_quaternion = (lo.location.to_track_quat('Z', 'Y'))
+    return lo
 
 
 add_light("key", (-1.6, -1.0, 1.2), 110, 1.6)
@@ -332,9 +469,9 @@ except TypeError:
 if hasattr(scene.eevee, "use_raytracing"):
     scene.eevee.use_raytracing = True
 scene.eevee.taa_render_samples = 64
-scene.view_settings.view_transform = 'Standard'
+scene.view_settings.view_transform = 'Standard'   # AgX washes everything to pastel
 
-# ---------- renders: preview frames per animation (green) ----------
+# ---------- renders: preview frames per animation ----------
 scene.render.resolution_x = 512
 scene.render.resolution_y = 640
 for name, (frames, act_sk, act_obj) in actions.items():
@@ -348,39 +485,67 @@ for name, (frames, act_sk, act_obj) in actions.items():
 sk_ad.action = None
 obj_ad.action = None
 body.location = (0, 0, 0)
-for k in ALL_KEYS:      # actions leave the last evaluated values behind — reset to rest
+for k in ALL_KEYS:      # actions leave the last evaluated values behind
     kb[k].value = 0.0
+scene.frame_set(1)
 
-# ---------- hero stills: scale silhouette (mob style contract §4, Pokedex rule) ----------
+# ---------- hero stills + close-ups (never a single overview render) ----------
 sys.path.insert(0, os.path.dirname(OUT_DIR))
 import _ficha_common as ficha
 
-MOB_HX, MOB_HY, MOB_ZMAX = 0.62, 0.62, 0.40  # slime bounding radius ~0.6m + margin
-SIL_DIST = (MOB_HX ** 2 + MOB_HY ** 2) ** 0.5 + 0.4 + 0.254  # clear of the mob from ANY camera angle
+MOB_HX = R_MAX + 0.06
+MOB_HY = R_MAX + 0.06
+SIL_DIST = (MOB_HX ** 2 + MOB_HY ** 2) ** 0.5 + 0.4 + 0.254
 right_dir = ficha.camera_right_vector(cam, target)
 sil_loc = (right_dir * SIL_DIST)
 sil_loc.z = 0.0
 sil = ficha.add_scale_silhouette(location=tuple(sil_loc))
-sil_xmin, sil_xmax, sil_ymin, sil_ymax, sil_zmin, sil_zmax = ficha.silhouette_bbox(location=tuple(sil_loc))
+sil_bb = ficha.silhouette_bbox(location=tuple(sil_loc))
 old_target_loc, old_cam_loc = ficha.frame_hero_camera(
     cam, target,
-    x_min=min(-MOB_HX, sil_xmin), x_max=max(MOB_HX, sil_xmax),
-    y_min=min(-MOB_HY, sil_ymin), y_max=max(MOB_HY, sil_ymax),
-    z_min=0.0, z_max=max(MOB_ZMAX, sil_zmax))
+    x_min=min(-MOB_HX, sil_bb[0]), x_max=max(MOB_HX, sil_bb[1]),
+    y_min=min(-MOB_HY, sil_bb[2]), y_max=max(MOB_HY, sil_bb[3]),
+    z_min=0.0, z_max=max(Z_MAX, sil_bb[5]))
 
-scene.frame_set(1)
 scene.render.resolution_x = 1024
 scene.render.resolution_y = 1280
-for name, mat in mats.items():
-    body.data.materials[0] = mat
-    scene.render.filepath = os.path.join(REN_DIR, f"slime_{name}.png")
+for pal in PALETTES:
+    bake_vcol(pal)
+    scene.render.filepath = os.path.join(REN_DIR, f"slime_{pal}.png")
     bpy.ops.render.render(write_still=True)
-body.data.materials[0] = mats["green"]
+bake_vcol("green")
 
 ficha.restore_hero_camera(cam, target, old_target_loc, old_cam_loc)
 ficha.remove_scale_silhouette(sil)
 
-# ---------- push all actions to NLA tracks (one glTF animation per track name) ----------
+# Multi-angle + macro: the wide ficha shot hid an oversized-dab failure on
+# flower_pack and a scale bug on tree_pack. Judge at BOTH distances, and from
+# more than one side.
+scene.render.resolution_x = 800
+scene.render.resolution_y = 800
+#
+# Distances are derived, not guessed: a 36mm sensor at focal f sees
+# (36/f) x D metres across, so framing a 1.11m-wide body with margin needs
+# D >= 1.5 * f / 36. Pass 2 sat at 1.35m with a 50mm lens (0.97m visible) and
+# cropped the slime's own base off every frame.
+ANGLES = [
+    ("face", (0.0, -2.10, 0.42), 50),        # straight at the relief
+    ("threequarter", (-1.60, -1.60, 0.56), 50),
+    ("side", (-2.10, 0.05, 0.42), 50),
+    # Long lens from OUTSIDE the body — at 0.62m the camera sat inside the mesh
+    # (R_MAX alone is ~0.55) and rendered flat interior green.
+    ("macro_face", (0.0, -1.75, 0.30), 85),
+    ("playereye", (0.0, -2.60, 1.65), 35),   # what the player actually sees
+]
+for label, loc, lens in ANGLES:
+    cam.location = loc
+    cd.lens = lens
+    target.location = (0.0, 0.0, Z_MIN + H * (0.55 if label != "playereye" else 0.35))
+    bpy.context.view_layer.update()          # settle TRACK_TO before rendering
+    scene.render.filepath = os.path.join(REN_DIR, f"slime_view_{label}.png")
+    bpy.ops.render.render(write_still=True)
+
+# ---------- push all actions to NLA tracks (one glTF animation per track) ----------
 for name, (frames, act_sk, act_obj) in actions.items():
     tr = sk_ad.nla_tracks.new()
     tr.name = name
@@ -391,6 +556,14 @@ for name, (frames, act_sk, act_obj) in actions.items():
     tro.strips.new(name, 1, act_obj)
     tro.mute = False
 
+# Creating NLA tracks while action=None makes them active evaluators at the
+# CURRENT frame — re-assert rest as the LAST step before saving (golem_guardian
+# lesson, 2026-07-19).
+scene.frame_set(1)
+body.location = (0, 0, 0)
+for k in ALL_KEYS:
+    kb[k].value = 0.0
+
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_DIR, "slime_wip.blend"))
 bpy.ops.export_scene.gltf(
     filepath=os.path.join(OUT_DIR, "slime.glb"),
@@ -399,4 +572,4 @@ bpy.ops.export_scene.gltf(
     export_morph=True,
     export_animation_mode='NLA_TRACKS',
 )
-print("[slime] DONE")
+print(f"[slime] DONE tris={TRIS} seed={SEED}")
