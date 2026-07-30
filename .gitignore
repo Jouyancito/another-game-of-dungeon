@@ -58,3 +58,4 @@ game/tools/godot/anim_capture/
 game/tools/blender/*/renders/anim/
 game/tools/blender/**/*_run.log
 game/tools/blender/**/__pycache__/
+__pycache__/
