@@ -31,7 +31,9 @@ func _on_enemy_ready() -> void:
 	personality = AggroPersonality.CURIOUS
 	aggression = AggressionType.NEUTRAL
 	default_color = Color(0.2, 0.75, 0.2) if not is_mini else Color(0.3, 0.85, 0.3)
-	var _slime_mesh: Node3D = get_node_or_null("SlimeMesh")  # Quaternius mira +Z; girar 180° (si no, de espaldas)
+	# El GLB bespoke tiene la cara en Blender -Y, que export_yup mapea a +Z;
+	# girar 180° para que mire al frente de Godot (-Z), si no queda de espaldas.
+	var _slime_mesh: Node3D = get_node_or_null("SlimeMesh")
 	if _slime_mesh != null:
 		_slime_mesh.rotation.y = PI
 	mass = 0.5 if not is_mini else 0.2

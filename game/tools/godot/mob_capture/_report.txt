@@ -1,0 +1,10 @@
+=== mob_capture — the mob as Godot draws it ===
+mob        = res://scenes/enemy/slime.tscn
+rest size  = 0.991 m tall x 1.572 m wide (player post = 1.75 m)
+proportion = 1.59 : 1 (width : height)
+clips      = attack, death, hit, hop, idle
+material   = slime albedo=(1.0, 1.0, 1.0, 0.78) vcol_albedo=true transparency=4
+surface 0  = COLOR array present: true
+material   = HPBarBG albedo=(0.2, 0.2, 0.2, 0.8) vcol_albedo=false transparency=1
+material   = HPBarFill albedo=(0.2, 0.8, 0.2, 0.9) vcol_albedo=false transparency=1
+clip 'hop' captured 4 frames over 1.96s

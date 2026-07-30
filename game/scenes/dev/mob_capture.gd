@@ -1,0 +1,315 @@
+extends Node3D
+## Renders an enemy scene AS GODOT DRAWS IT — the only honest judge of a mob's
+## look. Blender showcase renders are not: the slime shipped for weeks looking
+## like green jelly in its build render while the GLB carried no vertex colour
+## at all and Godot drew a white dome (measured 2026-07-29, see
+## docs/art/_motor_tiers.md).
+##
+## NON-INTRUSIVE: renders into an off-screen SubViewport. The main window is
+## parked at (-4000,-4000), shrunk to 1x1 px with FLAG_NO_FOCUS, so it never
+## steals focus or screen space — same pattern as biome_capture.gd.
+##
+## Run (from repo root):
+##   Godot_v4.6.2-stable_win64.exe --path game res://scenes/dev/mob_capture.tscn \
+##       [-- --mob res://scenes/enemy/slime.tscn] [--clip idle] [--frames 6]
+##
+## Output: game/tools/godot/mob_capture/<mob>_<angle>.png + _report.txt
+##
+## The mob is lit by a plain neutral rig, NOT the level's lighting — the point
+## is to judge the asset, not the scene. A 1.75m player-height post stands
+## beside it so the scale claim is checkable rather than asserted.
+
+const OUT_DIR := "res://tools/godot/mob_capture/"
+const SV_SIZE := Vector2i(900, 900)
+const POST_HEIGHT := 1.75
+
+var _sv: SubViewport
+var _cam: Camera3D
+var _mob: Node3D
+var _mob_path := "res://scenes/enemy/slime.tscn"
+var _clip := ""
+var _anim_frames := 0
+var _report: Array[String] = []
+
+
+func _ready() -> void:
+	_parse_args()
+	DisplayServer.window_set_position(Vector2i(-4000, -4000))
+	DisplayServer.window_set_size(Vector2i(1, 1))
+	get_window().set_flag(Window.FLAG_NO_FOCUS, true)
+	_build_viewport()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _capture_all()
+	_write_report()
+	get_tree().quit()
+
+
+func _parse_args() -> void:
+	var args := OS.get_cmdline_user_args()
+	var i := 0
+	while i < args.size():
+		match args[i]:
+			"--mob":
+				if i + 1 < args.size():
+					_mob_path = args[i + 1]
+					i += 1
+			"--clip":
+				if i + 1 < args.size():
+					_clip = args[i + 1]
+					i += 1
+			"--frames":
+				if i + 1 < args.size():
+					_anim_frames = int(args[i + 1])
+					i += 1
+		i += 1
+
+
+func _build_viewport() -> void:
+	_sv = SubViewport.new()
+	_sv.size = SV_SIZE
+	_sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_sv.transparent_bg = false
+	add_child(_sv)
+
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.30, 0.22, 0.48)   # contract ficha purple
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.62, 0.63, 0.68)
+	env.ambient_light_energy = 1.0
+	var we := WorldEnvironment.new()
+	we.environment = env
+	_sv.add_child(we)
+
+	var key := DirectionalLight3D.new()
+	key.light_energy = 1.5
+	key.rotation_degrees = Vector3(-42.0, -35.0, 0.0)
+	key.shadow_enabled = true
+	_sv.add_child(key)
+
+	var fill := DirectionalLight3D.new()
+	fill.light_energy = 0.45
+	fill.light_color = Color(0.82, 0.88, 1.0)
+	fill.rotation_degrees = Vector3(-18.0, 140.0, 0.0)
+	_sv.add_child(fill)
+
+	# Ground so the mob is not floating in a void — contact sells the weight.
+	# It needs REAL collision on the world layer: with a bare MeshInstance3D the
+	# mob's CharacterBody3D fell straight through and left frame after the first
+	# shot, which read as a framing bug for two passes.
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1        # layer 1 = World
+	var col := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = Vector3(14.0, 0.4, 14.0)
+	col.shape = box_shape
+	col.position = Vector3(0.0, -0.2, 0.0)
+	floor_body.add_child(col)
+	var ground := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(14.0, 14.0)
+	ground.mesh = plane
+	var gm := StandardMaterial3D.new()
+	gm.albedo_color = Color(0.34, 0.30, 0.26)
+	gm.roughness = 0.95
+	ground.material_override = gm
+	floor_body.add_child(ground)
+	_sv.add_child(floor_body)
+
+	_sv.add_child(_make_scale_post())
+
+	_cam = Camera3D.new()
+	_cam.fov = 40.0
+	_sv.add_child(_cam)
+
+	var ps := load(_mob_path) as PackedScene
+	if ps == null:
+		_report.append("FAILED to load %s" % _mob_path)
+		return
+	_mob = ps.instantiate() as Node3D
+	_sv.add_child(_mob)
+	# AFTER add_child: _ready() runs on entering the tree and re-enables
+	# processing, so disabling it beforehand had no effect. The AnimationPlayer
+	# is a separate node and keeps running, which is what clip capture needs.
+	_mob.set_physics_process(false)
+	_mob.set_process(false)
+	_mob.global_position = Vector3.ZERO
+
+
+func _make_scale_post() -> Node3D:
+	var post := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.045
+	cyl.bottom_radius = 0.045
+	cyl.height = POST_HEIGHT
+	post.mesh = cyl
+	var pm := StandardMaterial3D.new()
+	pm.albedo_color = Color(0.75, 0.12, 0.12)
+	pm.roughness = 0.8
+	post.material_override = pm
+	post.position = Vector3(1.5, POST_HEIGHT * 0.5, 0.0)
+	return post
+
+
+func _rest_bounds() -> AABB:
+	## Rest-pose bounds in world space, built from the surface VERTEX arrays.
+	##
+	## MeshInstance3D.get_aabb() cannot be used here: it covers every morph
+	## target's extent, so a mob with a "melt" shape key reports the flattened
+	## puddle's width and a "stretch" key inflates its height (measured on the
+	## slime: 1.26 m reported vs 0.99 m actually standing). Framing off that
+	## number pushes the camera too far out and aims it above the subject.
+	var box := AABB()
+	var first := true
+	for mi in _find_meshes(_mob):
+		var mesh := mi.mesh
+		if mesh == null or not (mesh is ArrayMesh):
+			continue
+		var xform := mi.global_transform
+		for s in mesh.get_surface_count():
+			var arrays := (mesh as ArrayMesh).surface_get_arrays(s)
+			if arrays.size() <= Mesh.ARRAY_VERTEX or arrays[Mesh.ARRAY_VERTEX] == null:
+				continue
+			for v in (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				var wp := xform * v
+				if first:
+					box = AABB(wp, Vector3.ZERO)
+					first = false
+				else:
+					box = box.expand(wp)
+	return box
+
+
+func _find_meshes(n: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	if n is MeshInstance3D:
+		out.append(n)
+	for c in n.get_children():
+		out.append_array(_find_meshes(c))
+	return out
+
+
+func _aim(angle_deg: float, dist: float, cam_height: float, look_at_point: Vector3) -> void:
+	## look_at_point is explicit: deriving it from the camera height (the first
+	## version's `height * 0.45`) aimed the close-up at the ground and rendered
+	## an empty frame.
+	var a := deg_to_rad(angle_deg)
+	_cam.position = look_at_point + Vector3(sin(a) * dist, cam_height, cos(a) * dist)
+	_cam.look_at(look_at_point, Vector3.UP)
+
+
+func _save(name: String) -> void:
+	# Let the camera move take effect BEFORE waiting on the draw. Awaiting
+	# frame_post_draw alone captures a frame whose draw had already begun with
+	# the previous transform, so every shot came out framed like the one before
+	# it (empty frames once the sequence moved far).
+	if _mob != null:
+		_mob.global_position = Vector3.ZERO   # belt and braces against any drift
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := _sv.get_texture().get_image()
+	var dir := ProjectSettings.globalize_path(OUT_DIR)
+	DirAccess.make_dir_recursive_absolute(dir)
+	img.save_png(dir.path_join("%s.png" % name))
+	print("[mob_capture] saved %s.png" % name)
+
+
+func _capture_all() -> void:
+	if _mob == null:
+		return
+	var mob_name := _mob_path.get_file().get_basename()
+	var box := _rest_bounds()
+	var h: float = box.size.y
+	var widest: float = max(box.size.x, box.size.z)
+	var centre := box.get_center()
+	_report.append("mob        = %s" % _mob_path)
+	_report.append("rest size  = %.3f m tall x %.3f m wide (player post = %.2f m)" % [
+		h, widest, POST_HEIGHT])
+	_report.append("proportion = %.2f : 1 (width : height)" % (widest / max(h, 0.001)))
+
+	var players := _find_anim_players(_mob)
+	if players.is_empty():
+		_report.append("clips      = (no AnimationPlayer)")
+	else:
+		var ap := players[0]
+		_report.append("clips      = %s" % ", ".join(ap.get_animation_list()))
+
+	for mi in _find_meshes(_mob):
+		var mesh := mi.mesh
+		if mesh == null:
+			continue
+		for s in mesh.get_surface_count():
+			var mat := mi.get_active_material(s)
+			if mat is StandardMaterial3D:
+				_report.append("material   = %s albedo=%s vcol_albedo=%s transparency=%d" % [
+					mi.name, mat.albedo_color, mat.vertex_color_use_as_albedo, mat.transparency])
+			if mesh is ArrayMesh:
+				var arrays := (mesh as ArrayMesh).surface_get_arrays(s)
+				var has_col: bool = arrays.size() > Mesh.ARRAY_COLOR and arrays[Mesh.ARRAY_COLOR] != null
+				_report.append("surface %d  = COLOR array present: %s" % [s, has_col])
+
+	# Frame off the WIDEST extent, not the height: a squat wide mob (the slime is
+	# ~1.6:1) needs the distance its width demands or it fills the frame edge to
+	# edge. Camera sits near mid-height so the silhouette is not foreshortened
+	# into a puddle by looking down at it.
+	var look := Vector3(0.0, centre.y, 0.0)
+	var dist: float = max(1.8, max(widest, h) * 2.0)
+	for shot in [["front", 180.0], ["threequarter", 215.0], ["side", 270.0]]:
+		_aim(float(shot[1]), dist, h * 0.35, look)
+		await _save("%s_%s" % [mob_name, shot[0]])
+
+	# Close-up on the face, same rig — a wide shot hides relief detail.
+	_aim(180.0, max(0.95, widest * 0.85), h * 0.16, look)
+	await _save("%s_closeup" % mob_name)
+
+	# Eye level of a 1.75m player standing a few metres off: the honest read of
+	# what this thing looks like in play.
+	_aim(180.0, max(3.0, widest * 3.2), 1.75 - centre.y, look)
+	await _save("%s_playereye" % mob_name)
+
+	if _clip != "" and _anim_frames > 0 and not players.is_empty():
+		await _capture_clip(players[0], mob_name)
+
+
+func _capture_clip(ap: AnimationPlayer, mob_name: String) -> void:
+	if not ap.has_animation(_clip):
+		_report.append("clip '%s' NOT FOUND — animation frames skipped" % _clip)
+		return
+	var anim := ap.get_animation(_clip)
+	var box := _rest_bounds()
+	var h: float = box.size.y
+	var widest: float = max(box.size.x, box.size.z)
+	var look := Vector3(0.0, box.get_center().y, 0.0)
+	_aim(180.0, max(1.8, max(widest, h) * 2.0), h * 0.35, look)
+	for i in _anim_frames:
+		var t: float = anim.length * (float(i) / float(_anim_frames))
+		ap.play(_clip)
+		ap.seek(t, true)
+		ap.pause()
+		await _save("%s_%s_%02d" % [mob_name, _clip, i])
+	_report.append("clip '%s' captured %d frames over %.2fs" % [_clip, _anim_frames, anim.length])
+
+
+func _find_anim_players(n: Node) -> Array[AnimationPlayer]:
+	var out: Array[AnimationPlayer] = []
+	if n is AnimationPlayer:
+		out.append(n)
+	for c in n.get_children():
+		out.append_array(_find_anim_players(c))
+	return out
+
+
+func _write_report() -> void:
+	var dir := ProjectSettings.globalize_path(OUT_DIR)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var f := FileAccess.open(dir.path_join("_report.txt"), FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_line("=== mob_capture — the mob as Godot draws it ===")
+	for line in _report:
+		f.store_line(line)
+	f.close()
+	for line in _report:
+		print("[mob_capture] %s" % line)
