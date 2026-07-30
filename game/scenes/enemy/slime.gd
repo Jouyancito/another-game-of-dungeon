@@ -224,13 +224,24 @@ func _on_knockback(kb_velocity: Vector3) -> void:
 	jelly.tween_property(self, "scale", Vector3(1, 1, 1), 0.15).set_ease(Tween.EASE_OUT)
 
 
+## El clip de muerte resuelve el cuerpo solo: revienta en gotitas que caen, se
+## aplanan y se absorben en el suelo. El tween genérico de encogimiento lo
+## arruinaría — achicaría las gotas en pleno vuelo.
+func _death_clip_disposes_body() -> bool:
+	return true
+
+
+## Lo que dura el clip completo (44 frames a 24 fps), para que la absorción se
+## vea entera en vez de cortarse a mitad de camino.
+func _death_anim_hold() -> float:
+	return 1.85
+
+
 func _on_death() -> void:
 	if not is_mini:
 		_spawn_mini_slimes()
-
-	# Squash visual al morir — se aplasta antes de encogerse
-	var squash = create_tween()
-	squash.tween_property(self, "scale", Vector3(1.5, 0.3, 1.5), 0.2)
+	# Sin tween de squash: el clip 'death' ya deforma el cuerpo, y escalar el
+	# nodo por encima peleaba con él.
 
 
 func _spawn_mini_slimes() -> void:

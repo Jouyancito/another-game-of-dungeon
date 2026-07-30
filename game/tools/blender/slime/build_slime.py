@@ -5,7 +5,7 @@
 #   hop-loop   locomotion — slimes don't walk, they hop
 #   hit        flinch on taking a blow
 #   attack     crouch + forward lunge
-#   death      melts into a puddle
+#   death      bursts into droplets that fall, flatten and soak into the ground
 # Fast/slow variants are playback speed in Godot (speed_scale), not extra anims.
 # "-loop" suffix => Godot glTF import auto-loops. Export mode: NLA tracks.
 #
@@ -44,14 +44,14 @@ import math
 import os
 import random
 import sys
-from mathutils import Vector, noise as mnoise
+from mathutils import Vector, Matrix, noise as mnoise
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 REN_DIR = os.path.join(OUT_DIR, "renders")
 ANIM_DIR = os.path.join(REN_DIR, "anim")
 os.makedirs(ANIM_DIR, exist_ok=True)
 
-TRI_BUDGET = 6500
+TRI_BUDGET = 7600
 
 # ---------- CLI ----------
 _argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -166,10 +166,86 @@ if WANT_FACE:
 for p in me.polygons:
     p.use_smooth = True
 
-Z_MIN = min(v.co.z for v in me.vertices)
+# Sit the body ON the origin instead of straddling it. The sphere is built
+# centred, so without this the mesh's base lands ~0.28 below its own origin —
+# 0.40 m under the floor once Godot scales it, with the opaque ground hiding the
+# bottom third and every "landed" droplet burying itself out of sight. The style
+# contract asks for base at Y=0 precisely so Godot can drop an asset on terrain.
+_base_offset = min(v.co.z for v in me.vertices)
+for v in me.vertices:
+    v.co.z -= _base_offset
+
+BODY_VERT_COUNT = len(me.vertices)
+Z_MIN = 0.0
 Z_MAX = max(v.co.z for v in me.vertices)
 H = Z_MAX - Z_MIN
 R_MAX = max(math.hypot(v.co.x, v.co.y) for v in me.vertices)
+
+# ---------- death droplets: separate islands living inside the body ----------
+# Joan (2026-07-30): the slime should BURST into droplets that fall, flatten and
+# soak into the ground — not squash flat and vanish.
+#
+# Shape keys cannot tear a connected surface apart: pulling one region away from
+# another on a single continuous mesh stretches strands between them. So the
+# droplets exist from the start as their own disconnected islands, parked at a
+# near-zero radius inside the body where nothing can see them (8 mm across
+# inside a 1.1 m translucent blob), and the death keys blow them outward.
+#
+# They are kept tiny rather than fully collapsed on purpose: a degenerate island
+# with every vertex on one point produces zero-area faces, which break normal
+# recalculation and can trip the exporter.
+N_DROPS = 12
+DROP_HIDDEN_RADIUS = 0.004
+drops = []          # (vertex indices, flight position, floor position, radius)
+
+_bm = bmesh.new()
+_bm.from_mesh(me)
+_hidden_centre = Vector((0.0, 0.0, Z_MIN + H * 0.45))
+for _i in range(N_DROPS):
+    _ang = math.tau * (_i + rng.uniform(0.15, 0.85)) / N_DROPS
+    _radius = rng.uniform(0.055, 0.115)
+    _existing = set(v.index for v in _bm.verts) if _bm.verts else set()
+    _before = len(_bm.verts)
+    # subdivisions=2: at 1 a droplet is a bare icosahedron and reads as a green
+    # gem rather than a blob of gel, which is very visible at this size.
+    _res = bmesh.ops.create_icosphere(
+        _bm, subdivisions=2, radius=DROP_HIDDEN_RADIUS,
+        matrix=Matrix.Translation(_hidden_centre))
+    _new_verts = _res["verts"]
+    # Where it flies to at the peak of the burst, and where it lands after.
+    # Kept close: a 1.5 m slime throwing droplets 2.3 m reads as an explosion,
+    # and the puddles ended up outside the frame entirely.
+    _fly_dist = R_MAX * rng.uniform(0.30, 0.62)
+    _fly = Vector((math.cos(_ang) * _fly_dist,
+                   math.sin(_ang) * _fly_dist,
+                   Z_MIN + H * rng.uniform(0.55, 0.95)))
+    _floor_dist = _fly_dist * rng.uniform(1.10, 1.30)
+    # Resting ON the ground plane (z = 0), squashed, so the flattened puddle
+    # still shows above it.
+    _floor = Vector((math.cos(_ang) * _floor_dist,
+                     math.sin(_ang) * _floor_dist,
+                     _radius * 0.22))
+    drops.append({"verts": _new_verts, "fly": _fly, "floor": _floor,
+                  "radius": _radius, "centre": _hidden_centre.copy()})
+_bm.verts.index_update()
+_bm.faces.ensure_lookup_table()
+# Droplet faces shade smooth like the body — a faceted droplet next to a smooth
+# blob reads as a different material.
+for _f in _bm.faces:
+    _f.smooth = True
+_bm.to_mesh(me)
+_bm.free()
+
+# Index lists have to be resolved AFTER to_mesh: BMVert.index is stale right
+# after creation (the flower_pack lesson), and the shape keys address vertices
+# by index into me.vertices.
+DROP_INDEX_SETS = []
+_cursor = BODY_VERT_COUNT
+for _d in drops:
+    _count = len(_d["verts"])
+    DROP_INDEX_SETS.append(list(range(_cursor, _cursor + _count)))
+    _cursor += _count
+DROP_VERT_TOTAL = _cursor - BODY_VERT_COUNT
 
 # ---------- vertex colour: the gel, baked so it actually ships ----------
 # Everything the old node graph did, evaluated per-vertex instead:
@@ -210,8 +286,10 @@ bubbles = []
 # 0.62 target. Keeping the centre just beneath the skin puts the falloff's PEAK
 # on the surface, and the cosine curve already falls to zero at the rim, so the
 # edge stays defined without squaring it.
-_surface_pool = [v for v in me.vertices
+_surface_pool = [v for v in me.vertices[:BODY_VERT_COUNT]
                  if (v.co.z - Z_MIN) / H > 0.22]   # skip the ground contact ring
+# Body vertices only: the death droplets sit at the body's centre, so anchoring a
+# bubble to one would paint a bloom in mid-air that appears when they burst out.
 for _ in range(N_BUBBLES):
     v = _surface_pool[rng.randrange(len(_surface_pool))]
     radius = rng.uniform(0.058, 0.145)
@@ -327,10 +405,60 @@ for i, v in enumerate(me.vertices):
     zn = (v.co.z - Z_MIN) / H
     sk.data[i].co = v.co + Vector((0.0, -0.22 * zn ** 1.5, 0.0))
 
-sk = add_key("melt")        # collapses into a wide puddle
-for i, v in enumerate(me.vertices):
-    nz = Z_MIN + (v.co.z - Z_MIN) * 0.16
-    sk.data[i].co = Vector((v.co.x * 1.45, v.co.y * 1.45, nz))
+# ---------- death: burst into droplets, they land, flatten and soak away ------
+# Three keys sequenced by the death clip, replacing the old single "melt" that
+# just squashed the body flat (Joan, 2026-07-30: it should burst, not deflate).
+#
+# The body and the droplets move in opposite directions in the SAME key: as the
+# blob collapses through the floor, the droplets fly out. Interpolating burst ->
+# settle then gives the arc for free, because a shape key is a straight line
+# between two poses and two poses is exactly what an arc needs.
+
+
+def _collapse_body(key):
+    """The body is gone in all three death poses — it only has to leave once."""
+    for i in range(BODY_VERT_COUNT):
+        v = me.vertices[i]
+        key.data[i].co = Vector((v.co.x * 0.18, v.co.y * 0.18,
+                                 -0.14 + v.co.z * 0.10))
+
+
+def _drop_offset(idx, meta):
+    """This vertex's direction within its own island, normalised out of the
+    hidden radius so a droplet can be re-inflated to any size."""
+    return (me.vertices[idx].co - meta["centre"]) / DROP_HIDDEN_RADIUS
+
+
+sk = add_key("burst")       # body drops away, droplets fly outward and up
+_collapse_body(sk)
+for meta, indices in zip(drops, DROP_INDEX_SETS):
+    for idx in indices:
+        sk.data[idx].co = meta["fly"] + _drop_offset(idx, meta) * meta["radius"]
+
+sk = add_key("settle")      # droplets have landed and spread into flat puddles
+_collapse_body(sk)
+for meta, indices in zip(drops, DROP_INDEX_SETS):
+    for idx in indices:
+        offset = _drop_offset(idx, meta)
+        # Wider than the airborne droplet and pressed thin: surface tension lost
+        # against the ground.
+        sk.data[idx].co = meta["floor"] + Vector((
+            offset.x * meta["radius"] * 1.55,
+            offset.y * meta["radius"] * 1.55,
+            offset.z * meta["radius"] * 0.22))
+
+sk = add_key("soak")        # puddles sink into the ground and shrink to nothing
+_collapse_body(sk)
+for meta, indices in zip(drops, DROP_INDEX_SETS):
+    for idx in indices:
+        offset = _drop_offset(idx, meta)
+        # Just under the ground plane: the puddle is drawn INTO the floor rather
+        # than deleted, which is what makes it read as soaking away.
+        sunk = Vector((meta["floor"].x, meta["floor"].y, -meta["radius"] * 0.45))
+        sk.data[idx].co = sunk + Vector((
+            offset.x * meta["radius"] * 0.75,
+            offset.y * meta["radius"] * 0.75,
+            offset.z * meta["radius"] * 0.10))
 
 
 # ---------- directional lean: the gel spills the way it travels ----------
@@ -446,9 +574,40 @@ def anim_attack(t):
 
 
 def anim_death(t):
-    v = {"melt": min(1.0, t * 1.25), "sway": 0.0, "squash": 0.0}
-    if t > 0.6:                     # final soft ripple as the puddle settles
-        v["squash"] = 0.15 * math.sin(2 * math.pi * (t - 0.6) / 0.4)
+    """Burst -> fall -> flatten -> soak away.
+
+    The three poses are exclusive rather than additive: each phase blends from
+    one to the next, since summing two full poses would place a droplet at the
+    sum of two positions instead of somewhere between them.
+    """
+    v = {"squash": 0.0, "stretch": 0.0, "burst": 0.0, "settle": 0.0, "soak": 0.0}
+    if t < 0.07:
+        # Anticipation: the blob swells for an instant before it goes. Without
+        # this the burst reads as a cut rather than a rupture.
+        u = t / 0.07
+        v["stretch"] = 0.45 * math.sin(math.pi * u * 0.5)
+    elif t < 0.22:
+        # Rupture. Fast — this is the moment that has to land.
+        u = (t - 0.07) / 0.15
+        v["burst"] = u * u * (3.0 - 2.0 * u)     # smoothstep
+    elif t < 0.42:
+        # Falling: burst -> settle carries the droplets down and outward along
+        # the straight line between the two poses, which reads as the arc.
+        u = (t - 0.22) / 0.20
+        # Squared so they accelerate downward instead of drifting linearly —
+        # droplets fall under gravity, they do not glide.
+        fall = u * u
+        v["burst"] = 1.0 - fall
+        v["settle"] = fall
+    elif t < 0.52:
+        v["settle"] = 1.0                        # puddles hold for a beat
+    else:
+        # Soaking gets the whole back half. It is the slowest beat by design:
+        # absorption is the thing being read here, and at a fifth of the clip it
+        # played as the puddles simply blinking out.
+        u = (t - 0.52) / 0.48
+        v["settle"] = 1.0 - u
+        v["soak"] = u                            # absorbed into the ground
     return v
 
 
@@ -457,10 +616,12 @@ ANIMS = {
     "hop-loop": (48, anim_hop),
     "hit": (12, anim_hit),
     "attack": (22, anim_attack),
-    "death": (28, anim_death),
+    # Longer than the others on purpose: burst, fall, flatten and soak are four
+    # readable beats, and at the old 28 frames they blurred into one event.
+    "death": (44, anim_death),
 }
 
-ALL_KEYS = ("squash", "stretch", "sway", "lunge", "melt")
+ALL_KEYS = ("squash", "stretch", "sway", "lunge", "burst", "settle", "soak")
 sk_ad = me.shape_keys.animation_data_create()
 obj_ad = body.animation_data_create()
 actions = {}

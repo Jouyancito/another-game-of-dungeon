@@ -123,9 +123,37 @@
   </figure>
   <figure>
     <img src="death.gif" alt="death">
-    <figcaption><b>death</b><span>Se derrite en un charco, con una última onda al asentarse.</span></figcaption>
+    <figcaption><b>death</b><span>Revienta en gotitas. Ver abajo el detalle.</span></figcaption>
   </figure>
 </div>
+
+<h2>Muerte: revienta, cae, se aplana y se absorbe</h2>
+<p class="note">
+  Renderizado en Godot, con el poste de 1.75 m al lado. Cuatro tiempos: hinchazón de
+  anticipación, reventón, caída con aceleración, y absorción en el suelo (que se lleva la
+  mitad de atrás del clip, porque es lo que hay que leer).
+</p>
+<div class="grid">
+  <figure class="hero">
+    <img src="death_godot.gif" alt="Muerte del slime reventando en gotitas">
+    <figcaption>
+      <b>death — 1.79 s</b>
+      <span>
+        Las gotitas son <b>islas de geometría separadas</b> que viven dentro del cuerpo a
+        4 mm de radio, invisibles, hasta que la muerte las expande y las lanza. Un shape
+        key no puede desgarrar una superficie continua: tirar de una parte estira hilos
+        hacia la otra. Al ser islas propias, se separan de verdad.
+      </span>
+    </figcaption>
+  </figure>
+</div>
+<table>
+  <tr><th>Qué</th><th>Valor</th></tr>
+  <tr><td>Gotitas</td><td>12 islas, radio 0.055–0.115 m</td></tr>
+  <tr><td>Tiempos</td><td>anticipación 7% · reventón 15% · caída 20% · charco 10% · absorción 48%</td></tr>
+  <tr><td>Tris</td><td>7200 / 7600 (las gotas suman 960)</td></tr>
+  <tr><td>Base del mesh</td><td class="ok">corregida a z=0 — estaba enterrada 0.40 m</td></tr>
+</table>
 
 <h2>Estado</h2>
 <ul>
@@ -135,7 +163,9 @@
   <li class="ok"><b>Deformación direccional</b> andando y verificada de punta a punta.</li>
   <li class="warn"><b>Falta referencia visual del anime.</b> No pude bajar frames de Tensura — construí desde los principios de squash &amp; stretch y la descripción de la wiki. Si subís 2-3 capturas, ajusto contra ellas.</li>
   <li class="warn"><b>Las burbujas no tienen borde.</b> El vertex color no puede: interpola entre vértices. Para burbujas con contorno hay que pasar a textura bakeada, que es un nivel por encima del actual.</li>
+  <li class="ok"><b>Muerte por reventón</b> lista, y de paso apareció que el mesh estaba <b>enterrado 0.40 m</b> (base en z=−0.28 en vez de 0). Corregido, con las hitboxes reajustadas.</li>
   <li class="bad"><b>El timing del salto no cuadra</b>: <code>hop_interval</code> es 1.6 s y el clip dura 1.96 s, así que se corta antes de asentarse. Se ve jugando, no en un GIF.</li>
+  <li class="warn"><b>Falta decidir qué es "movimiento"</b> aparte del salto — ver la nota al pie.</li>
   <li><b>King Slime</b> sigue en la versión vieja — llega blanco. Es lo siguiente.</li>
 </ul>
 

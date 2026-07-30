@@ -939,12 +939,32 @@ func die() -> void:
 	# the enemy shrinks away. 0.6s covers most death clips without feeling slow.
 	if _anim != null and _anim.is_valid():
 		_anim.play_death()
-		await get_tree().create_timer(0.6).timeout
+		await get_tree().create_timer(_death_anim_hold()).timeout
 		if not is_instance_valid(self):
 			return
-	var tween = create_tween()
-	tween.tween_property(self, "scale", Vector3(0.1, 0.1, 0.1), 0.5)
-	tween.tween_callback(queue_free)
+	if not _death_clip_disposes_body():
+		var tween = create_tween()
+		tween.tween_property(self, "scale", Vector3(0.1, 0.1, 0.1), 0.5)
+		tween.tween_callback(queue_free)
+	else:
+		queue_free()
+
+
+## How long to let the death clip play before the body is disposed of.
+## Override alongside _death_clip_disposes_body when a clip needs its full run.
+func _death_anim_hold() -> float:
+	return 0.6
+
+
+## Whether the death CLIP already removes the body from view on its own.
+##
+## The default shrink tween exists for mobs that just stop — it scales the whole
+## node to nothing. On a mob whose death clip resolves the body itself (a slime
+## bursting into droplets that soak into the ground) that tween shrinks the
+## droplets mid-flight and destroys the effect, so those subclasses return true
+## and get a plain queue_free once the clip is done.
+func _death_clip_disposes_body() -> bool:
+	return false
 
 
 func _spawn_loot() -> void:

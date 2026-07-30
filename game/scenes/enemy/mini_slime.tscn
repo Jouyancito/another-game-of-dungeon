@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/enemies/slime/slime_dp_01.glb" id="2_slime_mesh"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_001"]
-radius = 0.3
+radius = 0.26
 
 [node name="MiniSlime" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
@@ -20,7 +20,7 @@ attack_cooldown = 0.8
 is_mini = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 shape = SubResource("SphereShape3D_001")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]

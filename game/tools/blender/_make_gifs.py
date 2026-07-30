@@ -47,6 +47,16 @@ def frame_key(path):
     return int(m.group(1)) if m else 0
 
 
+def is_frame(path):
+    """A frame file ends in _<number>.png.
+
+    Without this check a glob like slime_death_*.png also swallows
+    slime_death_showcase.png — the contact sheet for that very clip — and it
+    lands as frame 0 of the GIF.
+    """
+    return NUM.search(os.path.basename(path)) is not None
+
+
 def main():
     args = parse_args()
     os.makedirs(args.out, exist_ok=True)
@@ -56,7 +66,7 @@ def main():
     made = 0
     for clip in args.clip:
         pattern = os.path.join(args.dir, args.pattern.format(clip=clip))
-        paths = sorted(glob.glob(pattern), key=frame_key)
+        paths = sorted((p for p in glob.glob(pattern) if is_frame(p)), key=frame_key)
         if not paths:
             print(f"[gif] {clip}: no frames matched {pattern} — skipped")
             continue

@@ -3,11 +3,11 @@ mob        = res://scenes/enemy/slime.tscn
 rest size  = 0.992 m tall x 1.572 m wide (player post = 1.75 m)
 proportion = 1.58 : 1 (width : height)
 clips      = attack, death, hit, hop, idle
-blendshapes= squash, stretch, sway, lunge, melt, lean_x, lean_y
+blendshapes= squash, stretch, sway, lunge, burst, settle, soak, lean_x, lean_y
 material   = slime albedo=(1.0, 1.0, 1.0, 0.78) vcol_albedo=true transparency=4
 surface 0  = COLOR array present: true
 material   = HPBarBG albedo=(0.2, 0.2, 0.2, 0.8) vcol_albedo=false transparency=1
 material   = HPBarFill albedo=(0.2, 0.8, 0.2, 0.9) vcol_albedo=false transparency=1
 hid HUD node 'HPBarBG'
 hid HUD node 'HPBarFill'
-lean sweep = 24 frames, lean_y from -0.8 to +0.8
+clip 'death' captured 36 frames over 1.79s

@@ -477,7 +477,11 @@ func _capture_clip(ap: AnimationPlayer, mob_name: String) -> void:
 	var h: float = box.size.y
 	var widest: float = max(box.size.x, box.size.z)
 	var look := Vector3(0.0, box.get_center().y, 0.0)
-	_aim(180.0, max(1.8, max(widest, h) * 2.0), h * 0.35, look)
+	# Pulled back well past the rest silhouette: a clip can throw geometry far
+	# outside it. The slime's death scatters droplets, and framed on the resting
+	# body the puddles landed OUTSIDE the frame — the late frames looked like the
+	# corpse had vanished when it was simply off-camera.
+	_aim(180.0, max(2.6, max(widest, h) * 3.4), h * 0.55, look)
 	for i in _anim_frames:
 		var t: float = anim.length * (float(i) / float(_anim_frames))
 		ap.play(_clip)
