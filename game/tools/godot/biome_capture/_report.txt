@@ -1,0 +1,21 @@
+=== biome_capture — seed=424242 proc_bounds=260x260 ===
+
+-- New tree_pack trees (5 expected) --
+  tree_prairie: FOUND @ (-19.2244, 7.172707, 3.859749)
+  tree_prairie_tall: FOUND @ (-24.58228, 7.483251, -5.522484)
+  tree_prairie_wide: FOUND @ (-22.02373, 8.100243, 26.4483)
+  tree_young: FOUND @ (-19.29236, 7.113551, -1.611612)
+  tree_dry: FOUND @ (-19.99966, 7.734105, -17.22108)
+-- New bush variants (5 expected) --
+  bush_round: FOUND @ (-28.38604, 7.751599, 21.64466)
+  bush_large_glb: FOUND @ (-20.37475, 7.556551, -12.67762)
+  bush_flowering: FOUND @ (-13.0895, 5.665392, -8.557129)
+  bush_low: FOUND @ (61.07372, 12.10589, 68.30625)
+  bush_dry: FOUND @ (-0.097315, 8.659393, -66.28763)
+-- New flower_pack flowers (5 expected, pale_glow excluded — pre-existing) --
+  flower_yellow_clover: FOUND @ (-14.79038, 6.429366, -9.4435)
+  flower_bicolor_mix: FOUND @ (-10.51279, 7.367791, 31.29888)
+  flower_violet_cluster: FOUND @ (-14.19256, 5.16685, -0.969041)
+  flower_white_star: FOUND @ (-25.41526, 7.449965, 0.264277)
+  flower_tall_stalk: FOUND @ (-20.19734, 7.827404, -20.95477)
+
