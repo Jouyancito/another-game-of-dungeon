@@ -17,6 +17,35 @@ var is_hopping := false
 
 var mini_slime_scene: PackedScene
 
+# ── Deformación direccional del gel ──────────────────────────────────────────
+# El slime se derrama hacia donde viaja (pedido de Joan, 2026-07-30). Vive acá y
+# no en un clip de Blender porque depende de la velocidad en runtime: la regla
+# del motor es que un loop fijo va en bpy y todo lo que dependa de una variable
+# de gameplay va en Godot.
+#
+# Los shape keys lean_x / lean_y no los anima ningún clip, así que el script es
+# su único dueño. Aceptan pesos con signo — un morph target es un delta de
+# vértices, así que -1 es exactamente la inclinación opuesta — y con eso dos
+# keys cubren las cuatro direcciones.
+
+## Velocidad a la que la inclinación llega a su máximo. El slime alcanza
+## speed * 1.5 al saltar (3.0 m/s con los valores por defecto), así que a 3.2 el
+## gel casi satura en pleno salto y se queda corto al arrastrarse.
+const LEAN_SATURATION_SPEED := 3.2
+## Cuánto se inclina como máximo. Por encima de ~0.85 el domo se ve tumbado en
+## vez de derramado.
+const LEAN_MAX := 0.8
+## Rapidez con la que el gel ALCANZA su forma inclinada. Bajo a propósito: el
+## retraso es lo que lo hace leer como gel y no como un sólido pintado de verde,
+## y sobrepasa al frenar porque la masa sigue de largo.
+const LEAN_RESPONSE := 6.5
+
+var _lean := Vector2.ZERO
+var _lean_mesh: MeshInstance3D = null
+var _lean_idx_x := -1
+var _lean_idx_y := -1
+var _lean_anim: AnimationPlayer = null
+
 
 ## Returns the gltf model root (embedded in .tscn as SlimeMesh).
 func _get_anim_model_root() -> Node3D:
@@ -40,6 +69,96 @@ func _on_enemy_ready() -> void:
 	hop_timer = hop_interval
 	if not is_mini:
 		mini_slime_scene = load("res://scenes/enemy/mini_slime.tscn")
+	_cache_lean_shapes(_slime_mesh)
+
+
+## Finds the skinned mesh and the index of each lean shape key. Indices are
+## looked up by NAME because morph order is an export detail, not a contract.
+func _cache_lean_shapes(model_root: Node3D) -> void:
+	if model_root == null:
+		return
+	_lean_mesh = _find_mesh_with_blendshapes(model_root)
+	if _lean_mesh == null or _lean_mesh.mesh == null:
+		return
+	var mesh := _lean_mesh.mesh
+	for i in mesh.get_blend_shape_count():
+		match mesh.get_blend_shape_name(i):
+			&"lean_x":
+				_lean_idx_x = i
+			&"lean_y":
+				_lean_idx_y = i
+	if _lean_idx_x < 0 and _lean_idx_y < 0:
+		return
+	# glTF packs the WHOLE morph-weight array into a single animation channel, so
+	# a clip rewrites every weight when it evaluates — including the two shapes
+	# it was never meant to own. Measured: setting lean_y to 0.8 read back as
+	# 0.000 two frames later. Relying on process order to win that race is
+	# fragile, so take the clock instead: drive the player by hand from _process
+	# and write the lean immediately afterwards, which makes the ordering
+	# explicit rather than incidental.
+	_lean_anim = _find_animation_player(_lean_mesh)
+	if _lean_anim != null:
+		_lean_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+
+
+func _find_animation_player(n: Node) -> AnimationPlayer:
+	if n is AnimationPlayer:
+		return n as AnimationPlayer
+	var parent := n.get_parent()
+	# The player is a sibling of the mesh inside the imported scene, so search
+	# from the imported root rather than only downward from the mesh.
+	var root: Node = parent if parent != null else n
+	return _search_animation_player(root)
+
+
+func _search_animation_player(n: Node) -> AnimationPlayer:
+	if n is AnimationPlayer:
+		return n as AnimationPlayer
+	for c in n.get_children():
+		var f := _search_animation_player(c)
+		if f != null:
+			return f
+	return null
+
+
+func _find_mesh_with_blendshapes(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		if mi.mesh != null and mi.mesh.get_blend_shape_count() > 0:
+			return mi
+	for c in n.get_children():
+		var found := _find_mesh_with_blendshapes(c)
+		if found != null:
+			return found
+	return null
+
+
+func _process(delta: float) -> void:
+	if _lean_mesh == null:
+		return
+	# Advance the clip FIRST (it owns squash/stretch/sway/lunge/melt), then write
+	# the lean on top. Manual mode makes this order a guarantee.
+	if _lean_anim != null and _lean_anim.is_playing():
+		_lean_anim.advance(delta)
+	if is_dead:
+		return
+	# Horizontal velocity in the body's OWN frame. The body look_at()s its
+	# target, so -Z is forward and the lean reads correctly however it is turned.
+	var local_vel := global_transform.basis.inverse() * velocity
+	local_vel.y = 0.0
+	var target := Vector2(
+		-local_vel.x / LEAN_SATURATION_SPEED,
+		-local_vel.z / LEAN_SATURATION_SPEED)
+	if target.length() > 1.0:
+		target = target.normalized()
+	target *= LEAN_MAX
+	# Exponential approach: frame-rate independent, and the lag IS the effect.
+	var k := 1.0 - exp(-LEAN_RESPONSE * delta)
+	_lean = _lean.lerp(target, k)
+	if _lean_idx_x >= 0:
+		_lean_mesh.set_blend_shape_value(_lean_idx_x, _lean.x)
+	if _lean_idx_y >= 0:
+		_lean_mesh.set_blend_shape_value(_lean_idx_y, _lean.y)
 
 
 func _move_toward_target(delta: float) -> void:

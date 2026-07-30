@@ -31,6 +31,10 @@ var _clip := ""
 var _anim_frames := 0
 var _report: Array[String] = []
 var _hidden_hud: Array[String] = []
+var _blend_overrides: Dictionary = {}
+var _fake_velocity := Vector3.ZERO
+var _drive_script := false
+var _lean_sweep := 0
 
 
 func _ready() -> void:
@@ -62,6 +66,34 @@ func _parse_args() -> void:
 			"--frames":
 				if i + 1 < args.size():
 					_anim_frames = int(args[i + 1])
+					i += 1
+			"--lean-sweep":
+				# Frame count for a there-and-back sweep of the directional lean,
+				# written out as a numbered sequence _make_gifs.py can assemble.
+				# A lean is a continuous deformation; four stills prove the shape
+				# keys exist but say nothing about whether the motion reads.
+				if i + 1 < args.size():
+					_lean_sweep = int(args[i + 1])
+					i += 1
+			"--velocity":
+				# x,z — drives the mob's OWN per-frame script (not a blend
+				# override) so a velocity-driven deformation can be verified
+				# end to end without playing the game.
+				if i + 1 < args.size():
+					var v := args[i + 1].split(",")
+					if v.size() >= 2:
+						_fake_velocity = Vector3(float(v[0]), 0.0, float(v[1]))
+						_drive_script = true
+					i += 1
+			"--blend":
+				# name=value, repeatable. Applies a blend shape by NAME before
+				# capturing, so a script-driven deformation (a directional lean,
+				# say) can be judged on its own without running gameplay.
+				if i + 1 < args.size():
+					var spec: String = args[i + 1]
+					if "=" in spec:
+						var parts := spec.split("=", true, 1)
+						_blend_overrides[parts[0]] = float(parts[1])
 					i += 1
 		i += 1
 
@@ -134,7 +166,10 @@ func _build_viewport() -> void:
 	# processing, so disabling it beforehand had no effect. The AnimationPlayer
 	# is a separate node and keeps running, which is what clip capture needs.
 	_mob.set_physics_process(false)
-	_mob.set_process(false)
+	# _process stays ON when a velocity is being faked: that is where a
+	# velocity-driven deformation lives, and switching it off would test the
+	# shape keys while quietly skipping the code that drives them.
+	_mob.set_process(_drive_script)
 	_mob.global_position = Vector3.ZERO
 	_hide_hud_nodes(_mob)
 
@@ -167,6 +202,49 @@ func _hide_hud_nodes(n: Node) -> void:
 	# separate nodes, so returning on the first match left one of them visible.
 	for c in n.get_children():
 		_hide_hud_nodes(c)
+
+
+func _blend_target() -> MeshInstance3D:
+	for mi in _find_meshes(_mob):
+		if mi.mesh != null and mi.mesh.get_blend_shape_count() > 0:
+			return mi
+	return null
+
+
+func _apply_blend_overrides() -> void:
+	if _blend_overrides.is_empty():
+		return
+	var mi := _blend_target()
+	if mi == null:
+		return
+	var mesh := mi.mesh
+	for i in mesh.get_blend_shape_count():
+		var nm := String(mesh.get_blend_shape_name(i))
+		if _blend_overrides.has(nm):
+			mi.set_blend_shape_value(i, float(_blend_overrides[nm]))
+
+
+func _audit_blend_persistence() -> void:
+	## Does a script-set blend shape SURVIVE the AnimationPlayer?
+	##
+	## glTF packs the whole morph-weight array into ONE animation channel, so a
+	## clip rewrites every weight each time it evaluates — including shapes the
+	## clip was never meant to own. If that happens, a directional lean driven
+	## from GDScript is silently zeroed and looks like a broken shape key.
+	## Written as a number rather than an eyeball: set it, let the player run,
+	## read it back.
+	var mi := _blend_target()
+	if mi == null or _blend_overrides.is_empty():
+		return
+	var mesh := mi.mesh
+	for i in mesh.get_blend_shape_count():
+		var nm := String(mesh.get_blend_shape_name(i))
+		if not _blend_overrides.has(nm):
+			continue
+		var wanted := float(_blend_overrides[nm])
+		var got := mi.get_blend_shape_value(i)
+		var verdict := "SURVIVED" if absf(got - wanted) < 0.001 else "OVERWRITTEN"
+		_report.append("blend '%s': set %.3f -> read %.3f  %s" % [nm, wanted, got, verdict])
 
 
 func _make_scale_post() -> Node3D:
@@ -241,6 +319,11 @@ func _save(name: String) -> void:
 		# Re-hide every shot: the health bar is built during runtime setup, so
 		# hiding it once right after add_child() ran before it existed.
 		_hide_hud_nodes(_mob)
+		if _drive_script and _mob is CharacterBody3D:
+			# Physics is off, so nothing else keeps this set; re-assert it every
+			# shot so the mob's own _process keeps seeing the movement.
+			(_mob as CharacterBody3D).velocity = _fake_velocity
+		_apply_blend_overrides()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -270,6 +353,43 @@ func _capture_all() -> void:
 	else:
 		var ap := players[0]
 		_report.append("clips      = %s" % ", ".join(ap.get_animation_list()))
+
+	if _drive_script:
+		_report.append("fake vel   = %s (mob's own _process left running)" % _fake_velocity)
+		if _mob is CharacterBody3D:
+			(_mob as CharacterBody3D).velocity = _fake_velocity
+		# Let the smoothing settle — a lagged deformation needs time to arrive,
+		# and sampling it on frame one would report almost zero.
+		for _i in 40:
+			await get_tree().process_frame
+			if _mob is CharacterBody3D:
+				(_mob as CharacterBody3D).velocity = _fake_velocity
+		var mi_l := _blend_target()
+		if mi_l != null:
+			for i in mi_l.mesh.get_blend_shape_count():
+				var nm := String(mi_l.mesh.get_blend_shape_name(i))
+				if nm.begins_with("lean"):
+					_report.append("driven '%s' = %.3f" % [nm, mi_l.get_blend_shape_value(i)])
+
+	var blend_mi := _blend_target()
+	if blend_mi != null:
+		var names: Array[String] = []
+		for i in blend_mi.mesh.get_blend_shape_count():
+			names.append(String(blend_mi.mesh.get_blend_shape_name(i)))
+		_report.append("blendshapes= %s" % ", ".join(names))
+	if not _blend_overrides.is_empty():
+		_report.append("overrides  = %s" % str(_blend_overrides))
+		# Same ordering the mob's own script uses: an AnimationPlayer left on
+		# automatic rewrites the whole morph array after we write, so hand it the
+		# clock. Without this the override is measurably zeroed (verified) and
+		# every shot would show the rest pose while claiming otherwise.
+		if not players.is_empty():
+			players[0].callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+			_report.append("anim mode  = MANUAL (so overrides are not overwritten)")
+		_apply_blend_overrides()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_audit_blend_persistence()
 
 	for mi in _find_meshes(_mob):
 		var mesh := mi.mesh
@@ -304,8 +424,48 @@ func _capture_all() -> void:
 	_aim(180.0, max(3.0, widest * 3.2), 1.75 - centre.y, look)
 	await _save("%s_playereye" % mob_name)
 
+	if _lean_sweep > 0:
+		await _capture_lean_sweep(mob_name, players)
+
 	if _clip != "" and _anim_frames > 0 and not players.is_empty():
 		await _capture_clip(players[0], mob_name)
+
+
+func _capture_lean_sweep(mob_name: String, players: Array[AnimationPlayer]) -> void:
+	## Sweeps the directional lean back and forth from a fixed side-on camera, so
+	## the deformation is the only thing changing in frame.
+	var mi := _blend_target()
+	if mi == null:
+		_report.append("lean sweep skipped — mesh has no blend shapes")
+		return
+	var idx := -1
+	for i in mi.mesh.get_blend_shape_count():
+		if String(mi.mesh.get_blend_shape_name(i)) == "lean_y":
+			idx = i
+			break
+	if idx < 0:
+		_report.append("lean sweep skipped — no 'lean_y' shape")
+		return
+	# The clip would rewrite the whole morph array and undo each step.
+	if not players.is_empty():
+		players[0].callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+
+	var box := _rest_bounds()
+	var h: float = box.size.y
+	var widest: float = max(box.size.x, box.size.z)
+	var look := Vector3(0.0, box.get_center().y, 0.0)
+	# Side-on: the forward lean happens along the camera's screen X, which is
+	# where the eye reads it best. Straight-on it would foreshorten to nothing.
+	_aim(270.0, max(1.8, max(widest, h) * 2.0), h * 0.30, look)
+
+	for i in _lean_sweep:
+		var phase: float = TAU * float(i) / float(_lean_sweep)
+		var value: float = 0.8 * sin(phase)
+		mi.set_blend_shape_value(idx, value)
+		await _save("%s_leansweep_%03d" % [mob_name, i])
+		mi.set_blend_shape_value(idx, value)
+	mi.set_blend_shape_value(idx, 0.0)
+	_report.append("lean sweep = %d frames, lean_y from -0.8 to +0.8" % _lean_sweep)
 
 
 func _capture_clip(ap: AnimationPlayer, mob_name: String) -> void:

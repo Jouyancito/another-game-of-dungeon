@@ -9,6 +9,9 @@
 # Fast/slow variants are playback speed in Godot (speed_scale), not extra anims.
 # "-loop" suffix => Godot glTF import auto-loops. Export mode: NLA tracks.
 #
+# Plus two shape keys NO clip touches — lean_x / lean_y — which slime.gd drives
+# from live velocity so the gel deforms toward wherever the mob is travelling.
+#
 # M3 REWORK (2026-07-30). The previous build shaded the gel with procedural
 # shader nodes (TexNoise / TexVoronoi / LayerWeight). glTF cannot express
 # procedurals, so the exporter dropped them and wrote baseColorFactor 1,1,1 —
@@ -328,6 +331,49 @@ sk = add_key("melt")        # collapses into a wide puddle
 for i, v in enumerate(me.vertices):
     nz = Z_MIN + (v.co.z - Z_MIN) * 0.16
     sk.data[i].co = Vector((v.co.x * 1.45, v.co.y * 1.45, nz))
+
+
+# ---------- directional lean: the gel spills the way it travels ----------
+# Joan (2026-07-30): "si se mueve hacia el frente, que se deforme hacia esa
+# dirección". That depends on the mob's live velocity, so it CANNOT be a clip —
+# per the motor's division of labour, a fixed loop belongs in bpy and anything
+# driven by a gameplay variable belongs in Godot. These two keys are the
+# vocabulary; slime.gd drives their weights every frame.
+#
+# They are deliberately NOT in ALL_KEYS, so no clip writes a track for them and
+# the AnimationPlayer cannot fight the script for control.
+#
+# Signed weights give all four directions from two keys: Godot accepts blend
+# shape values outside 0..1, and a morph target is a vertex delta, so weight -1
+# is exactly the opposite lean. No need for four separate keys.
+#
+# Volume is conserved rather than translated (the squash-and-stretch rule from
+# _references/slime_tensura/motion/_motion.md): as the upper mass carries over,
+# the body loses a little height and gains a little width at the base, the way
+# a gel blob actually spills. Pure translation reads as a solid sliding.
+def _lean_key(name, axis):
+    """axis: 0 = +X, 1 = -Y (which is the model's facing direction)."""
+    k = add_key(name)
+    for i, v in enumerate(me.vertices):
+        zn = (v.co.z - Z_MIN) / H
+        carry = 0.185 * (zn ** 1.35) + 0.035     # top leads, base drags along
+        x, y = v.co.x, v.co.y
+        if axis == 0:
+            x += carry
+            widen_axis_y = 1.0 + 0.05 * (1.0 - zn)
+            y *= widen_axis_y
+        else:
+            y -= carry
+            widen_axis_x = 1.0 + 0.05 * (1.0 - zn)
+            x *= widen_axis_x
+        # Spilling costs height — a leaning blob settles, it does not stay tall.
+        nz = Z_MIN + (v.co.z - Z_MIN) * (1.0 - 0.07 * zn)
+        k.data[i].co = Vector((x, y, nz))
+    return k
+
+
+_lean_key("lean_x", 0)
+_lean_key("lean_y", 1)
 
 kb = me.shape_keys.key_blocks
 FPS = 24

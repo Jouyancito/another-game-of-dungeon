@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slime — movimiento y deformación direccional</title>
+<style>
+  :root {
+    --bg: #16151c; --panel: #1f1e28; --edge: #322f3f;
+    --fg: #e9e7f0; --dim: #a9a4bb; --ok: #7fd48b; --warn: #e8c46a; --bad: #e88a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.5rem 4rem;
+    background: var(--bg); color: var(--fg);
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { max-width: 1100px; margin: 0 auto 2rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+  .sub { color: var(--dim); margin: 0; }
+  main { max-width: 1100px; margin: 0 auto; }
+  h2 {
+    font-size: 1.15rem; margin: 2.5rem 0 .4rem;
+    border-bottom: 1px solid var(--edge); padding-bottom: .4rem;
+  }
+  .note { color: var(--dim); margin: .2rem 0 1.2rem; }
+  .grid {
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+  figure {
+    margin: 0; background: var(--panel);
+    border: 1px solid var(--edge); border-radius: 10px;
+    padding: .7rem; display: flex; flex-direction: column;
+  }
+  figure img { width: 100%; height: auto; border-radius: 6px; display: block; }
+  figcaption { margin-top: .55rem; font-size: .9rem; }
+  figcaption b { display: block; }
+  figcaption span { color: var(--dim); font-size: .85rem; }
+  .hero { grid-column: 1 / -1; }
+  .hero img { max-width: 560px; margin: 0 auto; }
+  table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }
+  th, td {
+    text-align: left; padding: .45rem .7rem;
+    border-bottom: 1px solid var(--edge); font-size: .92rem;
+  }
+  th { color: var(--dim); font-weight: 600; }
+  code {
+    background: #2a2836; padding: .1rem .35rem;
+    border-radius: 4px; font-size: .88em;
+  }
+  ul { margin: .4rem 0 1rem; padding-left: 1.3rem; }
+  li { margin: .3rem 0; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f5f9; --panel: #fff; --edge: #dcd9e6;
+      --fg: #1c1a24; --dim: #635d78; --ok: #1f7a35; --warn: #8a6410; --bad: #a33;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Slime — movimiento y deformación direccional</h1>
+  <p class="sub">Sesión 2026-07-30 · slime_dp_01 · 6240 tris · 0.992 m alto × 1.572 m ancho</p>
+</header>
+
+<main>
+
+<h2>Lo que pediste: el gel se derrama hacia donde va</h2>
+<p class="note">
+  Barrido de la inclinación de <code>-0.8</code> a <code>+0.8</code> y de vuelta, con la
+  cámara fija de costado. <b>El slime mira hacia la izquierda del cuadro</b>, así que
+  cuando la masa se corre a la izquierda está avanzando. Lo único que cambia entre frames
+  es la deformación — nada de cámara ni de luz.
+</p>
+<div class="grid">
+  <figure class="hero">
+    <img src="lean_directional.gif" alt="Barrido de inclinación direccional del slime">
+    <figcaption>
+      <b>lean direccional</b>
+      <span>
+        Dos shape keys (<code>lean_x</code>, <code>lean_y</code>) con pesos con signo cubren
+        las cuatro direcciones. Los maneja <code>slime.gd</code> desde la velocidad real, no
+        un clip, porque depende de una variable de gameplay. Tiene retraso viscoso a
+        propósito: el gel llega tarde a su forma y sobrepasa al frenar.
+      </span>
+    </figcaption>
+  </figure>
+</div>
+
+<table>
+  <tr><th>Qué</th><th>Valor</th></tr>
+  <tr><td>Velocidad a la que satura</td><td><code>3.2 m/s</code> (el slime llega a 3.0 saltando)</td></tr>
+  <tr><td>Inclinación máxima</td><td><code>0.8</code> — más arriba se ve tumbado, no derramado</td></tr>
+  <tr><td>Respuesta del gel</td><td><code>6.5</code> — el retraso ES el efecto</td></tr>
+  <tr><td>Test end-to-end</td><td class="ok">velocidad (0, 0, −3.0) → <code>lean_y = 0.674</code>, <code>lean_x = 0.000</code></td></tr>
+</table>
+
+<h2>Set de animación completo</h2>
+<p class="note">
+  Los cinco clips del contrato. Ahora <b>ninguno mueve el cuerpo</b>: sólo deforman. El
+  desplazamiento es de la física — <code>hop</code> traía un canal de traslación que se
+  sumaba al salto real y hacía saltar al slime casi el doble, despegándolo de su hitbox.
+</p>
+<div class="grid">
+  <figure>
+    <img src="idle.gif" alt="idle">
+    <figcaption><b>idle</b><span>Respiración viscosa. Siempre activa.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="hop.gif" alt="hop">
+    <figcaption><b>hop</b><span>Agacharse → lanzar → estirar → impacto → asentarse. El arco lo pone la física.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="attack.gif" alt="attack">
+    <figcaption><b>attack</b><span>Anticipación atrás, luego la masa se lanza al frente.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="hit.gif" alt="hit">
+    <figcaption><b>hit</b><span>Flinch corto al recibir un golpe.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="death.gif" alt="death">
+    <figcaption><b>death</b><span>Se derrite en un charco, con una última onda al asentarse.</span></figcaption>
+  </figure>
+</div>
+
+<h2>Estado</h2>
+<ul>
+  <li class="ok"><b>El color llega a Godot.</b> Vive en vertex color FLOAT_COLOR. Antes el GLB salía blanco.</li>
+  <li class="ok"><b>Sin cuencas</b>, como pediste. El código de cara quedó como <code>--face</code> para el Rey Slime.</li>
+  <li class="ok"><b>Burbujas visibles</b>: 6.6% de los vértices tintados (antes 1.7%). Leen como manchas de luz interna.</li>
+  <li class="ok"><b>Deformación direccional</b> andando y verificada de punta a punta.</li>
+  <li class="warn"><b>Falta referencia visual del anime.</b> No pude bajar frames de Tensura — construí desde los principios de squash &amp; stretch y la descripción de la wiki. Si subís 2-3 capturas, ajusto contra ellas.</li>
+  <li class="warn"><b>Las burbujas no tienen borde.</b> El vertex color no puede: interpola entre vértices. Para burbujas con contorno hay que pasar a textura bakeada, que es un nivel por encima del actual.</li>
+  <li class="bad"><b>El timing del salto no cuadra</b>: <code>hop_interval</code> es 1.6 s y el clip dura 1.96 s, así que se corta antes de asentarse. Se ve jugando, no en un GIF.</li>
+  <li><b>King Slime</b> sigue en la versión vieja — llega blanco. Es lo siguiente.</li>
+</ul>
+
+<h2>Dónde está todo</h2>
+<table>
+  <tr><th>Qué</th><th>Dónde</th></tr>
+  <tr><td>Generador</td><td><code>game/tools/blender/slime/build_slime.py</code></td></tr>
+  <tr><td>Asset en juego</td><td><code>game/assets/art/piso1_pradera/enemies/slime/slime_dp_01.glb</code></td></tr>
+  <tr><td>Lógica de inclinación</td><td><code>game/scenes/enemy/slime.gd</code></td></tr>
+  <tr><td>Captura en Godot</td><td><code>game/scenes/dev/mob_capture.tscn</code></td></tr>
+  <tr><td>Hojas de contacto</td><td><code>game/tools/godot/mob_capture/</code></td></tr>
+  <tr><td>Niveles del motor</td><td><code>game/docs/art/_motor_tiers.md</code></td></tr>
+  <tr><td>Referencia de movimiento</td><td><code>game/docs/art/_references/slime_tensura/motion/_motion.md</code></td></tr>
+</table>
+
+</main>
+</body>
+</html>
