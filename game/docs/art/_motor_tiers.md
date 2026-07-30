@@ -93,13 +93,32 @@ Medido 2026-07-29 leyendo los build scripts + sondeando los GLB.
 | `flower_pack` | M2+ | FLOAT_COLOR, 6 variantes por seed; sin ruido de superficie (escala mínima, no lo necesita) |
 | `grass_pack` | M2+ | FLOAT_COLOR vía `motor-blender/recetas/biome_vcol`; primer consumidor de la librería nueva |
 | `gen_golem*.py` (raíz) | M2 | Bevel + boolean UNION + remesh voxel + subsurf (técnicas que nadie más usa), pero **BYTE_COLOR** — anterior al fix |
-| `rat` | **M1+** | Único mob con vertex color, pero BYTE_COLOR (`build_rat.py:247`) → tonos ~12× oscuros. Shape keys por campos continuos |
+| `slime` | **M3** ✅ | Reconstruido 2026-07-30: FLOAT_COLOR (gradiente + burbujas + rim + occlusion horneada), Perlin de asentamiento, variantes por seed, cara en relieve, tri budget 5040/5200. Verificado en Godot: `COLOR_0` presente, `vcol_albedo=true` |
+| `rat` | **M1+** | Único otro mob con vertex color, pero BYTE_COLOR (`build_rat.py:247`) → tonos ~12× oscuros. Shape keys por campos continuos |
 | `snake` | **M1** | Mejor geometría del lote (generador paramétrico spine+loft, no primitivas), pero VCOL ausente → llega blanco |
 | `turtle` | **M1** | Arquitectura de shape keys madura (rangos por parte), pero VCOL ausente → llega blanco |
 | `bird_prey` | **M1** | Loft curvo real en el pico, ala festoneada; VCOL ausente → llega blanco |
 | `wasp` | **M1** | Primitivas + card de ala; VCOL ausente → llega blanco (sólo el ojo tiene color) |
-| `slime` | **M1** | UV-sphere deformada a mano, forma única; VCOL ausente → **domo blanco en el juego** |
-| `king_slime` | **M1** | `slime` × 2.2 + corona de primitivas; mismos gaps |
+| `king_slime` | **M1** | `slime` × 2.2 + corona de primitivas; hereda la versión vieja, pendiente de rebuild |
+
+## Verificar el lado de Godot, no solo el GLB
+
+Que el GLB traiga `COLOR_0` no garantiza que Godot lo dibuje, ni que las animaciones
+sean utilizables. Dos cosas más que hay que medir, aprendidas cableando el slime:
+
+- **Godot CONSUME el sufijo `-loop`**: `idle-loop` se importa como el clip `idle` con
+  `loop_mode=1`. Los nombres que ve el código son los del contrato SIN sufijo:
+  `idle`, `hop`, `hit`, `attack`, `death`. `EnemyAnimator` sólo conocía los sets de
+  Quaternius (`Idle`, `Walk`, `Jump`), así que un mob bespoke habría quedado
+  CONGELADO — encontrado, con cero clips reconocidos. Ya está mapeado (`_is_dp_type`).
+- **`MeshInstance3D.get_aabb()` NO da la pose de reposo** en un mob con shape keys:
+  abarca la extensión de todos los morph targets, así que un `melt` reporta el charco
+  y un `stretch` infla la altura (slime: 1.26 m contra 0.991 m real). Para medir el
+  tamaño de pie hay que recorrer `surface_get_arrays()[Mesh.ARRAY_VERTEX]`.
+
+Herramienta: `game/scenes/dev/mob_capture.tscn` renderiza cualquier escena de enemigo
+como Godot la dibuja, off-screen, con poste de escala de 1.75 m y reporte numérico
+(`rest size`, `proportion`, clips, material, presencia del array COLOR).
 
 ## Reglas
 
