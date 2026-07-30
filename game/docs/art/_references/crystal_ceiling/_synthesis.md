@@ -67,6 +67,31 @@ amarrados con soga, letrero arqueado pintado a mano, tela rasgada colgando,
 construcciones amontonadas trepando la ladera. Copiada también a
 `_references/bandit_camp/` (ver ese folder).
 
+## Imagen CLAVE (Joan, 2026-07-29): `crystal_ceiling_prairie_key.png`
+
+Joan la marcó explícitamente como "la imagen clave: se ven los cristales en el
+techo, y como generan esa luz todos". Observado del frame (anime, estilo 18F):
+
+- **El "cielo" ES el techo de cristal, y SE VE como cristal**: masa azul pálida
+  con textura chispeante/facetada cubriendo todo el techo — no un cielo liso.
+  Es la fuente de luz de toda la escena: luz blanca-azulada difusa, sin sol,
+  sin sombras duras.
+- **Paredes PÁLIDAS, no oscuras**: el risco de fondo es gris-blanco con vetas
+  verticales, casi luminoso — la pared recibe y rebota la luz del techo.
+  (Nuestros muros actuales son gris oscuro plano → gap directo.)
+- **Cristales también a NIVEL DE PISO**: cluster de púas translúcidas azul
+  pálido saliendo de entre los arbustos (una púa dominante alta + menores),
+  repitiendo el material del techo abajo — el techo y el piso comparten
+  lenguaje de material.
+- **Vegetación**: árbol central de copa densa redonda + manto continuo de
+  arbustos redondeados verdes vivos en primer plano.
+
+**Qué capturar**: (1) techo con GEOMETRÍA/textura de cristal visible, no
+PlaneMesh liso — el jugador tiene que poder mirar arriba y VER cristales;
+(2) paredes pálidas iluminadas por rebote, nunca gris oscuro; (3) clusters de
+cristal de piso con el mismo material del techo (ya existe `_build_crystal_field`
+— validar material compartido); (4) luz difusa omnidireccional, sombra suave.
+
 ## Fuentes (multi-fuente, por convención)
 
 - Screenshots: [DanMachi Wiki (Fandom) — Dungeon](https://danmachi.fandom.com/wiki/Dungeon),
