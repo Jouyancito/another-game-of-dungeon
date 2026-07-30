@@ -23,9 +23,11 @@
 #     baked per-vertex instead of evaluated by nodes.
 #   * Perlin surface displacement so the body is a settled gel mass, not a
 #     mathematically perfect dome.
-#   * Facial features as RELIEF of the gel surface (eye sockets + faint mouth),
-#     read by self-shadow — per the Tensura rule in
-#     _references/slime_tensura/_synthesis.md: no teeth, no nose, no pupils.
+#   * Facial relief available but OFF for the common slime (Joan, 2026-07-30 —
+#     "se siente raro"); kept opt-in via --face for the king slime, where an
+#     expressive face is canon. When on it follows the Tensura rule in
+#     _references/slime_tensura/_synthesis.md: relief only, no teeth, no nose,
+#     no pupils.
 #   * Seeded shape variants (the seed changes FORM, not just colour).
 #   * Habitat palettes are vertex-colour swaps: prairie green, water blue.
 #   * Tri budget asserted and printed at build time.
@@ -46,15 +48,23 @@ REN_DIR = os.path.join(OUT_DIR, "renders")
 ANIM_DIR = os.path.join(REN_DIR, "anim")
 os.makedirs(ANIM_DIR, exist_ok=True)
 
-TRI_BUDGET = 5200
+TRI_BUDGET = 6500
 
 # ---------- CLI ----------
 _argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 SEED = 20260730
-WANT_FACE = True
+# FACELESS by default (Joan, 2026-07-30): with sockets the common slime "se
+# siente raro" — it reads as a creature watching you, which is not what a
+# roadside blob should be. It goes back to being defined by HOW IT MOVES
+# (_mob_style_contract.md §3). Facial relief is reserved for the KING slime,
+# where an expressive face is canon (PO 2026-07-17). The relief code stays and
+# is opt-in via --face, because king_slime is built from this same vocabulary.
+WANT_FACE = False
 for _i, _a in enumerate(_argv):
     if _a == "--seed" and _i + 1 < len(_argv):
         SEED = int(_argv[_i + 1])
+    elif _a == "--face":
+        WANT_FACE = True
     elif _a == "--no-face":
         WANT_FACE = False
 rng = random.Random(SEED)
@@ -65,7 +75,7 @@ scene = bpy.context.scene
 # ---------- body: gelatinous dome ----------
 # Dense-but-not-wasteful: shape keys must export, so no subsurf — the vert count
 # is the deformation resolution AND the vertex-colour resolution.
-SEGMENTS, RINGS = 72, 36
+SEGMENTS, RINGS = 80, 40
 bpy.ops.mesh.primitive_uv_sphere_add(segments=SEGMENTS, ring_count=RINGS, radius=0.5)
 body = bpy.context.object
 body.name = "slime"
@@ -117,12 +127,20 @@ if WANT_FACE:
         # (centre, radius, depth, x_stretch, z_stretch)
         (Vector((-eye_x, -0.40, eye_z)), 0.125, 0.042, 1.35, 0.52),
         (Vector((eye_x, -0.40, eye_z)), 0.125, 0.042, 1.35, 0.52),
-        (Vector((0.0, -0.46, 0.005)), 0.185, 0.014, 2.40, 0.30),
+        (Vector((0.0, -0.46, 0.005)), 0.185, 0.019, 2.40, 0.30),
     ]
 
-    def relief_weight(co):
-        """How deeply this vertex is pressed in, 0..1, summed over features."""
-        total = 0.0
+    def relief_at(co):
+        """Returns (displacement_metres, shade_0_to_1) for this vertex.
+
+        The two are deliberately separate. Displacement is absolute depth, but
+        SHADE is normalised per feature: dividing every feature's shade by the
+        eyes' depth (as the first version did) meant the shallow mouth — a third
+        as deep by design, because a deep mouth reads as a hole — could only ever
+        reach a third of the darkening, and it stayed invisible.
+        """
+        best_disp = 0.0
+        best_shade = 0.0
         for centre, radius, depth, xs, zs in FACE_PARTS:
             d = co - centre
             d.x /= xs
@@ -132,13 +150,15 @@ if WANT_FACE:
                 # Smooth cosine falloff — a hard edge would read as a cut, not
                 # a socket in something soft.
                 fall = 0.5 + 0.5 * math.cos(math.pi * (dist / radius))
-                total = max(total, fall * depth)
-        return total
+                if fall * depth > best_disp:
+                    best_disp = fall * depth
+                best_shade = max(best_shade, fall)
+        return best_disp, best_shade
 
     for v in me.vertices:
-        w = relief_weight(v.co)
-        if w > 0.0:
-            v.co -= v.normal * w
+        disp, _ = relief_at(v.co)
+        if disp > 0.0:
+            v.co -= v.normal * disp
 
 for p in me.polygons:
     p.use_smooth = True
@@ -166,18 +186,34 @@ PALETTES = {
     "blue": ((0.012, 0.055, 0.150), (0.075, 0.230, 0.400), (0.300, 0.560, 0.720)),
 }
 
-N_BUBBLES = rng.randint(18, 26)
+# Fewer but LARGER bubbles. Vertex colour cannot resolve a feature smaller than
+# the vertex spacing, and at 80 segments on a 0.55 m radius that spacing is
+# ~0.043 m — the previous 0.032-0.075 m radii were one or two vertices across,
+# so each bubble tinted ~2 verts and read as a faint smudge (measured: 24 of
+# 2699 verts above green 0.55). Radii from ~1.3x to ~3.4x the spacing give each
+# bubble 3-7 vertices to sit on, and the size spread is what the contract asks
+# for ("varied sizes drifting through the gel").
+N_BUBBLES = rng.randint(12, 17)
 bubbles = []
+# Anchor each bubble just under an actual surface vertex instead of sampling a
+# cylinder of "inside the body". The cylinder did not match a squashed dome, so
+# bubbles landed either OUTSIDE the mesh near the top (where the body's radius
+# is small) or too deep in the middle to reach the surface at all.
+#
+# The burial depth is the part that has to be small. At 0.4-0.6r the nearest
+# surface point sits half a radius from the centre, so the falloff there is only
+# ~0.5 of its peak — and squaring it for a crisp edge cut that to ~0.25.
+# Measured result: 2 of 2699 vertices tinted at all, peak green 0.41 against a
+# 0.62 target. Keeping the centre just beneath the skin puts the falloff's PEAK
+# on the surface, and the cosine curve already falls to zero at the rim, so the
+# edge stays defined without squaring it.
+_surface_pool = [v for v in me.vertices
+                 if (v.co.z - Z_MIN) / H > 0.22]   # skip the ground contact ring
 for _ in range(N_BUBBLES):
-    # Sample inside the body volume, biased toward the upper half where the
-    # gel is thinner and a bubble would actually read. Small radii with a hard
-    # falloff: pass 1 used wide soft blooms that read as grime patches rather
-    # than discrete suspended bubbles.
-    ang = rng.uniform(0.0, math.tau)
-    rad = R_MAX * math.sqrt(rng.uniform(0.0, 0.86))
-    bz = Z_MIN + H * rng.uniform(0.25, 0.95)
-    bubbles.append((Vector((math.cos(ang) * rad, math.sin(ang) * rad, bz)),
-                    rng.uniform(0.030, 0.070)))
+    v = _surface_pool[rng.randrange(len(_surface_pool))]
+    radius = rng.uniform(0.058, 0.145)
+    centre = v.co - v.normal * (radius * rng.uniform(0.05, 0.20))
+    bubbles.append((centre.copy(), radius))
 
 
 def lerp3(a, b, t):
@@ -199,29 +235,28 @@ def gel_color(co, palette):
     rim = max(0.0, (r - 0.80) / 0.20) * (1.0 - abs(zn - 0.42) * 1.5)
     if rim > 0.0:
         col = lerp3(col, bright, min(1.0, rim) * 0.55)
-    # Bubbles: distance to the nearest suspended bubble centre. Squared falloff
-    # keeps a defined edge so each one reads as a bubble, not a smudge.
+    # Bubbles: distance to the nearest suspended bubble centre. The raised
+    # cosine already reaches zero at the rim, so the edge is defined without
+    # squaring it — squaring only crushed the peak (see the anchoring note).
     best = 0.0
     for centre, radius in bubbles:
         d = (co - centre).length
         if d < radius:
-            fall = 0.5 + 0.5 * math.cos(math.pi * (d / radius))
-            best = max(best, fall * fall)
+            best = max(best, 0.5 + 0.5 * math.cos(math.pi * (d / radius)))
     if best > 0.0:
         col = lerp3(col, bubble, best * 0.95)
     # Socket occlusion — reinforces the relief's own shadow, never a feature
     # colour of its own (Tensura rule: the face is not painted on).
     if WANT_FACE:
-        w = relief_weight(co)
-        if w > 0.0:
+        _, shade = relief_at(co)
+        if shade > 0.0:
             # Carries most of the face's read: baked occlusion is fixed data, so
             # the sockets stay legible from any angle. Relying on the relief's
             # own lit shadow alone made the key-lit side visible and the fill
             # side almost disappear.
-            occ = min(1.0, w / 0.042)
-            col = (col[0] * (1.0 - 0.46 * occ),
-                   col[1] * (1.0 - 0.46 * occ),
-                   col[2] * (1.0 - 0.46 * occ))
+            col = (col[0] * (1.0 - 0.46 * shade),
+                   col[1] * (1.0 - 0.46 * shade),
+                   col[2] * (1.0 - 0.46 * shade))
     return col
 
 
