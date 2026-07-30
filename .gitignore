@@ -59,3 +59,6 @@ game/tools/blender/*/renders/anim/
 game/tools/blender/**/*_run.log
 game/tools/blender/**/__pycache__/
 __pycache__/
+
+# GLB truth renders (regenerable diagnostic output of _glb_truth_render.py)
+game/tools/blender/_truth/
