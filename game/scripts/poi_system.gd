@@ -107,7 +107,14 @@ func generate_pois(p_seed: int, map_size: Vector2, border_func: Callable = Calla
 	# -- Minor POIs (2-4) --
 	var minor_types: Array = _get_types_by_category("minor")
 	var minor_count: int = rng.randi_range(2, 4)
-	for i in range(minor_count):
+	# Targeted guarantee: pond is a minor POI split 3 ways with replacement, so
+	# an unguaranteed draw left ~31% of runs with ZERO ponds (audit
+	# bioma/cobertura-assets-vs-visible, 2026-07-30) — and no ponds means no
+	# damp-water dressing (reeds, future mushroom clusters) anywhere on the map.
+	# Force one pond first, then fill the rest with the normal random draw so
+	# altar/well keep their existing distribution untouched.
+	_try_place_poi("pond", pois, rng, map_size, border_func)
+	for i in range(minor_count - 1):
 		var poi_type: String = minor_types[rng.randi() % minor_types.size()]
 		_try_place_poi(poi_type, pois, rng, map_size, border_func)
 
