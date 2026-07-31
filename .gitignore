@@ -62,3 +62,10 @@ __pycache__/
 
 # GLB truth renders (regenerable diagnostic output of _glb_truth_render.py)
 game/tools/blender/_truth/
+# Same output, per-pack location (tree_pack v2 writes renders/_truth/): ~27 MB
+# of 1.6 MB PNGs per run, regenerable from the .glb by truth_showcase.py.
+game/tools/blender/*/renders/_truth/
+
+# Per-pack resized texture cache (_cache_resized() output). Derived from the
+# motor's _textures/ library, regenerated on any build, one copy per pack.
+game/tools/blender/*/_tex/
