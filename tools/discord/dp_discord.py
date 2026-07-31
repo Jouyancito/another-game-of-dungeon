@@ -13,6 +13,7 @@ Usage:
   python dp_discord.py create-thread <channel-name> <thread-name> <first-message>
   python dp_discord.py thread-post <thread-name> <message>
   python dp_discord.py post-file <channel-name> <utf8-file>     # post file contents
+  python dp_discord.py post-attachment <channel-name> <file> [message]  # upload a real file
   python dp_discord.py timeline [--days N] [--channel <name>] [--repo <path>]
 """
 import json
@@ -61,6 +62,48 @@ def api(method, path, body=None):
             time.sleep(retry + 0.5)
             return api(method, path, body)
         sys.exit(f"Discord API {e.code} on {method} {path}: {detail}")
+
+
+def upload_attachment(channel_id, file_path, content=""):
+    """POST a binary file to a channel as a real attachment (multipart/form-data).
+
+    api() only speaks JSON; Discord needs multipart for file uploads, so the body
+    is assembled by hand to keep this module dependency-free.
+    """
+    name = os.path.basename(file_path)
+    with open(file_path, "rb") as fh:
+        blob = fh.read()
+    boundary = "----dpBoundary" + str(int(time.time() * 1000))
+    payload = json.dumps({"content": content, "attachments": [{"id": 0, "filename": name}]})
+    sep = ("--" + boundary).encode()
+    body = b"\r\n".join([
+        sep,
+        b'Content-Disposition: form-data; name="payload_json"',
+        b"Content-Type: application/json",
+        b"",
+        payload.encode("utf-8"),
+        sep,
+        f'Content-Disposition: form-data; name="files[0]"; filename="{name}"'.encode("utf-8"),
+        b"Content-Type: application/octet-stream",
+        b"",
+        blob,
+        ("--" + boundary + "--\r\n").encode(),
+    ])
+    req = urllib.request.Request(
+        f"{API}/channels/{channel_id}/messages",
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": "Bot " + os.environ["DISCORD_BOT_TOKEN"],
+            "Content-Type": "multipart/form-data; boundary=" + boundary,
+            "User-Agent": "DungeonPartyBot (https://github.com/Jouyancito/another-game-of-dungeon, 1.0)",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Discord upload {e.code}: {e.read().decode(errors='replace')}")
 
 
 def guild_id():
@@ -171,6 +214,10 @@ def main():
         content = open(rest[1], encoding="utf-8").read().strip()
         post_message(find_channel(rest[0])["id"], content)
         print("Posted file to", rest[0])
+    elif cmd == "post-attachment":
+        message = rest[2] if len(rest) > 2 else ""
+        upload_attachment(find_channel(rest[0])["id"], rest[1], message)
+        print("Uploaded", os.path.basename(rest[1]), "to", rest[0])
     elif cmd == "timeline":
         days = int(rest[rest.index("--days") + 1]) if "--days" in rest else 14
         channel = rest[rest.index("--channel") + 1] if "--channel" in rest else "devlog"
