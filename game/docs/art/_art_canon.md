@@ -1429,4 +1429,43 @@ Orden por impacto/esfuerzo — silueta/layout de la aldea ya está bien (v13):
 min del demo (la aldea es POI del piso 1). Los diferidos del punto 6, no
 necesariamente — por eso se difieren.
 
+### §17.5 Vegetación bespoke — el hueco de §17.4 (Joan, 2026-07-30)
+
+§17.4 se escribió el 2026-07-25 y NO lista vegetación porque los packs
+bespoke de árbol/arbusto/río todavía no existían: se construyeron el 27-28.
+No fueron ignorados por el canon, nacieron después. Los seis packs
+(`grass_pack`, `flower_pack`, `rock_pack`, `bush_pack`, `tree_pack`,
+`river_pack`) salieron todos flat-shaded, sin UV y sin textura — la familia
+`DP_ToonGrounded` — contradiciendo §17.2.1, §17.2.2 y §17.3.
+
+Este punto cierra el hueco. La vegetación entra al plan de prioridades entre
+el suelo (§17.4.2) y las rocas (§17.4.3): es lo primero que el jugador tiene
+a dos metros de la cara en primera persona, y por eso paga más que en un
+isométrico.
+
+**Orden de migración, pase por pase (§17.3 lo exige explícitamente — nunca
+retroactivo de golpe):**
+
+1. **`tree_pack` = piloto de la familia texturizada.** Es el que falla más
+   fuerte (13 de 21 patrones violados, medido 2026-07-30) y el más visible.
+   Recibe geometría corregida + UV + albedo/normal PolyHaven + sombreado
+   suave. Si el look valida contra §17.1, los demás packs lo siguen.
+2. `bush_pack` y `flower_pack` — comparten la receta de masas con el árbol,
+   heredan sus helpers.
+3. `rock_pack` y `river_pack` — ya tienen pintado por geometría resuelto;
+   ganan textura de superficie.
+4. `grass_pack` — último: es el único smooth-shaded y con más instancias en
+   pantalla, así que su costo de material es el que más pesa. Medir antes.
+
+**Regla de silueta para vegetación (deriva de §17.2.1, aplicada a plantas):**
+la silueta de un árbol NO es su volumen exterior — es su estructura de ramas
+y los huecos de cielo entre las masas de follaje. Una copa sin agujeros lee
+como piedra pintada de verde, no como follaje. Un interior de copa real está
+95-98% vacío: el follaje vive en la cáscara, porque adentro no llega luz.
+Cualquier invariante de generación del tipo "que no queden huecos" viola esta
+regla y debe eliminarse, no parametrizarse.
+
+Patrones con números, fuentes y tabla de gaps por línea de código:
+`_references/tree_poe/_synthesis.md`.
+
 ---
