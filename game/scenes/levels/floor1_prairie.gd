@@ -135,11 +135,46 @@ const PATROL_ENEMY_COUNT: int = 8
 
 # Terrain (heightmap)
 const TERRAIN_RESOLUTION: int = 96       # grid cells por lado (96*96 = 9216 verts)
-const TERRAIN_MAX_HEIGHT: float = 9.0    # alto max de colinas
+## Amplitude of the base hill noise ONLY (Section 1 of _compute_height_at) — NOT
+## the overall height ceiling of the map. Historically this doubled as the color
+## ramp's normalisation divisor too, which was wrong: Round-C's bowl/mountain rise
+## (added 2026-07-20, see BOWL_RISE_BASE etc. below) pushes real terrain to ~40m+
+## near the border, so normalising by 9.0 clamped ~82% of the playable disc to the
+## top of the color ramp (measured via game/scenes/dev/_height_probe.gd — see
+## color-normalisation bugfix, 2026-07-30). Use TERRAIN_COLOR_MAX_HEIGHT below for
+## normalisation; this constant stays scoped to what it actually names: hill noise.
+const TERRAIN_MAX_HEIGHT: float = 9.0    # alto max de colinas (solo ruido base)
 const TERRAIN_NOISE_FREQ: float = 0.004  # frecuencia baja = features grandes
 const TERRAIN_NOISE_OCTAVES: int = 3
 const TERRAIN_EDGE_RISE: float = 6.0     # subida hacia los bordes (acantilados)
 const FLAT_RADIUS_BASE: float = 50.0     # spawn-bowl flatten radius (pre-scale) — single source
+
+## Round-A #3 broad swell amplitude (unscaled — see _compute_height_at section 2 swell block).
+const TERRAIN_SWELL_MAX_HEIGHT: float = 3.5
+## Round-A #2 dirt/rock outcrop bump — threshold + max added metres (unscaled).
+## Hoisted from a local const inside _compute_height_at so TERRAIN_COLOR_MAX_HEIGHT
+## below can reference the same single source instead of a second copy that could drift.
+const TERRAIN_OUTCROP_THRESHOLD: float = 0.7    # top ~15% of noise values trigger an outcrop
+const TERRAIN_OUTCROP_MAX_ADD: float   = 2.5    # max added metres; ~1.5m/6m slope ≈ 14° — climbable
+## Round-C radial bowl / Task 1 mountain-slope rise — metres at _scale=1.0 (the demo
+## map). Hoisted from local consts inside _compute_height_at for the same reason.
+const BOWL_RISE_BASE: float = 12.0      # metres gained from flat_radius edge to border
+const BOWL_LIP_RISE_BASE: float = 4.0   # extra metres in the last 15% (visual border lip)
+const MOUNTAIN_EXTRA_MAX: float = 14.0  # extra metres at full ridge (on top of the baseline)
+const MOUNTAIN_JAG_MAX: float = 7.0     # extra metres of broken-rock detail at full ridge
+
+## Theoretical ceiling of _compute_height_at() at _scale=1.0 — the sum of every
+## additive term's maximum, hit simultaneously (worst case; real sampled max is
+## lower, ~40.7m per _height_probe.gd, because noise/ridge/outcrop rarely peak at
+## the same point). This is a DERIVED constant, not a new magic number: bump any
+## term above and this updates automatically, so the color ramp cannot silently
+## drift out of sync with the generator again (see TERRAIN_MAX_HEIGHT doc comment).
+## _scale-dependent terms (bowl/mountain) are re-derived per map size in generate()
+## as _terrain_color_max_height — this const is the scale=1.0 (demo map) case.
+const TERRAIN_COLOR_MAX_HEIGHT: float = (
+	TERRAIN_MAX_HEIGHT + TERRAIN_SWELL_MAX_HEIGHT + TERRAIN_OUTCROP_MAX_ADD
+	+ BOWL_RISE_BASE + BOWL_LIP_RISE_BASE + MOUNTAIN_EXTRA_MAX + MOUNTAIN_JAG_MAX
+)
 
 # ── Round-B: Streams ──────────────────────────────────────────────────────────
 # 3 stream channels carved deterministically from world_seed (no _rng — pure math).
@@ -247,6 +282,11 @@ var _terrain_stride: int = 0  # TERRAIN_RESOLUTION + 1
 # En el demo (scale 1.0) coinciden con las constantes históricas.
 var _scale: float = 1.0
 var _border_radius_base: float = BORDER_RADIUS_BASE
+## Color-ramp normalisation ceiling for THIS map's _scale — bowl/mountain terms
+## scale with _scale (same as _compute_height_at), noise/swell/outcrop don't.
+## Recomputed in generate(); defaults to the _scale=1.0 value (TERRAIN_COLOR_MAX_HEIGHT)
+## so any code reading it before generate() runs still gets a sane number.
+var _terrain_color_max_height: float = TERRAIN_COLOR_MAX_HEIGHT
 
 # Snapshot de hijos pre-generación: lo que NO está acá se considera generado
 # y se libera en regenerate() para un reseed limpio.
@@ -309,6 +349,13 @@ func generate() -> void:
 	_rng.seed = world_seed
 	_scale = _proc_scale()
 	_border_radius_base = BORDER_RADIUS_BASE * _scale
+	# Color-ramp ceiling for _height_to_color — same additive terms as _compute_height_at,
+	# with the _scale-dependent ones (bowl/mountain rise) scaled the same way so a small
+	# proc_lab cell doesn't get normalised against the full 600m map's height range.
+	_terrain_color_max_height = (
+		TERRAIN_MAX_HEIGHT + TERRAIN_SWELL_MAX_HEIGHT + TERRAIN_OUTCROP_MAX_ADD
+		+ (BOWL_RISE_BASE + BOWL_LIP_RISE_BASE + MOUNTAIN_EXTRA_MAX + MOUNTAIN_JAG_MAX) * _scale
+	)
 	_precalculate_border()
 	_setup_terrain_noise()
 
@@ -730,7 +777,7 @@ func _compute_height_at(x: float, z: float) -> float:
 	if _swell_noise != null:
 		var sw: float = _swell_noise.get_noise_2d(x, z)  # -1..1
 		sw = (sw + 1.0) * 0.5  # 0..1
-		var swell_h: float = sw * 3.5
+		var swell_h: float = sw * TERRAIN_SWELL_MAX_HEIGHT
 		# Attenuate to zero inside flat_radius (same envelope as the base flatten).
 		var swell_blend: float = 1.0
 		if dist_center < flat_radius:
@@ -772,10 +819,9 @@ func _compute_height_at(x: float, z: float) -> float:
 	# see that function's comment. The extra height/jag here is the VISUAL read of a
 	# mountain leading up to that wall, not itself required to exceed the engine's floor
 	# slope limit.
-	const BOWL_RISE_BASE: float = 12.0      # metres gained from flat_radius edge to border
-	const BOWL_LIP_RISE_BASE: float = 4.0   # extra metres in the last 15% (visual border lip)
-	const MOUNTAIN_EXTRA_MAX: float = 14.0  # extra metres at full ridge (on top of the baseline)
-	const MOUNTAIN_JAG_MAX: float = 7.0     # extra metres of broken-rock detail at full ridge
+	# BOWL_RISE_BASE / BOWL_LIP_RISE_BASE / MOUNTAIN_EXTRA_MAX / MOUNTAIN_JAG_MAX are
+	# now class-level consts (see TERRAIN_COLOR_MAX_HEIGHT section near TERRAIN_MAX_HEIGHT)
+	# so _height_to_color's normalisation can share the exact same source values.
 	var bowl_blend: float = 0.0
 	if dist_center >= flat_radius:
 		var bowl_span: float = max_r - flat_radius
@@ -807,18 +853,17 @@ func _compute_height_at(x: float, z: float) -> float:
 
 	# Round-A #2: Dirt/rock outcrops — ONLY outside the flat_radius spawn bowl.
 	# _outcrop_noise is scale-independent (sampled in world coords, freq=0.05).
-	# Where noise > OUTCROP_THRESHOLD we add a smooth bump capped at OUTCROP_MAX_ADD
-	# so the steepest slope stays climbable for CharacterBody3D (~1.5m over ~6m).
-	const OUTCROP_THRESHOLD: float = 0.7    # top ~15% of noise values trigger an outcrop
-	const OUTCROP_MAX_ADD: float   = 2.5    # max added metres; ~1.5m/6m slope ≈ 14° — climbable
+	# Where noise > TERRAIN_OUTCROP_THRESHOLD we add a smooth bump capped at
+	# TERRAIN_OUTCROP_MAX_ADD so the steepest slope stays climbable for CharacterBody3D
+	# (~1.5m over ~6m). Both are class-level consts (see TERRAIN_COLOR_MAX_HEIGHT).
 	if _outcrop_noise != null and dist_center > flat_radius:
 		var on: float = _outcrop_noise.get_noise_2d(x, z)  # -1..1
 		on = (on + 1.0) * 0.5  # 0..1
-		if on > OUTCROP_THRESHOLD:
+		if on > TERRAIN_OUTCROP_THRESHOLD:
 			# Smooth ramp from threshold to 1.0 → clean bump edges, no hard ledges.
-			var ramp: float = (on - OUTCROP_THRESHOLD) / (1.0 - OUTCROP_THRESHOLD)
+			var ramp: float = (on - TERRAIN_OUTCROP_THRESHOLD) / (1.0 - TERRAIN_OUTCROP_THRESHOLD)
 			ramp = smoothstep(0.0, 1.0, ramp)
-			h += ramp * OUTCROP_MAX_ADD
+			h += ramp * TERRAIN_OUTCROP_MAX_ADD
 
 	# Round-B: Stream channel carve.
 	# Subtracts a smoothstep trough wherever (x,z) falls within STREAM_HALF_WIDTH of
@@ -1002,7 +1047,15 @@ func _generate_terrain_mesh() -> void:
 
 
 func _height_to_color(h: float) -> Color:
-	var t: float = clampf(h / TERRAIN_MAX_HEIGHT, 0.0, 1.0)
+	# Bugfix 2026-07-30: normalising by TERRAIN_MAX_HEIGHT (9.0, base hill-noise
+	# amplitude only) clamped ~82% of the playable disc to t=1.0 (top-of-ramp
+	# "dry mud" brown) because the bowl/mountain rise added since Round-C pushes
+	# real terrain to ~40m+ near the border — see game/docs/art/_references/
+	# biome_landscape/_synthesis.md and game/scenes/dev/_height_probe.gd (measured
+	# fraction before/after). Normalise against _terrain_color_max_height instead —
+	# derived from the SAME constants that generate the height, so it tracks any
+	# future change to the bowl/mountain/outcrop terms automatically.
+	var t: float = clampf(h / _terrain_color_max_height, 0.0, 1.0)
 	# Verdes DESATURADOS (oliva/apagado) — descansan la vista y respetan el
 	# principio Kimetsu del _art_canon: bioma desaturado para que las skills
 	# (color saturado) resalten. Evita la fatiga/after-images del verde chillón.
