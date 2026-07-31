@@ -51,18 +51,25 @@ REN_DIR = os.path.join(OUT_DIR, "renders")
 ANIM_DIR = os.path.join(REN_DIR, "anim")
 os.makedirs(ANIM_DIR, exist_ok=True)
 
-TRI_BUDGET = 7600
 
 # ---------- CLI ----------
 _argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 SEED = 20260730
+# One generator for the whole gel family. The king is the same creature scaled
+# up with a darker palette, a face and a crown — keeping it here means a fix to
+# the gel vocabulary lands on both instead of drifting into two scripts.
+VARIANT = "common"
+for _i, _a in enumerate(_argv):
+    if _a == "--variant" and _i + 1 < len(_argv):
+        VARIANT = _argv[_i + 1]
+IS_KING = VARIANT == "king"
 # FACELESS by default (Joan, 2026-07-30): with sockets the common slime "se
 # siente raro" — it reads as a creature watching you, which is not what a
 # roadside blob should be. It goes back to being defined by HOW IT MOVES
 # (_mob_style_contract.md §3). Facial relief is reserved for the KING slime,
 # where an expressive face is canon (PO 2026-07-17). The relief code stays and
 # is opt-in via --face, because king_slime is built from this same vocabulary.
-WANT_FACE = False
+WANT_FACE = IS_KING     # el rey SÍ lleva cara (canon PO 2026-07-17)
 for _i, _a in enumerate(_argv):
     if _a == "--seed" and _i + 1 < len(_argv):
         SEED = int(_argv[_i + 1])
@@ -72,6 +79,19 @@ for _i, _a in enumerate(_argv):
         WANT_FACE = False
 rng = random.Random(SEED)
 
+# Everything below is authored at the common slime's size and multiplied by
+# SCALE, so proportions are shared and only the absolute measurements move.
+# The king is 3 m tall per biome_prairie.md §4 ("3m de alto, gelatina verde
+# oscura translucida"); the common slime's 0.684 m native is the unit.
+# The king is a BALL, not a scaled-up puddle: biome_prairie.md §4 calls it "una
+# bola gigante de gelatina verde". Inheriting the common slime's 1.6:1 squat
+# gave a 3 m x 4.9 m dome. Rounder proportions bring it to ~1.2:1, and SCALE is
+# retuned so the result still lands on the canon's 3 m of height.
+SCALE = 3.41 if IS_KING else 1.0
+BOTTOM_FLATTEN = 0.80 if IS_KING else 0.55   # 1.0 = perfect sphere underneath
+OUT_NAME = "king_slime" if IS_KING else "slime"
+TRI_BUDGET = 11000 if IS_KING else 7600
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 
@@ -79,37 +99,37 @@ scene = bpy.context.scene
 # Dense-but-not-wasteful: shape keys must export, so no subsurf — the vert count
 # is the deformation resolution AND the vertex-colour resolution.
 SEGMENTS, RINGS = 80, 40
-bpy.ops.mesh.primitive_uv_sphere_add(segments=SEGMENTS, ring_count=RINGS, radius=0.5)
+bpy.ops.mesh.primitive_uv_sphere_add(segments=SEGMENTS, ring_count=RINGS, radius=0.5 * SCALE)
 body = bpy.context.object
-body.name = "slime"
+body.name = OUT_NAME
 me = body.data
 
 # Seeded proportion: some slimes sit low and wide, others hold a taller mound.
-squat = rng.uniform(0.72, 0.86)          # top compression
-spread_amt = rng.uniform(0.16, 0.26)     # how much mass pools at the base
+squat = rng.uniform(0.93, 0.99) if IS_KING else rng.uniform(0.72, 0.86)
+spread_amt = rng.uniform(0.05, 0.10) if IS_KING else rng.uniform(0.16, 0.26)
 lean_x = rng.uniform(-0.05, 0.05)        # one asymmetric break (contract §1)
 
 for v in me.vertices:
     z = v.co.z
-    v.co.z = z * (squat if z > 0.0 else 0.55)
+    v.co.z = z * (squat if z > 0.0 else BOTTOM_FLATTEN)
     # Mass pools toward the bottom — bottom-weighted silhouette.
-    t = max(0.0, min(1.0, (0.08 - v.co.z) / 0.35))
+    t = max(0.0, min(1.0, (0.08 * SCALE - v.co.z) / (0.35 * SCALE)))
     s = 1.0 + spread_amt * t
     v.co.x *= s
     v.co.y *= s
-    v.co.x += lean_x * (v.co.z + 0.3)
+    v.co.x += lean_x * (v.co.z + 0.3 * SCALE)
 
 # ---------- Perlin settling: a gel mass, not a perfect dome ----------
 # Low frequency, low amplitude. Enough to break the mathematical silhouette,
 # far below the level that would read as a rocky/noisy surface.
 NOISE_SCALE = rng.uniform(1.7, 2.3)
-NOISE_AMP = 0.022
+NOISE_AMP = 0.022 * SCALE
 noise_off = Vector((rng.uniform(-8, 8), rng.uniform(-8, 8), rng.uniform(-8, 8)))
 for v in me.vertices:
     n = mnoise.noise(v.co * NOISE_SCALE + noise_off)
     # Fade the displacement out at the very bottom so the slime keeps a clean
     # contact with the ground instead of developing a wavy skirt.
-    ground_fade = min(1.0, max(0.0, (v.co.z + 0.28) / 0.18))
+    ground_fade = min(1.0, max(0.0, (v.co.z + 0.28 * SCALE) / (0.18 * SCALE)))
     v.co += v.normal * (n * NOISE_AMP * ground_fade)
 
 # ---------- facial features as RELIEF (Tensura rule) ----------
@@ -124,13 +144,13 @@ for v in me.vertices:
 # and turn the mouth into a wide shallow crease instead of a round hole.
 FACE_PARTS = []
 if WANT_FACE:
-    eye_z = 0.150
-    eye_x = 0.255
+    eye_z = 0.150 * SCALE
+    eye_x = 0.255 * SCALE
     FACE_PARTS = [
         # (centre, radius, depth, x_stretch, z_stretch)
-        (Vector((-eye_x, -0.40, eye_z)), 0.125, 0.042, 1.35, 0.52),
-        (Vector((eye_x, -0.40, eye_z)), 0.125, 0.042, 1.35, 0.52),
-        (Vector((0.0, -0.46, 0.005)), 0.185, 0.019, 2.40, 0.30),
+        (Vector((-eye_x, -0.40 * SCALE, eye_z)), 0.125 * SCALE, 0.042 * SCALE, 1.35, 0.52),
+        (Vector((eye_x, -0.40 * SCALE, eye_z)), 0.125 * SCALE, 0.042 * SCALE, 1.35, 0.52),
+        (Vector((0.0, -0.46 * SCALE, 0.005 * SCALE)), 0.185 * SCALE, 0.019 * SCALE, 2.40, 0.30),
     ]
 
     def relief_at(co):
@@ -194,8 +214,8 @@ R_MAX = max(math.hypot(v.co.x, v.co.y) for v in me.vertices)
 # They are kept tiny rather than fully collapsed on purpose: a degenerate island
 # with every vertex on one point produces zero-area faces, which break normal
 # recalculation and can trip the exporter.
-N_DROPS = 12
-DROP_HIDDEN_RADIUS = 0.004
+N_DROPS = 20 if IS_KING else 12
+DROP_HIDDEN_RADIUS = 0.004 * SCALE
 drops = []          # (vertex indices, flight position, floor position, radius)
 
 _bm = bmesh.new()
@@ -203,7 +223,7 @@ _bm.from_mesh(me)
 _hidden_centre = Vector((0.0, 0.0, Z_MIN + H * 0.45))
 for _i in range(N_DROPS):
     _ang = math.tau * (_i + rng.uniform(0.15, 0.85)) / N_DROPS
-    _radius = rng.uniform(0.055, 0.115)
+    _radius = rng.uniform(0.055, 0.115) * SCALE
     _existing = set(v.index for v in _bm.verts) if _bm.verts else set()
     _before = len(_bm.verts)
     # subdivisions=2: at 1 a droplet is a bare icosahedron and reads as a green
@@ -227,6 +247,51 @@ for _i in range(N_DROPS):
                      _radius * 0.22))
     drops.append({"verts": _new_verts, "fly": _fly, "floor": _floor,
                   "radius": _radius, "centre": _hidden_centre.copy()})
+# ---------- the king's crown: rusted, and INSIDE the gel ----------
+# Lore (biome_prairie.md §4): "Corona oxidada visible DENTRO de la gelatina — era
+# un rey que fue absorbido". The scene had it as a shiny gold box floating ON
+# TOP, which loses the whole point: the crown is not worn, it is swallowed. It
+# is a separate island like the droplets, suspended in the upper body where the
+# translucency shows it through.
+CROWN_VERT_RANGE = None
+if IS_KING:
+    _crown_start = len(_bm.verts)
+    _crown_y = Z_MAX * 0.62      # high in the body, where the gel is thinnest
+    _crown_r = R_MAX * 0.42
+    # Band: a low ring of blocks rather than a smooth torus — a rusted circlet
+    # that lost its shape, not jewellery.
+    _band_segments = 14
+    for _k in range(_band_segments):
+        _a = math.tau * _k / _band_segments
+        _jit = rng.uniform(0.88, 1.12)
+        bmesh.ops.create_cube(
+            _bm, size=1.0,
+            matrix=(Matrix.Translation(Vector((
+                math.cos(_a) * _crown_r,
+                math.sin(_a) * _crown_r,
+                _crown_y)))
+                @ Matrix.Rotation(_a, 4, 'Z')
+                @ Matrix.Diagonal(Vector((
+                    0.055 * SCALE * _jit,
+                    0.16 * SCALE * _jit,
+                    0.11 * SCALE * _jit, 1.0)))))
+    # Five points, uneven and slightly tipped: a crown that has been through
+    # something. One is deliberately shorter, one leans.
+    for _k in range(5):
+        _a = math.tau * _k / 5 + 0.3
+        _tall = 0.30 if _k != 2 else 0.17     # the broken one
+        _lean = rng.uniform(-0.22, 0.22)
+        bmesh.ops.create_cone(
+            _bm, cap_ends=True, segments=6,
+            radius1=0.075 * SCALE, radius2=0.012 * SCALE,
+            depth=_tall * SCALE,
+            matrix=(Matrix.Translation(Vector((
+                math.cos(_a) * _crown_r,
+                math.sin(_a) * _crown_r,
+                _crown_y + _tall * SCALE * 0.5)))
+                @ Matrix.Rotation(_lean, 4, 'X')))
+    CROWN_VERT_RANGE = (_crown_start, len(_bm.verts))
+
 _bm.verts.index_update()
 _bm.faces.ensure_lookup_table()
 # Droplet faces shade smooth like the body — a faceted droplet next to a smooth
@@ -264,6 +329,15 @@ PALETTES = {
     "green": ((0.014, 0.105, 0.028), (0.055, 0.330, 0.085), (0.230, 0.620, 0.290)),
     "blue": ((0.012, 0.055, 0.150), (0.075, 0.230, 0.400), (0.300, 0.560, 0.720)),
 }
+DEFAULT_PALETTE = "green"
+if IS_KING:
+    DEFAULT_PALETTE = "king"
+    # "gelatina verde OSCURA translucida" (biome_prairie.md §4). Deeper and less
+    # saturated than the common slime so the king reads as older and denser
+    # rather than as a common slime that got bigger.
+    PALETTES = {
+        "king": ((0.006, 0.048, 0.014), (0.028, 0.175, 0.048), (0.140, 0.400, 0.180)),
+    }
 
 # Fewer but LARGER bubbles. Vertex colour cannot resolve a feature smaller than
 # the vertex spacing, and at 80 segments on a 0.55 m radius that spacing is
@@ -272,7 +346,7 @@ PALETTES = {
 # 2699 verts above green 0.55). Radii from ~1.3x to ~3.4x the spacing give each
 # bubble 3-7 vertices to sit on, and the size spread is what the contract asks
 # for ("varied sizes drifting through the gel").
-N_BUBBLES = rng.randint(12, 17)
+N_BUBBLES = rng.randint(20, 26) if IS_KING else rng.randint(12, 17)
 bubbles = []
 # Anchor each bubble just under an actual surface vertex instead of sampling a
 # cylinder of "inside the body". The cylinder did not match a squashed dome, so
@@ -292,7 +366,7 @@ _surface_pool = [v for v in me.vertices[:BODY_VERT_COUNT]
 # bubble to one would paint a bloom in mid-air that appears when they burst out.
 for _ in range(N_BUBBLES):
     v = _surface_pool[rng.randrange(len(_surface_pool))]
-    radius = rng.uniform(0.058, 0.145)
+    radius = rng.uniform(0.058, 0.145) * SCALE
     centre = v.co - v.normal * (radius * rng.uniform(0.05, 0.20))
     bubbles.append((centre.copy(), radius))
 
@@ -360,7 +434,7 @@ def bake_vcol(palette_name):
     bm.free()
 
 
-bake_vcol("green")
+bake_vcol(DEFAULT_PALETTE)
 
 # ---------- tri budget ----------
 me.calc_loop_triangles()
@@ -420,7 +494,23 @@ def _collapse_body(key):
     for i in range(BODY_VERT_COUNT):
         v = me.vertices[i]
         key.data[i].co = Vector((v.co.x * 0.18, v.co.y * 0.18,
-                                 -0.14 + v.co.z * 0.10))
+                                 -0.14 * SCALE + v.co.z * 0.10))
+
+
+def _crown_falls(key, drop_height, spread):
+    """The crown is not part of the gel — when the king bursts it simply falls.
+
+    Left untouched it would hang in mid-air after the body is gone. Dropping it
+    also gives the death its last beat: the gel soaks away and the rusted crown
+    stays on the ground, which is the whole point of the lore (a king who was
+    swallowed, and outlives the thing that swallowed him)."""
+    if CROWN_VERT_RANGE is None:
+        return
+    lo, hi = CROWN_VERT_RANGE
+    for idx in range(lo, hi):
+        co = me.vertices[idx].co
+        key.data[idx].co = Vector((co.x * spread, co.y * spread,
+                                   co.z - drop_height))
 
 
 def _drop_offset(idx, meta):
@@ -431,12 +521,14 @@ def _drop_offset(idx, meta):
 
 sk = add_key("burst")       # body drops away, droplets fly outward and up
 _collapse_body(sk)
+_crown_falls(sk, Z_MAX * 0.30, 1.06)
 for meta, indices in zip(drops, DROP_INDEX_SETS):
     for idx in indices:
         sk.data[idx].co = meta["fly"] + _drop_offset(idx, meta) * meta["radius"]
 
 sk = add_key("settle")      # droplets have landed and spread into flat puddles
 _collapse_body(sk)
+_crown_falls(sk, Z_MAX * 0.60, 1.10)
 for meta, indices in zip(drops, DROP_INDEX_SETS):
     for idx in indices:
         offset = _drop_offset(idx, meta)
@@ -449,6 +541,8 @@ for meta, indices in zip(drops, DROP_INDEX_SETS):
 
 sk = add_key("soak")        # puddles sink into the ground and shrink to nothing
 _collapse_body(sk)
+# The crown does NOT sink with the gel — it is what is left behind.
+_crown_falls(sk, Z_MAX * 0.60, 1.10)
 for meta, indices in zip(drops, DROP_INDEX_SETS):
     for idx in indices:
         offset = _drop_offset(idx, meta)
@@ -487,7 +581,7 @@ def _lean_key(name, axis):
         # Top leads, base drags along. Raised from 0.185 after the first pass
         # read as a tilt rather than a gel spilling — at this size the shape key
         # is the ceiling on how much wobble the driver can ever express.
-        carry = 0.235 * (zn ** 1.35) + 0.045
+        carry = (0.235 * (zn ** 1.35) + 0.045) * SCALE
         x, y = v.co.x, v.co.y
         if axis == 0:
             x += carry
@@ -772,9 +866,9 @@ scene.render.resolution_x = 1024
 scene.render.resolution_y = 1280
 for pal in PALETTES:
     bake_vcol(pal)
-    scene.render.filepath = os.path.join(REN_DIR, f"slime_{pal}.png")
+    scene.render.filepath = os.path.join(REN_DIR, f"{OUT_NAME}_{pal}.png")
     bpy.ops.render.render(write_still=True)
-bake_vcol("green")
+bake_vcol(DEFAULT_PALETTE)
 
 ficha.restore_hero_camera(cam, target, old_target_loc, old_cam_loc)
 ficha.remove_scale_silhouette(sil)
@@ -803,7 +897,7 @@ for label, loc, lens in ANGLES:
     cd.lens = lens
     target.location = (0.0, 0.0, Z_MIN + H * (0.55 if label != "playereye" else 0.35))
     bpy.context.view_layer.update()          # settle TRACK_TO before rendering
-    scene.render.filepath = os.path.join(REN_DIR, f"slime_view_{label}.png")
+    scene.render.filepath = os.path.join(REN_DIR, f"{OUT_NAME}_view_{label}.png")
     bpy.ops.render.render(write_still=True)
 
 # ---------- push all actions to NLA tracks (one glTF animation per track) ----------
@@ -825,9 +919,9 @@ body.location = (0, 0, 0)
 for k in ALL_KEYS:
     kb[k].value = 0.0
 
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_DIR, "slime_wip.blend"))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_DIR, f"{OUT_NAME}_wip.blend"))
 bpy.ops.export_scene.gltf(
-    filepath=os.path.join(OUT_DIR, "slime.glb"),
+    filepath=os.path.join(OUT_DIR, f"{OUT_NAME}.glb"),
     use_selection=False,
     export_animations=True,
     export_morph=True,
