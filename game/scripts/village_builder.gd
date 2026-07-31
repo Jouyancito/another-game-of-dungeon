@@ -40,6 +40,9 @@ extends RefCounted
 ##   lesser_structure_prop_chance optional float (default 0.5) — chance an
 ##                                           inner-ring slot uses a real prop
 ##                                           instead of a CSG tent box
+##   fountain_scene          optional PackedScene — one landmark prop per camp
+##   chimney_scene           optional PackedScene — paired with chimney_top_scene
+##   chimney_top_scene       optional PackedScene — stacked 2.5m above chimney_scene
 ##
 ## Preview: `game/scenes/dev/proc_lab.tscn` sets `lab_poi_focus = "camp"` on the
 ## floor script, which recenters the camp POI at world origin at true scale and
@@ -86,6 +89,7 @@ static func build(
 
 	_build_inner_ring(parent, pos, radius, rng, add_prop_cb, style, terrain_height_cb)
 	_scatter_small_props(parent, pos, sz, rng, add_prop_cb, style)
+	_build_camp_landmarks(parent, pos, radius, rng, add_prop_cb, style, terrain_height_cb)
 
 
 # ── Terrain sampling helpers ────────────────────────────────────────────────
@@ -113,6 +117,31 @@ static func _find_flattest_spot(
 			best_variance = variance
 			best_pos = Vector3(cx, terrain_height_cb.call(cx, cz), cz)
 	return best_pos
+
+
+## Samples a random point in the annulus [min_r, max_r] around `pos` and
+## returns the first one within SLOPE_TOLERANCE height variance, or the
+## best (lowest-variance) candidate seen after `tries` attempts. Shared by
+## the inner ring (trait 4/5) and camp landmarks (trait 8) so both place
+## props without them floating on a slope.
+static func _find_slope_ok_spot(
+	pos: Vector3, min_r: float, max_r: float, tries: int,
+	rng: RandomNumberGenerator, terrain_height_cb: Callable
+) -> Vector3:
+	var candidate_pos: Vector3 = pos
+	var best_variance: float = INF
+	for t in range(tries):
+		var r: float = rng.randf_range(min_r, max_r)
+		var a: float = rng.randf() * TAU
+		var cx: float = pos.x + cos(a) * r
+		var cz: float = pos.z + sin(a) * r
+		var variance: float = _height_variance(cx, cz, 2.0, terrain_height_cb)
+		if variance <= SLOPE_TOLERANCE:
+			return Vector3(cx, terrain_height_cb.call(cx, cz), cz)
+		if variance < best_variance:
+			best_variance = variance
+			candidate_pos = Vector3(cx, terrain_height_cb.call(cx, cz), cz)
+	return candidate_pos
 
 
 # ── Trait 1: palisade ring following the terrain ────────────────────────────
@@ -311,21 +340,8 @@ static func _build_inner_ring(
 	var pool: Array = style.get("lesser_structure_scenes", [])
 
 	for i in range(count):
-		var candidate_pos: Vector3 = pos
-		var best_variance: float = INF
-		for t in range(INNER_RING_TRIES):
-			var r: float = rng.randf_range(palisade_radius * 0.30, palisade_radius * 0.55)
-			var a: float = rng.randf() * TAU
-			var cx: float = pos.x + cos(a) * r
-			var cz: float = pos.z + sin(a) * r
-			var variance: float = _height_variance(cx, cz, 2.0, terrain_height_cb)
-			if variance <= SLOPE_TOLERANCE:
-				candidate_pos = Vector3(cx, terrain_height_cb.call(cx, cz), cz)
-				best_variance = variance
-				break
-			if variance < best_variance:
-				best_variance = variance
-				candidate_pos = Vector3(cx, terrain_height_cb.call(cx, cz), cz)
+		var candidate_pos: Vector3 = _find_slope_ok_spot(
+			pos, palisade_radius * 0.30, palisade_radius * 0.55, INNER_RING_TRIES, rng, terrain_height_cb)
 
 		if pool.size() > 0 and rng.randf() < prop_chance:
 			add_prop_cb.call(pool[rng.randi() % pool.size()], "VillageInnerStructure%d" % i,
@@ -356,6 +372,34 @@ static func _scatter_small_props(
 		var pz: float = pos.z + rng.randf_range(-sz.y * 0.32, sz.y * 0.32)
 		add_prop_cb.call(pool[rng.randi() % pool.size()], "VillageSmallProp%d" % i,
 			Vector3(px, pos.y, pz), rng.randf() * TAU)
+
+
+# ── Trait 8: camp landmarks — fountain + ruined chimney ─────────────────────
+
+## Folded in from a static one-off "Outpost" node cluster that used to sit
+## alone near map-center — the player spawns at the procedural entrance POI
+## ~235m away, so that cluster was reachable in only a fraction of runs
+## (audit bioma/cobertura-assets-vs-visible, 2026-07-30). Every camp now gets
+## its own fountain and ruined-chimney pair instead of exactly one instance
+## existing anywhere on the whole map.
+static func _build_camp_landmarks(
+	parent: Node3D, pos: Vector3, palisade_radius: float,
+	rng: RandomNumberGenerator, add_prop_cb: Callable, style: Dictionary, terrain_height_cb: Callable
+) -> void:
+	if style.has("fountain_scene"):
+		var fountain_pos: Vector3 = _find_slope_ok_spot(
+			pos, palisade_radius * 0.30, palisade_radius * 0.55, INNER_RING_TRIES, rng, terrain_height_cb)
+		add_prop_cb.call(style["fountain_scene"], "VillageFountain", fountain_pos, rng.randf() * TAU)
+
+	if style.has("chimney_scene") and style.has("chimney_top_scene"):
+		var chimney_pos: Vector3 = _find_slope_ok_spot(
+			pos, palisade_radius * 0.30, palisade_radius * 0.55, INNER_RING_TRIES, rng, terrain_height_cb)
+		var chimney_yaw: float = rng.randf() * TAU
+		add_prop_cb.call(style["chimney_scene"], "VillageChimney", chimney_pos, chimney_yaw)
+		# Same x/z as the chimney base, +2.5m up — matches the static Outpost
+		# cluster's original stacking offset (floor1_prairie.tscn:303-307).
+		add_prop_cb.call(style["chimney_top_scene"], "VillageChimneyTop",
+			chimney_pos + Vector3(0, 2.5, 0), chimney_yaw)
 
 
 # ── Ground dressing (dirt patch under the whole village) ───────────────────
@@ -394,7 +438,11 @@ static var STYLE_BANDIT_PRAIRIE: Dictionary = {
 		preload(_OUTPOST_DIR + "prop_lantern_01.glb"),
 		preload(_OUTPOST_DIR + "prop_banner_green_01.glb"),
 		preload(_OUTPOST_DIR + "prop_pillar_wood_01.glb"),
+		preload(_OUTPOST_DIR + "prop_planks_01.glb"),
 	],
+	"fountain_scene": preload(_OUTPOST_DIR + "prop_fountain_round_01.glb"),
+	"chimney_scene": preload(_OUTPOST_DIR + "prop_chimney_01.glb"),
+	"chimney_top_scene": preload(_OUTPOST_DIR + "prop_chimney_top_01.glb"),
 	"ground_color": Color(0.362, 0.253, 0.172),
 	"structure_color": Color(0.476, 0.340, 0.230),
 	"log_color": Color(0.320, 0.234, 0.163),
@@ -407,5 +455,10 @@ static var STYLE_BANDIT_PRAIRIE: Dictionary = {
 	"small_prop_count": Vector2i(3, 5),
 	"hut_size": Vector3(6.0, 3.2, 5.0),
 	"tent_size": Vector3(4.0, 2.4, 3.0),
-	"lesser_structure_prop_chance": 0.5,
+	# Raised 0.5→0.85 (audit bioma/cobertura-assets-vs-visible, 2026-07-30):
+	# at 0.5, half the inner-ring slots rendered as a placeholder CSG tent box
+	# instead of the real prop_cart_01/prop_cart_high_01 models. Built props
+	# are now the norm; the CSG box stays as an occasional shelter variant
+	# (~15%) rather than disappearing outright.
+	"lesser_structure_prop_chance": 0.85,
 }

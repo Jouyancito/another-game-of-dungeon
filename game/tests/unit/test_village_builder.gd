@@ -98,6 +98,33 @@ func test_inner_ring_count_is_within_style_bounds() -> void:
 	assert_between(prop_count + tent_count, count_range.x, count_range.y)
 
 
+func test_camp_landmarks_are_folded_in_from_static_outpost() -> void:
+	# Audit bioma/cobertura-assets-vs-visible (2026-07-30): fountain/chimney/
+	# chimney_top/planks used to exist as exactly ONE static instance each,
+	# ~235m from the procedural entrance POI. Folded into every camp instead.
+	_run_build(321)
+	assert_eq(_names_with_prefix("VillageFountain").size(), 1, "exactly one fountain per camp")
+	assert_eq(_names_with_prefix("VillageChimney").filter(
+		func(c): return not String(c["name"]).ends_with("Top")).size(), 1, "exactly one chimney per camp")
+	assert_eq(_names_with_prefix("VillageChimneyTop").size(), 1, "exactly one chimney-top per camp")
+
+
+func test_chimney_top_stacks_on_the_chimney_base() -> void:
+	_run_build(321)
+	var chimney: Dictionary = _recorded_calls.filter(func(c): return c["name"] == "VillageChimney")[0]
+	var chimney_top: Dictionary = _recorded_calls.filter(func(c): return c["name"] == "VillageChimneyTop")[0]
+	var base_pos: Vector3 = chimney["pos"]
+	var top_pos: Vector3 = chimney_top["pos"]
+	assert_eq(top_pos, base_pos + Vector3(0, 2.5, 0), "chimney-top must sit directly above the chimney base")
+
+
+func test_lesser_structure_prop_chance_favors_real_props_over_placeholder_box() -> void:
+	# Fix bioma/cobertura-assets-vs-visible: 0.5 meant half of all inner-ring
+	# slots rendered as a plain CSG tent box instead of prop_cart_01/_high_01.
+	var chance: float = VillageBuilder.STYLE_BANDIT_PRAIRIE.get("lesser_structure_prop_chance", 0.5)
+	assert_gt(chance, 0.5, "real props must be the norm, not a coin flip")
+
+
 func test_build_is_deterministic_for_the_same_seed() -> void:
 	_run_build(555)
 	var first_calls: Array = _recorded_calls.duplicate(true)
