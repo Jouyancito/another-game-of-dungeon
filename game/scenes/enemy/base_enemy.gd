@@ -86,8 +86,13 @@ const _ALERT_DURATION_S: float = 15.0
 const NAMEPLATE_VISIBLE_RANGE := 15.0
 const NAMEPLATE_AIM_RANGE := 30.0
 
-# Referencia al mesh — cada hijo define su nodo
-@onready var mesh: MeshInstance3D = $MeshInstance3D
+# Referencia al mesh — cada hijo define su nodo.
+# get_node_or_null y no $MeshInstance3D: los enemigos migrados a un GLB bespoke
+# ya no traen ese nodo (el King Slime lo cambió por "KingMesh"), y la ruta dura
+# tiraba un ERROR en _ready para todos ellos. El único uso de esta referencia
+# —el flash de daño en el mesh procedural, ~línea 946— ya se guarda con
+# `if mesh and mesh.mesh`, así que null siempre fue un estado contemplado.
+@onready var mesh: MeshInstance3D = get_node_or_null("MeshInstance3D")
 
 # Color original del mesh (cada hijo lo define)
 var default_color := Color(0.8, 0.2, 0.2)
