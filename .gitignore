@@ -1,6 +1,11 @@
 # Godot
 .godot/
-*.import
+# .import NO se ignora: guarda los AJUSTES de importacion (mipmaps, compresion,
+# filtro) y el UID con el que las escenas referencian cada recurso. Ignorarlo hacia
+# que un clon limpio los regenerara con valores por defecto, en silencio: los
+# mipmaps volvian a apagarse y un export headless salia peor que lo probado, sin un
+# solo error. Lo que SI es cache generada es .godot/, arriba.
+# *.import
 export_presets.cfg
 
 # Godot engine binary
