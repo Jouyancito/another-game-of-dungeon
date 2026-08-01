@@ -72,6 +72,22 @@ revisit — not the setting's usefulness on vegetation. TAA also cannot fully fi
 faster than its history rejection tolerates, so some residual shimmer while sprinting is
 expected; the remaining lever there is art-side (fewer, larger leaf cards — canon §17.5).
 
+## PENDIENTE: el arreglo de mipmaps no sobrevive a un clon limpio
+
+Las 19 texturas del pack de árboles se pasaron a `mipmaps/generate=true`, pero ese
+ajuste vive en archivos `.png.import` que **no están versionados** — y no por el
+`.gitignore` raíz (eso se corrigió en `7205b33`), sino porque las texturas mismas son
+**copias extraídas del `.glb`**. Godot las regenera en cada importación limpia, junto con
+un `.import` de valores por defecto. El `.gitignore` local del `tree_pack` las excluye a
+propósito y con razón: son duplicados que se desincronizan del GLB de origen.
+
+Resultado: en una máquina nueva o en un export desde CI, **los árboles vuelven a hervir a
+distancia** y nada avisa.
+
+El arreglo correcto es aguas arriba, en el motor: `build_tree_pack.py` debería escribir
+las texturas como archivos **externos** que el GLB referencia, en vez de embeberlas. Así
+hay una sola copia, versionada, con su propio `.import` — sin duplicado y sin deriva.
+
 ## Do not put this in project.godot
 
 The first version of this fix carried the table as comments inside `project.godot`. Two
