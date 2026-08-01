@@ -3608,8 +3608,8 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		dt_body.collision_mask  = 0
 		var dt_col := CollisionShape3D.new()
 		var dt_cap := CapsuleShape3D.new()
-		dt_cap.radius = 0.35 * s
-		dt_cap.height = 2.5 * s
+		dt_cap.radius = _trunk_radius_for(tree) * s
+		dt_cap.height = maxf(2.5 * s, dt_cap.radius * 2.0 + 0.01)
 		dt_col.shape = dt_cap
 		dt_col.position = Vector3(0.0, 1.25 * s, 0.0)
 		dt_body.add_child(dt_col)
@@ -3750,8 +3750,10 @@ func _place_instance(
 				# Capsule covers the trunk only, not the canopy.
 				# radius 0.35*s, total height 2.5*s, center at 1.25*s (half-height up).
 				var cap := CapsuleShape3D.new()
-				cap.radius = 0.35 * s
-				cap.height = 2.5 * s
+				cap.radius = _trunk_radius_for(inst) * s
+				# Godot needs height >= 2*radius or the capsule degenerates into a
+				# sphere — which the widest buttressed trunks would otherwise hit.
+				cap.height = maxf(2.5 * s, cap.radius * 2.0 + 0.01)
 				col.shape = cap
 				# CapsuleShape3D center is its geometric center; offset up so base = pos.
 				col.position = Vector3(0.0, 1.25 * s, 0.0)
@@ -3784,6 +3786,61 @@ func _place_instance(
 		# in the tree is unreliable — would leave the collider at the container origin).
 		parent.add_child(body)
 		body.global_position = pos
+
+# ── Radio del colisionador de tronco, medido del propio mesh ──────────────────
+# El 0.35 fijo que había acá venía de los árboles CC0 de tronco fino. Medido contra
+# el pack del motor (leyendo la geometría de corteza de cada .glb), el radio real
+# entre el suelo y la rodilla va de 0.22 (joven) a 0.70 (ancho, con contrafuertes).
+# Un único número para todos o te deja entrar al tronco o te frena en el aire, y el
+# problema vuelve cada vez que el motor entrega un árbol nuevo. Se lee del mesh.
+#
+# Solo la banda tobillo-rodilla: más arriba la corteza incluye ramas bajas que salen
+# hacia UN lado, y una cápsula es simétrica — usar ese radio pondría una pared
+# invisible en los otros tres costados.
+const TRUNK_PROBE_H := 0.7
+const TRUNK_RADIUS_FALLBACK := 0.35
+
+var _trunk_radius_cache: Dictionary = {}
+
+
+## Radio de corteza a la altura del cuerpo, en unidades del mesh (sin escalar).
+## Cacheado por escena: son ~5 tipos de árbol, se mide una vez cada uno.
+func _trunk_radius_for(inst: Node3D) -> float:
+	var key: String = inst.scene_file_path
+	if key != "" and _trunk_radius_cache.has(key):
+		return float(_trunk_radius_cache[key])
+
+	var best := 0.0
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for si in range(mi.mesh.get_surface_count()):
+			var mat: Material = mi.mesh.surface_get_material(si)
+			var mat_name := "" if mat == null else mat.resource_name.to_lower()
+			# Las hojas no son algo con lo que uno choque: solo corteza.
+			if not ("bark" in mat_name or "trunk" in mat_name):
+				continue
+			var arrays: Array = mi.mesh.surface_get_arrays(si)
+			if arrays.is_empty() or arrays[Mesh.ARRAY_VERTEX] == null:
+				continue
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			for v in verts:
+				if v.y <= TRUNK_PROBE_H:
+					best = maxf(best, Vector2(v.x, v.z).length())
+
+	var measured := best > 0.0
+	if not measured:
+		best = TRUNK_RADIUS_FALLBACK
+	if key != "":
+		_trunk_radius_cache[key] = best
+		# Una línea por TIPO de árbol, no por instancia. Sin esto, un fallback
+		# silencioso al 0.35 se ve exactamente igual que antes del arreglo.
+		if OS.is_debug_build():
+			print("[trunk] %-42s r=%.3f %s" % [
+				key.get_file(), best, "(medido)" if measured else "(FALLBACK — sin material de corteza)"])
+	return best
+
 
 ## Escala con sesgo de "edad" en vez de uniforme: ~45% jóvenes (chicas),
 ## ~35% medianas, ~20% añosas (grandes). Da los tres grupos visibles y profundidad.
