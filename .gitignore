@@ -69,3 +69,7 @@ game/tools/blender/*/renders/_truth/
 # Per-pack resized texture cache (_cache_resized() output). Derived from the
 # motor's _textures/ library, regenerated on any build, one copy per pack.
 game/tools/blender/*/_tex/
+
+# Salida del probe de shimmer (cientos de PNG por corrida, regenerables).
+# analyze.py y el .gdignore SI se versionan.
+game/tools/godot/shimmer_probe/*/

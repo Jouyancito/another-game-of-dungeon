@@ -113,4 +113,6 @@ toggle_torch={
 [rendering]
 
 anti_aliasing/screen_space_roughness_limiter/enabled=false
+; Foliage shimmer — rationale and measurements: docs/art/_foliage_shimmer.md
+anti_aliasing/quality/use_taa=true
 environment/defaults/default_clear_color=Color(0.08, 0.07, 0.06, 1)
