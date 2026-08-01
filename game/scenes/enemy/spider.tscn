@@ -7,7 +7,7 @@ size = Vector3(0.4, 0.3, 0.45)
 
 [node name="Spider" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 script = ExtResource("1_spider")
 speed = 4.2
 health = 55.0

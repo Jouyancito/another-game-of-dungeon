@@ -390,7 +390,7 @@ func _physics_process(delta: float) -> void:
 	if has_status(&"stun"):
 		velocity.x = 0
 		velocity.z = 0
-		move_and_slide()
+		_move_body()
 		return
 
 	if target == null:
@@ -399,7 +399,7 @@ func _physics_process(delta: float) -> void:
 		_try_acquire_target()
 	if target == null:
 		_idle_behavior(delta)
-		move_and_slide()
+		_move_body()
 		return
 
 	var distance = global_position.distance_to(target.global_position)
@@ -412,7 +412,7 @@ func _physics_process(delta: float) -> void:
 		# ── SKITTISH: huir del jugador en lugar de perseguir ──────────────────
 		if personality == AggroPersonality.SKITTISH:
 			_process_skittish(delta, distance)
-			move_and_slide()
+			_move_body()
 			return
 
 		# ── CURIOUS: acercarse lento, atacar solo si muy cerca o provocado ────
@@ -428,7 +428,7 @@ func _physics_process(delta: float) -> void:
 				velocity.z = 0
 				if (is_provoked or distance <= attack_range) and can_attack and target.has_method("take_damage"):
 					perform_attack()
-			move_and_slide()
+			_move_body()
 			return
 
 		_look_at_target()
@@ -444,11 +444,11 @@ func _physics_process(delta: float) -> void:
 		# ── TERRITORIAL: volver al home cuando el jugador sale del territorio ─
 		if personality == AggroPersonality.TERRITORIAL:
 			_process_territorial_leash(delta)
-			move_and_slide()
+			_move_body()
 			return
 		_idle_behavior(delta)
 
-	move_and_slide()
+	_move_body()
 	# Drive animation state from actual horizontal speed after physics step.
 	if _anim != null and not is_dead:
 		var hspeed := Vector2(velocity.x, velocity.z).length()
@@ -623,6 +623,96 @@ func _should_pursue(distance: float) -> bool:
 func _idle_behavior(_delta: float) -> void:
 	velocity.x = 0
 	velocity.z = 0
+
+
+# ---------------------------------------------------------------------------
+# Separación entre enemigos
+# ---------------------------------------------------------------------------
+# Cada enemigo apunta en línea recta al jugador sin saber que los demás existen,
+# así que una manada converge al mismo punto y se apila (reportado 2026-07-31:
+# 4-5 lobos en el mismo píxel). La colisión dura entre ellos evita el solape pero
+# sola no alcanza: dos CharacterBody3D cinemáticos se bloquean mutuamente y
+# ninguno cede, cambiando el apilamiento por un atasco en fila india. Este empuje
+# los separa ANTES de tocarse, dejando la colisión como red de contención.
+#
+# Vive acá y no en _move_toward_target porque 13 subclases pisan ese método; el
+# único punto por el que pasan todas es move_and_slide().
+
+## Radio de vecindad. Por debajo de esto los enemigos se empujan entre sí.
+@export var separation_radius: float = 1.1
+## Fuerza del empuje en m/s. 0 desactiva la separación para este enemigo.
+@export var separation_strength: float = 2.5
+
+const SEPARATION_MAX_NEIGHBOURS := 8
+
+var _sep_query: PhysicsShapeQueryParameters3D = null
+
+
+## Empuje normalizado que aleja de los enemigos cercanos. Vector3.ZERO si no hay.
+func _separation_push() -> Vector3:
+	if _sep_query == null:
+		var sphere := SphereShape3D.new()
+		sphere.radius = separation_radius
+		_sep_query = PhysicsShapeQueryParameters3D.new()
+		_sep_query.shape = sphere
+		_sep_query.collision_mask = 4  # Solo layer 3 (Enemies)
+		_sep_query.collide_with_areas = false
+		_sep_query.exclude = [get_rid()]
+
+	var world := get_world_3d()
+	if world == null:
+		return Vector3.ZERO
+	# Tipo explícito: inferirlo desde get_world_3d() da "Cannot infer type".
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	if space == null:
+		return Vector3.ZERO
+
+	_sep_query.transform = Transform3D(Basis(), global_position)
+	var hits := space.intersect_shape(_sep_query, SEPARATION_MAX_NEIGHBOURS)
+	var push := Vector3.ZERO
+	for hit in hits:
+		var other := hit.get("collider") as Node3D
+		if other == null:
+			continue
+		var away := global_position - other.global_position
+		away.y = 0.0
+		var dist := away.length()
+		if dist < 0.001:
+			# Spawnearon exactamente encima: sin esto el empuje sería cero y el par
+			# quedaría fundido para siempre. Desvío derivado del id de instancia →
+			# determinista y distinto para cada uno del par.
+			var seed_id := int(get_instance_id())
+			away = Vector3(float(seed_id % 7) - 3.0, 0.0, float((seed_id / 7) % 7) - 3.0)
+			dist = away.length()
+			if dist < 0.001:
+				away = Vector3.RIGHT
+				dist = 1.0
+		# Cada cuerpo cede en proporción a cuánto MÁS pesa el otro. Golem (3.0) vs
+		# avispa (0.1): el golem cede 0.1/3.1 = 3 %, la avispa 97 %. Sin esto un
+		# enjambre desviaba a un golem de piedra, que fue exactamente el reporte.
+		var other_mass_raw: Variant = other.get("mass")
+		var other_mass := float(other_mass_raw) if other_mass_raw != null else 1.0
+		var yield_share := other_mass / maxf(mass + other_mass, 0.001)
+		# Magnitud constante en vez de caída por distancia: intersect_shape compara
+		# FORMA contra FORMA, así que todo lo que devuelve ya está pegado a este
+		# cuerpo. Medir por distancia entre centros daría casi cero contra un golem,
+		# cuyo centro está lejos aunque su costado te esté tocando.
+		push += (away / dist) * yield_share
+	# Rodeado por muchos, la suma no debe convertirse en un cañonazo.
+	if push.length() > 1.0:
+		push = push.normalized()
+	return push
+
+
+## Único punto de movimiento del enemigo. Aplica la separación y luego mueve.
+## Se llama en TODAS las ramas de _physics_process, incluida la de ataque que deja
+## la velocidad en cero — la manada reportada estaba apilada mordiendo, quieta.
+func _move_body() -> void:
+	if separation_strength > 0.0:
+		var push := _separation_push()
+		velocity.x += push.x * separation_strength
+		velocity.z += push.z * separation_strength
+	move_and_slide()
 
 
 ## Movimiento hacia el target — override para movimiento custom (ej: saltos)

@@ -7,7 +7,7 @@ size = Vector3(0.5, 0.4, 0.6)
 
 [node name="GiantMoth" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 script = ExtResource("1_moth")
 speed = 3.4
 health = 70.0
