@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://entrance_capture_001"]
+
+[ext_resource type="Script" path="res://scenes/dev/entrance_capture.gd" id="1_entrancecap"]
+
+[node name="EntranceCapture" type="Node3D"]
+script = ExtResource("1_entrancecap")

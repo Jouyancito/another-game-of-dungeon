@@ -444,6 +444,12 @@ func generate() -> void:
 			pois = poi_system.generate_pois(world_seed, proc_bounds, _is_inside_border)
 		for poi in pois:
 			var p: POISystem.POI = poi as POISystem.POI
+			# La entrada se corrió al vértice de grilla más cercano antes de tallar el
+			# terreno. El POI tiene que seguir ese ajuste o la sala de piedra se
+			# construye a metros del hueco que se excavó para ella.
+			if p.is_entrance and _entrance_anchor_valid:
+				p.position.x = _entrance_anchor.x
+				p.position.z = _entrance_anchor.z
 			p.position.y = get_terrain_height(p.position.x, p.position.z)
 			match p.type:
 				"entrance":   _build_entrance(p)
@@ -479,7 +485,21 @@ func generate() -> void:
 	if active_layers.get("player", true):
 		var player: CharacterBody3D = SCENE_PLAYER.instantiate() as CharacterBody3D
 		add_child(player)
-		player.global_position = entrance_pos + Vector3(0, 2.0, 0)
+		# Dentro de la antesala, no sobre ella: la superficie en el ancla es ahora el
+		# TECHO de la sala, así que el spawn de superficie de antes dejaba al jugador
+		# parado sobre el techo o embutido en la tierra. Se lo pone frente al portal,
+		# mirando hacia el vano del este, para que salga caminando hacia la pradera.
+		var spawned_at_entrance: bool = is_equal_approx(entrance_pos.x, _entrance_anchor.x) \
+			and is_equal_approx(entrance_pos.z, _entrance_anchor.z)
+		if spawned_at_entrance:
+			player.global_position = Vector3(
+				entrance_pos.x - ENTRANCE_HALL_LEN * 0.5 + 3.0,
+				_entrance_floor_y + 1.0,
+				entrance_pos.z)
+			player.rotation.y = -PI * 0.5   # mirando al este, hacia la salida
+		else:
+			# Fallback del centro del mapa (entrada fuera de borde): sin sala, superficie.
+			player.global_position = entrance_pos + Vector3(0, 2.0, 0)
 
 		# 7. HUD — depende del player
 		if active_layers.get("hud", true):
@@ -889,6 +909,12 @@ func _compute_height_at(x: float, z: float) -> float:
 	if dist_center >= flat_radius:
 		h = minf(h, CEILING_HEIGHT - 10.0)
 
+	# Antesala de entrada: va DESPUÉS del clamp de arriba, que es un techo y no un
+	# piso — excavar nunca puede empujar nada contra el techo de la cueva. Y va al
+	# final a propósito: cualquier término aditivo posterior volvería a rellenar la
+	# trinchera que la sala necesita.
+	h = _entrance_shape(x, z, h)
+
 	return h
 
 
@@ -930,7 +956,141 @@ func get_terrain_height(x: float, z: float) -> float:
 	return lerpf(h0, h1, tz)
 
 
+# ── Antesala de entrada: excavación del terreno ───────────────────────────────
+# El jugador emerge desde el subsuelo, así que hace falta un hueco en el terreno
+# ANTES de que se calculen las alturas. Los POI se generan después del terreno, así
+# que la posición de la entrada se adelanta con POISystem.entrance_position() — la
+# MISMA función que después usa el generador de POI, para que el pozo y la sala no
+# puedan terminar en lugares distintos.
+#
+# NO es un pozo: el piso de un pozo ES la superficie, así que todo lo construido
+# dentro queda POR ENCIMA del terreno y no habría tierra sobre la cabeza. Para estar
+# bajo tierra hace falta un túnel metido en la ladera. Entonces se excava solo la
+# TRINCHERA de acceso, que baja desde la pradera hacia el oeste, y la sala se apoya
+# al oeste de su boca, bajo terreno que no se toca.
+#
+# La trinchera es ancha y suave a la fuerza: con TERRAIN_RESOLUTION=96 sobre 600 m
+# hay un vértice cada 6.25 m, y una zanja angosta simplemente no cae sobre vértices.
+# Las aristas las pone la geometría de piedra de _build_entrance().
+const ENTRANCE_DEPTH: float = 7.0        # metros bajo pradera en la boca
+const ENTRANCE_TRENCH_RUN: float = 32.0   # largo total hacia el este
+const ENTRANCE_TRENCH_FLAT: float = 12.0  # fondo plano frente al vano (>> 6.25 m de grilla)
+const ENTRANCE_TRENCH_HALF_W: float = 13.0
+const ENTRANCE_TRENCH_FLAT_W: float = 6.0 # mitad del ancho a profundidad completa
+const ENTRANCE_HALL_LEN: float = 16.0    # profundidad de la sala hacia el oeste
+const ENTRANCE_HALL_HALF_W: float = 7.0
+const ENTRANCE_HALL_H: float = 4.5       # 2.5x la altura del jugador
+
+var _entrance_anchor: Vector3 = Vector3.ZERO
+var _entrance_anchor_valid: bool = false
+## Cota del piso de la sala. Se fija ANTES de tallar, leyendo el terreno natural en
+## el ancla, y después la usan el tallado, la geometría y el spawn — un solo número
+## para los tres, o el piso de piedra y el fondo de la trinchera no coinciden.
+var _entrance_floor_y: float = 0.0
+var _terrain_material: Material = null
+
+
+## Altura del terreno SIN la excavación de la antesala.
+##
+## La loma tiene que reconstruir la superficie original sobre la sala, y el mapa de
+## alturas real está excavado justamente para que no se meta adentro del cuarto.
+func _natural_height_at(x: float, z: float) -> float:
+	var was: bool = _entrance_anchor_valid
+	_entrance_anchor_valid = false
+	var h: float = _compute_height_at(x, z)
+	_entrance_anchor_valid = was
+	return h
+
+
+## Boca del túnel: donde la trinchera se encuentra con la fachada de piedra.
+## La sala va al OESTE de este punto, el cielo abierto al ESTE.
+func _entrance_mouth() -> Vector3:
+	return _entrance_anchor + Vector3(ENTRANCE_HALL_LEN * 0.5, 0.0, 0.0)
+
+
+## ¿Cae (x,z) dentro de la antesala o de su trinchera?
+##
+## El scatter descarta posiciones por distancia al CENTRO del POI, y al pasto se le
+## pidieron 7 m de despeje contra una sala que mide 8 m desde el centro: los matojos
+## aparecían DENTRO de la habitación y clavados en los muros. Un radio no describe
+## una sala rectangular con un corredor pegado; esto sí.
+func _inside_entrance_footprint(x: float, z: float) -> bool:
+	if not _entrance_anchor_valid:
+		return false
+	var mouth: Vector3 = _entrance_mouth()
+	var west: float = _entrance_anchor.x - ENTRANCE_HALL_LEN * 0.5 - 2.0
+	var east: float = mouth.x + ENTRANCE_TRENCH_RUN
+	if x < west or x > east:
+		return false
+	# La trinchera es más ancha que la sala: cada tramo usa su propio semiancho.
+	var half_w: float = ENTRANCE_TRENCH_HALF_W if x > mouth.x else ENTRANCE_HALL_HALF_W + 2.0
+	return absf(z - mouth.z) <= half_w
+
+
+## Talla la trinchera de acceso: devuelve la altura corregida en (x,z).
+##
+## Talla hacia una COTA OBJETIVO (el piso de la sala) en vez de restar una cantidad
+## fija. La diferencia no es cosmética: acá el terreno natural ya baja unos 7.5 m
+## hacia el este, así que restar una profundidad constante cavaba cuesta abajo y
+## dejaba el vano de la puerta enterrado casi un metro. Contra una cota objetivo, la
+## excavación se adapta sola a la pendiente que le toque a cada semilla.
+func _entrance_shape(x: float, z: float, h: float) -> float:
+	if not _entrance_anchor_valid:
+		return h
+	var mouth: Vector3 = _entrance_mouth()
+	var along: float = x - mouth.x
+	# La excavación cubre TAMBIÉN la huella de la sala, hacia el oeste. La versión
+	# anterior cortaba en seco en la boca para dejar tierra sobre el techo, y el
+	# vértice de al lado quedaba a altura de pradera: el terreno interpolaba en recta
+	# entre ese vértice alto y el fondo de la boca, y ese plano diagonal cruzaba por
+	# DENTRO de la habitación (reportado 2026-08-01, el jugador chocaba con la ladera
+	# adentro de la sala). Con 6.25 m entre vértices la transición no puede caer
+	# dentro de un cuarto de 16 m: se la empuja fuera de la huella construida, y la
+	# tierra sobre el techo pasa a ser geometría, no terreno.
+	if along < -(ENTRANCE_HALL_LEN + 4.0) or along > ENTRANCE_TRENCH_RUN:
+		return h
+	var lateral: float = absf(z - mouth.z)
+	if lateral >= ENTRANCE_TRENCH_HALF_W:
+		return h
+	# Al oeste de la boca la profundidad es plena y constante: es el piso de la sala.
+	if along <= 0.0:
+		return minf(h, _entrance_floor_y - 0.3)
+	# smoothstep en los dos ejes: una caída lineal deja un pliegue visible justo
+	# donde el jugador sale caminando.
+	# Meseta antes de la rampa. Sin ella el peso solo vale 1 en el punto exacto de la
+	# boca, y con un vértice cada 6.25 m ese punto casi nunca cae sobre uno: la
+	# interpolación dejaba el vano enterrado 2 m aunque la fórmula fuera correcta.
+	# Un fondo plano garantiza varios vértices a profundidad completa.
+	var u: float = smoothstep(ENTRANCE_TRENCH_FLAT, ENTRANCE_TRENCH_RUN, along)
+	var v: float = smoothstep(ENTRANCE_TRENCH_FLAT_W, ENTRANCE_TRENCH_HALF_W, lateral)
+	var weight: float = (1.0 - u) * (1.0 - v)
+	if weight <= 0.0:
+		return h
+	# minf: donde el terreno natural YA está por debajo del objetivo, no se rellena.
+	# Excavar nunca debe levantar tierra.
+	return lerpf(h, minf(h, _entrance_floor_y - 0.3), weight)
+
+
 func _generate_terrain_mesh() -> void:
+	# Dos fases, y el orden importa: la cota del piso se lee del terreno NATURAL en el
+	# ancla, así que hay que medir con el tallado apagado. Si se midiera con el
+	# tallado ya activo, la excavación se alimentaría de sí misma.
+	_entrance_anchor = POISystem.entrance_position(
+		world_seed, proc_bounds, Callable(self, "_is_inside_border"))
+	# La BOCA se alinea a un vértice del terreno. El tallado se corta en seco al oeste
+	# de la boca (esa tierra es el techo de la sala), así que el vértice de al lado
+	# queda a altura de pradera; si la boca cae ENTRE dos vértices, la interpolación
+	# contra ese vecino alto deja el vano enterrado ~1.8 m aunque el tallado esté
+	# perfecto. Sobre un vértice, la cota del vano es la tallada, sin promediar.
+	var grid_step: float = proc_bounds.x / float(TERRAIN_RESOLUTION)
+	var grid_half: float = proc_bounds.x * 0.5
+	var mouth_x: float = _entrance_anchor.x + ENTRANCE_HALL_LEN * 0.5
+	mouth_x = -grid_half + roundf((mouth_x + grid_half) / grid_step) * grid_step
+	_entrance_anchor.x = mouth_x - ENTRANCE_HALL_LEN * 0.5
+	_entrance_anchor.z = -grid_half + roundf((_entrance_anchor.z + grid_half) / grid_step) * grid_step
+	_entrance_anchor_valid = false
+	_entrance_floor_y = _compute_height_at(_entrance_anchor.x, _entrance_anchor.z) - ENTRANCE_DEPTH
+	_entrance_anchor_valid = true
 	_precompute_terrain_heights()
 
 	var st: SurfaceTool = SurfaceTool.new()
@@ -1028,6 +1188,10 @@ func _generate_terrain_mesh() -> void:
 	# above). Triplanar was removed here because it only applies to the base albedo
 	# channel (which uses vertex colors, so scale is irrelevant there too).
 	# UV0 world-scale is set in the vertex loop: uv_scale=0.22 → ~4.5m tile.
+
+	# Lo guarda la loma de la antesala: es geometría aparte que tiene que leerse como
+	# la MISMA tierra, o se ve como un parche pegado sobre el pasto.
+	_terrain_material = mat
 
 	var terrain_mi := MeshInstance3D.new()
 	terrain_mi.name = "TerrainMesh"
@@ -1743,30 +1907,113 @@ func _find_entrance_pos(pois: Array) -> Vector3:
 			return p.position
 	return Vector3.ZERO
 
+## Antesala de entrada — el jugador emerge del subsuelo hacia la pradera.
+##
+## Reemplaza la losa decorativa de 30x30 y 4 cm que había acá, que no tenía
+## colisión (se atravesaba) y era plana sobre terreno inclinado, así que un borde
+## flotaba y el otro se enterraba.
+##
+## Canon (_world_canon.md:81): "cada piso es portal dimensional... el piso ES otra
+## capa de realidad que la torre CONECTA". No hay distancia física hasta la ciudad,
+## así que el pasillo NO va a la ciudad: el portal está al fondo de la sala y ES la
+## conexión. Se emerge desde abajo igual, y el canon queda intacto.
+##
+## Dimensiones contra el maniquí de 1.80 m: sala de 4.5 m de alto (2.5 jugadores),
+## vano de 3.5 m y 6 m de ancho (pasan seis de frente), 1.5 m de tierra sobre el
+## techo.
 func _build_entrance(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
-	var sz: Vector2 = poi.size
+	# Misma cota que usó el tallado del terreno. Recalcularla acá a partir de pos.y
+	# sería una segunda fuente de verdad, y bastaría un metro de diferencia para que
+	# el piso de piedra quedara flotando sobre el fondo de la trinchera.
+	var floor_y: float = _entrance_floor_y
+	var half_l: float = ENTRANCE_HALL_LEN * 0.5
+	var half_w: float = ENTRANCE_HALL_HALF_W
+	var h: float = ENTRANCE_HALL_H
+	var t: float = 1.0                    # espesor de muro/losa
+	var door_w: float = 6.0
+	var door_h: float = 3.5
 
-	_add_csg_box("EntranceGround", pos + Vector3(0, 0.02, 0),
-		Vector3(sz.x, 0.04, sz.y), COLOR_PATH, false)
+	# ── Caja de la sala ────────────────────────────────────────────────────────
+	_add_cave_csg_box("EntranceFloor",
+		Vector3(pos.x, floor_y - t * 0.5, pos.z),
+		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_ROCK, true)
+
+	_add_cave_csg_box("EntranceRoof",
+		Vector3(pos.x, floor_y + h + t * 0.5, pos.z),
+		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_ROCK, true)
 
 	for side in [-1.0, 1.0]:
-		# Round-A #1: entrance stones use cave material (worked stone blocks)
-		_add_cave_csg_box("EntranceStone%s" % ("N" if side < 0 else "S"),
-			pos + Vector3(0, 0.6, side * sz.y * 0.5),
-			Vector3(sz.x * 0.8, 1.2, 0.8), COLOR_ROCK, true)
+		_add_cave_csg_box("EntranceWall%s" % ("N" if side < 0 else "S"),
+			Vector3(pos.x, floor_y + h * 0.5, pos.z + side * (half_w + t * 0.5)),
+			Vector3(ENTRANCE_HALL_LEN + t * 2.0, h, t), COLOR_ROCK, true)
 
+	_add_cave_csg_box("EntranceWallW",
+		Vector3(pos.x - half_l - t * 0.5, floor_y + h * 0.5, pos.z),
+		Vector3(t, h, half_w * 2.0), COLOR_ROCK, true)
+
+	# ── Fachada este: dos jambas dejando el vano, más el dintel ────────────────
+	var jamb_w: float = half_w - door_w * 0.5
 	for side in [-1.0, 1.0]:
-		var pillar: CSGCylinder3D = CSGCylinder3D.new()
-		pillar.name = "EntrancePillar%s" % ("L" if side < 0 else "R")
-		pillar.radius = 0.5
-		pillar.height = 4.0
-		pillar.sides = 8
-		pillar.use_collision = true
-		# Round-A #1: entrance pillars use cave material (worked stone)
-		pillar.material_override = _make_cave_material(COLOR_ROCK)
-		pillar.position = pos + Vector3(sz.x * 0.4 * side, 2.0, -sz.y * 0.5)
-		add_child(pillar)
+		_add_cave_csg_box("EntranceJamb%s" % ("N" if side < 0 else "S"),
+			Vector3(pos.x + half_l + t * 0.5, floor_y + h * 0.5,
+				pos.z + side * (door_w * 0.5 + jamb_w * 0.5)),
+			Vector3(t, h, jamb_w), COLOR_ROCK, true)
+	_add_cave_csg_box("EntranceLintel",
+		Vector3(pos.x + half_l + t * 0.5, floor_y + door_h + (h - door_h) * 0.5, pos.z),
+		Vector3(t, h - door_h, door_w), COLOR_ROCK, true)
+
+	# ── Portal al fondo: la conexión con la Ciudad de la Torre ────────────────
+	var portal: CSGBox3D = CSGBox3D.new()
+	portal.name = "EntrancePortal"
+	portal.size = Vector3(0.3, 3.4, 4.6)
+	portal.position = Vector3(pos.x - half_l + 0.2, floor_y + 1.7, pos.z)
+	var pmat: StandardMaterial3D = StandardMaterial3D.new()
+	# Energía baja a propósito: a 2.2 el portal se quemaba a blanco puro y perdía la
+	# forma — leías un fogonazo, no una puerta. La sensación de "está encendido" la
+	# da la luz que tira sobre la piedra, no el brillo del panel.
+	pmat.albedo_color = Color(0.16, 0.34, 0.58)
+	pmat.emission_enabled = true
+	pmat.emission = Color(0.30, 0.56, 0.85)
+	pmat.emission_energy_multiplier = 0.85
+	portal.material_override = pmat
+	add_child(portal)
+
+	var plight: OmniLight3D = OmniLight3D.new()
+	plight.name = "EntrancePortalLight"
+	plight.light_color = Color(0.55, 0.78, 1.0)
+	plight.light_energy = 3.2
+	plight.omni_range = 20.0
+	plight.position = Vector3(pos.x - half_l + 1.6, floor_y + 2.2, pos.z)
+	add_child(plight)
+
+	# Sin esto la sala es una caja negra: el jugador aparece adentro y no ve nada.
+	for side in [-1.0, 1.0]:
+		var lamp: OmniLight3D = OmniLight3D.new()
+		lamp.name = "EntranceLamp%s" % ("N" if side < 0 else "S")
+		lamp.light_color = Color(1.0, 0.86, 0.62)
+		lamp.light_energy = 1.5
+		lamp.omni_range = 13.0
+		lamp.position = Vector3(pos.x + half_l * 0.35, floor_y + h - 1.0, pos.z + side * (half_w - 1.5))
+		add_child(lamp)
+
+	# ── Pavimento de la trinchera ─────────────────────────────────────────────
+	# El terreno excavado YA es la rampa por la que se camina (la pendiente media
+	# ronda los 15 grados, muy por debajo del floor_max_angle de 45). Estas losas
+	# son revestimiento, sin colisión: cada una lee la altura real del terreno en su
+	# centro, así que siguen la curva smoothstep en vez de cortarla como haría una
+	# rampa recta.
+	_build_entrance_mound()
+
+	var mouth: Vector3 = _entrance_mouth()
+	var slabs: int = 9
+	var slab_len: float = ENTRANCE_TRENCH_RUN / float(slabs)
+	for i in range(slabs):
+		var cx: float = mouth.x + (float(i) + 0.5) * slab_len
+		var cy: float = get_terrain_height(cx, mouth.z)
+		_add_cave_csg_box("EntrancePaving%02d" % i,
+			Vector3(cx, cy + 0.04, mouth.z),
+			Vector3(slab_len * 0.94, 0.25, door_w + 1.0), COLOR_ROCK, false)
 
 func _build_ruins(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
@@ -3335,6 +3582,16 @@ void fragment() {
 					_rng.randf_range(0.8, 1.2)     # s
 					_rng.randi()   # variant
 					continue
+			# Igual que el canal del arroyo: nada de pasto dentro de la antesala ni de
+			# su trinchera. La alfombra siembra por ruido sobre todo el mapa sin mirar
+			# los POI, así que los matojos brotaban DENTRO de la sala y clavados en los
+			# muros. Se consumen los mismos sorteos que si la hoja se hubiera colocado.
+			if _inside_entrance_footprint(x, z):
+				_rng.randf()                   # rot_y
+				_rng.randf_range(-0.17, 0.17)  # tilt
+				_rng.randf_range(0.8, 1.2)     # s
+				_rng.randi()                   # variant
+				continue
 			var y: float = get_terrain_height(x, z)
 			# Random Y rotation + slight scale variation (0.8–1.2)
 			var rot_y: float = _rng.randf() * TAU
@@ -3842,6 +4099,111 @@ func _trunk_radius_for(inst: Node3D) -> float:
 	return best
 
 
+# ── Loma de tierra sobre la antesala ──────────────────────────────────────────
+# El mapa de alturas está excavado bajo toda la sala, y tiene que estarlo: con un
+# vértice cada 6.25 m, cualquier transición del terreno cae DENTRO de una
+# habitación de 16 m y la atraviesa en diagonal (el jugador chocaba con la ladera
+# adentro del cuarto, 2026-08-01). Pero excavar así deja el cuarto al aire y se lee
+# como un galpón apoyado en el pasto.
+#
+# La tierra sobre el techo pasa entonces a ser GEOMETRÍA. Una malla puede cortar en
+# seco contra la fachada, que es exactamente lo único que la grilla no sabe hacer:
+# reconstruye la superficie original sobre la sala y se detiene a filo en la boca,
+# dejando el vano de piedra a la vista y el corredor abierto al cielo.
+const MOUND_STEP: float = 1.5      # muestreo de la malla — 4x más fino que el terreno
+const MOUND_SKIRT: float = 6.0     # solape con el terreno real, para que no se vea la junta
+const MOUND_FLARE: float = 4.5     # ancho del talud a los costados del corredor
+
+
+func _build_entrance_mound() -> void:
+	if not _entrance_anchor_valid:
+		return
+	var mouth: Vector3 = _entrance_mouth()
+	var notch_half: float = ENTRANCE_HALL_HALF_W + 1.0   # coincide con el ancho de la fachada
+	var x0: float = _entrance_anchor.x - ENTRANCE_HALL_LEN * 0.5 - ENTRANCE_TRENCH_HALF_W - MOUND_SKIRT
+	var x1: float = mouth.x + ENTRANCE_TRENCH_RUN + MOUND_SKIRT
+	var z0: float = mouth.z - ENTRANCE_TRENCH_HALF_W - MOUND_SKIRT
+	var z1: float = mouth.z + ENTRANCE_TRENCH_HALF_W + MOUND_SKIRT
+
+	# Costura en la cara EXTERIOR de la fachada. La malla se construye en dos tramos
+	# que se tocan ahí y ninguna celda la cruza: con una grilla continua, la celda a
+	# caballo del filo interpolaba de 26.6 a 19.4 en 1.5 m y dejaba una rampa de
+	# tierra SÓLIDA parada dentro del vano — no se podía salir caminando, y al saltar
+	# el jugador quedaba embutido en ella (reportado 2026-08-01).
+	var seam_x: float = mouth.x + 1.0
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_mound_strip(st, x0, seam_x, z0, z1, seam_x, mouth, notch_half)
+	_mound_strip(st, seam_x, x1, z0, z1, seam_x, mouth, notch_half)
+	st.generate_normals()
+	var mesh: ArrayMesh = st.commit()
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceMound"
+	mi.mesh = mesh
+	mi.material_override = _terrain_material
+	add_child(mi)
+
+	# Con colisión: sin esto se camina por debajo, sobre el piso excavado, y la loma
+	# queda como una nube de tierra flotando.
+	var body := StaticBody3D.new()
+	body.name = "EntranceMoundBody"
+	add_child(body)
+	var col := CollisionShape3D.new()
+	var shape := ConcavePolygonShape3D.new()
+	shape.data = mesh.get_faces()
+	col.shape = shape
+	body.add_child(col)
+
+
+## Un tramo de la loma. Los extremos en x caen EXACTOS, así que dos tramos vecinos
+## comparten el plano de la costura sin que ninguna celda lo cruce.
+func _mound_strip(st: SurfaceTool, xa: float, xb: float, za: float, zb: float,
+		seam_x: float, mouth: Vector3, notch_half: float) -> void:
+	var nx: int = maxi(1, int(ceilf((xb - xa) / MOUND_STEP)))
+	var nz: int = maxi(1, int(ceilf((zb - za) / MOUND_STEP)))
+	var dx: float = (xb - xa) / float(nx)
+	var dz: float = (zb - za) / float(nz)
+	for ix in range(nx):
+		for iz in range(nz):
+			var ax: float = xa + float(ix) * dx
+			var bx: float = xa + float(ix + 1) * dx
+			var az: float = za + float(iz) * dz
+			var bz: float = za + float(iz + 1) * dz
+			var v00 := Vector3(ax, _mound_height(ax, az, seam_x, mouth, notch_half), az)
+			var v10 := Vector3(bx, _mound_height(bx, az, seam_x, mouth, notch_half), az)
+			var v01 := Vector3(ax, _mound_height(ax, bz, seam_x, mouth, notch_half), bz)
+			var v11 := Vector3(bx, _mound_height(bx, bz, seam_x, mouth, notch_half), bz)
+			for v in [v00, v10, v11, v00, v11, v01]:
+				st.set_color(_height_to_color(v.y))
+				st.set_uv(Vector2(v.x, v.z) * 0.22)   # misma escala UV que el terreno
+				st.add_vertex(v)
+
+
+## Superficie de la loma en (x,z).
+##
+## Al OESTE de la costura es la superficie original: tierra maciza sobre la sala.
+## Al ESTE sigue el terreno excavado dentro del corredor y vuelve a subir a los
+## costados, formando los taludes. La discontinuidad en la costura es deliberada —
+## es el corte de la ladera donde se apoya la fachada de piedra.
+func _mound_height(x: float, z: float, seam_x: float, mouth: Vector3, notch_half: float) -> float:
+	var natural: float = _natural_height_at(x, z)
+	if x <= seam_x:
+		return natural
+	var carved: float = _compute_height_at(x, z)
+	# El corredor arranca del ancho EXACTO del vano y se abre hacia afuera. Si el
+	# talud empezara más ancho que la fachada, el escalón de la costura asomaría al
+	# costado de la piedra en vez de quedar tapado por ella.
+	var t: float = clampf((x - seam_x) / ENTRANCE_TRENCH_RUN, 0.0, 1.0)
+	# Arranca del ancho de la FACHADA, no del vano: si arranca del vano, los taludes
+	# suben delante de las jambas y esconden la piedra — se lee un agujero en la
+	# tierra en vez de una entrada construida.
+	var inner: float = lerpf(notch_half, ENTRANCE_TRENCH_HALF_W - 2.0, t)
+	var flare: float = smoothstep(inner, inner + MOUND_FLARE, absf(z - mouth.z))
+	return lerpf(carved, natural, flare)
+
+
 ## Escala con sesgo de "edad" en vez de uniforme: ~45% jóvenes (chicas),
 ## ~35% medianas, ~20% añosas (grandes). Da los tres grupos visibles y profundidad.
 func _age_scale(smin: float, smax: float) -> float:
@@ -3858,6 +4220,13 @@ func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 		var dist: float = _rng.randf_range(20.0 * _scale, _border_radius_base - 30.0 * _scale)
 		var candidate: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 		if not _is_inside_border(candidate):
+			continue
+		# La antesala es un rectángulo largo con un corredor pegado; el descarte por
+		# POI de abajo usa la caja de 30x30 del catálogo y deja crecer árboles sobre
+		# el tramo final de la trinchera. Descartar acá y no en _place_instance
+		# preserva la secuencia del RNG: "no encontré lugar" ya es un final previsto
+		# de esta función.
+		if _inside_entrance_footprint(candidate.x, candidate.z):
 			continue
 		var valid: bool = true
 		for poi in pois:
