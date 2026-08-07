@@ -209,6 +209,8 @@ const COLOR_CRYSTAL_ROSE: Color = Color(0.69, 0.44, 1.0)   # violeta #B06FFF
 const COLOR_PILLAR: Color      = Color(0.400, 0.380, 0.340)  # stone pillar (already muted)
 const COLOR_WATER: Color       = Color(0.2, 0.4, 0.6, 0.6)
 const COLOR_ALTAR: Color       = Color(0.635, 0.603, 0.548)  # stone altar, -25% sat
+const COLOR_TIMBER: Color      = Color(0.318, 0.216, 0.129)  # pit prop, rough-sawn
+const COLOR_TIMBER_DARK: Color = Color(0.224, 0.149, 0.090)  # lagging planks, in shadow
 const COLOR_GIANT_TRUNK: Color = Color(0.270, 0.210, 0.155)  # old bark, -26% sat
 const COLOR_GIANT_CANOPY: Color = Color(0.172, 0.262, 0.136)  # dense canopy, -27% sat
 
@@ -297,6 +299,7 @@ var _baseline_children: Array[Node] = []
 ## (and therefore one NoiseTexture2D pair) instead of allocating a new one per CSG node.
 ## Reset in regenerate() to avoid holding stale materials across reseeds.
 var _cave_mat_cache: Dictionary = {}
+var _timber_mat_cache: Dictionary = {}
 
 ## Task 3 (2026-07-20): the single CrystalCeiling instance for this floor — either
 ## the one declared in floor1_prairie.tscn (the real 600m demo map) or one
@@ -542,6 +545,7 @@ func regenerate(new_seed: int = -1) -> void:
 	_tree_positions.clear()
 	# Reset cave material cache — new generation allocates fresh materials.
 	_cave_mat_cache.clear()
+	_timber_mat_cache.clear()
 	# Reset stream polylines — rebuilt by _setup_terrain_noise() → _build_stream_polylines().
 	_stream_polylines.clear()
 	# queue_free es diferido: esperar un frame para que el árbol quede limpio
@@ -1935,33 +1939,118 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	var door_h: float = 3.5
 
 	# ── Caja de la sala ────────────────────────────────────────────────────────
+	# COLOR_BORDER, no COLOR_ROCK: el gris neutro 0.502 es exactamente lo que se leía
+	# como hormigón (reportado 2026-08-01). La piedra de caverna ya existe en la
+	# paleta, es más cálida y más oscura, y hace juego con el borde del mapa.
 	_add_cave_csg_box("EntranceFloor",
 		Vector3(pos.x, floor_y - t * 0.5, pos.z),
-		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_ROCK, true)
+		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
 
 	_add_cave_csg_box("EntranceRoof",
 		Vector3(pos.x, floor_y + h + t * 0.5, pos.z),
-		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_ROCK, true)
+		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
 
 	for side in [-1.0, 1.0]:
 		_add_cave_csg_box("EntranceWall%s" % ("N" if side < 0 else "S"),
 			Vector3(pos.x, floor_y + h * 0.5, pos.z + side * (half_w + t * 0.5)),
-			Vector3(ENTRANCE_HALL_LEN + t * 2.0, h, t), COLOR_ROCK, true)
+			Vector3(ENTRANCE_HALL_LEN + t * 2.0, h, t), COLOR_BORDER, true)
 
 	_add_cave_csg_box("EntranceWallW",
 		Vector3(pos.x - half_l - t * 0.5, floor_y + h * 0.5, pos.z),
-		Vector3(t, h, half_w * 2.0), COLOR_ROCK, true)
+		Vector3(t, h, half_w * 2.0), COLOR_BORDER, true)
+
+	# ── Marcos de mina adentro ────────────────────────────────────────────────
+	# Sin esto la sala vuelve a ser una caja lisa: la roca sola no tiene escala, y
+	# 16 m de pared plana se leen igual de largos que 5. Los marcos repetidos son
+	# lo que da el ritmo y dice de una que esto es una galería apuntalada.
+	var set_post: float = 0.55
+	var set_h: float = h - 0.45
+	for i in range(3):
+		var sx: float = pos.x + (float(i) - 1.0) * 5.0
+		for side in [-1.0, 1.0]:
+			_add_timber_box("EntranceSetPost%d%s" % [i, "N" if side < 0 else "S"],
+				Vector3(sx, floor_y + set_h * 0.5, pos.z + side * (half_w - set_post * 0.5 - 0.05)),
+				Vector3(set_post, set_h, set_post), COLOR_TIMBER, true)
+		_add_timber_box("EntranceSetCap%d" % i,
+			Vector3(sx, floor_y + set_h + 0.22, pos.z),
+			Vector3(set_post, 0.45, half_w * 2.0), COLOR_TIMBER, false)
 
 	# ── Fachada este: dos jambas dejando el vano, más el dintel ────────────────
+	# La estructura que tapa (jambas + dintel) es tablonería, no piedra: esto es un
+	# socavón de mina, y lo que sostiene la tierra a los costados del vano son tablas
+	# horizontales trabadas contra los postes, no un muro labrado.
+	var x_face: float = pos.x + half_l + t * 0.5
 	var jamb_w: float = half_w - door_w * 0.5
 	for side in [-1.0, 1.0]:
-		_add_cave_csg_box("EntranceJamb%s" % ("N" if side < 0 else "S"),
-			Vector3(pos.x + half_l + t * 0.5, floor_y + h * 0.5,
+		_add_timber_box("EntranceJamb%s" % ("N" if side < 0 else "S"),
+			Vector3(x_face, floor_y + h * 0.5,
 				pos.z + side * (door_w * 0.5 + jamb_w * 0.5)),
-			Vector3(t, h, jamb_w), COLOR_ROCK, true)
-	_add_cave_csg_box("EntranceLintel",
-		Vector3(pos.x + half_l + t * 0.5, floor_y + door_h + (h - door_h) * 0.5, pos.z),
-		Vector3(t, h - door_h, door_w), COLOR_ROCK, true)
+			Vector3(t, h, jamb_w), COLOR_TIMBER_DARK, true)
+	_add_timber_box("EntranceLintelFill",
+		Vector3(x_face, floor_y + door_h + (h - door_h) * 0.5, pos.z),
+		Vector3(t, h - door_h, door_w), COLOR_TIMBER_DARK, true)
+
+	# ── Entibado: el marco de mina que se lee en silueta ──────────────────────
+	# El marco NO va pegado a la fachada. La costura de la loma cae en mouth.x + 1.0
+	# y al oeste de ahí hay tierra maciza hasta la superficie: un poste plantado en
+	# la cara de piedra queda literalmente ENTERRADO, y desde el camino la entrada
+	# vuelve a leerse como una ranura negra bajo una tapa de madera (medido con el
+	# harness, 2026-08-07). Va parado en la trinchera abierta, al este de la costura,
+	# como el castillete de una bocamina: el marco adelante, el socavón detrás.
+	var x_frame: float = x_face + 1.6
+	var post_side: float = 0.75
+	# Más alto que el vano a propósito. Si el marco termina a la altura de la puerta
+	# queda debajo del alero de tierra y no se recorta contra nada; sobresaliendo,
+	# se ve el travesaño contra el cielo desde el otro lado de la pradera.
+	var post_h: float = door_h + 1.8
+	var post_z: float = door_w * 0.5 + post_side * 0.5 + 0.1
+	for side in [-1.0, 1.0]:
+		_add_timber_box("EntrancePost%s" % ("N" if side < 0 else "S"),
+			Vector3(x_frame, floor_y + post_h * 0.5, pos.z + side * post_z),
+			Vector3(post_side, post_h, post_side), COLOR_TIMBER, true)
+
+		# Tornapunta: sin ella el marco es una U y se lee como utilería. El ángulo
+		# es lo que dice "esto está aguantando peso".
+		var brace: CSGBox3D = _add_timber_box("EntranceBrace%s" % ("N" if side < 0 else "S"),
+			Vector3(x_frame, floor_y + post_h - 1.25, pos.z + side * (post_z - 0.62)),
+			Vector3(0.42, 1.9, 0.36), COLOR_TIMBER, false)
+		brace.rotation.x = -side * deg_to_rad(38.0)
+
+	# Viga cabecera, apoyada sobre los postes y volando un poco a cada lado.
+	_add_timber_box("EntranceHeadBeam",
+		Vector3(x_frame, floor_y + post_h + 0.4, pos.z),
+		Vector3(0.95, 0.8, door_w + 2.9), COLOR_TIMBER, true)
+
+	# Umbral: marca dónde termina la trinchera y empieza el piso construido.
+	_add_timber_box("EntranceSill",
+		Vector3(x_face + 0.5, floor_y + 0.12, pos.z),
+		Vector3(1.1, 0.24, door_w + 1.4), COLOR_TIMBER_DARK, false)
+
+	# ── Faroles del vano ──────────────────────────────────────────────────────
+	# Sin luz acá afuera la entrada entera se lee como una mancha negra bajo la
+	# loma: la madera está construida pero no se ve, y desde el camino sigue sin
+	# leerse por dónde entrar. Dos faroles colgados de los postes hacen las dos
+	# cosas a la vez — recortan el entibado y dicen "acá hay alguien" desde lejos.
+	for side in [-1.0, 1.0]:
+		var lantern_pos: Vector3 = Vector3(
+			x_frame + 0.6, floor_y + post_h - 1.0, pos.z + side * (post_z + 0.15))
+
+		var lamp_body: CSGBox3D = _add_timber_box("EntranceLantern%s" % ("N" if side < 0 else "S"),
+			lantern_pos, Vector3(0.34, 0.42, 0.34), COLOR_TIMBER_DARK, false)
+		var glow: StandardMaterial3D = StandardMaterial3D.new()
+		glow.albedo_color = Color(0.85, 0.62, 0.30)
+		glow.emission_enabled = true
+		glow.emission = Color(1.0, 0.72, 0.36)
+		glow.emission_energy_multiplier = 1.6
+		lamp_body.material_override = glow
+
+		var lantern: OmniLight3D = OmniLight3D.new()
+		lantern.name = "EntranceLanternLight%s" % ("N" if side < 0 else "S")
+		lantern.light_color = Color(1.0, 0.80, 0.55)
+		lantern.light_energy = 4.0
+		lantern.omni_range = 16.0
+		lantern.position = lantern_pos
+		add_child(lantern)
 
 	# ── Portal al fondo: la conexión con la Ciudad de la Torre ────────────────
 	var portal: CSGBox3D = CSGBox3D.new()
@@ -2006,14 +2095,23 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	_build_entrance_mound()
 
 	var mouth: Vector3 = _entrance_mouth()
-	var slabs: int = 9
+	var slabs: int = 14
 	var slab_len: float = ENTRANCE_TRENCH_RUN / float(slabs)
 	for i in range(slabs):
 		var cx: float = mouth.x + (float(i) + 0.5) * slab_len
 		var cy: float = get_terrain_height(cx, mouth.z)
+		# COLOR_BORDER y losas casi tocándose: en COLOR_ROCK con 6% de junta, esto se
+		# leía como una cinta de baldosas blancas flotando sobre el pasto — el objeto
+		# más brillante de toda la escena, y encima discontinuo (reportado 2026-08-01).
+		# Losas SOLAPADAS (x1.2), no juntas ni hundidas. Cada una lee la altura del
+		# terreno en su centro, y entre dos centros el terreno sube: con las losas
+		# a tope el pasto asoma por la junta, y hundirlas lo empeora — abre cuñas de
+		# pasto entre losa y losa (medido con el harness, 2026-08-07). Solapándolas
+		# no queda junta por donde asomar. Más losas y más cortas, además, siguen
+		# mejor la curva de la trinchera.
 		_add_cave_csg_box("EntrancePaving%02d" % i,
-			Vector3(cx, cy + 0.04, mouth.z),
-			Vector3(slab_len * 0.94, 0.25, door_w + 1.0), COLOR_ROCK, false)
+			Vector3(cx, cy + 0.10, mouth.z),
+			Vector3(slab_len * 1.2, 0.5, door_w + 1.0), COLOR_BORDER, false)
 
 func _build_ruins(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
@@ -4113,6 +4211,7 @@ func _trunk_radius_for(inst: Node3D) -> float:
 const MOUND_STEP: float = 1.5      # muestreo de la malla — 4x más fino que el terreno
 const MOUND_SKIRT: float = 6.0     # solape con el terreno real, para que no se vea la junta
 const MOUND_FLARE: float = 4.5     # ancho del talud a los costados del corredor
+const ENTRANCE_THROAT_FRAC: float = 0.18  # tramo recto pegado a la fachada, en fracción del run
 
 
 func _build_entrance_mound() -> void:
@@ -4196,11 +4295,20 @@ func _mound_height(x: float, z: float, seam_x: float, mouth: Vector3, notch_half
 	# talud empezara más ancho que la fachada, el escalón de la costura asomaría al
 	# costado de la piedra en vez de quedar tapado por ella.
 	var t: float = clampf((x - seam_x) / ENTRANCE_TRENCH_RUN, 0.0, 1.0)
-	# Arranca del ancho de la FACHADA, no del vano: si arranca del vano, los taludes
-	# suben delante de las jambas y esconden la piedra — se lee un agujero en la
-	# tierra en vez de una entrada construida.
-	var inner: float = lerpf(notch_half, ENTRANCE_TRENCH_HALF_W - 2.0, t)
-	var flare: float = smoothstep(inner, inner + MOUND_FLARE, absf(z - mouth.z))
+	# Garganta: el primer tramo mantiene el ancho EXACTO de la fachada, no el del
+	# vano. Si arranca del vano, los taludes suben delante de las jambas y esconden
+	# la piedra — se lee un agujero en la tierra en vez de una entrada construida.
+	var open_t: float = clampf((t - ENTRANCE_THROAT_FRAC) / (1.0 - ENTRANCE_THROAT_FRAC), 0.0, 1.0)
+	# Pasada la garganta el corte se abre en DOS ejes a la vez. Abrir solo el ancho
+	# deja un cajón de paredes rectas: desde el camino se ven dos lomas convergiendo
+	# y la puerta al fondo de una ranura oscura, y no se lee por dónde entrar
+	# (reportado por Joan, 2026-08-01). Tumbando además el talud, el corte termina
+	# en un cuenco abierto y la fachada se ve desde lejos — y de paso los costados
+	# quedan por debajo del floor_max_angle, así que se puede salir caminando por
+	# ellos en vez de chocar contra una pared de tierra.
+	var inner: float = lerpf(notch_half, ENTRANCE_TRENCH_HALF_W + MOUND_SKIRT, open_t)
+	var slope: float = lerpf(MOUND_FLARE, MOUND_FLARE * 3.2, open_t)
+	var flare: float = smoothstep(inner, inner + slope, absf(z - mouth.z))
 	return lerpf(carved, natural, flare)
 
 
@@ -4613,6 +4721,18 @@ func _add_cave_csg_box(node_name: String, world_pos: Vector3, size: Vector3, col
 	add_child(box)
 	return box
 
+## Timber variant, for the entrance framing. Same shape as the two above so the
+## three read as one family at the call site.
+func _add_timber_box(node_name: String, world_pos: Vector3, size: Vector3, color: Color, with_collision: bool) -> CSGBox3D:
+	var box: CSGBox3D = CSGBox3D.new()
+	box.name = node_name
+	box.size = size
+	box.use_collision = with_collision
+	box.material_override = _make_timber_material(color)
+	box.position = world_pos
+	add_child(box)
+	return box
+
 ## DP_ToonGrounded shader resource — loaded once, shared across all _make_material calls.
 ## Lazy-loaded on first use; null means the shader file is not yet imported (falls back
 ## to a plain StandardMaterial3D so the map still runs without the shader).
@@ -4710,6 +4830,49 @@ func _make_cave_material(color: Color) -> StandardMaterial3D:
 
 	# Store in memo cache so subsequent calls with the same color reuse this instance.
 	_cave_mat_cache[color] = mat
+	return mat
+
+
+## Rough-sawn pit-prop timber, for the floor-1 entrance framing.
+##
+## Same triplanar-noise approach as _make_cave_material, retuned in two ways:
+## the noise is finer and stretched hard on Y, so on a standing post it smears
+## into vertical grain and on a horizontal beam it bands across the face like
+## saw marks — one material covers both without authoring UVs per piece. And it
+## carries no normal map: the planks should read flat and dry against the pitted
+## stone they hold back, otherwise the whole entrance goes back to reading as
+## one uniform rocky mass.
+func _make_timber_material(color: Color) -> StandardMaterial3D:
+	if _timber_mat_cache.has(color):
+		return _timber_mat_cache[color] as StandardMaterial3D
+
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.95
+	mat.metallic = 0.0
+
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.9
+	noise.fractal_octaves = 2
+	noise.seed = 4242
+
+	var noise_tex: NoiseTexture2D = NoiseTexture2D.new()
+	noise_tex.noise = noise
+	noise_tex.width = 128
+	noise_tex.height = 128
+	noise_tex.seamless = true
+
+	mat.detail_enabled = true
+	mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	mat.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2  # ignored when triplanar is on
+	mat.detail_albedo = noise_tex
+
+	mat.uv1_triplanar = true
+	mat.uv1_triplanar_sharpness = 8.0
+	mat.uv1_scale = Vector3(1.6, 0.12, 1.6)   # squashed on Y → streaks, not blotches
+
+	_timber_mat_cache[color] = mat
 	return mat
 
 

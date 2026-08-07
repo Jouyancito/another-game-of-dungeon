@@ -68,11 +68,60 @@ jugador:
 Encaja con el gradiente de realidad P1→P5 de `_world_seeds_postalpha.md` (familiar → imposible)
 y con §17 del canon: **silueta = geometría, superficie = textura**.
 
+## El entibado (2026-08-07)
+
+Construido en `_build_entrance()`. Material nuevo `_make_timber_material()`: mismo enfoque
+de ruido triplanar que la piedra, con el ruido más fino y **aplastado en Y** (`uv1_scale =
+(1.6, 0.12, 1.6)`), así en un poste parado se estira en veta vertical y en una viga
+acostada bandea como marcas de sierra — un material cubre los dos casos sin UVs por pieza.
+Sin normal map a propósito: la tabla tiene que leerse seca y plana contra la piedra picada.
+
+Piezas: marco de bocamina (dos postes + viga cabecera + tornapuntas + umbral) parado en la
+trinchera, tres marcos de mina repetidos adentro de la sala, y tablonería oscura tapando
+jambas y dintel. Más dos faroles colgados de los postes.
+
+### Tres cosas que sólo se vieron mirando
+
+1. **El marco quedaba enterrado.** Plantado contra la cara de la fachada caía justo en la
+   costura de la loma (`mouth.x + 1.0`), y al oeste de ahí hay tierra maciza. Desde el
+   camino la entrada seguía siendo una ranura negra bajo una tapa de madera. Va **al este
+   de la costura**, parado en la trinchera abierta, como el castillete de una bocamina:
+   el marco adelante, el socavón detrás.
+2. **Sin luz afuera no existe.** Construido y todo, el entibado era una mancha negra. Los
+   dos faroles hacen el trabajo doble: recortan la madera y dicen "acá hay alguien" desde
+   el otro lado de la pradera. Fue el cambio con mejor relación esfuerzo/lectura de todos.
+3. **`COLOR_ROCK` ERA el cemento.** Gris neutro 0.502. Cambiado a `COLOR_BORDER` (piedra de
+   caverna, ya en la paleta, más cálida y oscura). No hizo falta constante nueva.
+
+### El pavimento, y por qué hundirlo lo empeora
+
+Cada losa lee la altura del terreno en su centro, y entre dos centros el terreno **sube**.
+Con las losas a tope el pasto asoma por la junta. Hundirlas (espesor 1.5, enterrando 1.4)
+parecía la solución obvia y salió **peor**: abre cuñas de pasto entre losa y losa. Lo que
+funciona es **solaparlas** (`slab_len * 1.2`) — si no hay junta, no hay por dónde asomar.
+Más losas y más cortas (14, no 9) siguen mejor la curva.
+
+Sigue siendo geometría de caja. Lo correcto aguas arriba es una tira de malla continua
+muestreando el terreno, como `_mound_strip()`.
+
 ## Pendientes
 
-1. **Los taludes tapan la entrada.** Desde el camino no se ve por dónde entrar (reportado
-   con captura, 2026-08-01). El perfil del corte tiene que arrancar recto desde la fachada
-   con el ancho de la fachada, y recién abrirse hacia afuera más adelante.
-2. **Entibado de madera** en vez de las cajas grises (decisión de arriba).
-3. **Facetas** visibles en el sombreado del talud — la malla usa paso de 1.5 m.
-4. **El pavimento es una cinta blanca lisa** — pide piedra real del motor.
+1. **El vano queda tapado por la loma desde afuera.** Con el marco ya resuelto, la captura
+   `02_outside_ramp.png` muestra que detrás del entibado se ve **tierra iluminada**, no el
+   hueco negro de la puerta: sólo asoma una franja oscura abajo. Desde adentro el vano está
+   limpio (`00_inside_to_exit.png`), así que es la rama `carved` de `_mound_height()` la que
+   no baja hasta `_entrance_floor_y` en la garganta. **Medir antes de tocar** — esta costura
+   ya generó dos bugs de bloqueo, no conviene ajustarla a ojo.
+2. **Facetas** visibles en el sombreado del talud — la malla usa paso de 1.5 m.
+3. **Pavimento como malla continua** en vez de losas solapadas (arriba).
+4. El muro este visto desde adentro es una mancha negra: la tablonería de jambas y dintel
+   no recibe luz. Falta un farol cerca de la boca, del lado de adentro.
+
+## Hecho
+
+- ~~Los taludes tapan la entrada~~ — la garganta mantiene el ancho de fachada por
+  `ENTRANCE_THROAT_FRAC` (18% del run) y después el corte se abre **en dos ejes a la vez**:
+  ancho y pendiente. Abrir sólo el ancho dejaba un cajón de paredes rectas. De paso los
+  costados quedan bajo el `floor_max_angle`, así que ahora se sale caminando por ellos.
+- ~~Entibado de madera en vez de las cajas grises~~
+- ~~El pavimento es una cinta blanca lisa~~ — ya no es blanca ni discontinua; falta la malla.
