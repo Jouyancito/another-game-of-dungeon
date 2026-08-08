@@ -4990,6 +4990,8 @@ var _fall_trail: Array[Vector3] = []
 var _fall_reported: bool = false
 var _stuck_frames: int = 0
 var _stuck_reported: bool = false
+var _prev_pos: Vector3 = Vector3.ZERO
+var _hb_frames: int = 0
 
 func _physics_process(_delta: float) -> void:
 	if not OS.is_debug_build() or not _entrance_anchor_valid:
@@ -5006,20 +5008,37 @@ func _physics_process(_delta: float) -> void:
 	# textual —"no puedo moverme ni saltar"— por su definición operativa: hay input de
 	# movimiento y el cuerpo no avanza. No depende de que el humano apriete una tecla
 	# en el frame correcto, ni de que yo acierte dónde mirar.
+	# Latido: deja rastro aunque el detector no dispare. Después de cuatro
+	# instrumentos rotos, el instrumento también se instrumenta — sin esto no se
+	# distingue "no hubo atasco" de "el detector está roto y no avisa".
+	_hb_frames += 1
+	if _hb_frames % 180 == 0:               # ~3 s
+		_stuck_log("[LATIDO] pos=(%.2f, %.2f, %.2f)  terreno=%.2f  dmov=%.3f"
+			% [pos.x, pos.y, pos.z, get_terrain_height(pos.x, pos.z),
+			   pos.distance_to(_prev_pos)])
+
 	if not _stuck_reported:
 		# "move_backward", no "move_back": con el nombre equivocado get_vector no
 		# tira error, devuelve 0 y el detector no dispara nunca — un instrumento
 		# roto que parece sano, que es justo el modo de falla de esta sesión.
 		var wants: bool = Input.get_vector(
 			"move_left", "move_right", "move_forward", "move_backward").length() > 0.1
-		if wants and Vector2(body.velocity.x, body.velocity.z).length() < 0.35:
+		# DESPLAZAMIENTO REAL, no `velocity`. En Godot 4 `CharacterBody3D.velocity`
+		# es la velocidad DESEADA que setea el código; empujando contra una pared,
+		# move_and_slide la deja con el valor de deslizamiento y nunca baja del
+		# umbral. La primera versión usaba eso y NO disparó con Joan trabado. Lo que
+		# el jugador llama "no me muevo" es que la posición no cambia — se mide eso.
+		var moved: float = Vector2(pos.x - _prev_pos.x, pos.z - _prev_pos.z).length()
+		if wants and moved < 0.004:         # < 0.24 m/s
 			_stuck_frames += 1
 		else:
 			_stuck_frames = 0
 		if _stuck_frames > 45:              # ~0.75 s empujando contra algo
 			_stuck_reported = true
-			_stuck_log("[ATASCO] el jugador empuja hace %.2f s y no avanza" % (_stuck_frames / 60.0))
+			_stuck_log("[ATASCO] el jugador empuja hace %.2f s y no avanza (dmov=%.4f)"
+				% [_stuck_frames / 60.0, moved])
 			_debug_report_stuck()
+	_prev_pos = pos
 
 	if _fall_reported:
 		return
