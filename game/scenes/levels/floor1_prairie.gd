@@ -134,7 +134,18 @@ const PILLAR_COUNT: int = 6
 # Vegetation
 const TREE_COUNT: int = 200
 const ROCK_COUNT: int = 120
-const TALL_GRASS_COUNT: int = 80
+## Ground flora is placed as single-species masses (see _scatter_clumps). These
+## count CLUMPS, not plants: at the 780 m map _area_count multiplies by 1.69, so
+## ~372 masses of 5-11 plants each land on the field.
+##
+## Replaces TALL_GRASS_COUNT (80, of which the connective-tissue pass used 70% =
+## 56 plants for the ENTIRE map — one every 4 400 m², against 192 718 carpet
+## blades). That single number is most of why Joan's reference photos and the game
+## do not look like the same kind of place.
+const GROUND_CLUMP_COUNT: int = 220
+## Metres. A mass has to be wide enough to read as a patch of colour from walking
+## distance and tight enough not to dissolve back into scatter.
+const GROUND_CLUMP_RADIUS: float = 3.2
 
 # Enemies
 const FIELD_ENEMY_COUNT: int = 35
@@ -3348,6 +3359,56 @@ const FLORA_NICHES: Dictionary = {
 		{"humidity": [0.0, 0.3], "shade": [0.0, 0.4]},
 }
 
+## Read height in metres for ground flora, keyed by resource_path.
+##
+## Measured 2026-08-08 with tools/blender/_glb_stats.py — every POOL_GROUND mesh is
+## authored at true single-plant botanical scale, and they all land in one narrow
+## band (native heights in the comments below, 0.107 m to 0.491 m). At the pool's
+## own 0.7-1.6 scatter range that puts the ENTIRE ground layer at ankle height
+## against a 1.80 m player, which is why the prairie reads as one flat stratum and
+## why Joan photographed a flower and called it "el porte de un ratón" — clover
+## renders 7.5-17 cm and a mouse is about 10 cm. He was right to the centimetre.
+##
+## The three bands below are the three strata prairie_ecology/_synthesis.md asks
+## for ("pasto bajo pisado, mata media, espiga alta"), and the tall band matches
+## the biome doc's own canon: "Hierba alta (0.5-1m) en parches — puede ocultar
+## agujeros y slimes".
+##
+## These are TARGETS, not multipliers: _place_instance divides by the mesh's real
+## measured AABB, so re-exporting an asset at a different size cannot silently
+## change how big it reads in game. That decoupling is the point.
+const FLORA_TARGET_HEIGHT: Dictionary = {
+	# ── Band 1: trodden ground cover, below the knee ──────────────────────────
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb": 0.20,        # native 0.156
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wildflower_mix_01.glb": 0.26,    # native 0.211
+	# ── Band 2: mid clumps and blooms, knee height ────────────────────────────
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_broad_clump_01.glb": 0.45,       # native 0.239
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_windswept_01.glb": 0.42,         # native 0.252
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_sparse_dry_01.glb": 0.48,        # native 0.352
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_yellow_clover_01.glb": 0.34,  # native 0.107
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_bicolor_mix_01.glb": 0.36,    # native 0.210
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_violet_cluster_01.glb": 0.40, # native 0.242
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_white_star_01.glb": 0.38,     # native 0.352
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb": 0.32,      # native 0.228
+	# ── Band 3: tall grass and spikes, waist height — the stratum that hides ──
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb": 0.85,    # native 0.474
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb": 0.95,     # native 0.491
+}
+
+
+## Tallest mesh in a freshly instantiated (not yet in-tree) scene, in local metres.
+## Walks MeshInstance3D children and applies each one's own local scale; these
+## assets are flat hierarchies so a single level of scale is enough.
+func _node_height(node: Node3D) -> float:
+	var tallest: float = 0.0
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = child as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		tallest = maxf(tallest, mi.mesh.get_aabb().size.y * mi.transform.basis.get_scale().y)
+	return tallest
+
+
 ## Distance-based humidity proxy (0..1): 1 at a stream centerline or pond POI,
 ## falling off to 0 across a halo radius. Reuses the "humidity halo = 1.5-3x water
 ## body radius" rule already established in game/docs/art/_world_coherence.md §2
@@ -3628,55 +3689,26 @@ func _build_grass_carpet() -> void:
 	# Base swings top vertices only (tip moves, base stays planted) by biasing
 	# displacement by vertex Y in model space. Amplitude ~2-3cm — perceptible but
 	# not distracting. Kimetsu canon: desaturated olive so skills still pop.
-	var grass_mat := ShaderMaterial.new()
 	var grass_shader := Shader.new()
-	grass_shader.code = """
-shader_type spatial;
-// cull_disabled is INTENTIONAL: env_grass_small_01 is a crossed-tuft mesh that
-// must be readable from both sides. cull_back would make tufts invisible from
-// behind (half the viewing angles). The ~2× fragment cost is accepted and stays
-// within the ≤13k-blade rendered red-line enforced by visibility_range_end.
-render_mode cull_disabled, shadows_disabled;
+	grass_shader.code = GRASS_SHADER_CODE
 
-uniform vec4 albedo : source_color = vec4(0.34, 0.38, 0.22, 1.0);
-uniform float sway_amplitude : hint_range(0.0, 0.1) = 0.028;
-uniform float sway_speed : hint_range(0.0, 5.0) = 1.4;
-// blade_height: real measured height of env_grass_small_01 AABB (metres).
-// Set at runtime after mesh extraction so height_bias is calibrated to actual geometry.
-uniform float blade_height : hint_range(0.01, 2.0) = 0.6;
-
-void vertex() {
-	// World-space position of this vertex (model → world)
-	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	// Phase based on world XZ so each blade sways independently
-	float phase = world_pos.x * 1.7 + world_pos.z * 2.3;
-	// Bias: top of blade (high local Y) sways fully; base (Y≈0) stays planted.
-	// blade_height driven from measured AABB so amplitude is correct for real geometry.
-	float height_bias = clamp(VERTEX.y / blade_height, 0.0, 1.0);
-	float sway = sin(TIME * sway_speed + phase) * sway_amplitude * height_bias;
-	VERTEX.x += sway;
-	VERTEX.z += sway * 0.4;
-}
-
-void fragment() {
-	ALBEDO = albedo.rgb;
-	ROUGHNESS = 0.9;
-	METALLIC = 0.0;
-}
-"""
-	grass_mat.shader = grass_shader
-
-	# Set blade_height from the first extracted mesh's AABB so the sway height_bias
-	# is calibrated to the real geometry (env_grass_small_01 is ~0.39m, not 0.6m).
-	# Falls back to 0.6 (the shader uniform default) if the mesh list is empty.
-	if not blade_meshes.is_empty():
-		var aabb_h: float = blade_meshes[0].get_aabb().size.y
-		grass_mat.set_shader_parameter("blade_height", maxf(aabb_h, 0.01))
-
-	# Billboard is not used (tufts look fine in 3D); shadows off for perf
+	# One material PER VARIANT, not one shared by all of them. Two parameters are
+	# properties of the individual mesh and were previously taken from
+	# blade_meshes[0] for every variant:
+	#   * blade_height — measured 0.156 m on lawn_dense but 0.474 m on
+	#     wispy_seedhead. Feeding the short mesh's height to the tall one clamped
+	#     height_bias to 1.0 above a third of the stalk, so its whole upper two
+	#     thirds swayed as a rigid block instead of bending.
+	#   * vcol_mean — the mesh's own mean vertex-colour luma, used by the shader to
+	#     re-centre the baked gradient on 1.0. Measured with tools/blender/
+	#     _glb_stats.py: 0.260 on lawn_dense, 0.443 on wispy_seedhead.
 	for bm in blade_meshes:
+		var mat := ShaderMaterial.new()
+		mat.shader = grass_shader
+		mat.set_shader_parameter("blade_height", maxf(bm.get_aabb().size.y, 0.01))
+		mat.set_shader_parameter("vcol_mean", _mean_vertex_luma(bm))
 		for si in range(bm.get_surface_count()):
-			bm.surface_set_material(si, grass_mat)
+			bm.surface_set_material(si, mat)
 
 	# ── 3. Budget calculation ──────────────────────────────────────────────────
 	# Max instances at full 600m map (scale=1.0). Scales quadratically with area.
@@ -3836,6 +3868,113 @@ void fragment() {
 ## de la lista, así que la alfombra deja de ser un solo tufo clonado.
 ## OJO al cambiar esto: blade_height se recalibra solo desde el AABB de la PRIMERA
 ## malla, y el shader usa cull_disabled porque son tufos cruzados.
+## Carpet shader. Two jobs beyond the wind sway it always did:
+##
+## 1. USE THE BAKED VERTEX COLOUR. Until 2026-08-08 the fragment stage was a flat
+##    `ALBEDO = albedo.rgb` with a hardcoded olive (0.34, 0.38, 0.22) left over from
+##    the dim-cavern canon that the 2026-07-27 prairie decision replaced. Every one
+##    of the ~193 000 blades rendered that single colour, and because the carpet
+##    calls surface_set_material() the grass_pack meshes' own painterly gradient
+##    (dark base -> lime tip, baked by the M3 motor) was overwritten and lost.
+##
+## 2. BREAK THE GROUND INTO PATCHES. prairie_ecology/_synthesis.md, from Joan's
+##    reference photos: "el suelo tiene manchones, no un tono... convive verde
+##    azulado húmedo con verde amarillento seco". A two-octave value noise sampled
+##    in WORLD space (so neighbouring blades agree and blotches survive chunk
+##    boundaries) blends between a lush and a dry tint. Frequencies chosen for
+##    ~83 m broad blotches with ~22 m break-up inside them.
+##
+## The noise is a proxy, not the real humidity field — _humidity_at() exists on the
+## CPU but is not reachable from a shader without per-instance custom data. Broad
+## blotches are what the reference asks for; exact stream correlation is not.
+const GRASS_SHADER_CODE: String = """
+shader_type spatial;
+// cull_disabled is INTENTIONAL: the grass_pack tufts are crossed-quad meshes that
+// must be readable from both sides. cull_back would make tufts invisible from
+// behind (half the viewing angles). The ~2x fragment cost is accepted and stays
+// within the <=13k-blade rendered red-line enforced by visibility_range_end.
+render_mode cull_disabled, shadows_disabled;
+
+uniform vec3 tint_lush : source_color = vec3(0.20, 0.34, 0.18);
+uniform vec3 tint_dry : source_color = vec3(0.46, 0.43, 0.21);
+uniform float patch_freq_broad : hint_range(0.001, 0.2) = 0.012;
+uniform float patch_freq_fine : hint_range(0.001, 0.2) = 0.045;
+// Mean vertex-colour luma of THIS mesh, set from GDScript. Dividing by it turns the
+// baked gradient into a multiplier centred on 1.0; without it the dark-based
+// gradient (mean luma 0.26) would crush the whole carpet toward black.
+uniform float vcol_mean : hint_range(0.01, 1.0) = 0.30;
+uniform float vcol_strength : hint_range(0.0, 1.0) = 0.8;
+uniform float sway_amplitude : hint_range(0.0, 0.1) = 0.028;
+uniform float sway_speed : hint_range(0.0, 5.0) = 1.4;
+// Real measured height of THIS variant's AABB (metres), set from GDScript so the
+// height bias below reaches 1.0 exactly at the tip of this mesh and not sooner.
+uniform float blade_height : hint_range(0.01, 2.0) = 0.6;
+
+varying float v_patch;
+
+float hash21(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash21(i);
+	float b = hash21(i + vec2(1.0, 0.0));
+	float c = hash21(i + vec2(0.0, 1.0));
+	float d = hash21(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+void vertex() {
+	// World-space position of this vertex (model -> world)
+	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// Phase based on world XZ so each blade sways independently
+	float phase = world_pos.x * 1.7 + world_pos.z * 2.3;
+	// Bias: tip of the blade sways fully; base (Y~0) stays planted.
+	float height_bias = clamp(VERTEX.y / blade_height, 0.0, 1.0);
+	float sway = sin(TIME * sway_speed + phase) * sway_amplitude * height_bias;
+	VERTEX.x += sway;
+	VERTEX.z += sway * 0.4;
+	v_patch = clamp(
+		vnoise(world_pos.xz * patch_freq_broad) * 0.65
+		+ vnoise(world_pos.xz * patch_freq_fine) * 0.35, 0.0, 1.0);
+}
+
+void fragment() {
+	vec3 ground = mix(tint_lush, tint_dry, v_patch);
+	vec3 gradient = COLOR.rgb / max(vcol_mean, 0.01);
+	ALBEDO = ground * mix(vec3(1.0), gradient, vcol_strength);
+	ROUGHNESS = 0.9;
+	METALLIC = 0.0;
+}
+"""
+
+
+## Mean luma of a mesh's baked vertex colours, or a neutral 0.30 when it carries
+## none. Feeds the carpet shader's `vcol_mean` so the gradient modulates brightness
+## around 1.0 instead of darkening (or, on an unpainted white mesh, blowing out).
+func _mean_vertex_luma(mesh: Mesh) -> float:
+	var total: float = 0.0
+	var count: int = 0
+	for si in range(mesh.get_surface_count()):
+		var arrays: Array = mesh.surface_get_arrays(si)
+		if arrays.size() <= Mesh.ARRAY_COLOR:
+			continue
+		var colors: Variant = arrays[Mesh.ARRAY_COLOR]
+		if colors == null:
+			continue
+		for c in (colors as PackedColorArray):
+			total += 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+			count += 1
+	if count == 0:
+		return 0.30
+	return maxf(total / float(count), 0.01)
+
+
 const GRASS_MESH_PATHS: Array[String] = [
 	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb",
 	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb",
@@ -3956,10 +4095,20 @@ func _generate_vegetation(pois: Array) -> void:
 	# ── 2. Tejido conectivo entre clusters (cose los mini-biomas) ─────────────
 	# Subido respecto al ralo anterior: llena los huecos muertos entre lugares
 	# para que el mapa se lea continuo, no como islas sueltas. Escala amplia.
-	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container, "trunk")
-	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container, "rock")
-	_scatter_pool(POOL_BUSHES, int(ROCK_COUNT * 0.4), pois, 9.0, 0.6, 1.6, container)
-	_scatter_pool(POOL_GROUND, int(TALL_GRASS_COUNT * 0.7), pois, 7.0, 0.7, 1.6, container)
+	# Counts are per-area, not absolute. TREE_COUNT/ROCK_COUNT/TALL_GRASS_COUNT were
+	# calibrated for the 600 m map and stayed flat when proc_bounds grew to 780 m
+	# (2026-08-07), so the same instances spread over 1.69x the ground and the whole
+	# scatter came out ~41% thinner than it had been tuned to be. Exactly the cost
+	# the grass carpet had already been fixed for in that same commit; these three
+	# were missed. _area_count() ties them to the map the way the carpet is tied.
+	_scatter_pool(POOL_TREES, _area_count(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container, "trunk")
+	_scatter_pool(POOL_ROCKS, _area_count(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container, "rock")
+	_scatter_pool(POOL_BUSHES, _area_count(ROCK_COUNT * 0.4), pois, 9.0, 0.6, 1.6, container)
+	# Ground flora goes down as single-species MASSES, not as independent points.
+	# See _scatter_clumps() for why the old _scatter_pool call could not produce the
+	# blotches the reference photos are made of.
+	_scatter_clumps(POOL_GROUND, _area_count(GROUND_CLUMP_COUNT), pois, 7.0,
+		GROUND_CLUMP_RADIUS, 5, 11, 0.7, 1.6, container)
 
 	# ── 3. Dead trees — separate pass so laetiporus can attach at base ────────
 	# FIX #2: ~5-8% of total tree count as dead snags. 40% chance each gets
@@ -4017,6 +4166,56 @@ func _scatter_cluster(
 ## single-scene "pool" of size 1 into _place_instance reuses its existing
 ## trunk-position-recording / collider logic unchanged.
 ## collider_kind: "" = none, "trunk" = CapsuleShape3D for trees, "rock" = BoxShape3D for rocks.
+## Scales a count calibrated for the 600 m reference map to the current map area.
+## _scale is a LINEAR ratio (proc_bounds.x / MAP_SIZE.x), so density per square
+## metre only stays constant if it is squared — the same relation the grass carpet
+## budget already uses.
+func _area_count(base: float) -> int:
+	return int(base * _scale * _scale)
+
+
+## Places single-species MASSES instead of independent points.
+##
+## prairie_ecology/_synthesis.md, from Joan's reference photos: "la flor viene en
+## masas, no en unidades. En la referencia densa no se distingue una flor: se ven
+## manchas de color de metros de ancho. Hoy el juego pone flores sueltas separadas
+## — se leen como objetos, no como pradera."
+##
+## _scatter_pool cannot express that, and not by tuning: it draws every point
+## independently and re-rolls the species at each one, so raising its count just
+## produces finer salt-and-pepper. A mass is one species repeated over a few metres,
+## which means the species has to be chosen ONCE per clump — that is the whole
+## difference, and it is structural.
+##
+## The niche query still runs, just at the seed point: a clump lands where its
+## species fits, then fills with itself.
+func _scatter_clumps(
+	pool: Array, clump_count: int, pois: Array, min_poi_dist: float,
+	radius: float, per_clump_min: int, per_clump_max: int,
+	scale_min: float, scale_max: float, parent: Node3D
+) -> void:
+	if pool.is_empty():
+		return
+	for _c in range(clump_count):
+		var seed_pos: Vector3 = _random_open_pos(pois, min_poi_dist)
+		if seed_pos == Vector3.INF:
+			continue
+		var species: PackedScene = _pick_flora_for_point(pool, seed_pos.x, seed_pos.z, pois)
+		if species == null:
+			continue
+		var members: int = _rng.randi_range(per_clump_min, per_clump_max)
+		for _i in range(members):
+			var ang: float = _rng.randf() * TAU
+			# sqrt() keeps the sample area-uniform. Without it the draw concentrates
+			# at the centre and the clump reads as a dot with a halo, not a patch.
+			var dist: float = sqrt(_rng.randf()) * radius
+			var p: Vector3 = seed_pos + Vector3(cos(ang) * dist, 0.0, sin(ang) * dist)
+			if not _is_inside_border(p) or _inside_entrance_footprint(p.x, p.z):
+				continue
+			p.y = get_terrain_height(p.x, p.z)
+			_place_instance([species], p, scale_min, scale_max, parent)
+
+
 func _scatter_pool(
 	pool: Array, count: int, pois: Array,
 	min_poi_dist: float, scale_min: float, scale_max: float, parent: Node3D,
@@ -4194,6 +4393,17 @@ func _place_instance(
 	if inst == null:
 		return
 	var s: float = _age_scale(scale_min, scale_max)
+	# For species registered in FLORA_TARGET_HEIGHT the age roll above stops being a
+	# raw multiplier on the native mesh and becomes plant-to-plant variation around
+	# a target READ height (see that dict for why). Unregistered pools — trees,
+	# rocks, bushes — are untouched: their ranges are already calibrated against
+	# measured native sizes. No extra _rng draws either way, so the deterministic
+	# sequence that later passes (enemies) depend on is unchanged.
+	var target_h: float = FLORA_TARGET_HEIGHT.get(scene.resource_path, 0.0)
+	if target_h > 0.0:
+		var native_h: float = _node_height(inst)
+		if native_h > 0.001:
+			s *= target_h / native_h
 	var rot_y: float = _rng.randf() * TAU
 	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
 	# Marca de intención: toda la vegetación (árboles, rocas, arbustos, flora de suelo)
