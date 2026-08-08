@@ -14,7 +14,14 @@ extends Node3D
 
 ## Bounds del mundo procedural en metros. Default (600, 600) = mapa demo.
 ## proc_lab usa celdas chicas (~120x120) para iterar rápido.
-@export var proc_bounds: Vector2 = Vector2(600.0, 600.0)
+## 2026-08-07: 600 -> 780 (área ×1.69). Joan, tras caminar el mapa: *"la pradera
+## debería ser por lo menos un 50% más grande, para generar ese ambiente de
+## exploración, sino veo lo que hay al otro lado del mapa altiro y zzz, se
+## identifica muy rápido que hay un lugar de jefe o escenario alternativo"*.
+## OJO: agrandar esto SOLO no cumple ese objetivo — ver la nota de frecuencia en
+## _setup_terrain_noise() y TERRAIN_MAX_HEIGHT. El tamaño da la caminata; la
+## oclusión da la exploración.
+@export var proc_bounds: Vector2 = Vector2(780.0, 780.0)
 
 ## Capas activas. Permite generar solo lo que interesa al iterar.
 ## TODO true = pipeline completo (idéntico al demo).
@@ -143,7 +150,13 @@ const TERRAIN_RESOLUTION: int = 96       # grid cells por lado (96*96 = 9216 ver
 ## top of the color ramp (measured via game/scenes/dev/_height_probe.gd — see
 ## color-normalisation bugfix, 2026-07-30). Use TERRAIN_COLOR_MAX_HEIGHT below for
 ## normalisation; this constant stays scoped to what it actually names: hill noise.
-const TERRAIN_MAX_HEIGHT: float = 9.0    # alto max de colinas (solo ruido base)
+## 2026-08-07: 9.0 -> 16.0. Con el jugador en 1.80 m, una colina de 9 m sobre un
+## mapa de 600 m no esconde NADA a media distancia — se veía el mapa entero de un
+## vistazo y los POIs de jefe se identificaban desde el spawn. 16 m es ~9 jugadores:
+## a 80-150 m tapa lo que sigue, que es la distancia a la que se decide hacia dónde
+## caminar. No sube el techo del mapa (el borde ya llega a ~40 m por bowl+mountain);
+## sube el relieve del INTERIOR, que es donde se explora.
+const TERRAIN_MAX_HEIGHT: float = 16.0   # alto max de colinas (solo ruido base)
 const TERRAIN_NOISE_FREQ: float = 0.004  # frecuencia baja = features grandes
 const TERRAIN_NOISE_OCTAVES: int = 3
 const TERRAIN_EDGE_RISE: float = 6.0     # subida hacia los bordes (acantilados)
@@ -594,10 +607,19 @@ func _setup_terrain_noise() -> void:
 	_terrain_noise = FastNoiseLite.new()
 	_terrain_noise.seed = world_seed
 	_terrain_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	# Frecuencia inversa a la escala: en una celda chica subimos la frecuencia para
-	# que el relieve conserve detalle (si no, 80m de mapa quedan casi planos).
-	# En el demo (_scale 1.0) == TERRAIN_NOISE_FREQ, idéntico.
-	_terrain_noise.frequency = TERRAIN_NOISE_FREQ / maxf(_scale, 0.0001)
+	# Frecuencia inversa a la escala, pero SOLO al achicar (divisor topeado en 1.0).
+	#
+	# Al achicar sigue igual: en una celda chica subimos la frecuencia para que el
+	# relieve conserve detalle (si no, 80 m de mapa quedan casi planos).
+	#
+	# Al AGRANDAR ya no. Dividir por _scale>1 estira las mismas lomas en vez de
+	# agregar lomas nuevas: el mapa crece, el relieve se estira igual, y la relación
+	# altura/ancho EMPEORA — o sea que agrandar el mapa lo dejaba más plano de lo que
+	# estaba y más fácil de leer de un vistazo, exactamente lo contrario de lo que se
+	# buscaba (Joan, 2026-08-07: "veo lo que hay al otro lado del mapa altiro").
+	# Con el tope, los metros nuevos traen colinas nuevas: más lugares donde perder
+	# de vista lo que sigue.
+	_terrain_noise.frequency = TERRAIN_NOISE_FREQ / clampf(_scale, 0.0001, 1.0)
 	_terrain_noise.fractal_octaves = TERRAIN_NOISE_OCTAVES
 	_terrain_noise.fractal_lacunarity = 2.0
 	_terrain_noise.fractal_gain = 0.5
@@ -3611,7 +3633,14 @@ void fragment() {
 	# At proc_lab scale=0.2 (120m cell): 120000 * 0.04 ≈ 4800 blades — dense but fast.
 	const MAX_INSTANCES_BASE: int = 120000
 	var total_budget: int = int(float(MAX_INSTANCES_BASE) * _scale * _scale * grass_density)
-	total_budget = clampi(total_budget, 0, MAX_INSTANCES_BASE)
+	# Techo proporcional al área, no fijo. Con el tope en MAX_INSTANCES_BASE, agrandar
+	# el mapa repartía las MISMAS briznas sobre más metros y la pradera salía rala —
+	# el costo escondido de crecer (encontrado al pasar a 780 m, 2026-08-07).
+	# El costo de dibujo no crece con el techo: visibility_range_end culla a ~13k
+	# briznas visibles sea cual sea el total, así que lo que sube es memoria de
+	# MultiMesh, no draw calls.
+	var budget_ceiling: int = int(float(MAX_INSTANCES_BASE) * maxf(_scale * _scale, 1.0))
+	total_budget = clampi(total_budget, 0, budget_ceiling)
 	if total_budget == 0:
 		return
 
@@ -3907,6 +3936,15 @@ func _scatter_cluster(
 		var dist: float = _rng.randf_range(inner_r, outer_r)
 		var pos: Vector3 = center + Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
 		if not _is_inside_border(pos):
+			continue
+		# La antesala es una sala con un corredor pegado; el descarte por radio del
+		# POI no la describe, así que el halo de árboles del cluster "entrance" —que
+		# cae entre r+18 y r+38 del centro, justo sobre la trinchera— plantaba troncos
+		# ADENTRO del corredor, tapando la puerta desde el camino (visto al pasar el
+		# mapa a 780 m, 2026-08-07). Mismo tratamiento que ya reciben el pasto y
+		# _random_open_pos. El `continue` no desincroniza nada: es exactamente lo que
+		# hace la guarda de borde de arriba.
+		if _inside_entrance_footprint(pos.x, pos.z):
 			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
 		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)

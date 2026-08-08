@@ -66,6 +66,35 @@ del `flower_pack` antes de tocar el scatter — ver `_asset_inventory_p1.md` pen
 El plan acordado era **pradera que se pierde en el horizonte** y el muro sólido apareciendo
 recién al llegar. Sin implementar.
 
+## Escala y oclusión — por qué agrandar solo no alcanza (2026-08-07)
+
+Joan, tras caminar el mapa: *"la pradera debería ser por lo menos un 50% más grande, para
+generar ese ambiente de exploración, sino veo lo que hay al otro lado del mapa altiro y
+zzz, se identifica muy rápido que hay un lugar de jefe o escenario alternativo"*.
+
+El objetivo es **exploración**, y el tamaño es sólo una de tres palancas. Medido antes de
+tocar:
+
+1. **La frecuencia del ruido se dividía por `_scale` sin tope.** Agrandar el mapa estiraba
+   las mismas lomas en vez de agregar lomas nuevas: crecía el ancho, no la altura, así que
+   la relación altura/ancho **empeoraba** y un mapa más grande se leía más PLANO. Agrandar
+   solo habría alejado el objetivo. Divisor topeado en 1.0.
+2. **`TERRAIN_MAX_HEIGHT` era 9 m.** Con el ojo a 1.80 m, una loma de 9 m no esconde nada a
+   media distancia sobre 600 m. Subido a 16 m (~9 jugadores): tapa la banda de 80-150 m,
+   que es la distancia a la que se decide hacia dónde caminar. No sube el techo del mapa —
+   el borde ya llegaba a ~40 m por bowl+mountain. Sube el relieve del INTERIOR.
+3. **Falta niebla atmosférica.** Hoy no hay ninguna: sólo culling de pasto a 70 m y de
+   detalle a 45 m, que no limita la vista de lo grande (árboles, POIs, terreno). Es la
+   palanca más barata que queda para "no sé qué hay allá" y **está sin hacer**.
+
+`proc_bounds` 600 → 780 (área ×1.69). Cuesta de más: el techo de pasto era fijo, así que un
+mapa más grande repartía las mismas briznas sobre más metros y salía ralo — ahora escala
+con el área (192 718 briznas contra 110 631).
+
+Y un bug latente que el cambio destapó: el halo de árboles del cluster `entrance` plantaba
+troncos **dentro de la trinchera**, tapando la puerta. `_scatter_cluster` sólo se guardaba
+del borde, no de la huella de la antesala.
+
 ## Fuente
 
 Referencias de internet pasadas por Joan en chat, 2026-08-07. Sin atribución conocida — son
