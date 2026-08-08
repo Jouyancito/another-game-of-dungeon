@@ -5148,6 +5148,35 @@ func _debug_report_stuck() -> void:
 		var n: Node = h["collider"]
 		_stuck_log("[STUCK]   toca '%s' (%s)" % [n.name, n.get_class()])
 
+	# EMPUJE hacia adelante: la cápsula avanza en pasos chicos hasta chocar.
+	#
+	# El latido mostró la X clavada en -315.52 mientras la Z variaba libre: el
+	# jugador camina de lado pero no avanza, así que hay un plano vertical. Los rayos
+	# de abajo salen del CENTRO del cuerpo y dan "libre" porque una barrera baja les
+	# pasa por debajo. Mover la cápsula entera y ver contra qué se traba no tiene ese
+	# punto ciego.
+	var cap2 := CapsuleShape3D.new()
+	cap2.radius = 0.35
+	cap2.height = 1.8
+	for step in range(1, 16):
+		var probe: Vector3 = pos + Vector3(0.1 * float(step), 0.0, 0.0)
+		var q2 := PhysicsShapeQueryParameters3D.new()
+		q2.shape = cap2
+		q2.transform = Transform3D(Basis(), probe)
+		q2.collide_with_areas = false
+		var hs: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(q2, 8)
+		var culpables: PackedStringArray = []
+		for hh in hs:
+			var nn: Node = hh["collider"]
+			if nn.name != "Mage":
+				culpables.append("%s (%s)" % [nn.name, nn.get_class()])
+		if not culpables.is_empty():
+			_stuck_log("[STUCK]   avanzando %.2f m al ESTE choca con: %s"
+				% [0.1 * float(step), ", ".join(culpables)])
+			break
+		if step == 15:
+			_stuck_log("[STUCK]   avanzando 1.5 m al ESTE no choca con NADA")
+
 	# Y en qué direcciones puede salir, que es lo que decide si está encerrado.
 	for d in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT, Vector3.UP]:
 		var rq := PhysicsRayQueryParameters3D.create(pos, pos + d * 3.0)
