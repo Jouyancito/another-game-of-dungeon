@@ -257,6 +257,37 @@ func _ready() -> void:
 		print("[entrance_capture]   dz=%+5.1f%s" % [dzc, row4])
 	print("[entrance_capture]   ('M' = LOMA encima = techo bajo el que se queda atrapado)")
 
+	# ── get_terrain_height MIENTE vs la malla real ────────────────────────────
+	# El reporte de la sesión de Joan: jugador a +2.27 m SOBRE get_terrain_height,
+	# sin tocar nada, sin poder moverse, y después cayendo a y=-9808. Eso no es
+	# chocar: es estar DENTRO de la malla. get_terrain_height interpola bilineal
+	# dentro de la celda; la malla está triangulada y el triángulo corta la celda por
+	# la diagonal. Si la superficie real queda por encima de lo que la función dice,
+	# cualquier cosa colocada con esa altura nace enterrada — el jugador incluido.
+	# Y es la razón por la que las CUATRO sondas anteriores dieron limpio: apoyaban
+	# la cápsula usando la misma función equivocada.
+	print("[entrance_capture]   -- get_terrain_height vs raycast contra la malla real --")
+	var peor: float = 0.0
+	for dzr in [-4.0, -2.0, 0.0, 2.0, 4.0]:
+		var row5: String = ""
+		for dxr in range(0, 15, 2):
+			var pxr: float = mouth_x + float(dxr)
+			var pzr: float = anchor.z + dzr
+			var bilineal: float = _floor.call("get_terrain_height", pxr, pzr)
+			var rq2 := PhysicsRayQueryParameters3D.create(
+				Vector3(pxr, bilineal + 40.0, pzr), Vector3(pxr, bilineal - 40.0, pzr))
+			rq2.collide_with_areas = false
+			var rr: Dictionary = space.intersect_ray(rq2)
+			if rr.is_empty():
+				row5 += "   n/a"
+			else:
+				var d: float = rr["position"].y - bilineal
+				peor = maxf(peor, d)
+				row5 += " %+5.2f" % d
+		print("[entrance_capture]   dz=%+5.1f%s" % [dzr, row5])
+	print("[entrance_capture]   (positivo = la malla REAL esta MAS ARRIBA de lo que dice la funcion)")
+	print("[entrance_capture]   PEOR CASO: la malla esta %.2f m sobre get_terrain_height" % peor)
+
 	await _shot("00_inside_to_exit",
 		Vector3(anchor.x - hall_len * 0.5 + 3.0, floor_y + EYE, anchor.z),
 		Vector3(mouth_x + 8.0, floor_y + 2.0, anchor.z))

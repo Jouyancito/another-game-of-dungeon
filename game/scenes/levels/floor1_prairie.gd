@@ -4980,6 +4980,47 @@ func _make_timber_material(color: Color) -> StandardMaterial3D:
 
 
 # ── DEBUG: tecla K spawnea King Slime frente al player ──────────────
+## ── Watchdog de caída ────────────────────────────────────────────────────────
+## El reporte con la tecla P llegó cuando el jugador YA estaba cayendo (y=-3537,
+## -8181, -9808): el instante que importa —el frame en que atraviesa el suelo— ya
+## había pasado. Pedirle a una persona que apriete una tecla en ese frame no es una
+## medición, es suerte. Esto graba los últimos 2 segundos de recorrido y los vuelca
+## solo, la primera vez que detecta que el jugador se fue por debajo del mundo.
+var _fall_trail: Array[Vector3] = []
+var _fall_reported: bool = false
+
+func _physics_process(_delta: float) -> void:
+	if not OS.is_debug_build() or _fall_reported or not _entrance_anchor_valid:
+		return
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		return
+	var pos: Vector3 = (players[0] as Node3D).global_position
+	_fall_trail.append(pos)
+	if _fall_trail.size() > 120:            # ~2 s a 60 Hz
+		_fall_trail.pop_front()
+	if pos.y > _entrance_floor_y - 15.0:
+		return
+
+	_fall_reported = true
+	print("[FALL] ===== el jugador atraveso el mundo =====")
+	var mouth: Vector3 = _entrance_mouth()
+	# Sólo los frames hasta que empieza a hundirse: lo de después es caída libre y
+	# no dice nada. El punto que importa es el ÚLTIMO donde todavía estaba arriba.
+	var last_ok: int = -1
+	for i in range(_fall_trail.size()):
+		if _fall_trail[i].y >= get_terrain_height(_fall_trail[i].x, _fall_trail[i].z) - 0.5:
+			last_ok = i
+	for i in range(maxi(0, last_ok - 8), mini(_fall_trail.size(), last_ok + 4)):
+		var p: Vector3 = _fall_trail[i]
+		print("[FALL]   %s f%03d  pos=(%.2f, %.2f, %.2f)  terreno=%.2f  dy=%+.2f  | vs boca dx=%+.2f dz=%+.2f"
+			% ["->" if i == last_ok else "  ", i, p.x, p.y, p.z,
+			   get_terrain_height(p.x, p.z), p.y - get_terrain_height(p.x, p.z),
+			   p.x - mouth.x, p.z - mouth.z])
+	print("[FALL] ('->' = ultimo frame con piso bajo los pies; ahi esta el agujero)")
+	print("[FALL] =========================================")
+
+
 ## Tecla P — informe de "estoy trabado", desde la sesión de quien juega.
 ##
 ## Nace de un fracaso de método: el harness `entrance_capture.tscn` midió el vano
