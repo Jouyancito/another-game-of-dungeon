@@ -104,9 +104,69 @@ Más losas y más cortas (14, no 9) siguen mejor la curva.
 Sigue siendo geometría de caja. Lo correcto aguas arriba es una tira de malla continua
 muestreando el terreno, como `_mound_strip()`.
 
+## La puerta cruzable (2026-08-08) — DOS bugs encadenados
+
+Joan confirmó caminando: *"ahora sí es una puerta cruzable"*. Costó una noche y **nueve
+hipótesis**, así que queda escrito con todo el detalle, porque el modo de falla se repite.
+
+### Bug 1 — la loma no tenía hueco para la puerta
+
+`_mound_strip()` generaba una superficie **continua** sobre toda la huella, el vano
+incluido. Al oeste de la costura vale la altura natural (tierra sobre la sala) y al este el
+fondo de la trinchera, así que el primer quad pasada la costura bajaba **~7.4 m en 1.5 m**:
+una pared de tierra casi vertical parada en la puerta, con colisión. Se saltean los quads
+dentro de la huella del vano (`MOUND_DOOR_HALF = 4.0`). No hay que tapar el hueco: por ahí
+se ve el vano, que es lo que tiene que verse.
+
+**Lo encontró Joan mirando el juego**: *"hay que hacer un hoyo en esa malla o no?"*. Y era
+mi hipótesis 6, descartada porque la sonda dio salida byte-idéntica — una sonda que tiraba
+un rayo hacia ABAJO y chocaba contra la viga de madera antes de llegar a la tierra.
+**Cuando descartás una hipótesis por una medición, verificá que esa medición podía verla.**
+
+### Bug 2 — el canto de 0.30 m era PARED para el motor
+
+`_entrance_shape()` tallaba el terreno bajo la sala a `_entrance_floor_y - 0.3` (margen para
+que la tierra no asomara sobre la losa). La cara superior de la losa está en
+`_entrance_floor_y`, así que donde la losa termina —en la boca, justo al salir— quedaba un
+canto vertical de 0.30 m. **Godot trata como pared todo lo más empinado que
+`floor_max_angle` (45°)**, y ese canto medía **71.6°**. Margen a 0.02 m: conserva la guarda
+anti z-fighting y deja de ser obstáculo. Pendiente del vano **71.6° → 35.2°**.
+
+### Por qué nueve hipótesis y seis sondas no lo vieron
+
+**Todas preguntaban "¿hay espacio acá?" cuando la pregunta era "¿un cuerpo puede CAMINAR
+por acá?".** En un canto empinado esas dos difieren justo donde importa: el espacio está
+vacío y el motor igual no te deja pasar.
+
+Seis instrumentos devolvieron lecturas seguras y equivocadas, **ninguno tiró error**:
+cápsula apoyada en `get_terrain_height` (no describe la superficie de colisión); inventario
+de colisionadores recorriendo sólo hijos directos (listó 1 cuerpo de 26); `Input.get_vector`
+con `"move_back"` en vez de `"move_backward"` (devuelve 0 en silencio); stdout de Godot
+buffereado hasta cerrar el proceso; `CharacterBody3D.velocity` = velocidad DESEADA, no
+lograda; y el rayo hacia abajo tapado por la viga. Más un error de proceso: **cuatro
+ventanas del juego abiertas a la vez** escribiendo al mismo `user://` con líneas
+intercaladas — lo delató el latido que se puso "por si el detector está roto".
+
+### La regla, en el gate
+
+`game/tests/test_entrance_walkable.gd` rompe el build si el vano tiene pendiente >45° o si
+una cápsula del tamaño del jugador (r=0.35, h=1.8, **pies sobre la superficie de colisión
+real**) choca al cruzar. Verificado en los dos sentidos: reintroducir el `0.3` lo hace
+fallar imprimiendo el ángulo medido.
+
+Joan lo puso como regla de diseño, no como ticket: *"si haces una puerta, lo lógico es que
+pueda pasar por ella, sin estamparme o imposibilidad de avanzar"*. Por eso vive en CI y no
+en un doc.
+
+**Sondas permanentes** en `scenes/dev/entrance_capture.gd`: barrido 2D de cápsula, despeje
+de techo, barrido ancho, techo de loma, `get_terrain_height` vs raycast, cruce cada 5 cm y
+pendiente del suelo. **`enemies` quedó ENCENDIDO** — estaba en `false` "para que no salgan
+en las fotos" y eso hacía que el harness midiera un nivel que nadie juega.
+
 ## Pendientes
 
-1. **El vano queda tapado por la loma desde afuera.** Con el marco ya resuelto, la captura
+1. ~~**El vano queda tapado por la loma desde afuera.**~~ RESUELTO arriba (bugs 1 y 2).
+   Texto original conservado por contexto: Con el marco ya resuelto, la captura
    `02_outside_ramp.png` muestra que detrás del entibado se ve **tierra iluminada**, no el
    hueco negro de la puerta: sólo asoma una franja oscura abajo. Desde adentro el vano está
    limpio (`00_inside_to_exit.png`), así que es la rama `carved` de `_mound_height()` la que

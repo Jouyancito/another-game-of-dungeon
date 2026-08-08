@@ -90,3 +90,24 @@ orillas también: piedra seca contra piedra mojada, y juncos de verdad.
 > Purga de todo asset que no fuera del motor al máximo. Nota honesta: el mapa
 > quedó con MENOS variedad de árbol hasta que se construyan las especies que
 > faltan — se fueron los que daban el color rojo. Commit `1006f73`.
+
+## [ ] La puerta de la entrada ya se cruza caminando
+
+Se salía saltando, o directamente no se salía: había una barrera invisible en el
+marco. Ahora se pasa caminando, como corresponde.
+@ arrancá el piso 1 y salí por el marco de madera sin saltar.
+> Dos bugs encadenados. La malla de la loma se generaba continua sobre toda la
+> huella, sin hueco para la puerta, y dejaba una pared de tierra de 7,4 m parada
+> en el vano. Y debajo quedaba un canto vertical de 0,30 m donde terminaba la
+> losa del piso: Godot trata como PARED todo lo más empinado que 45°, y ese canto
+> medía 71,6°. Pendiente del vano ahora 35,2°. Commits `466e540` y `4cd0dda`.
+
+## [ ] El build ahora falla si una puerta no se puede cruzar
+
+Regla nueva, no un arreglo puntual: si un vano queda intransitable, el test lo
+frena antes de que llegue al juego.
+@ nada que mirar en el juego — se ve al correr los tests.
+> `game/tests/test_entrance_walkable.gd`. Verifica pendiente bajo 45° y que una
+> cápsula del tamaño del jugador, con los pies sobre la superficie de colisión
+> real, cruce sin chocar. Verificado en ambos sentidos: con el bug reintroducido
+> falla e imprime el ángulo medido. GUT 470 tests / 465 pasando.
