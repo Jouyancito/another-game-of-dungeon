@@ -14,6 +14,15 @@ referencias reales en `floor1_prairie.gd`. **Contado, no recordado.**
 | `.glb` | **motor propio de Blender** | `game/tools/blender/<pack>/build_<pack>.py` |
 | `.gltf` | **pack CC0 importado** (Kenney / Quaternius) | no se regenera — se reemplaza |
 
+> **CORRECCIÓN (2026-08-07, mismo día).** La primera versión de este inventario trató
+> "hecho con el motor" como binario. **No lo es.** `_motor_tiers.md` define tres niveles
+> medibles (M1/M2/M3) y ya tiene la asignación hecha. Un `.glb` puede ser M3 (`rock_pack`)
+> o M1 (`wasp`, que llega **blanco** al juego porque su color vive en nodos de shader que
+> glTF descarta). **Para decidir qué se rehace, mandan los tiers, no la extensión.**
+>
+> Regla vigente de ese doc: *"Ningún asset entra al juego en M1"*, y *"todo asset nuevo
+> arranca en M3"*.
+
 Se verificó pack por pack contra los generadores, no por convención de nombre.
 
 ---
@@ -93,17 +102,25 @@ Sin malla: `bandit_archer`, `bandit_leader`, `bandit_melee`, `bird`, `enemy_basi
 Esto es exactamente lo que Joan reportó: *"del cuervo, siguen siendo una pelota con dos
 alas, sin movimiento, sin nada"*.
 
-### Generadores que existen pero NO están cableados
+### Generadores que existen pero NO están cableados — y en qué tier están
 
-Hay script de motor terminado para enemigos que en el juego siguen siendo primitivas:
+**CORREGIDO.** La primera versión de esta sección decía "correr estos siete, puede haber
+trabajo hecho". Joan lo refutó de memoria y `_motor_tiers.md` le da la razón en 6 de 7:
+son de la época en que el motor todavía no tenía las técnicas que hoy son estándar, y
+**llegan blancos al juego**.
 
-`bird_prey/build_bird.py` · `rat/build_rat.py` · `snake/build_snake.py` ·
-`turtle/build_turtle.py` · `wasp/build_wasp.py` · `golem_floating/build_golem.py` ·
-`golem_guardian/build_golem_guardian.py`
+| generador | tier | veredicto |
+|---|---|---|
+| `golem_guardian/build_golem_guardian.py` | **M3** | **CABLEAR.** 2182 líneas, FLOAT_COLOR con el fix de sRGB, roca noise-displaced, animación con curvas de cascada (peso y lag). El cuervo del juego sigue siendo primitivas mientras esto existe hecho. |
+| `rat/build_rat.py` | M1+ | rehacer — BYTE_COLOR, tonos ~12× oscuros |
+| `snake/build_snake.py` | M1 | rehacer — buena geometría (spine+loft paramétrico), VCOL ausente |
+| `turtle/build_turtle.py` | M1 | rehacer — shape keys maduras, VCOL ausente |
+| `bird_prey/build_bird.py` | M1 | rehacer — loft real en pico y ala, VCOL ausente |
+| `wasp/build_wasp.py` | M1 | rehacer — primitivas + card de ala; Joan además la marcó por escala |
+| `golem_floating/build_golem.py` | M2 | rehacer — BYTE_COLOR, anterior al fix |
 
-**Antes de modelar nada nuevo, correr estos y ver qué sale.** Puede haber trabajo hecho
-esperando ser promovido — es más barato que rehacerlo. (Regla ponytail: verificar contra el
-código antes de construir.)
+La lección: **la existencia de un script no dice nada sobre su tier.** Verificar contra
+`_motor_tiers.md` antes de proponer rescatar código viejo.
 
 Piezas de dressing del golem ya en disco (10): `golem_dp_body_01`, `_chunks_01`,
 `_rock_chip_01`, `_moss_patch_01`, `_moss_tuft_02`, `_grass_clump_01`, `_branch_nest_01`,
