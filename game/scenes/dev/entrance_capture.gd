@@ -90,6 +90,106 @@ func _ready() -> void:
 			% [int(f * 100.0), px, _floor.call("get_terrain_height", px, anchor.z),
 			   surface - _floor.call("get_terrain_height", px, anchor.z)])
 
+	# ── Perfil del UMBRAL ─────────────────────────────────────────────────────
+	# El perfil de trinchera de arriba muestrea de la boca hacia AFUERA en pasos de
+	# 8 m, así que se saltea entero el metro donde vive el bloqueo. Joan queda pegado
+	# al salir caminando (reportado 2026-08-01 y otra vez el 2026-08-07), y lo que
+	# decide eso es la altura del suelo CONTRA el piso de la sala en los pocos metros
+	# alrededor de la costura. Un escalón mayor a ~0.35 m no se sube caminando.
+	print("[entrance_capture] --- umbral (z = centro del vano) ---")
+	print("[entrance_capture]     floor_y sala = %.2f" % floor_y)
+	for dx in [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]:
+		var tx: float = mouth_x + dx
+		var th: float = _floor.call("get_terrain_height", tx, anchor.z)
+		var step: float = th - floor_y
+		var flag: String = ""
+		if step > 0.35:
+			flag = "  <-- ESCALON, bloquea"
+		elif step > 0.0:
+			flag = "  (sube, se pasa)"
+		print("[entrance_capture]   dx=%+5.1f  x=%8.2f  terreno=%7.2f  vs piso=%+6.2f%s"
+			% [dx, tx, th, step, flag])
+
+	# ── Qué cuerpo bloquea la salida ──────────────────────────────────────────
+	# El perfil de arriba dice que el TERRENO no bloquea, así que teorizar sobre cuál
+	# de las mallas es culpable ya falló una vez. Se le pregunta a la física: rayos a
+	# tres alturas del cuerpo, desde adentro de la sala hacia afuera, reportando el
+	# nombre del nodo golpeado. Eso nombra al culpable en vez de deducirlo.
+	var space: PhysicsDirectSpaceState3D = _floor.get_world_3d().direct_space_state
+	print("[entrance_capture] --- que bloquea la salida ---")
+	# Un rayo por el eje central pasa limpio, pero Joan igual queda pegado: nadie
+	# camina exactamente por el eje. Se barre a lo ancho del vano Y a tres alturas.
+	for dz in [-2.5, -1.5, 0.0, 1.5, 2.5]:
+		var blocked_at: String = ""
+		for h in [0.30, 1.00, 1.70]:
+			var from := Vector3(mouth_x - 6.0, floor_y + h, anchor.z + dz)
+			var to := Vector3(mouth_x + 12.0, floor_y + h, anchor.z + dz)
+			var q := PhysicsRayQueryParameters3D.create(from, to)
+			q.collide_with_areas = false
+			var hit: Dictionary = space.intersect_ray(q)
+			if not hit.is_empty():
+				var n: Node = hit["collider"]
+				blocked_at += "  [y+%.2f] '%s' en dx%+.2f" % [h, n.name, hit["position"].x - mouth_x]
+		print("[entrance_capture]   dz=%+5.1f %s" % [dz, blocked_at if blocked_at != "" else " LIBRE a las 3 alturas"])
+
+	# Y con la CÁPSULA real del jugador, que es lo que de verdad se traba: un rayo
+	# fino pasa por huecos que un cuerpo de 0.4 m de radio no pasa.
+	# Medidas REALES del jugador (player.tscn: radius 0.35, height 1.8), no inventadas.
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.35
+	cap.height = 1.8
+	# Barrido 2D. La cápsula se planta APOYADA sobre lo que haya de suelo en cada
+	# punto (terreno o losa, el que esté más alto), que es donde de verdad está el
+	# jugador — plantarla a una altura fija la deja flotando fuera de la losa y
+	# entonces no toca nada, que es como una primera pasada dio "libre" en falso.
+	# Marca sólo lo que NO es piso legítimo.
+	print("[entrance_capture]   -- barrido 2D con capsula r=0.40 h=1.80, apoyada en el suelo --")
+	for dz2 in [-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0]:
+		var row: String = ""
+		for dx2 in [-1.0, 0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0]:
+			var px2: float = mouth_x + dx2
+			var pz2: float = anchor.z + dz2
+			var ground: float = maxf(_floor.call("get_terrain_height", px2, pz2), floor_y)
+			var pq := PhysicsShapeQueryParameters3D.new()
+			pq.shape = cap
+			# +0.90 = mitad de la cápsula, o sea los pies justo en el suelo.
+			pq.transform = Transform3D(Basis(), Vector3(px2, ground + 0.90, pz2))
+			pq.collide_with_areas = false
+			var hits: Array[Dictionary] = space.intersect_shape(pq, 8)
+			var bad: PackedStringArray = []
+			for hh in hits:
+				var nm: String = str((hh["collider"] as Node).name)
+				if nm != "EntranceFloor":
+					bad.append(nm)
+			row += "  %s" % ("." if bad.is_empty() else "[%s]" % bad[0])
+		print("[entrance_capture]     dz=%+5.1f %s" % [dz2, row])
+	print("[entrance_capture]     (columnas dx = -1.0 0.0 0.5 1.0 1.5 2.0 3.0 4.0 ; '.' = paso libre)")
+
+	# ── TECHO sobre el corredor ───────────────────────────────────────────────
+	# Joan: "cuando voy saliendo y llego al marco, aparece el pedazo de tierra ENCIMA
+	# y me bloquea". El barrido de arriba mira a la altura del cuerpo y da libre, así
+	# que lo que sobra no está al lado: está arriba. Rayo hacia el cielo desde la
+	# cabeza, reportando qué hay y a cuánto despeje. Menos de 1.8 m = no se pasa.
+	print("[entrance_capture]   -- techo sobre el corredor (rayo hacia arriba) --")
+	for dz3 in [-2.0, 0.0, 2.0]:
+		var row2: String = ""
+		for dx3 in [0.0, 1.0, 2.0, 3.0, 4.0, 6.0, 9.0]:
+			var px3: float = mouth_x + dx3
+			var pz3: float = anchor.z + dz3
+			var g3: float = maxf(_floor.call("get_terrain_height", px3, pz3), floor_y)
+			var q3 := PhysicsRayQueryParameters3D.create(
+				Vector3(px3, g3 + 0.10, pz3), Vector3(px3, g3 + 12.0, pz3))
+			q3.collide_with_areas = false
+			var h3: Dictionary = space.intersect_ray(q3)
+			if h3.is_empty():
+				row2 += "   dx%+.0f:cielo" % dx3
+			else:
+				var clear: float = h3["position"].y - g3
+				row2 += "   dx%+.0f:%s@%.2f%s" % [dx3, str((h3["collider"] as Node).name).replace("Entrance", ""),
+					clear, "!!" if clear < 1.85 else ""]
+		print("[entrance_capture]     dz=%+4.1f%s" % [dz3, row2])
+	print("[entrance_capture]     ('!!' = despeje menor a 1.85 m, el jugador NO pasa)")
+
 	await _shot("00_inside_to_exit",
 		Vector3(anchor.x - hall_len * 0.5 + 3.0, floor_y + EYE, anchor.z),
 		Vector3(mouth_x + 8.0, floor_y + 2.0, anchor.z))

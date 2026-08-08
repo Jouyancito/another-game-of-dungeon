@@ -141,7 +141,21 @@ const FIELD_ENEMY_COUNT: int = 35
 const PATROL_ENEMY_COUNT: int = 8
 
 # Terrain (heightmap)
-const TERRAIN_RESOLUTION: int = 96       # grid cells por lado (96*96 = 9216 verts)
+## 2026-08-07: 96 -> 128. La resolución era FIJA mientras `proc_bounds` es @export, así
+## que al pasar el mapa de 600 a 780 m el paso de grilla saltó de 6.25 a 8.125 m sin que
+## nada avisara. La trinchera de entrada quedó más angosta que la celda que la describe y
+## la interpolación metió tierra sin excavar DENTRO del corredor: el vano mide 6 m y el
+## paso libre real eran 3 m, corridos hacia el norte. Joan quedó trabado saliendo
+## ("se bloquea con suelo y me deja pegado", medido con el barrido de cápsula de
+## scenes/dev/entrance_capture.gd).
+##
+## 128 sobre 780 m = 6.09 m por celda, apenas mejor que los 6.25 originales. Cuesta
+## 16 641 vértices contra 9 409 (+77%) en un heightmap estático, y de paso le da
+## definición a las colinas de 16 m que se subieron en el mismo commit.
+##
+## REGLA: esta constante y `proc_bounds` están acopladas. Si el mapa vuelve a cambiar de
+## tamaño, recalcular para mantener el paso en ~6 m o la entrada se vuelve a tapar.
+const TERRAIN_RESOLUTION: int = 128      # grid cells por lado (128*128 = 16384 verts)
 ## Amplitude of the base hill noise ONLY (Section 1 of _compute_height_at) — NOT
 ## the overall height ceiling of the map. Historically this doubled as the color
 ## ramp's normalisation divisor too, which was wrong: Round-C's bowl/mountain rise
