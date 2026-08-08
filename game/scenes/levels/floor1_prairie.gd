@@ -4988,14 +4988,41 @@ func _make_timber_material(color: Color) -> StandardMaterial3D:
 ## solo, la primera vez que detecta que el jugador se fue por debajo del mundo.
 var _fall_trail: Array[Vector3] = []
 var _fall_reported: bool = false
+var _stuck_frames: int = 0
+var _stuck_reported: bool = false
 
 func _physics_process(_delta: float) -> void:
-	if not OS.is_debug_build() or _fall_reported or not _entrance_anchor_valid:
+	if not OS.is_debug_build() or not _entrance_anchor_valid:
 		return
 	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	if players.is_empty():
 		return
-	var pos: Vector3 = (players[0] as Node3D).global_position
+	var body: CharacterBody3D = players[0] as CharacterBody3D
+	var pos: Vector3 = body.global_position
+
+	# ── Detector de ATASCO ────────────────────────────────────────────────────
+	# El watchdog de caída sólo dispara si el jugador se va del mundo, y la última
+	# vez Joan quedó trabado SIN caerse, así que no salió nada. Esto detecta la queja
+	# textual —"no puedo moverme ni saltar"— por su definición operativa: hay input de
+	# movimiento y el cuerpo no avanza. No depende de que el humano apriete una tecla
+	# en el frame correcto, ni de que yo acierte dónde mirar.
+	if not _stuck_reported:
+		# "move_backward", no "move_back": con el nombre equivocado get_vector no
+		# tira error, devuelve 0 y el detector no dispara nunca — un instrumento
+		# roto que parece sano, que es justo el modo de falla de esta sesión.
+		var wants: bool = Input.get_vector(
+			"move_left", "move_right", "move_forward", "move_backward").length() > 0.1
+		if wants and Vector2(body.velocity.x, body.velocity.z).length() < 0.35:
+			_stuck_frames += 1
+		else:
+			_stuck_frames = 0
+		if _stuck_frames > 45:              # ~0.75 s empujando contra algo
+			_stuck_reported = true
+			print("[ATASCO] el jugador empuja hace %.2f s y no avanza" % (_stuck_frames / 60.0))
+			_debug_report_stuck()
+
+	if _fall_reported:
+		return
 	_fall_trail.append(pos)
 	if _fall_trail.size() > 120:            # ~2 s a 60 Hz
 		_fall_trail.pop_front()

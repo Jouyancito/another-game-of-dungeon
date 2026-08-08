@@ -288,6 +288,60 @@ func _ready() -> void:
 	print("[entrance_capture]   (positivo = la malla REAL esta MAS ARRIBA de lo que dice la funcion)")
 	print("[entrance_capture]   PEOR CASO: la malla esta %.2f m sobre get_terrain_height" % peor)
 
+	# ── Barrido ADENTRO de la sala ────────────────────────────────────────────
+	# Todas las sondas anteriores arrancaban en el vano hacia AFUERA. La última
+	# captura de Joan lo muestra DENTRO del cuarto, con una cuña de tierra
+	# atravesándolo. Nunca miré ahí. Se barre la sala entera.
+	print("[entrance_capture]   -- barrido DENTRO de la sala (dx negativo = hacia el portal) --")
+	for dzs in [-5.0, -2.5, 0.0, 2.5, 5.0]:
+		var rows: String = ""
+		var vistos: Dictionary = {}
+		for dxs in range(-17, 3):
+			var pxs: float = mouth_x + float(dxs)
+			var pzs: float = anchor.z + dzs
+			var pqs := PhysicsShapeQueryParameters3D.new()
+			pqs.shape = cap
+			pqs.transform = Transform3D(Basis(), Vector3(pxs, floor_y + 0.90, pzs))
+			pqs.collide_with_areas = false
+			var hs: Array[Dictionary] = space.intersect_shape(pqs, 8)
+			var mk: String = "."
+			for hh6 in hs:
+				var nm6: String = str((hh6["collider"] as Node).name)
+				if nm6 == "EntranceFloor":
+					continue
+				vistos[nm6] = true
+				mk = "#" if (nm6.contains("Terrain") or nm6.contains("Mound")) else "o"
+				break
+			rows += mk
+		print("[entrance_capture]   dz=%+5.1f  %s   %s"
+			% [dzs, rows, ", ".join(PackedStringArray(vistos.keys()))])
+	print("[entrance_capture]   (dx de -17 a +2 ; '#' = tierra DENTRO de la sala)")
+
+	# ── Inventario CIEGO de colisionadores ────────────────────────────────────
+	# Seis hipótesis muertas eligiendo dónde mirar. Esto no elige: lista TODO cuerpo
+	# con colisión a menos de 30 m de la boca, con su altura, para que el culpable
+	# aparezca solo en vez de tener que sospecharlo primero.
+	print("[entrance_capture]   -- TODO cuerpo con colision a <30 m de la boca --")
+	var mouth_v := Vector3(mouth_x, floor_y, anchor.z)
+	# RECURSIVO. La primera versión miraba sólo hijos directos y listó UN cuerpo, lo
+	# cual es imposible con paredes, techo, loma y terreno en la escena: los cuerpos
+	# cuelgan de contenedores, no de la raíz del nivel.
+	var pend: Array[Node] = [_floor]
+	var found: int = 0
+	while not pend.is_empty():
+		var nd: Node = pend.pop_back()
+		for c in nd.get_children():
+			pend.append(c)
+		if not (nd is CollisionObject3D or nd is CSGShape3D):
+			continue
+		var np: Vector3 = (nd as Node3D).global_position
+		if np.distance_to(mouth_v) > 26.0:
+			continue
+		found += 1
+		print("[entrance_capture]     %-26s %-18s pos=(%+7.2f,%+7.2f,%+7.2f)  dy vs piso=%+.2f"
+			% [nd.name, nd.get_class(), np.x, np.y, np.z, np.y - floor_y])
+	print("[entrance_capture]     total: %d cuerpos" % found)
+
 	await _shot("00_inside_to_exit",
 		Vector3(anchor.x - hall_len * 0.5 + 3.0, floor_y + EYE, anchor.z),
 		Vector3(mouth_x + 8.0, floor_y + 2.0, anchor.z))
