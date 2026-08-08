@@ -4315,6 +4315,10 @@ const MOUND_STEP: float = 1.5      # muestreo de la malla — 4x más fino que e
 const MOUND_SKIRT: float = 6.0     # solape con el terreno real, para que no se vea la junta
 const MOUND_FLARE: float = 4.5     # ancho del talud a los costados del corredor
 const ENTRANCE_THROAT_FRAC: float = 0.18  # tramo recto pegado a la fachada, en fracción del run
+## Semiancho del hueco que se recorta en la loma para que la puerta sea puerta.
+## 4.0 = los 3 m del vano + 1 m de margen a cada lado: sin margen, la celda del borde
+## sigue tirando su esquina dentro del paso.
+const MOUND_DOOR_HALF: float = 4.0
 
 
 func _build_entrance_mound() -> void:
@@ -4373,6 +4377,23 @@ func _mound_strip(st: SurfaceTool, xa: float, xb: float, za: float, zb: float,
 			var bx: float = xa + float(ix + 1) * dx
 			var az: float = za + float(iz) * dz
 			var bz: float = za + float(iz + 1) * dz
+			# EL HUECO DE LA PUERTA. Idea de Joan, 2026-08-07: *"hay que hacer un
+			# hoyo en esa malla o no?"* — y era exactamente eso.
+			#
+			# La loma se generaba como una superficie CONTINUA sobre toda la huella,
+			# el vano incluido. Al oeste de la costura vale la altura natural (tierra
+			# maciza sobre la sala) y al este cae al fondo de la trinchera, así que el
+			# primer quad pasada la costura baja ~7.4 m en 1.5 m horizontales: una
+			# pared de tierra casi vertical parada justo en la puerta, con colisión.
+			# Ninguna sonda la encontró porque los rayos hacia arriba chocaban antes
+			# contra la viga de madera del marco, y el barrido de cápsula la esquivaba
+			# por poco. Se ve a simple vista desde el juego.
+			#
+			# Saltear el quad es lo correcto y no lo tapa nada: por ese hueco se ve el
+			# vano, que es justo lo que tiene que verse.
+			if absf((ax + bx) * 0.5 - seam_x) < MOUND_STEP * 1.5 \
+					and absf((az + bz) * 0.5 - mouth.z) < MOUND_DOOR_HALF:
+				continue
 			var v00 := Vector3(ax, _mound_height(ax, az, seam_x, mouth, notch_half), az)
 			var v10 := Vector3(bx, _mound_height(bx, az, seam_x, mouth, notch_half), az)
 			var v01 := Vector3(ax, _mound_height(ax, bz, seam_x, mouth, notch_half), bz)
