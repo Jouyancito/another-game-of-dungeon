@@ -5018,7 +5018,7 @@ func _physics_process(_delta: float) -> void:
 			_stuck_frames = 0
 		if _stuck_frames > 45:              # ~0.75 s empujando contra algo
 			_stuck_reported = true
-			print("[ATASCO] el jugador empuja hace %.2f s y no avanza" % (_stuck_frames / 60.0))
+			_stuck_log("[ATASCO] el jugador empuja hace %.2f s y no avanza" % (_stuck_frames / 60.0))
 			_debug_report_stuck()
 
 	if _fall_reported:
@@ -5030,7 +5030,7 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	_fall_reported = true
-	print("[FALL] ===== el jugador atraveso el mundo =====")
+	_stuck_log("[FALL] ===== el jugador atraveso el mundo =====")
 	var mouth: Vector3 = _entrance_mouth()
 	# Sólo los frames hasta que empieza a hundirse: lo de después es caída libre y
 	# no dice nada. El punto que importa es el ÚLTIMO donde todavía estaba arriba.
@@ -5040,12 +5040,33 @@ func _physics_process(_delta: float) -> void:
 			last_ok = i
 	for i in range(maxi(0, last_ok - 8), mini(_fall_trail.size(), last_ok + 4)):
 		var p: Vector3 = _fall_trail[i]
-		print("[FALL]   %s f%03d  pos=(%.2f, %.2f, %.2f)  terreno=%.2f  dy=%+.2f  | vs boca dx=%+.2f dz=%+.2f"
+		_stuck_log("[FALL]   %s f%03d  pos=(%.2f, %.2f, %.2f)  terreno=%.2f  dy=%+.2f  | vs boca dx=%+.2f dz=%+.2f"
 			% ["->" if i == last_ok else "  ", i, p.x, p.y, p.z,
 			   get_terrain_height(p.x, p.z), p.y - get_terrain_height(p.x, p.z),
 			   p.x - mouth.x, p.z - mouth.z])
-	print("[FALL] ('->' = ultimo frame con piso bajo los pies; ahi esta el agujero)")
-	print("[FALL] =========================================")
+	_stuck_log("[FALL] ('->' = ultimo frame con piso bajo los pies; ahi esta el agujero)")
+	_stuck_log("[FALL] =========================================")
+
+
+## Escribe una línea del diagnóstico a consola Y a archivo.
+##
+## El stdout de Godot queda BUFFEREADO hasta que el proceso cierra, así que un
+## reporte impreso mientras el juego corre es ilegible justo cuando hace falta —
+## había que pedirle a Joan que cerrara la ventana para poder leerlo. El archivo se
+## abre y se cierra por línea: cuesta más, y a cambio el diagnóstico está en disco
+## en el instante en que ocurre.
+const STUCK_LOG_PATH: String = "user://stuck_report.log"
+
+func _stuck_log(line: String) -> void:
+	print(line)
+	var f: FileAccess = FileAccess.open(STUCK_LOG_PATH, FileAccess.READ_WRITE)
+	if f == null:
+		f = FileAccess.open(STUCK_LOG_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.seek_end()
+	f.store_line(line)
+	f.close()
 
 
 ## Tecla P — informe de "estoy trabado", desde la sesión de quien juega.
@@ -5059,17 +5080,17 @@ func _physics_process(_delta: float) -> void:
 func _debug_report_stuck() -> void:
 	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	if players.is_empty():
-		print("[STUCK] no hay jugador en el grupo 'player'")
+		_stuck_log("[STUCK] no hay jugador en el grupo 'player'")
 		return
 	var p: Node3D = players[0] as Node3D
 	var pos: Vector3 = p.global_position
-	print("[STUCK] ==========================================")
-	print("[STUCK] jugador en (%.2f, %.2f, %.2f)" % [pos.x, pos.y, pos.z])
-	print("[STUCK] terreno ahi = %.2f  (jugador %+.2f sobre el terreno)"
+	_stuck_log("[STUCK] ==========================================")
+	_stuck_log("[STUCK] jugador en (%.2f, %.2f, %.2f)" % [pos.x, pos.y, pos.z])
+	_stuck_log("[STUCK] terreno ahi = %.2f  (jugador %+.2f sobre el terreno)"
 		% [get_terrain_height(pos.x, pos.z), pos.y - get_terrain_height(pos.x, pos.z)])
 	if _entrance_anchor_valid:
 		var m: Vector3 = _entrance_mouth()
-		print("[STUCK] vs boca de la entrada: dx=%+.2f  dz=%+.2f  | piso sala=%.2f"
+		_stuck_log("[STUCK] vs boca de la entrada: dx=%+.2f  dz=%+.2f  | piso sala=%.2f"
 			% [pos.x - m.x, pos.z - m.z, _entrance_floor_y])
 
 	# Qué toca su cápsula AHORA. Esto es lo que el harness no podía saber.
@@ -5082,20 +5103,20 @@ func _debug_report_stuck() -> void:
 	q.collide_with_areas = false
 	var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(q, 16)
 	if hits.is_empty():
-		print("[STUCK] su capsula NO toca nada -> no esta chocando, esta ENCERRADO o cayendo")
+		_stuck_log("[STUCK] su capsula NO toca nada -> no esta chocando, esta ENCERRADO o cayendo")
 	for h in hits:
 		var n: Node = h["collider"]
-		print("[STUCK]   toca '%s' (%s)" % [n.name, n.get_class()])
+		_stuck_log("[STUCK]   toca '%s' (%s)" % [n.name, n.get_class()])
 
 	# Y en qué direcciones puede salir, que es lo que decide si está encerrado.
 	for d in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT, Vector3.UP]:
 		var rq := PhysicsRayQueryParameters3D.create(pos, pos + d * 3.0)
 		rq.collide_with_areas = false
 		var rh: Dictionary = get_world_3d().direct_space_state.intersect_ray(rq)
-		print("[STUCK]   hacia %-18s %s" % [str(d),
+		_stuck_log("[STUCK]   hacia %-18s %s" % [str(d),
 			"libre 3 m" if rh.is_empty() else "'%s' a %.2f m" % [
 				(rh["collider"] as Node).name, pos.distance_to(rh["position"])]])
-	print("[STUCK] ==========================================")
+	_stuck_log("[STUCK] ==========================================")
 
 
 func _unhandled_input(event: InputEvent) -> void:
