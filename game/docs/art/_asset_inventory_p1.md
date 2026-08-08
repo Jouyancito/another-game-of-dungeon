@@ -150,6 +150,51 @@ marcó como ilegibles (`_asset_rework_queue.md` grupo B).
 **El ambiente está mayormente hecho con el motor. Los enemigos casi no existen como
 modelos.** Ahí está el desbalance.
 
+## PURGA M3 ejecutada (2026-08-07)
+
+Directiva de Joan: *"eliminamos todos los modelos que no son M3"*, *"todo esto trabajando
+con el motor en máximo rendimiento"*.
+
+**Método**: la vegetación de scatter se saca de los pools; NO se reemplaza por cubos. Son
+miles de instancias y un bosque de cubos contradice el objetivo del mismo pedido (*"que se
+vea bien, que sea bonita"*). Los props únicos y contados sí van a cubo marcado — esa parte
+está **pendiente**.
+
+### Reemplazos (el rol se mantiene, cambia la fuente)
+
+| era | pasa a | por qué |
+|---|---|---|
+| `env_grass_small_01.gltf` (alfombra MultiMesh, **~193 000 briznas**) | `env_grass_lawn_dense_01` + `env_grass_wispy_seedhead_01` | el elemento más visible de la pradera salía de un CC0. Dos mallas en vez de una: el MultiMesh reparte, así que deja de ser un solo tufo clonado |
+| `env_tree_common_01.gltf` (árbol gigante) | `env_tree_prairie_wide_01` | el tree_pack lo construyó como *"shade tree in clearings, deliberately rare/standout"* — mismo rol de hito |
+| `env_pebble_round_01` + `prop_rock_small_01` (ribera) | `env_river_rock_river_dry_01` + `_wet_01` | el river_pack se construyó PARA la orilla: seco contra mojado partido por cara |
+| `env_grass_small_01` escalado alto como junco | `env_river_reed_clump_01` | había un junco de verdad sin usar |
+| `prop_rock_large_01` | `prop_rock_boulder_large_01` | "el huevo" → Perlin doble capa |
+| `env_clover_01` | `env_grass_lawn_dense_01` | mismo nicho de mata baja al ras |
+| `env_bush_01` + `env_bush_small_flowers_01` (ribera) | `env_bush_flowering_01` + `_low_01` | bush_pack M3 |
+
+### Bajas sin reemplazo — deuda REAL que el motor tiene que cubrir
+
+1. **Especie de árbol tolerante a la sombra.** Se fueron los 7 slots de maple, que eran el
+   sotobosque (`shade [0.3, 1.0]`). Las 5 especies del tree_pack **no cubren ese extremo**:
+   hoy el scatter reparte a ciegas bajo copa. Es la baja que más se nota.
+2. **Especie de copa ancha / color otoñal.** Se fueron 3 common + 2 birch. El mapa perdió
+   el rojo — comparar los renders del `entrance_capture` antes y después.
+3. **Árbol muerto** (`_scatter_dead_trees` se saltea sola).
+4. **Hongo de repisa** y **hongo de sotobosque** (`_scatter_understory_mushrooms` idem).
+
+Cuando lleguen, hay que **devolverles su entrada en `FLORA_NICHES`** o el scatter los
+reparte sin nicho.
+
+### Gotcha de GDScript que costó una ronda
+
+Poner `const SCENE_X: PackedScene = null` y después llamar `SCENE_X.instantiate()` —aunque
+sea dentro de un ternario que nunca ejecuta esa rama— hace que el analizador intente
+resolver el método builtin en tiempo de análisis y escupe **16 × `Parameter "method" is
+null`** sin backtrace útil en `validate.ps1`. La const se pliega. **Copiar la const a una
+variable local corta el plegado.** Y el error aparecía atribuido a `entrance_capture.gd:53`,
+no al archivo culpable: hizo falta comparar con y sin cambios (`git stash`) para saber
+siquiera que era propio.
+
 ## Pendientes que salieron de este inventario
 
 1. **Medir el tamaño nativo de las flores del `flower_pack`.** El scatter las escala 0.7-1.6×

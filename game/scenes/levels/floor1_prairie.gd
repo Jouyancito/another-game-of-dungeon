@@ -2313,7 +2313,10 @@ func _build_camp(poi: POISystem.POI) -> void:
 	VillageBuilder.build(self, poi, get_terrain_height, _rng, _add_camp_prop, VillageBuilder.STYLE_BANDIT_PRAIRIE)
 
 ## Landmark tree uses a REAL scaled gltf, not the old green-box-on-a-stick.
-const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf")
+## PURGA M3 (2026-08-07): era env_tree_common_01.gltf (CC0). Pasa a tree_prairie_wide,
+## que el tree_pack construyó justamente como "shade tree in clearings, deliberately
+## rare/standout" — el mismo rol de árbol-hito que cumplía el gigante.
+const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_wide_01.glb")
 
 func _build_giant_tree(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
@@ -2470,12 +2473,17 @@ func _scatter_stream_banks() -> void:
 		return
 
 	# Load assets — graceful degradation if a file isn't imported yet.
-	const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"
-	const SMALL_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"
-	const REED_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf"
+	# PURGA M3 (2026-08-07). Toda la ribera pasa al motor. Y acá el cambio no es sólo
+	# de tier: el river_pack fue construido PARA la orilla —piedra seca contra piedra
+	# mojada partida por cara, junco propio— así que reemplaza a los proxies genéricos
+	# que había (un guijarro CC0, una roca chica CC0 y pasto escalado alto haciendo de
+	# junco) con las piezas que el rol pedía desde el principio.
+	const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
+	const SMALL_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_01.glb"
+	const REED_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_01.glb"
 	const BUSH_PATHS: Array[String] = [
-		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_small_flowers_01.gltf",
-		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf",
+		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb",
+		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb",
 	]
 
 	var pebble_scene: PackedScene = load(PEBBLE_PATH) if ResourceLoader.exists(PEBBLE_PATH) else null
@@ -2739,7 +2747,9 @@ func _build_stream_ribbons() -> void:
 			# ── Dry watercourse — pebble line along the channel centreline ─────────
 			# RNG save/restore so this scatter pass is INVISIBLE to enemy placement.
 			var pebble_scene: PackedScene = null
-			const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"
+			# PURGA M3 (2026-08-07): era env_pebble_round_01.gltf (CC0). El river_pack
+			# tiene la piedra de cauce SECO, que es literalmente este caso.
+			const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
 			if ResourceLoader.exists(PEBBLE_PATH):
 				pebble_scene = load(PEBBLE_PATH)
 			if pebble_scene == null:
@@ -3027,21 +3037,12 @@ func _scatter_stream_reeds() -> void:
 ## combined tree_pack.glb is intentionally NOT wired — only the 5 individual
 ## variants. See FLORA_NICHES below for the humidity/shade niche of each.
 const POOL_TREES: Array[PackedScene] = [
-	# 2 birch (down from 5) — sparse, near crystal-spotlight zones by chance
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf"),
-	# 7 maple (up from 3) — best-fit understory tree for dim cavern
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
-	# 3 common broadleaf (unchanged)
-	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf"),
+	# PURGA M3 (2026-08-07). Se fueron los 12 slots CC0 —2 birch, 7 maple, 3 common—
+	# por directiva de Joan: *"eliminamos todos los modelos que no son M3"*, todo
+	# construido con el motor al máximo. El pool queda con las 5 especies del
+	# tree_pack, que SON M3 (`_motor_tiers.md`). Deuda registrada en
+	# `_asset_inventory_p1.md`: faltan especies de copa ancha y de color otoñal para
+	# reponer la variedad que daban maple y common — el motor tiene que darlas.
 	# 5 tree_prairie — dominant generalist (highest single weight among the new set)
 	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
@@ -3063,7 +3064,12 @@ const POOL_TREES: Array[PackedScene] = [
 
 ## Dead tree scene — managed separately so laetiporus can attach at spawn time.
 ## FIX #2: placed via _scatter_dead_trees(), not in POOL_TREES.
-const SCENE_DEAD_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf")
+## PURGA M3 (2026-08-07): era env_tree_dead_01.gltf (CC0). En null hasta que el motor
+## dé un árbol muerto M3 — _scatter_dead_trees() se saltea solo mientras tanto.
+## No se reemplaza por un cubo: son decenas de instancias de scatter y un bosque de
+## cubos contradice el objetivo de Joan ("que se vea bien, que sea bonita"). La deuda
+## vive en _asset_inventory_p1.md, que es donde se puede actuar sobre ella.
+const SCENE_DEAD_TREE: PackedScene = null
 
 ## C7: flowering bushes removed — full-sun wildflower bushes are incoherent in a
 ## dim cavern (same rationale as flower_clump removal in POOL_GROUND).
@@ -3077,8 +3083,9 @@ const SCENE_DEAD_TREE: PackedScene = preload("res://assets/art/piso1_pradera/veg
 ## per-species weight comparable — visible but none monopolizes. The combined
 ## bush_pack.glb is intentionally NOT wired. See FLORA_NICHES for niches.
 const POOL_BUSHES: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
+	# PURGA M3 (2026-08-07): fuera env_bush_01.gltf y env_bush_large_01.gltf (CC0).
+	# Son los arbustos que Joan marcó tres veces en playtests. Quedan los 5 del
+	# bush_pack, todos M3.
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_round_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb"),
@@ -3092,10 +3099,10 @@ const POOL_BUSHES: Array[PackedScene] = [
 ## §17.2.4 per-instance variation (non-uniform scale + noise fracture) is already baked
 ## into each variant's own generator, on top of _place_instance's existing scale/rot jitter.
 const POOL_ROCKS: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"),
-	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"),
-	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_wide_01.glb"),
-	preload("res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"),
+	# PURGA M3 (2026-08-07): fuera prop_rock_{large,small,wide}_01.glb y
+	# env_pebble_round_01.gltf. Los tres prop_rock_* son CC0 pese a la extensión
+	# .glb — son "el huevo" que Joan marcó en el playtest. Quedan los 6 del
+	# rock_pack (M3: Perlin doble capa ridge+detail, taper/flatten/carve).
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_scatter_pebbles_01.glb"),
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_mossy_01.glb"),
 	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_slab_flat_01.glb"),
@@ -3147,7 +3154,8 @@ const POOL_ROCKS: Array[PackedScene] = [
 ## niche already used for env_mushroom_laetiporus_01/common below) instead of the
 ## "no niche" treatment given to grass/rocks.
 const POOL_GROUND: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"),
+	# PURGA M3 (2026-08-07): fuera env_clover_01.gltf (CC0). Quedan los 6 del
+	# grass_pack y las 6 del flower_pack (M2+, vertex color FLOAT correcto).
 	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb"),
 	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_broad_clump_01.glb"),
@@ -3163,11 +3171,15 @@ const POOL_GROUND: Array[PackedScene] = [
 ]
 
 ## The laetiporus scene — spawned at base of dead trees only (see _generate_vegetation).
-const SCENE_LAETIPORUS: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf")
+## PURGA M3 (2026-08-07): era env_mushroom_laetiporus_01.gltf (CC0). Null hasta que
+## el motor dé un hongo de repisa M3.
+const SCENE_LAETIPORUS: PackedScene = null
 
 ## Common mushroom — spawned in the SHADE at the base of trees (see
 ## _scatter_understory_mushrooms), never in open field.
-const SCENE_MUSHROOM_COMMON: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf")
+## PURGA M3 (2026-08-07): era env_mushroom_common_01.gltf (CC0). Null hasta que el
+## motor dé un hongo de sotobosque M3.
+const SCENE_MUSHROOM_COMMON: PackedScene = null
 
 # ── Task 2 (2026-07-20): humidity + shade niche system ───────────────────────
 # Lightweight proxy system (spec §3) — NOT the full per-cell procedural_ecology.md
@@ -3188,38 +3200,13 @@ const SCENE_MUSHROOM_COMMON: PackedScene = preload("res://assets/art/piso1_prade
 ## niche) fall back to a neutral weight in _pick_flora_for_point, i.e. uniform
 ## random selection exactly like before this system existed.
 const FLORA_NICHES: Dictionary = {
-	# Birch — shade-intolerant pioneer (BREAK #4): confine it to the brightest
-	# ground instead of relying on luck, per its own comment ("sparse, near
-	# crystal-spotlight zones by chance").
-	"res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf":
-		{"humidity": [0.15, 0.75], "shade": [0.0, 0.3]},
-	"res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf":
-		{"humidity": [0.15, 0.75], "shade": [0.0, 0.3]},
-	# Maple — the coherence sheet's best-fit understory tree (medium-high shade
-	# tolerance); belongs UNDER canopy, not in the open.
-	"res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf":
-		{"humidity": [0.1, 0.85], "shade": [0.3, 1.0]},
-	"res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf":
-		{"humidity": [0.1, 0.85], "shade": [0.3, 1.0]},
-	"res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf":
-		{"humidity": [0.1, 0.85], "shade": [0.3, 1.0]},
-	# Common broadleaf — low-medium shade tolerance, sits between birch and maple.
-	"res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf":
-		{"humidity": [0.1, 0.7], "shade": [0.0, 0.55]},
-	"res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf":
-		{"humidity": [0.1, 0.7], "shade": [0.0, 0.55]},
-	"res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf":
-		{"humidity": [0.1, 0.7], "shade": [0.0, 0.55]},
-	# Bushes — generic understory shrubs, medium shade tolerance, mesic.
-	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf":
-		{"humidity": [0.1, 0.8], "shade": [0.2, 0.9]},
-	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf":
-		{"humidity": [0.1, 0.8], "shade": [0.2, 0.9]},
-	# Clover — the surviving flower-adjacent entry after BREAK #1 removed the
-	# full-sun wildflowers (grass_pack/flower_pale_glow added 2026-07-25 don't
-	# change this verdict). White clover tolerates up to ~50% shade.
-	"res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf":
-		{"humidity": [0.15, 1.0], "shade": [0.0, 0.7]},
+	# PURGA M3 (2026-08-07): se fueron las 10 entradas de birch / maple / common /
+	# env_bush_*.gltf junto con sus assets. Los nichos que describían —pionero de
+	# pleno sol, sotobosque tolerante a la sombra, latifolia intermedia— NO están
+	# cubiertos hoy: el tree_pack tiene 5 especies y ninguna ocupa el extremo de
+	# sombra. Cuando el motor dé esas especies, hay que devolverles su rango acá o
+	# el scatter las reparte a ciegas. Anotado en _asset_inventory_p1.md.
+	# PURGA M3 (2026-08-07): fuera el trébol CC0 y su nicho.
 	# flower_pale_glow (2026-07-25) — pale blue-white + subtle emission reads as
 	# damp-cave/bioluminescent-adjacent flora, not a sunlit bloom — biased to the
 	# same high-humidity, high-shade "damp shaded ground" niche as the mushroom
@@ -3252,12 +3239,9 @@ const FLORA_NICHES: Dictionary = {
 	# _scatter_understory_mushrooms), not through _pick_flora_for_point — a dead
 	# snag's "any open ground" rule and a fungus's wood/shade-base rule are already
 	# stronger, more specific placement logic than a flat humidity/shade query.
-	"res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf":
-		{"humidity": [0.0, 1.0], "shade": [0.0, 1.0]},
-	"res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf":
-		{"humidity": [0.3, 1.0], "shade": [0.5, 1.0]},
-	"res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf":
-		{"humidity": [0.25, 1.0], "shade": [0.4, 1.0]},
+	# PURGA M3 (2026-08-07): árbol muerto, laetiporus y hongo común eran CC0. Sus
+	# pasadas (_scatter_dead_trees, _scatter_understory_mushrooms) siguen en el
+	# código y se saltean solas hasta que el motor dé los tres assets en M3.
 	# ── 2026-07-27 tree_pack + bush_pack (pradera canon) ────────────────────
 	# tree_prairie — dominant generalist: broadest tolerance of the new trees,
 	# open sun through light-medium shade, the "fills everywhere" species.
@@ -3401,25 +3385,31 @@ func _scatter_ground_detail(pois: Array) -> void:
 	# Save RNG state so this pass is invisible to subsequent passes (enemies, etc.)
 	var rng_state: int = _rng.state
 
-	# Pool: pebble_round + rock_small alternating. Clover separately below.
+	# PURGA M3 (2026-08-07): eran env_pebble_round_01.gltf y prop_rock_small_01.glb
+	# (los dos CC0 — el segundo pese a la extensión .glb). El rock_pack tiene los dos
+	# roles cubiertos en M3: scatter_pebbles para el guijarro suelto, cluster_broken
+	# para la piedra chica quebrada.
 	const DETAIL_POOL: Array[String] = [
-		"res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf",
-		"res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb",
+		"res://assets/art/piso1_pradera/props/rocks/prop_rock_scatter_pebbles_01.glb",
+		"res://assets/art/piso1_pradera/props/rocks/prop_rock_cluster_broken_01.glb",
 	]
 	var detail_scenes: Array[PackedScene] = []
 	for path in DETAIL_POOL:
 		if ResourceLoader.exists(path):
 			detail_scenes.append(load(path))
 
-	# Clover clump scene
+	# PURGA M3: era env_clover_01.gltf (CC0). El grass_pack trae un tapiz denso M3 que
+	# ocupa el mismo nicho de mata baja al ras del suelo.
 	var clover_scene: PackedScene = null
-	const CLOVER_PATH: String = "res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"
+	const CLOVER_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"
 	if ResourceLoader.exists(CLOVER_PATH):
 		clover_scene = load(CLOVER_PATH)
 
-	# Fix 4: rock_large scene for outcrop-zone anchors + mushroom for debris clumps
+	# PURGA M3: era prop_rock_large_01.glb (CC0) — "el huevo" del playtest de Joan.
+	# boulder_large es su equivalente M3, con Perlin doble capa en vez de una esfera
+	# achatada.
 	var rock_large_scene: PackedScene = null
-	const LARGE_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"
+	const LARGE_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_large_01.glb"
 	if ResourceLoader.exists(LARGE_ROCK_PATH):
 		rock_large_scene = load(LARGE_ROCK_PATH)
 
@@ -3776,8 +3766,17 @@ void fragment() {
 ## must pass the coherence intake (_coherence_target_sheet.md) before being added.
 ## NOTE: env_clover was tried here but read as aquatic lily-pads at carpet density
 ## in a dry cavern — removed as a coherence break.
+## PURGA M3 (2026-08-07): la alfombra entera —~193 000 briznas, el elemento MÁS
+## visible de la pradera— salía de env_grass_small_01.gltf, un asset CC0. Pasa a las
+## briznas del grass_pack, que son M3 (vertex color FLOAT vía motor-blender/recetas/
+## biome_vcol, ref foliage_painterly: base oscura y punta lima).
+## Dos variantes en vez de una: el MultiMesh reparte las instancias entre las mallas
+## de la lista, así que la alfombra deja de ser un solo tufo clonado.
+## OJO al cambiar esto: blade_height se recalibra solo desde el AABB de la PRIMERA
+## malla, y el shader usa cull_disabled porque son tufos cruzados.
 const GRASS_MESH_PATHS: Array[String] = [
-	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf",
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb",
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb",
 ]
 
 
@@ -3978,6 +3977,18 @@ func _scatter_pool(
 ## This keeps the fungus on its correct substrate (dead wood) without ever
 ## placing it on bare ground. RNG calls are deterministic (same seed = same result).
 func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
+	# PURGA M3 (2026-08-07): sin escena de árbol muerto M3 no se coloca nada. Se sale
+	# ANTES del loop a propósito: salir adentro consumiría draws de _random_open_pos y
+	# correría el stream de RNG para todo lo que viene después, cambiando el mapa
+	# entero por un asset ausente.
+	# Copiadas a variables locales A PROPÓSITO. Llamar .instantiate() directamente
+	# sobre una const que el analizador sabe null hace que GDScript intente resolver
+	# el método builtin en tiempo de análisis y escupa 16 x `Parameter "method" is
+	# null` — aunque la rama nunca se ejecute. Una var local corta el plegado.
+	var dead_tree_scene: PackedScene = SCENE_DEAD_TREE
+	var laetiporus_scene: PackedScene = SCENE_LAETIPORUS
+	if dead_tree_scene == null:
+		return
 	for i in range(count):
 		var pos: Vector3 = _random_open_pos(pois, 14.0)
 		if pos == Vector3.INF:
@@ -3985,7 +3996,7 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		pos.y = get_terrain_height(pos.x, pos.z)
 
 		# Instantiate dead tree
-		var tree: Node3D = SCENE_DEAD_TREE.instantiate() as Node3D
+		var tree: Node3D = dead_tree_scene.instantiate() as Node3D
 		if tree == null:
 			continue
 		var s: float = _age_scale(0.8, 1.5)
@@ -4010,8 +4021,10 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		dt_body.global_position = pos
 
 		# 40% chance: attach laetiporus at trunk base (local origin = base of tree)
+		# El randf() se tira IGUAL aunque no haya escena: es el mismo motivo que la
+		# guarda de arriba, no gastar el draw desincroniza todo lo que sigue.
 		if _rng.randf() < 0.4:
-			var fungus: Node3D = SCENE_LAETIPORUS.instantiate() as Node3D
+			var fungus: Node3D = laetiporus_scene.instantiate() as Node3D if laetiporus_scene != null else null
 			if fungus != null:
 				# Place at world base of tree, slight random offset to side of trunk
 				var fx: float = _rng.randf_range(-0.3, 0.3)
@@ -4029,6 +4042,8 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 ## on shaded ground near trees — never the open field — so this replaces the old
 ## uniform mushroom scatter. ~35% of trees get a small clump of 1-3 mushrooms.
 func _scatter_understory_mushrooms(parent: Node3D) -> void:
+	# Var local, no la const: ver la nota en _scatter_dead_trees sobre el plegado.
+	var mushroom_scene: PackedScene = SCENE_MUSHROOM_COMMON
 	for tree_pos in _tree_positions:
 		if _rng.randf() > 0.35:
 			continue
@@ -4037,11 +4052,13 @@ func _scatter_understory_mushrooms(parent: Node3D) -> void:
 			var off := Vector3(_rng.randf_range(-1.2, 1.2), 0.0, _rng.randf_range(-1.2, 1.2))
 			var mpos: Vector3 = tree_pos + off
 			mpos.y = get_terrain_height(mpos.x, mpos.z)
-			var inst: Node3D = SCENE_MUSHROOM_COMMON.instantiate() as Node3D
-			if inst == null:
-				continue
+			# PURGA M3 (2026-08-07): sin hongo M3 no se coloca, pero el bucle sigue
+			# tirando sus draws (escala + rotación abajo) para no mover el stream.
+			var inst: Node3D = mushroom_scene.instantiate() as Node3D if mushroom_scene != null else null
 			var s: float = _rng.randf_range(0.5, 1.0)
 			var rot_y: float = _rng.randf() * TAU
+			if inst == null:
+				continue
 			inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), mpos)
 			inst.add_to_group("grounded")
 			parent.add_child(inst)
