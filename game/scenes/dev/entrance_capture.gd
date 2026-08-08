@@ -56,7 +56,13 @@ func _ready() -> void:
 	# for the same reason. Everything that SHAPES the entrance stays on.
 	_floor.set("active_layers", {
 		"terrain": true, "pois": true, "vegetation": true, "border": true,
-		"streams": true, "player": false, "enemies": false, "hud": false,
+		# enemies ENCENDIDO desde 2026-08-08. Estaba en false "para que no salgan en
+		# las fotos", y eso hacía que el harness midiera un nivel que NO es el que se
+		# juega: toda sonda de transitabilidad daba libre porque faltaban cuerpos.
+		# Joan reporta una barrera INVISIBLE, y hay 24 enemigos que son primitivas
+		# sin malla — invisibles con colisión. Un harness que apaga cuerpos no puede
+		# responder "¿se puede caminar por acá?".
+		"streams": true, "player": false, "enemies": true, "hud": false,
 	})
 	_sv.add_child(_floor)
 
@@ -341,6 +347,81 @@ func _ready() -> void:
 		print("[entrance_capture]     %-26s %-18s pos=(%+7.2f,%+7.2f,%+7.2f)  dy vs piso=%+.2f"
 			% [nd.name, nd.get_class(), np.x, np.y, np.z, np.y - floor_y])
 	print("[entrance_capture]     total: %d cuerpos" % found)
+
+	# ── ¿Se puede CRUZAR la puerta? ───────────────────────────────────────────
+	# La pregunta que define a una puerta, y que ninguna sonda anterior hizo. Joan:
+	# *"si haces una puerta, lo logico es que pueda pasar por ella, sin estamparme o
+	# imposibilidad de avanzar"*. Su reporte en vivo puso la barrera en x=-315.52 con
+	# la X clavada y la Z libre, o sea un plano vertical — y ese punto cae ENTRE los
+	# muestreos gruesos de las sondas de arriba (dx = 0, 2, 4), por eso ninguna lo vio.
+	# Paso de 5 cm, cápsula apoyada en el suelo real (raycast, no get_terrain_height).
+	print("[entrance_capture]   -- CRUZAR la puerta: capsula cada 5 cm --")
+	var bloqueo_en: float = -999.0
+	for i2 in range(-40, 81):
+		var dxf: float = float(i2) * 0.05
+		var pxf: float = mouth_x + dxf
+		# Suelo REAL bajo ese punto, por raycast. get_terrain_height no describe la
+		# superficie con la que choca el jugador — ese fue el error de origen.
+		var qg := PhysicsRayQueryParameters3D.create(
+			Vector3(pxf, floor_y + 12.0, anchor.z), Vector3(pxf, floor_y - 12.0, anchor.z))
+		qg.collide_with_areas = false
+		var gh: Dictionary = space.intersect_ray(qg)
+		var gy: float = (gh["position"].y if not gh.is_empty() else floor_y)
+		var qf := PhysicsShapeQueryParameters3D.new()
+		qf.shape = cap
+		qf.transform = Transform3D(Basis(), Vector3(pxf, gy + 0.91, anchor.z))
+		qf.collide_with_areas = false
+		var hf: Array[Dictionary] = space.intersect_shape(qf, 8)
+		var mal: PackedStringArray = []
+		for h7 in hf:
+			var n7: String = str((h7["collider"] as Node).name)
+			if n7 == "EntranceFloor":
+				continue
+			mal.append(n7)
+		if not mal.is_empty():
+			if bloqueo_en < -900.0:
+				bloqueo_en = dxf
+			print("[entrance_capture]     dx=%+6.2f  suelo=%6.2f  BLOQUEA: %s"
+				% [dxf, gy, ", ".join(mal)])
+	if bloqueo_en < -900.0:
+		print("[entrance_capture]     sin solapamiento en -2.0 .. +4.0 m")
+	else:
+		print("[entrance_capture]     PRIMER BLOQUEO en dx=%+.2f" % bloqueo_en)
+
+	# ── PENDIENTE del suelo, que es lo que de verdad frena ────────────────────
+	# "Hay espacio libre" NO es lo mismo que "se puede caminar". Un CharacterBody3D
+	# trata como PARED cualquier superficie más empinada que floor_max_angle (45 por
+	# defecto) — geométricamente pasás, y el motor te frena igual. Eso se lee como
+	# barrera invisible, y ninguna sonda de solapamiento lo puede ver.
+	print("[entrance_capture]   -- pendiente del suelo real (paso 10 cm) --")
+	var prev_y: float = -9999.0
+	var peor_ang: float = 0.0
+	var peor_dx: float = 0.0
+	for i3 in range(-20, 61):
+		var dxs2: float = float(i3) * 0.1
+		var pxs2: float = mouth_x + dxs2
+		var qg2 := PhysicsRayQueryParameters3D.create(
+			# Desde 1 m sobre el piso, NO desde 12: cayendo de arriba el rayo golpea el
+			# dintel y la viga del marco antes que el suelo, y sus cantos se leen como
+			# escalones de 6 m. Ese artefacto ya produjo una lectura falsa.
+			Vector3(pxs2, floor_y + 1.0, anchor.z), Vector3(pxs2, floor_y - 12.0, anchor.z))
+		qg2.collide_with_areas = false
+		var gh2: Dictionary = space.intersect_ray(qg2)
+		if gh2.is_empty():
+			prev_y = -9999.0
+			continue
+		var gy2: float = gh2["position"].y
+		if prev_y > -9000.0:
+			var ang: float = rad_to_deg(atan2(absf(gy2 - prev_y), 0.1))
+			if ang > peor_ang:
+				peor_ang = ang
+				peor_dx = dxs2
+			if ang > 45.0:
+				print("[entrance_capture]     dx=%+6.2f  salto=%+.3f m  =%5.1f deg  <-- PARED para el motor"
+					% [dxs2, gy2 - prev_y, ang])
+		prev_y = gy2
+	print("[entrance_capture]     peor pendiente: %.1f deg en dx=%+.2f  (limite del motor: 45)"
+		% [peor_ang, peor_dx])
 
 	await _shot("00_inside_to_exit",
 		Vector3(anchor.x - hall_len * 0.5 + 3.0, floor_y + EYE, anchor.z),

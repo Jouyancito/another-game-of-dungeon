@@ -1093,8 +1093,22 @@ func _entrance_shape(x: float, z: float, h: float) -> float:
 	if lateral >= ENTRANCE_TRENCH_HALF_W:
 		return h
 	# Al oeste de la boca la profundidad es plena y constante: es el piso de la sala.
+	#
+	# El margen era 0.30 m, para que el terreno no asomara por encima de la losa. Y
+	# creaba EXACTAMENTE el bug que costó la noche del 2026-08-07: la cara superior de
+	# la losa queda en `_entrance_floor_y` y el terreno 30 cm más abajo, así que donde
+	# termina la losa —en la boca, justo al salir— hay un escalón vertical de 0.30 m.
+	# Godot trata como PARED toda superficie de más de `floor_max_angle` (45 grados) y
+	# ese canto mide **71.6 grados**: barrera invisible, ni se sube ni se salta.
+	# Medido con la sonda de pendiente de `entrance_capture.gd`, que fue la única que
+	# lo vio porque las demás preguntaban "¿hay espacio?" en vez de "¿se puede
+	# caminar?" — no es lo mismo.
+	#
+	# 0.02 m mantiene el margen contra z-fighting y desaparece como obstáculo: 2 cm
+	# los sube cualquier cuerpo. Joan lo puso como regla de diseño: *"si haces una
+	# puerta, lo lógico es que pueda pasar por ella"*.
 	if along <= 0.0:
-		return minf(h, _entrance_floor_y - 0.3)
+		return minf(h, _entrance_floor_y - 0.02)
 	# smoothstep en los dos ejes: una caída lineal deja un pliegue visible justo
 	# donde el jugador sale caminando.
 	# Meseta antes de la rampa. Sin ella el peso solo vale 1 en el punto exacto de la
