@@ -190,6 +190,73 @@ func _ready() -> void:
 		print("[entrance_capture]     dz=%+4.1f%s" % [dz3, row2])
 	print("[entrance_capture]     ('!!' = despeje menor a 1.85 m, el jugador NO pasa)")
 
+	# ── Barrido ANCHO ─────────────────────────────────────────────────────────
+	# El barrido de arriba (dx -1..+4, dz +-3) dio limpio y Joan SIGUE trabado, con
+	# la cámara metida dentro de la tierra ("no puedo moverme ni saltar" = embebido
+	# en un collider, no chocando contra él). O sea el problema está fuera de la
+	# ventana que se estaba mirando. Se abre a todo el corredor.
+	print("[entrance_capture]   -- barrido ANCHO del corredor --")
+	var cols: String = "         "
+	for dxh in range(0, 15, 1):
+		cols += "%2d" % dxh
+	print("[entrance_capture]   dx->%s" % cols)
+	for dzw in [-6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]:
+		var row3: String = ""
+		var seen: Dictionary = {}
+		for dxi in range(0, 15):
+			var px4: float = mouth_x + float(dxi)
+			var pz4: float = anchor.z + dzw
+			var g4: float = maxf(_floor.call("get_terrain_height", px4, pz4), floor_y)
+			var pq4 := PhysicsShapeQueryParameters3D.new()
+			pq4.shape = cap
+			pq4.transform = Transform3D(Basis(), Vector3(px4, g4 + 0.90, pz4))
+			pq4.collide_with_areas = false
+			var hits4: Array[Dictionary] = space.intersect_shape(pq4, 8)
+			var mark: String = " ."
+			for hh4 in hits4:
+				var nm4: String = str((hh4["collider"] as Node).name)
+				if nm4 == "EntranceFloor":
+					continue
+				seen[nm4] = true
+				mark = " #" if nm4.contains("Terrain") or nm4.contains("Mound") else " o"
+				break
+			row3 += mark
+		var legend: String = ", ".join(PackedStringArray(seen.keys())) if seen.size() > 0 else ""
+		print("[entrance_capture]   dz=%+5.1f %s   %s" % [dzw, row3, legend])
+	print("[entrance_capture]   ('#' = terreno/loma bloqueando, 'o' = madera, '.' = libre)")
+
+	# ── ¿Hay LOMA encima? La trampa que un barrido de solapamiento no ve ───────
+	# EntranceMoundBody usa ConcavePolygonShape3D: una superficie SIN volumen. Un
+	# cuerpo que la atraviesa queda del otro lado y la física no lo expulsa — se
+	# queda trabado sin poder moverse ni saltar, que es exactamente lo que reporta
+	# Joan. Y el barrido de solapamiento marca ese punto como LIBRE, porque
+	# técnicamente el jugador está en aire: el hueco entre el terreno excavado y la
+	# loma que lo cubre. Por eso hay que mirar hacia ARRIBA en todo el ancho, no
+	# sólo por el eje.
+	print("[entrance_capture]   -- techo de LOMA sobre el corredor (m de despeje) --")
+	var hdr: String = "         "
+	for dxh2 in range(0, 15, 2):
+		hdr += "%6d" % dxh2
+	print("[entrance_capture]   dx->%s" % hdr)
+	for dzc in [-6.0, -5.0, -4.0, -3.0, 0.0, 3.0, 4.0, 5.0, 6.0]:
+		var row4: String = ""
+		for dxc in range(0, 15, 2):
+			var px5: float = mouth_x + float(dxc)
+			var pz5: float = anchor.z + dzc
+			var g5: float = maxf(_floor.call("get_terrain_height", px5, pz5), floor_y)
+			var q5 := PhysicsRayQueryParameters3D.create(
+				Vector3(px5, g5 + 0.10, pz5), Vector3(px5, g5 + 30.0, pz5))
+			q5.collide_with_areas = false
+			var h5: Dictionary = space.intersect_ray(q5)
+			if h5.is_empty():
+				row4 += "  cielo"
+			else:
+				var nm5: String = str((h5["collider"] as Node).name)
+				var cl5: float = h5["position"].y - g5
+				row4 += "  %s%4.1f" % ["M" if nm5.contains("Mound") else "?", cl5]
+		print("[entrance_capture]   dz=%+5.1f%s" % [dzc, row4])
+	print("[entrance_capture]   ('M' = LOMA encima = techo bajo el que se queda atrapado)")
+
 	await _shot("00_inside_to_exit",
 		Vector3(anchor.x - hall_len * 0.5 + 3.0, floor_y + EYE, anchor.z),
 		Vector3(mouth_x + 8.0, floor_y + 2.0, anchor.z))

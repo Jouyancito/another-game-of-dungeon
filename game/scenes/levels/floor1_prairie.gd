@@ -4980,11 +4980,63 @@ func _make_timber_material(color: Color) -> StandardMaterial3D:
 
 
 # ── DEBUG: tecla K spawnea King Slime frente al player ──────────────
+## Tecla P — informe de "estoy trabado", desde la sesión de quien juega.
+##
+## Nace de un fracaso de método: el harness `entrance_capture.tscn` midió el vano
+## limpio en CUATRO pasadas distintas (costados, techo, barrido ancho, techo de loma)
+## mientras Joan seguía sin poder salir. El harness reconstruye la escena y elige
+## dónde mirar; ese "dónde" fue mal cuatro veces. Esto reporta el lugar EXACTO donde
+## está el jugador atascado, con todo lo que su cápsula toca. El reporte va al log
+## del proceso, así que basta con que aprete P y después se lee.
+func _debug_report_stuck() -> void:
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		print("[STUCK] no hay jugador en el grupo 'player'")
+		return
+	var p: Node3D = players[0] as Node3D
+	var pos: Vector3 = p.global_position
+	print("[STUCK] ==========================================")
+	print("[STUCK] jugador en (%.2f, %.2f, %.2f)" % [pos.x, pos.y, pos.z])
+	print("[STUCK] terreno ahi = %.2f  (jugador %+.2f sobre el terreno)"
+		% [get_terrain_height(pos.x, pos.z), pos.y - get_terrain_height(pos.x, pos.z)])
+	if _entrance_anchor_valid:
+		var m: Vector3 = _entrance_mouth()
+		print("[STUCK] vs boca de la entrada: dx=%+.2f  dz=%+.2f  | piso sala=%.2f"
+			% [pos.x - m.x, pos.z - m.z, _entrance_floor_y])
+
+	# Qué toca su cápsula AHORA. Esto es lo que el harness no podía saber.
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.35
+	shape.height = 1.8
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = shape
+	q.transform = Transform3D(Basis(), pos)
+	q.collide_with_areas = false
+	var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(q, 16)
+	if hits.is_empty():
+		print("[STUCK] su capsula NO toca nada -> no esta chocando, esta ENCERRADO o cayendo")
+	for h in hits:
+		var n: Node = h["collider"]
+		print("[STUCK]   toca '%s' (%s)" % [n.name, n.get_class()])
+
+	# Y en qué direcciones puede salir, que es lo que decide si está encerrado.
+	for d in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT, Vector3.UP]:
+		var rq := PhysicsRayQueryParameters3D.create(pos, pos + d * 3.0)
+		rq.collide_with_areas = false
+		var rh: Dictionary = get_world_3d().direct_space_state.intersect_ray(rq)
+		print("[STUCK]   hacia %-18s %s" % [str(d),
+			"libre 3 m" if rh.is_empty() else "'%s' a %.2f m" % [
+				(rh["collider"] as Node).name, pos.distance_to(rh["position"])]])
+	print("[STUCK] ==========================================")
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not OS.is_debug_build():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
+			KEY_P:
+				_debug_report_stuck()
 			KEY_K:
 				_debug_spawn_king_slime()
 			KEY_1:
