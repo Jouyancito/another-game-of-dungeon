@@ -2131,23 +2131,57 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	_build_entrance_mound()
 
 	var mouth: Vector3 = _entrance_mouth()
-	var slabs: int = 14
-	var slab_len: float = ENTRANCE_TRENCH_RUN / float(slabs)
-	for i in range(slabs):
-		var cx: float = mouth.x + (float(i) + 0.5) * slab_len
-		var cy: float = get_terrain_height(cx, mouth.z)
-		# COLOR_BORDER y losas casi tocándose: en COLOR_ROCK con 6% de junta, esto se
-		# leía como una cinta de baldosas blancas flotando sobre el pasto — el objeto
-		# más brillante de toda la escena, y encima discontinuo (reportado 2026-08-01).
-		# Losas SOLAPADAS (x1.2), no juntas ni hundidas. Cada una lee la altura del
-		# terreno en su centro, y entre dos centros el terreno sube: con las losas
-		# a tope el pasto asoma por la junta, y hundirlas lo empeora — abre cuñas de
-		# pasto entre losa y losa (medido con el harness, 2026-08-07). Solapándolas
-		# no queda junta por donde asomar. Más losas y más cortas, además, siguen
-		# mejor la curva de la trinchera.
-		_add_cave_csg_box("EntrancePaving%02d" % i,
-			Vector3(cx, cy + 0.10, mouth.z),
-			Vector3(slab_len * 1.2, 0.5, door_w + 1.0), COLOR_BORDER, false)
+	_build_entrance_paving(mouth, door_w)
+
+
+## Pavimento de la trinchera, como TIRA DE MALLA continua.
+##
+## Antes eran 14 cajas apoyadas, cada una leyendo la altura del terreno en su centro.
+## Eso se escalonaba, y las dos vueltas de parche —losas más gruesas, después losas
+## solapadas— sólo escondían el escalón mientras el terreno fuera suave. Al subir
+## TERRAIN_RESOLUTION a 128 el terreno gana definición, baja más rápido entre centros,
+## y el escalón volvió: desde adentro de la sala el camino se leía como una ESCALERA
+## (reportado con captura por Joan, 2026-08-07).
+##
+## Una caja no puede seguir una curva. La tira sí: samplea el terreno en cada vértice,
+## así que se apoya sobre la pendiente real en vez de aproximarla por tramos planos.
+## Sin colisión — el terreno de abajo ya la da, y un segundo cuerpo sobre el mismo
+## suelo es justamente lo que traba al jugador.
+func _build_entrance_paving(mouth: Vector3, door_w: float) -> void:
+	const PAVE_STEP: float = 1.2          # muestreo a lo largo; más fino que el terreno
+	## 0.06 -> 0.28. No es margen anti z-fighting, es margen contra un DESACUERDO de
+	## superficies: get_terrain_height interpola bilineal dentro de la celda, pero la
+	## malla del terreno está triangulada, y el triángulo corta la celda por la diagonal.
+	## Entre vértices las dos superficies difieren, y con celdas de 6.09 m en pendiente
+	## esa diferencia pasa los 20 cm: el pavimento se hundía y reaparecía a pedazos
+	## (visto en la captura oblicua del harness).
+	const PAVE_LIFT: float = 0.28
+	var half_w: float = (door_w + 1.0) * 0.5
+	var nx: int = maxi(1, int(ceilf(ENTRANCE_TRENCH_RUN / PAVE_STEP)))
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(nx):
+		var xa: float = mouth.x + ENTRANCE_TRENCH_RUN * (float(i) / float(nx))
+		var xb: float = mouth.x + ENTRANCE_TRENCH_RUN * (float(i + 1) / float(nx))
+		var za: float = mouth.z - half_w
+		var zb: float = mouth.z + half_w
+		var v00 := Vector3(xa, get_terrain_height(xa, za) + PAVE_LIFT, za)
+		var v10 := Vector3(xb, get_terrain_height(xb, za) + PAVE_LIFT, za)
+		var v01 := Vector3(xa, get_terrain_height(xa, zb) + PAVE_LIFT, zb)
+		var v11 := Vector3(xb, get_terrain_height(xb, zb) + PAVE_LIFT, zb)
+		for v in [v00, v10, v11, v00, v11, v01]:
+			st.set_uv(Vector2(v.x, v.z) * 0.35)
+			st.add_vertex(v)
+	st.generate_normals()
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntrancePaving"
+	mi.mesh = st.commit()
+	mi.material_override = _make_cave_material(COLOR_BORDER)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
 
 func _build_ruins(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
