@@ -121,6 +121,58 @@ def carve_eye(bm, side, radius, depth=0.055, arc=0.42, height=0.30, thickness=0.
         v.co -= n * (depth * radius * fall)
 
 
+# Vertices belonging to eye strokes, refilled per expression. Module level so the
+# make_* functions keep their signatures; threading a set through six of them
+# would have bought nothing.
+DARK = set()
+
+
+def add_eye_stroke(bm, side, radius, arc=0.30, height=0.32, thick=0.030,
+                   dip=0.18, proud=0.012, n=13, squash=0.62):
+    """The eye as REAL GEOMETRY laid on the dome, not a crease carved into it.
+
+    Measured reason (2026-08-09): a carved crease is a diffuse valley and its
+    contrast DIES on downscale. At 72 px -- the size a desktop pet actually is --
+    the carved face vanished completely. A dark strip is a shape with hard edges,
+    so it survives being made small, which is the only test that matters here.
+
+    Follows the dome's curvature and sits fractionally proud of it, so it reads as
+    a drawn line the way the anime frames do.
+    """
+    # settle_dome widens XY by 1/sqrt(squash) and compresses Z by squash, so the
+    # body is an ELLIPSOID by the time strokes are added. The first version solved
+    # for a sphere of the original radius and buried every stroke inside the mass:
+    # the face vanished at every size. Third time today that a shape was assumed
+    # instead of measured -- the rocks and the tendrils were the other two.
+    widen = 1.0 / math.sqrt(squash)
+    ax = radius * widen          # semi-axis X
+    ay = radius * widen          # semi-axis Y (depth)
+    az = radius * squash         # semi-axis Z
+    cx = side * 0.46 * ax
+    cz = height * az
+    pts, rad = [], []
+    for i in range(n):
+        t = i / (n - 1)
+        u = (t - 0.5) * 2.0                       # -1 .. 1 across the stroke
+        x = cx + u * arc * ax
+        z = cz - dip * az * (u * u)               # arcs down at the outer ends
+        # Front surface of the ellipsoid at (x, z); clamp so the root stays real.
+        q = (x / ax) ** 2 + (z / az) ** 2
+        y = -ay * math.sqrt(max(1.0 - min(q, 0.999), 0.0))
+        # Outward normal of an ellipsoid is (x/ax^2, y/ay^2, z/az^2), NOT the
+        # position vector -- using the position is what a sphere lets you get away
+        # with and an ellipsoid does not.
+        nrm = Vector((x / (ax * ax), y / (ay * ay), z / (az * az)))
+        if nrm.length > 1e-9:
+            nrm.normalize()
+        p = Vector((x, y, z)) + nrm * (proud * radius)
+        pts.append(p)
+        rad.append(thick * radius * (1.0 - 0.45 * abs(u)))    # tapers to the tips
+    before = set(bm.verts)
+    sweep_tube(bm, pts, rad, ring=6)
+    DARK.update(set(bm.verts) - before)
+
+
 def squint(bm, side, radius, **kw):
     """A broken, tighter stroke -- strain or annoyance."""
     carve_eye(bm, side, radius, depth=kw.get("depth", 0.075),
@@ -198,10 +250,10 @@ def bang_path(scale, n=12):
     pts, rad = [], []
     for i in range(n):
         t = i / (n - 1)
-        pts.append(Vector((0.0, 0.0, 1.10 * scale - t * 0.70 * scale)))
-        # Nearly parallel sides with a slight swell: a cone reads as a spinning
-        # top, which is what the first pass produced.
-        rad.append(scale * (0.105 + 0.030 * t))
+        # A tumbler is what a short fat bar gives you. The glyph is TALL against
+        # its dot -- roughly four dot-diameters -- with near-parallel sides.
+        pts.append(Vector((0.0, 0.0, 1.42 * scale - t * 1.05 * scale)))
+        rad.append(scale * (0.062 + 0.026 * t))
     return pts, rad
 
 
@@ -214,6 +266,12 @@ def add_ball(bm, centre, radius, segments=10):
 def finalize(bm, name, scene):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()
+    # Snapshot the stroke coordinates BEFORE freeing the bmesh: a BMVert is dead
+    # the moment bm.free() runs, and reading one afterwards raises
+    # "BMesh data of type BMVert has been removed" -- which is exactly what the
+    # first run of this version did.
+    dark_co = {(round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
+               for v in DARK if v.is_valid}
     me = bpy.data.meshes.new(name + "_mesh")
     bm.to_mesh(me)
     bm.free()
@@ -222,6 +280,10 @@ def finalize(bm, name, scene):
     zs = [v.co.z for v in me.vertices]
     z_lo, z_hi = min(zs), max(zs)
     for i, v in enumerate(me.vertices):
+        key = (round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
+        if key in dark_co:
+            col.data[i].color = (EYE_DARK[0], EYE_DARK[1], EYE_DARK[2], 1.0)
+            continue
         c = gel_tone(v.co.z, z_lo, z_hi)
         col.data[i].color = (c[0], c[1], c[2], 1.0)
     obj = bpy.data.objects.new(name, me)
@@ -249,14 +311,15 @@ def darken_eyes(obj, radius, arc=0.42, height=0.30, thickness=0.085):
 
 # ------------------------------------------------------------ expressions ----
 def make_idle(scene, squint_eyes=False, squash=0.62):
+    """Body first, then strokes placed on the body that actually resulted."""
     bm = new_bm_sphere(BODY_R)
     settle_dome(bm, BODY_R, squash=squash)
-    if squint_eyes:
-        squint(bm, -1, BODY_R)
-        squint(bm, 1, BODY_R)
-    else:
-        carve_eye(bm, -1, BODY_R)
-        carve_eye(bm, 1, BODY_R)
+    for side in (-1, 1):
+        if squint_eyes:
+            add_eye_stroke(bm, side, BODY_R, arc=0.24, height=0.34,
+                           thick=0.034, dip=-0.26, squash=squash)   # strain
+        else:
+            add_eye_stroke(bm, side, BODY_R, squash=squash)
     return bm
 
 
@@ -293,15 +356,23 @@ def make_hyperbole(kind, scale):
     """
     bm = bmesh.new()
     if kind == "question":
-        pts, rad = question_path(scale, n=26)
+        pts, rad = question_path(scale, n=34)
         rad = [r * 2.1 for r in rad]
-        sweep_tube(bm, pts, rad, ring=12)
+        sweep_tube(bm, pts, rad, ring=20)
         add_ball(bm, Vector((0.02, 0.0, -0.10 * scale)), scale * 0.185, segments=14)
+        face_r, face_h = scale * 0.40, 1.02 * scale
     else:
-        pts, rad = bang_path(scale, n=14)
-        rad = [r * 2.3 for r in rad]
-        sweep_tube(bm, pts, rad, ring=12)
-        add_ball(bm, Vector((0.0, 0.0, 0.22 * scale)), scale * 0.20, segments=14)
+        pts, rad = bang_path(scale, n=20)
+        rad = [r * 2.6 for r in rad]
+        sweep_tube(bm, pts, rad, ring=20)
+        add_ball(bm, Vector((0.0, 0.0, 0.20 * scale)), scale * 0.20, segments=14)
+        face_r, face_h = scale * 0.30, 1.05 * scale
+    # It has to stay the SAME creature, or the hyperbole reads as a prop someone
+    # left on the desk. Two short strokes across the glyph's thickest span.
+    for side in (-1, 1):
+        add_eye_stroke(bm, side, face_r, arc=0.26,
+                       height=face_h / face_r, thick=0.055, dip=0.16, n=9,
+                       squash=1.0)
     return bm
 
 
@@ -309,10 +380,12 @@ def make_deflate(scene):
     """Melted: the mass gives up and spreads. Volume still conserved."""
     bm = new_bm_sphere(BODY_R)
     settle_dome(bm, BODY_R, squash=0.30, base_flat=-0.55)
+    DEFLATE_SQUASH = 0.30
     for v in bm.verts:                      # eyes become flat resigned lines
         pass
-    carve_eye(bm, -1, BODY_R, depth=0.045, height=0.10, thickness=0.055)
-    carve_eye(bm, 1, BODY_R, depth=0.045, height=0.10, thickness=0.055)
+    for side in (-1, 1):
+        add_eye_stroke(bm, side, BODY_R, arc=0.26, height=0.20, thick=0.034,
+                       dip=0.10, squash=DEFLATE_SQUASH)
     return bm
 
 
@@ -370,10 +443,42 @@ scene.world = world
 world.use_nodes = True
 world.node_tree.nodes["Background"].inputs[0].default_value = (0.05, 0.06, 0.08, 1.0)
 
+# For a GAME asset the GLB is the product and EEVEE is the honest preview. Here
+# the RENDER IS the product, so Cycles earns its cost: real contact shadow and gel
+# translucency. The GTX 1080 sat idle through every previous pass.
+# --factory-startup starts with the Cycles add-on DISABLED, so "CYCLES" is not in
+# the engine enum and the previous run silently fell back to EEVEE while the log
+# claimed otherwise. Enable it before asking.
+try:
+    import addon_utils
+    addon_utils.enable("cycles", default_set=False, persistent=False)
+except Exception as exc:
+    print("[pet] could not enable cycles:", exc)
+
 engines = scene.render.bl_rna.properties["engine"].enum_items.keys()
-scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
-if hasattr(scene, "eevee") and hasattr(scene.eevee, "taa_render_samples"):
-    scene.eevee.taa_render_samples = 96
+print("[pet] engines available:", list(engines))
+if "CYCLES" in engines:
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 160
+    scene.cycles.use_denoising = True
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        for backend in ("OPTIX", "CUDA"):
+            try:
+                prefs.compute_device_type = backend
+            except Exception:
+                continue
+            devs = prefs.get_devices_for_type(backend) or []
+            if devs:
+                for d in devs:
+                    d.use = True
+                scene.cycles.device = "GPU"
+                print("[pet] cycles %s: %s" % (backend, [d.name for d in devs]))
+                break
+    except Exception as exc:
+        print("[pet] GPU unavailable, cycles on CPU:", exc)
+else:
+    scene.render.engine = "BLENDER_EEVEE"
 scene.view_settings.view_transform = "Standard"
 # Transparent film: a desktop pet has to sit on the user's wallpaper, not a card.
 scene.render.film_transparent = True
@@ -394,14 +499,9 @@ print("[pet] rendering %d expressions" % len(EXPRESSIONS))
 for key, fn in EXPRESSIONS:
     for o in [o for o in scene.objects if o.type == "MESH"]:
         bpy.data.objects.remove(o, do_unlink=True)
+    DARK.clear()
     bm = fn(scene)
     obj = finalize(bm, "pet_" + key, scene)
-    if key.endswith("_hyper"):
-        # The glyph must still be the SAME creature, so the face rides on its
-        # thickest part -- Joan's whole point about the hyperbole register.
-        darken_eyes(obj, BODY_R * 0.62, arc=0.30, height=0.60, thickness=0.070)
-    else:
-        darken_eyes(obj, BODY_R)
     obj.data.materials.append(mat)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     scene.render.filepath = os.path.join(REN_DIR, "pet_%s.png" % key)
