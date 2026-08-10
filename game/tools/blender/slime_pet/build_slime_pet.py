@@ -32,6 +32,9 @@ import bmesh
 import bpy
 from mathutils import Vector
 
+sys.path.insert(0, os.path.join(os.path.expanduser("~"), "motor-blender", "recetas"))
+import use_size  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REN_DIR = os.path.join(HERE, "renders")
 os.makedirs(REN_DIR, exist_ok=True)
@@ -405,5 +408,16 @@ for key, fn in EXPRESSIONS:
     bpy.ops.render.render(write_still=True)
     print("[pet] %-16s verts=%4d tris=%4d  -> renders/pet_%s.png"
           % (key, len(obj.data.vertices), tris, key))
+
+# THE BUILD IS ITS OWN GATE. A desktop pet lives at 72-120 px; the first pass was
+# judged on a 512 px sheet where the eyes merely looked weak, and only a later
+# check revealed the face vanishes entirely at real size. Under
+# --python-exit-code 1 this raises and fails the build if the evidence cannot be
+# produced, so no future pass can be judged at a flattering size by accident.
+use_size.require_use_size(
+    os.path.join(REN_DIR, "pet_idle.png"),
+    sizes=[512, 200, 120, 72],
+    out_path=os.path.join(REN_DIR, "_use_size.png"),
+)
 
 print("[pet] DONE")
