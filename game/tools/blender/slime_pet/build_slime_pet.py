@@ -226,6 +226,75 @@ def sweep_tube(bm, points, radii, ring=8):
         pass
 
 
+def glyph_bm(char, height, depth=0.30, bevel=0.055, res=4):
+    """A ? or ! taken from a REAL TYPEFACE, not drawn by hand.
+
+    Joan, 2026-08-09: *"si buscás signo de interrogación en Internet te vas a dar
+    cuenta que no son iguales... se entiende, pero se cerró, no se ve bien
+    prolijo"*. He is right, and the fix is better than hunting for a picture: a
+    question mark is not a shape to be guessed, it is a TYPOGRAPHIC form. The
+    hand-rolled parametric hook curled too far and closed into a ring, which is
+    exactly why it read as a coat hook.
+
+    Blender's own text object carries the real outline. Extrude gives it body and
+    a bevel rounds the edge so it reads as gel rather than as type. Uses the
+    built-in font, so there is no external dependency and no font licence to
+    worry about.
+
+    Headless-safe: the mesh is pulled through the depsgraph
+    (`new_from_object` on the evaluated object), never through `object.convert`,
+    which needs an editor area.
+    """
+    curve = bpy.data.curves.new("glyph_" + char, type="FONT")
+    curve.body = char
+    curve.align_x = "CENTER"
+    curve.align_y = "CENTER"
+    curve.extrude = depth * 0.5
+    curve.bevel_depth = bevel
+    curve.bevel_resolution = res
+    ob = bpy.data.objects.new("glyph_" + char, curve)
+    bpy.context.scene.collection.objects.link(ob)
+
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(ob.evaluated_get(dg), depsgraph=dg)
+
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bpy.data.meshes.remove(me)
+    bpy.data.objects.remove(ob, do_unlink=True)
+    bpy.data.curves.remove(curve)
+
+    # The text object lies in XY with its normal along Z. Stand it up so it faces
+    # the camera, then scale so its real height matches what the caller asked for.
+    for v in bm.verts:
+        v.co = Vector((v.co.x, -v.co.z, v.co.y))
+    zs = [v.co.z for v in bm.verts]
+    span = max(zs) - min(zs)
+    if span > 1e-6:
+        k = height / span
+        for v in bm.verts:
+            v.co *= k
+    mid = (max(v.co.z for v in bm.verts) + min(v.co.z for v in bm.verts)) * 0.5
+    for v in bm.verts:
+        v.co.z -= mid
+    return bm
+
+
+def merge_bm(dst, src, offset=Vector((0.0, 0.0, 0.0)), mark_dark=False):
+    """Copy src's geometry into dst at an offset. src is freed."""
+    src.verts.ensure_lookup_table()
+    made = [dst.verts.new(v.co + offset) for v in src.verts]
+    for f in src.faces:
+        try:
+            dst.faces.new([made[v.index] for v in f.verts])
+        except ValueError:
+            pass
+    if mark_dark:
+        DARK.update(made)
+    src.free()
+    return made
+
+
 def question_path(scale, n=22):
     """Centre line of a question mark, in the XZ plane, drawn top-down."""
     pts, rad = [], []
@@ -332,18 +401,13 @@ def with_tendril(bm, kind, scale):
     a size that was modelled instead of measured.
     """
     top = max(v.co.z for v in bm.verts)
-    if kind == "question":
-        pts, rad = question_path(scale)
-        base_z = top - 0.18 * scale                 # sinks INTO the gel
-        off = Vector((0.10, 0.0, base_z - pts[-1].z))
-        sweep_tube(bm, [p + off for p in pts], rad)
-        add_ball(bm, pts[-1] + off + Vector((0.0, 0.0, -0.16 * scale)), scale * 0.075)
-    else:
-        pts, rad = bang_path(scale)
-        base_z = top - 0.14 * scale
-        off = Vector((0.06, 0.0, base_z - pts[-1].z))
-        sweep_tube(bm, [p + off for p in pts], rad)
-        add_ball(bm, pts[-1] + off + Vector((0.0, 0.0, -0.17 * scale)), scale * 0.085)
+    char = "?" if kind == "question" else "!"
+    g = glyph_bm(char, height=scale * 1.5, depth=0.26 * scale, bevel=0.048 * scale)
+    g_lo = min(v.co.z for v in g.verts)
+    # Seat the glyph's own bottom just inside the gel: measured off the glyph and
+    # off the dome, never assumed. The previous version anchored a hand-drawn tail
+    # and buried the dot inside the body, which is why the dot was never visible.
+    merge_bm(bm, g, Vector((0.06 * scale, -0.05, top - g_lo - 0.06 * scale)))
     return bm
 
 
@@ -355,18 +419,19 @@ def make_hyperbole(kind, scale):
     the thickest part of the glyph so it still reads as the same creature.
     """
     bm = bmesh.new()
-    if kind == "question":
-        pts, rad = question_path(scale, n=34)
-        rad = [r * 2.1 for r in rad]
-        sweep_tube(bm, pts, rad, ring=20)
-        add_ball(bm, Vector((0.02, 0.0, -0.10 * scale)), scale * 0.185, segments=14)
-        face_r, face_h = scale * 0.40, 1.02 * scale
+    char = "?" if kind == "question" else "!"
+    # Fatter extrusion and a heavier bevel: at body scale the glyph has to read as
+    # a gel mass, not as a letter someone stood up on the desk.
+    # The camera frames a 0.5 m dome. A 1.6 m glyph overflowed it and cut off the
+    # dot, which is the whole bottom half of both marks. Sized to the body's own
+    # visual weight instead.
+    g = glyph_bm(char, height=scale * 1.45, depth=0.55 * scale, bevel=0.085 * scale)
+    merge_bm(bm, g)
+    g_hi = max(v.co.z for v in bm.verts)
+    if char == "?":
+        face_r, face_h = scale * 0.46, g_hi * 0.58
     else:
-        pts, rad = bang_path(scale, n=20)
-        rad = [r * 2.6 for r in rad]
-        sweep_tube(bm, pts, rad, ring=20)
-        add_ball(bm, Vector((0.0, 0.0, 0.20 * scale)), scale * 0.20, segments=14)
-        face_r, face_h = scale * 0.30, 1.05 * scale
+        face_r, face_h = scale * 0.30, g_hi * 0.62
     # It has to stay the SAME creature, or the hyperbole reads as a prop someone
     # left on the desk. Two short strokes across the glyph's thickest span.
     for side in (-1, 1):
