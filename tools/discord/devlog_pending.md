@@ -111,3 +111,67 @@ frena antes de que llegue al juego.
 > cápsula del tamaño del jugador, con los pies sobre la superficie de colisión
 > real, cruce sin chocar. Verificado en ambos sentidos: con el bug reintroducido
 > falla e imprime el ángulo medido. GUT 470 tests / 465 pasando.
+
+## [ ] Los árboles ahora tienen especies, y cada especie tiene edades
+
+Antes había seis árboles sueltos. Ahora hay cuatro especies distintas —cada una
+con su corteza y su color de hoja— y cada una aparece en varias edades: brotes,
+adultos y ejemplares viejos de copa ancha. Volvió el rojo al mapa con una especie
+otoñal. Y los renovales crecen debajo de los árboles grandes, no en cualquier lado.
+@ caminá por una zona con árboles y fijate en los chicos que crecen bajo las copas.
+> La tabla mezclaba dos ejes: cuatro de las seis variantes compartían corteza,
+> atlas de hoja y tints —una misma especie en cuatro formas— y una era literalmente
+> un estadio archivado como especie. Ahora son especie × estadio × altura: 17
+> modelos, 4 especies, hasta 4 estadios. El brinzal de cada especie tolera más
+> sombra que su adulto, que es lo que hace que la regeneración caiga bajo el dosel.
+
+## [ ] El árbol gigante dejó de ser un árbol chico agrandado
+
+El hito que se ve desde lejos ahora está construido a su tamaño, con el tronco
+grueso que le corresponde. Antes era un árbol normal estirado, y por eso se veía
+como un juguete inflado.
+@ buscá el árbol gigante de la pradera y mirale el tronco desde la base.
+> Era `env_tree_prairie_wide_01` (8,57 m) escalado ×4,5 a 38,6 m. Bajo
+> auto-semejanza elástica el diámetro tiene que crecer como la altura^1,5, así que
+> un escalado uniforme le deja el tronco de un árbol cuatro veces menor. Ahora hay
+> un estadio `ancient` que lo construye a 22,06 m con su grosor propio, y el
+> escalado quedó en un jitter de ±6%.
+
+## [ ] La flor ya no tiene porte de ratón, y crece en manchones
+
+Antes las flores eran del tamaño de un ratón y estaban repartidas de a una, tan
+separadas que se leían como objetos sueltos en vez de pradera. Ahora vienen en
+manchas de una sola especie, y hay tres alturas conviviendo: pasto bajo pisado,
+mata de rodilla, y espiga alta.
+@ salí a la pradera y caminá mirando el suelo, después levantá la vista al horizonte.
+> Medidas las doce mallas de flora: TODAS entre 0,107 y 0,491 m, o sea que la capa
+> entera era el estrato de los tobillos. `FLORA_TARGET_HEIGHT` declara la altura a
+> la que cada especie debe LEERSE y divide por el AABB real, así que reexportar un
+> asset no cambia su porte en pantalla. El trébol medía 10,7 cm — un ratón mide 10.
+> Y el scatter elegía especie punto por punto, que por construcción no puede dar
+> masas: ahora la elige una vez por mancha. Commit `fdc9a34`.
+
+## [ ] El pasto dejó de ser todo del mismo verde
+
+La alfombra tenía un solo color plano para las 193 mil briznas. Ahora el suelo
+tiene manchones —verde húmedo y verde amarillento seco conviviendo— y cada brizna
+usa el degradado que el generador le había pintado.
+@ parate en un claro y girá 360° mirando el suelo a media distancia.
+> El shader pintaba `ALBEDO = albedo.rgb` con un olivo fijo heredado de cuando el
+> piso 1 era caverna, y encima `surface_set_material()` pisaba el vertex color que
+> el motor había horneado. Ahora lee ese color y lo mezcla entre dos tonos según un
+> ruido en espacio de mundo: manchas de ~83 m con quiebre de ~22 m adentro. De paso,
+> `blade_height` se calibraba con la PRIMERA malla para todas, así que la espiga
+> alta mecía sus dos tercios superiores como un bloque rígido. Commit `fdc9a34`.
+
+## [ ] Volvió a haber árboles bajo la sombra de otros árboles
+
+Apareció una especie nueva: un árbol chico y ancho, de hoja oscura, que crece
+debajo de los grandes. Antes el suelo bajo las copas quedaba pelado, porque
+ninguna de las especies que había sabía vivir a la sombra.
+@ metete dentro de un grupo denso de árboles y mirá hacia abajo y a los lados.
+> `env_tree_shade_01`, construido con el motor propio (M3). 5,48 m contra los
+> 8,58 m del generalista y más ancho que alto, así que lee como sotobosque y no
+> como un árbol más del dosel. 726 tris sobre un presupuesto de 800. Cableado en
+> los tres lugares que hacen falta: pool, nicho (`shade 0.3–1.0`, el extremo que
+> quedó vacío tras la purga) y scatter. Validación: 274 scripts sin errores.
