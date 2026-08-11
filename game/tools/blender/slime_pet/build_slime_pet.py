@@ -30,7 +30,7 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.join(os.path.expanduser("~"), "motor-blender", "recetas"))
 import use_size  # noqa: E402
@@ -41,12 +41,42 @@ os.makedirs(REN_DIR, exist_ok=True)
 
 SEED = 20260809
 
+# --style=gel|toon, and --lookdev to render a handful of frames for an A/B look
+# instead of the whole set. Args come after Blender's own `--`.
+_argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+# CEL is the shipping look. Joan, 2026-08-10: *"porque al estar en una pantalla
+# 2d, como escritorio, no necesita profundidad, el otro me parece mas para el
+# tema de juego porque lo podrias imaginar en 3d."* The distinction is the useful
+# part and it is not about taste: this pet lives on a flat screen at a fixed
+# camera, where depth buys nothing and hard shapes buy legibility at 72 px. The
+# PBR gel path is kept, not deleted, because it is the direction for the GAME
+# slime -- there the camera moves and the light changes, and depth is the point.
+STYLE = "gel" if "--style=gel" in _argv else "toon"
+LOOKDEV = "--lookdev" in _argv
+LOOKDEV_FRAMES = [0, 10, 17, 22]
+
 # ---------------------------------------------------------------- palette ----
 # FLOAT_COLOR is LINEAR (motor lesson, 2026-08-08: an sRGB-looking value renders
 # near-white). These are linear values for the pale blue-white gel of the frames.
-GEL_DEEP = (0.115, 0.185, 0.255)      # bottom of the mass, where light stops
-GEL_MID = (0.300, 0.420, 0.520)
-GEL_LIGHT = (0.560, 0.680, 0.760)     # top dome, catching the key
+# Saturated on purpose, and deeper than they "look right" when picked in
+# isolation. The rig multiplies albedo up hard, and the first blue-grey set
+# rendered as wet concrete -- the same mistake the game slime recorded on
+# 2026-07-30 (albedo picked as if it were the final screen colour came out pale
+# mint). Tensura's slime is a SATURATED pale blue, not a grey one.
+# Tuned for the CEL look, which is the one that ships (Joan, 2026-08-10). Under
+# cel the bands supply the lighting, so the albedo has to stay a readable light
+# blue across the whole body -- the deep saturated set these replaced was picked
+# for a PBR rig that multiplied it up, and under flat bands it crushed the lower
+# half to mud. The vertical gradient's job here is subtle: the bright thin edge
+# is carried by the Fresnel crescent, not by the albedo.
+GEL_GLOW_LOW = (0.400, 0.680, 0.920)  # the THIN lower edge -- light gets through
+GEL_DEEP = (0.200, 0.440, 0.740)      # the dense middle, where the mass is thickest
+GEL_LIGHT = (0.300, 0.560, 0.840)     # upper dome
+GEL_MID = GEL_DEEP                    # kept: the expression builders name it
+
+TOON_BUBBLE = (0.52, 0.78, 0.97, 1.0)   # a drawn shape, one tone step lighter
+TOON_SHADE = (0.070, 0.220, 0.520, 1.0)  # cool HUE shift, not a value crush
+TOON_CRESCENT = (0.46, 0.80, 1.0, 1.0)   # the thin edge light crosses
 EYE_DARK = (0.030, 0.050, 0.080)      # carved stroke, reads as its own shadow
 
 BODY_R = 0.50                          # metres -- a desk pet, not a mob
@@ -58,11 +88,23 @@ def lerp3(a, b, t):
 
 
 def gel_tone(z, z_lo, z_hi):
-    """Vertical gradient through the mass: dark base, lit crown."""
+    """Vertical gradient for a TRANSLUCENT mass -- brightest at the bottom.
+
+    This was upside down for three passes and it is most of why the creature kept
+    reading as a balloon. Dark base and lit crown is how a SOLID is shaded: the
+    underside receives less light, so it goes dark. A translucent mass does the
+    opposite. Its lower edge is the THINNEST part, light crosses it and comes back
+    out, so that edge is the brightest and most saturated thing on the body -- a
+    gummy sweet on a table, glowing along the line where it meets the surface.
+
+    Painting solid-object shading into a material that is trying to be gel is a
+    contradiction no amount of subsurface or Fresnel can win against, because the
+    albedo says "opaque" louder than the shader says "translucent".
+    """
     t = (z - z_lo) / max(z_hi - z_lo, 1e-6)
-    if t < 0.5:
-        return lerp3(GEL_DEEP, GEL_MID, t * 2.0)
-    return lerp3(GEL_MID, GEL_LIGHT, (t - 0.5) * 2.0)
+    if t < 0.35:
+        return lerp3(GEL_GLOW_LOW, GEL_DEEP, t / 0.35)
+    return lerp3(GEL_DEEP, GEL_LIGHT, (t - 0.35) / 0.65)
 
 
 # ------------------------------------------------------------------ mesh -----
@@ -125,6 +167,11 @@ def carve_eye(bm, side, radius, depth=0.055, arc=0.42, height=0.30, thickness=0.
 # make_* functions keep their signatures; threading a set through six of them
 # would have bought nothing.
 DARK = set()
+
+# Vertices belonging to shed gel. Tinted deeper than the body they hang off, so a
+# drip is a VALUE step and not just a change of curvature -- curvature alone is
+# read by the light, and light-read detail is exactly what dies on downscale.
+WET = set()
 
 
 def add_eye_stroke(bm, side, radius, arc=0.30, height=0.32, thick=0.030,
@@ -341,6 +388,8 @@ def finalize(bm, name, scene):
     # first run of this version did.
     dark_co = {(round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
                for v in DARK if v.is_valid}
+    wet_co = {(round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
+              for v in WET if v.is_valid}
     me = bpy.data.meshes.new(name + "_mesh")
     bm.to_mesh(me)
     bm.free()
@@ -354,6 +403,13 @@ def finalize(bm, name, scene):
             col.data[i].color = (EYE_DARK[0], EYE_DARK[1], EYE_DARK[2], 1.0)
             continue
         c = gel_tone(v.co.z, z_lo, z_hi)
+        if key in wet_co:
+            # BRIGHTER than the mass it left, not darker. The drip hangs off the
+            # lip and lives against the body's own underside, which is the dark
+            # end of the gradient -- tinting it deeper (the first thing tried)
+            # buried it in exactly the tone it needed to separate from. A wet bead
+            # catching light on a shadowed belly is also how the frames draw it.
+            c = lerp3(c, GEL_LIGHT, 0.55)
         col.data[i].color = (c[0], c[1], c[2], 1.0)
     obj = bpy.data.objects.new(name, me)
     scene.collection.objects.link(obj)
@@ -376,6 +432,250 @@ def darken_eyes(obj, radius, arc=0.42, height=0.30, thickness=0.085):
         k = 1.0 - 0.72 * fall            # smooth, follows the same arc as the carve
         c = col.data[i].color
         col.data[i].color = (c[0] * k, c[1] * k, c[2] * k, 1.0)
+
+
+# ------------------------------------------------------------------ drips ----
+# Joan, closing the 2026-08-09 session: "me gustaria que igual se sintiera como
+# viscoso, esa textura de que esta goteando... si no, no se siente como un slime
+# vivo, se siente como una imagen nomas que hace una animacion".
+#
+# Reading that as a texture note would waste the pass. What separates a living
+# creature from a drawing that moves is SECONDARY MOTION: the body moves, and shed
+# material arrives LATE, on its own timing. So a drip here is geometry with its
+# OWN phase, and that phase reads the body's shape from a few frames ago -- never
+# the body's current keyframe.
+#
+# WHERE the drip lives was measured, not assumed. This body is a squashed dome
+# sitting on a desk: rim at z = -0.116 m, ground at z = -0.187 m, so a drop that
+# detaches at the rim falls 7 cm inside a 1.36 m frame -- 5% of the picture, and
+# nothing at all once the pet is 72 px wide. A detach-and-fall drip is not
+# available on this silhouette. What IS available is the way gel actually behaves
+# on a dome: it beads high on the FRONT FACE, runs down, necks at the rim, lets go
+# and merges into a foot pool. That path is ~24 cm and it is silhouetted against
+# the lit body the whole way down.
+SHED_LAG = 0.075                        # loop fractions the shed gel lags the body by
+G = 6.0                                 # m/s^2 -- heavier than a water droplet on
+                                        # purpose: this is gel, and _motion.md is
+                                        # explicit that the creature is torpe.
+
+WORLD_BASIS = (Vector((1.0, 0.0, 0.0)), Vector((0.0, 1.0, 0.0)),
+               Vector((0.0, 0.0, 1.0)))
+
+
+def body_axes(squash):
+    """Semi-axes of the body AFTER settle_dome. Same widen rule, one source."""
+    widen = 1.0 / math.sqrt(squash)
+    return BODY_R * widen, BODY_R * widen, BODY_R * squash
+
+
+def body_ground(squash, base_flat=-0.34):
+    """Where the contact patch ends up -- settle_dome's own arithmetic, replayed.
+
+    Recomputed rather than hardcoded because the body deforms every frame: a
+    constant here drops splats through the desk on half the cycle.
+    """
+    floor = base_flat * BODY_R
+    return floor + (-BODY_R * squash - floor) * 0.12
+
+
+# The desk does not move. settle_dome's clamp lands the underside at a height that
+# depends on the CURRENT squash, so letting each frame define its own floor slides
+# the whole creature up and down as it breathes -- and drops every splat onto a
+# different plane. One constant, and every frame is placed against it.
+DESK_Z = body_ground(0.62)
+
+
+def viscous(signal, t, lag=SHED_LAG):
+    """Read a shape signal LATE, and let it go PAST -- viscous lag with overshoot.
+
+    A pure delay only makes the gel late; it still tracks the body exactly, one
+    beat behind, which is how a rigid body on a delay line moves. Extrapolating
+    from two delayed samples also makes it overshoot and settle, and _motion.md
+    records that overshoot as the thing separating gel from a painted solid.
+
+    This is the single line that decides whether the creature reads as alive. The
+    body follows `signal(t)`; everything it sheds or wears follows THIS.
+    """
+    a = signal(t - lag)
+    b = signal(t - 2.0 * lag)
+    return max(0.20, min(1.30, a + 0.35 * (a - b)))
+
+
+def surf_point(ax, ay, az, theta, phi):
+    return Vector((ax * math.cos(phi) * math.cos(theta),
+                   ay * math.cos(phi) * math.sin(theta),
+                   az * math.sin(phi)))
+
+
+def basis_from(direction):
+    """Orthonormal frame whose LAST axis is `direction`. add_blob stretches along
+    its third axis, so this is what points a droplet along its own velocity."""
+    n = direction.normalized()
+    helper = Vector((0.0, 0.0, 1.0))
+    if abs(n.dot(helper)) > 0.9:
+        helper = Vector((1.0, 0.0, 0.0))
+    t = n.cross(helper).normalized()
+    b = n.cross(t).normalized()
+    return (t, b, n)
+
+
+def add_blob(bm, centre, basis, scale, segments=12):
+    """An oriented ellipsoid: unit sphere through a (tangent, binormal, normal)
+    frame. A droplet has to lie ALONG its velocity, so an axis-aligned squash is
+    not enough."""
+    t, b, n = basis
+    rot = Matrix(((t.x, b.x, n.x),
+                  (t.y, b.y, n.y),
+                  (t.z, b.z, n.z))).to_4x4()
+    m = (Matrix.Translation(centre) @ rot
+         @ Matrix.Diagonal(Vector((scale[0], scale[1], scale[2], 1.0))))
+    bmesh.ops.create_uvsphere(bm, u_segments=segments,
+                              v_segments=max(segments // 2, 4),
+                              radius=1.0, matrix=m)
+
+
+# --------------------------------------------------------------------- hop ----
+# Joan, 2026-08-10: "quizas el tema de las gotas pueda ser efecto de cuando se
+# mueve, mas que siempre en todo momento."
+#
+# That settles a problem three passes of idle drips could not, and the geometry
+# says why he is right. AT REST this body has nowhere to drip from: it is widest
+# at radius 0.635 m and its contact patch is 0.531 m, so there is 10 cm of
+# overhang and 18 cm of air under the lip -- while a drop that still reads at
+# 72 px has to be ~11 cm across. It does not fit, and below the equator the
+# surface curves back inward, so a pendant hung there is inside the creature.
+# Measured three ways; every idle drip read as an ear, an egg or a wart.
+#
+# IN THE AIR the whole frame is clearance. It is also the physically true moment:
+# the reference sheet's leap frame (_leap_aggressive.png) shows droplets thrown
+# off BEHIND a fast-moving body, and the standing rule from those same frames is
+# that deformation scales with inertia. Gel is shed where there is acceleration,
+# so this cycle sheds at exactly the two moments that have any -- the launch,
+# where the mass is thrown up and the surface is left behind, and the impact,
+# where the mass stops dead and the surface keeps going.
+HOP_CROUCH, HOP_LAUNCH, HOP_LAND = 0.20, 0.30, 0.70
+HOP_HEIGHT = 0.38
+
+
+def hop_height(t):
+    """Ballistic arc, zero at both ends so the loop closes back on the desk."""
+    t = t % 1.0
+    if t < HOP_LAUNCH or t >= HOP_LAND:
+        return 0.0
+    k = (t - HOP_LAUNCH) / (HOP_LAND - HOP_LAUNCH)
+    return HOP_HEIGHT * 4.0 * k * (1.0 - k)
+
+
+def hop_squash(t):
+    """The DRIVEN shape. What gets built is this, read through viscous().
+
+    Squash > 1 is taller than wide, < 1 flatter -- settle_dome's widen rule
+    conserves volume either way, which is the hard rule from _motion.md: a mass
+    that flattens MUST spread, or it reads as having lost material.
+    """
+    t = t % 1.0
+    if t < HOP_CROUCH:                          # anticipation: gather and flatten
+        k = t / HOP_CROUCH
+        return 0.62 - 0.16 * k * k
+    if t < HOP_LAUNCH:                          # extension: throw the mass upward
+        k = (t - HOP_CROUCH) / (HOP_LAUNCH - HOP_CROUCH)
+        return 0.46 + 0.62 * k
+    if t < HOP_LAND:
+        # Airborne. The shape follows the VELOCITY, not the height: stretched
+        # leaving the ground, round at the apex where velocity is zero, stretched
+        # again on the way down. Keying it to height instead is the classic
+        # mistake that makes a jump read as a balloon on a string.
+        k = (t - HOP_LAUNCH) / (HOP_LAND - HOP_LAUNCH)
+        return 0.85 + 0.35 * abs(1.0 - 2.0 * k) ** 1.4
+    # Impact, then a decaying wobble back to rest. The step down from the falling
+    # stretch is meant to be one frame -- an impact IS instantaneous, and viscous()
+    # spreads it over about three frames by itself.
+    k = (t - HOP_LAND) / (1.0 - HOP_LAND)
+    return 0.62 - 0.20 * math.cos(math.tau * 1.5 * k) * math.exp(-3.2 * k)
+
+
+def shed_burst(t0, count, speed, out_z, r0, up, lat):
+    """One burst of droplets, thrown from the rim of the body as it is at t0.
+
+    Azimuths cover the FRONT 200 degrees rather than a full circle: droplets
+    thrown backwards sit behind the body and cost geometry to render nothing.
+    They are also unevenly spaced -- an even ring reads as a sprinkler, not as
+    material torn off a surface.
+    """
+    s = viscous(hop_squash, t0)
+    ax, _, az = body_axes(s)
+    ground = DESK_Z
+    centre_z = DESK_Z + hop_height(t0) + az     # the body is placed by its underside
+    base_z = centre_z + out_z * az
+    out = []
+    for i in range(count):
+        f = i / max(count - 1, 1)
+        ang = math.radians(-178.0 + 200.0 * f + 11.0 * math.sin(i * 2.4))
+        wob = 0.78 + 0.44 * abs(math.sin(i * 1.7))      # deterministic, seedless
+        # `lat` is what keeps a droplet from reading as a flat lentil. A drop is
+        # stretched along its OWN velocity, so a nearly horizontal throw draws a
+        # pill lying on its side. The launch shed has to fall almost straight
+        # down -- the body left it behind, it was not flung sideways.
+        d = Vector((math.cos(ang) * lat, math.sin(ang) * lat * 0.55, up))
+        d.normalize()
+        p0 = Vector((math.cos(ang) * ax * 0.92, math.sin(ang) * ax * 0.55, base_z))
+        v0 = d * (speed * wob)
+        r = r0 * (0.72 + 0.5 * wob)
+        # When it reaches the desk is SOLVED, not stepped: the splat has to key to
+        # the real landing frame or droplets sink through the surface.
+        zt = ground + r * 0.55
+        disc = v0.z * v0.z + 2.0 * G * (p0.z - zt)
+        t_land = (v0.z + math.sqrt(max(disc, 0.0))) / G
+        out.append((t0, p0, v0, r, t_land, ground))
+    return out
+
+
+def hop_droplets():
+    """The two bursts, sized by how hard their moment actually is.
+
+    The impact throws more and bigger than the launch, because stopping a falling
+    mass dead is the more violent of the two events. Count and size scaling with
+    inertia is the reference sheet's own rule, not a look chosen here.
+    """
+    return (shed_burst(HOP_LAUNCH, 3, 0.70, -0.55, 0.065, up=-0.88, lat=0.32)
+            + shed_burst(HOP_LAND, 6, 1.45, -0.95, 0.075, up=0.72, lat=1.0))
+
+
+SPLAT_DUR = 0.13
+DROPLETS = hop_droplets()
+
+
+def add_droplets(bm, t):
+    """Every droplet at its own point in its own flight. Nothing here reads the
+    body's current frame, and that independence IS the secondary motion."""
+    for (t0, p0, v0, r, t_land, ground) in DROPLETS:
+        dt = (t - t0) % 1.0
+        if dt > t_land + SPLAT_DUR:
+            continue
+        before = set(bm.verts)
+        if dt <= t_land:
+            v = Vector((v0.x, v0.y, v0.z - G * dt))
+            p = Vector((p0.x + v0.x * dt, p0.y + v0.y * dt,
+                        p0.z + v0.z * dt - 0.5 * G * dt * dt))
+            # Stretch along the velocity, narrow across it. Volume conservation
+            # again: a droplet that only lengthens is gaining mass in mid-air.
+            stretch = 1.0 + min(v.length * 0.35, 0.9)
+            narrow = 1.0 / math.sqrt(stretch)
+            add_blob(bm, p, basis_from(v), (r * narrow, r * narrow, r * stretch),
+                     segments=14)
+        else:
+            k = (dt - t_land) / SPLAT_DUR
+            spread = 1.0 + 1.5 * k
+            h = max(r * 0.45 * (1.0 - k), 1e-3)
+            centre = Vector((p0.x + v0.x * t_land, p0.y + v0.y * t_land, ground))
+            add_blob(bm, centre, WORLD_BASIS, (r * spread, r * spread, h),
+                     segments=14)
+            for v in set(bm.verts) - before:
+                # No floor object in this scene (film_transparent -- the pet sits
+                # on the user's wallpaper), so half a splat would hang in the air.
+                if v.co.z < ground:
+                    v.co.z = ground
+        WET.update(set(bm.verts) - before)
 
 
 # ------------------------------------------------------------ expressions ----
@@ -462,6 +762,109 @@ def make_sweat(scene):
     return bm
 
 
+def place(bm, height):
+    """Seat the mesh on the desk (or `height` above it), by its own underside.
+
+    Measured placement, not an assumed one: settle_dome's clamp only bites when
+    the shape is flatter than rest, so a stretched body ends up with its bottom
+    far below the floor it was drawn against. Reading the real minimum and moving
+    the whole mesh is the only version that survives a squash cycle.
+    """
+    lo = min(v.co.z for v in bm.verts)
+    dz = (DESK_Z + height) - lo
+    for v in bm.verts:
+        v.co.z += dz
+    return bm
+
+
+def idle_squash(t):
+    """Rest: one slow breath. The creature is torpe, never nervous."""
+    return 0.62 + 0.040 * math.sin(math.tau * t)
+
+
+def make_idle_frame(scene, t):
+    """Rest, and NOTHING sheds here.
+
+    Three passes tried to hang drips off the resting body and all three read as
+    ears, eggs or warts -- there is no clearance under this silhouette. Joan's
+    call (2026-08-10) is that shedding belongs to MOVEMENT, so idle is a breath
+    and only a breath.
+    """
+    s = idle_squash(t)
+    bm = new_bm_sphere(BODY_R)
+    settle_dome(bm, BODY_R, squash=s)
+    for side in (-1, 1):
+        add_eye_stroke(bm, side, BODY_R, squash=s)
+    return place(bm, 0.0)
+
+
+def make_hop_frame(scene, t):
+    """One frame of the hop: the body on its arc, the gel arriving late.
+
+    The two clocks never touch. The body's HEIGHT is hop_height(t) -- the mass
+    goes where physics sends it, on time. The body's SHAPE is hop_squash read
+    through viscous(), so the surface is always a beat behind and always goes a
+    little past. And the droplets read neither: each one is on its own ballistic
+    flight from the instant it was torn off.
+    """
+    s = viscous(hop_squash, t)
+    h = hop_height(t)
+    bm = new_bm_sphere(BODY_R)
+    # No contact patch in mid-air. Flattening the underside of an airborne body is
+    # the tell that its shape was copied from the resting pose.
+    settle_dome(bm, BODY_R, squash=s,
+                base_flat=(-10.0 if h > 1e-6 else -0.34))
+    for side in (-1, 1):
+        add_eye_stroke(bm, side, BODY_R, squash=s)
+    place(bm, h)
+    add_droplets(bm, t)
+    return bm
+
+
+def frame_grid(paths, cell, cols, out_path, pad=8, card=(0.93, 0.94, 0.92),
+               bg=(0.20, 0.22, 0.24)):
+    """Contact grid of a frame sequence, composited over a light card.
+
+    Same Blender-image approach as use_size (this Python has no Pillow). Motion is
+    judged on a SEQUENCE, never on one frame -- a single still of an animation is
+    exactly the evidence that let the last pass ship a face that vanished.
+    """
+    rows = (len(paths) + cols - 1) // cols
+    width = cols * cell + pad * (cols + 1)
+    height = rows * cell + pad * (rows + 1)
+    sheet = bpy.data.images.new("frame_grid", width=width, height=height,
+                                alpha=False)
+    buf = [0.0] * (width * height * 4)
+    for i in range(width * height):
+        buf[i * 4] = bg[0]
+        buf[i * 4 + 1] = bg[1]
+        buf[i * 4 + 2] = bg[2]
+        buf[i * 4 + 3] = 1.0
+    for idx, p in enumerate(paths):
+        r, c = divmod(idx, cols)
+        tile = bpy.data.images.load(p, check_existing=False)
+        tile.scale(cell, cell)
+        px = [0.0] * (cell * cell * 4)
+        tile.pixels.foreach_get(px)
+        x0 = pad + c * (cell + pad)
+        # bpy rows run bottom-up; fill the grid top-down so frame 0 reads first.
+        y0 = height - (pad + (r + 1) * cell + r * pad)
+        for ty in range(cell):
+            for tx in range(cell):
+                si = (ty * cell + tx) * 4
+                a = px[si + 3]
+                di = ((y0 + ty) * width + (x0 + tx)) * 4
+                for ch in range(3):
+                    buf[di + ch] = card[ch] * (1.0 - a) + px[si + ch] * a
+        bpy.data.images.remove(tile)
+    sheet.pixels.foreach_set(buf)
+    sheet.filepath_raw = out_path
+    sheet.file_format = "PNG"
+    sheet.save()
+    bpy.data.images.remove(sheet)
+    return out_path
+
+
 EXPRESSIONS = [
     ("idle",           lambda s: make_idle(s)),
     ("pleased",        lambda s: make_idle(s, squash=0.55)),
@@ -478,16 +881,291 @@ EXPRESSIONS = [
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 
-mat = bpy.data.materials.new("mat_slime_pet")
-mat.use_nodes = True
-nt = mat.node_tree
-bsdf = nt.nodes["Principled BSDF"]
-attr = nt.nodes.new("ShaderNodeAttribute")
-attr.attribute_name = "Col"
-nt.links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
-bsdf.inputs["Roughness"].default_value = 0.18
-if "IOR" in bsdf.inputs:
+# --------------------------------------------------------------- material ----
+# Joan, 2026-08-10: "ahora se nota como un globo, mas que como una gelatina
+# slime, similar a tenshura."
+#
+# Exactly right, and the diagnosis names the cause: on a BALLOON the light dies
+# at the surface. The pet was an opaque Principled with one specular -- that is
+# latex, no matter what colour it is. Gelatin reads through light that goes
+# THROUGH the mass: an edge that transmits, an interior that is visible, bubbles
+# suspended in it.
+#
+# The old note in this project said EEVEE could not do that and a Blender with
+# Cycles was needed. That was an assumption, and probing the actual build killed
+# it -- 5.1.2's EEVEE Next carries Subsurface Weight/Radius/Scale, Transmission
+# Weight, and screen-space raytracing. No Cycles required; three sessions of
+# "blocked on translucency" were blocked on an unmeasured claim.
+#
+# The vocabulary is borrowed from the game slime (Joan: "reutilizamos algunas
+# cositas del slime del juego") -- depth gradient, bubbles suspended in the gel,
+# a bright band at the widest point. There it had to be BAKED to vertex colour
+# because glTF cannot express a node graph, and the equator band was a
+# view-independent stand-in for a Fresnel rim that could not survive export.
+# Here the RENDER is the product, so the nodes run for real and the rim can be
+# an actual Fresnel.
+GEL_BUBBLE = (0.62, 0.78, 0.86, 1.0)   # light blooming where a bubble meets skin
+GEL_RIM = (0.72, 0.86, 0.95, 1.0)      # the transmitting edge
+
+
+def gel_material():
+    m = bpy.data.materials.new("mat_slime_pet")
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+
+    attr = nt.nodes.new("ShaderNodeAttribute")
+    attr.attribute_name = "Col"
+
+    # Bubbles, in OBJECT space so they stay put in the body while it deforms --
+    # the mesh is rebuilt every frame, so anything in generated/world space would
+    # make the bubbles swim through the gel as the creature breathes.
+    tex = nt.nodes.new("ShaderNodeTexCoord")
+    vor = nt.nodes.new("ShaderNodeTexVoronoi")
+    vor.feature = "F1"
+    vor.inputs["Scale"].default_value = 6.5
+    vor.inputs["Randomness"].default_value = 1.0
+    nt.links.new(tex.outputs["Object"], vor.inputs["Vector"])
+    # Only the cells' CORES become bubbles. Without this ramp a voronoi is a
+    # cracked-tile pattern, which is the opposite of suspended spheres.
+    bub = nt.nodes.new("ShaderNodeValToRGB")
+    # Wide and SOFT. A tight ramp gave hard white dots and the body read as a
+    # painted beach ball -- worse than no bubbles at all, because a hard-edged
+    # spot sits ON a surface while a bubble is meant to be suspended UNDER one.
+    # The ceiling is 0.42, not 1.0, for the same reason: a bubble seen through
+    # gel is a soft bloom, never a full-strength highlight.
+    bub.color_ramp.elements[0].position = 0.00
+    bub.color_ramp.elements[1].position = 0.42
+    bub.color_ramp.elements[0].color = (0.42, 0.42, 0.42, 1.0)
+    bub.color_ramp.elements[1].color = (0.0, 0.0, 0.0, 1.0)
+    nt.links.new(vor.outputs["Distance"], bub.inputs["Factor"])
+
+    mix_b = nt.nodes.new("ShaderNodeMixRGB")
+    mix_b.inputs["Color2"].default_value = GEL_BUBBLE
+    nt.links.new(bub.outputs["Color"], mix_b.inputs["Factor"])
+    nt.links.new(attr.outputs["Color"], mix_b.inputs["Color1"])
+
+    # The real Fresnel the game slime had to fake. This is the single strongest
+    # anti-balloon cue: a mass that brightens where you see through more of it.
+    lw = nt.nodes.new("ShaderNodeLayerWeight")
+    lw.inputs["Blend"].default_value = 0.42
+    mix_r = nt.nodes.new("ShaderNodeMixRGB")
+    mix_r.inputs["Color2"].default_value = GEL_RIM
+    nt.links.new(lw.outputs["Fresnel"], mix_r.inputs["Factor"])
+    nt.links.new(mix_b.outputs["Color"], mix_r.inputs["Color1"])
+    nt.links.new(mix_r.outputs["Color"], bsdf.inputs["Base Color"])
+
+    # THE FIX THAT ACTUALLY KILLED THE BALLOON. Brightening the albedo at the rim
+    # does nothing where no light reaches -- the first attempt rendered with a
+    # DARKER edge than centre, because the sides face away from every lamp. Real
+    # gel does not get a paler edge, it GLOWS there: light entered the far side
+    # and came out towards the eye. So the Fresnel drives EMISSION, which owes
+    # nothing to the lighting, and the silhouette carries the transmission.
+    glow = nt.nodes.new("ShaderNodeMath")
+    glow.operation = "MULTIPLY"
+    glow.inputs[1].default_value = 0.95
+    nt.links.new(lw.outputs["Fresnel"], glow.inputs[0])
+    nt.links.new(glow.outputs["Value"], bsdf.inputs["Emission Strength"])
+    # Saturated cyan-blue, not white: a white rim reads as polished plastic, the
+    # exact material this is trying to stop being.
+    bsdf.inputs["Emission Color"].default_value = (0.26, 0.58, 0.86, 1.0)
+
+    # Subsurface is what turns the shell into a MASS. Radius is deliberately
+    # blue-longest: in a blue gel the blue channel is the one that survives the
+    # trip, and that wavelength split is most of why jelly does not read as paint.
+    bsdf.inputs["Subsurface Weight"].default_value = 0.85
+    bsdf.inputs["Subsurface Radius"].default_value = (0.35, 0.62, 1.00)
+    # Scale in METRES, and it is the risky number. The body is 0.5 m across and
+    # the eye strokes are ~3 cm wide: scatter too far and the light bleeds through
+    # the face, undoing the whole reason the strokes are geometry. Kept under the
+    # stroke width on purpose -- verify on the use-size strip, not on the hero.
+    bsdf.inputs["Subsurface Scale"].default_value = 0.055
+    bsdf.inputs["Transmission Weight"].default_value = 0.12
+    bsdf.inputs["Roughness"].default_value = 0.14
     bsdf.inputs["IOR"].default_value = 1.33
+    # A wet skin over a soft interior: the coat gives the sharp bright specular a
+    # gel surface has, while the body underneath stays soft. One material doing
+    # both is what a single Principled cannot fake with roughness alone.
+    bsdf.inputs["Coat Weight"].default_value = 0.45
+    bsdf.inputs["Coat Roughness"].default_value = 0.06
+    return m
+
+
+def toon_material():
+    """Anime cel gel. Joan picked this over the PBR version, 2026-08-10.
+
+    The premise check behind it: three passes of physically-based translucency
+    (subsurface, transmission, Fresnel emission, an inverted gradient) each got
+    closer and none stopped the creature reading as a balloon. Tensura's slime is
+    not a raytraced gummy -- it is CEL-SHADED, and its gel reads through
+    HARD-EDGED shapes: a crisp highlight, a bright crescent along the thin edge,
+    a clean silhouette. It is also what this project already decided;
+    `_art_canon.md` is DP_ToonGrounded and the 2026-06-10 note says outright
+    "anime look = SHADER, not polygons". Rendering the pet in PBR was off-canon.
+
+    Everything is routed through Emission so the bands ARE the lighting. Leaving
+    a lit BSDF anywhere in the chain shades the result twice and mushes every
+    hard edge the look is made of.
+    """
+    m = bpy.data.materials.new("mat_slime_pet_toon")
+    m.use_nodes = True
+    nt = m.node_tree
+    for n in list(nt.nodes):
+        if n.type != "OUTPUT_MATERIAL":
+            nt.nodes.remove(n)
+    out = [n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"][0]
+
+    attr = nt.nodes.new("ShaderNodeAttribute")
+    attr.attribute_name = "Col"
+
+    # ---- bubbles, as DRAWN SHAPES ------------------------------------------
+    # In OBJECT space so they stay put in the body while it deforms: the mesh is
+    # rebuilt every frame, so generated or world space would make them swim.
+    #
+    # The first version soft-ramped a voronoi and got mottling; a tighter ramp got
+    # hard white polka dots. Both were wrong for opposite reasons. Cel art draws a
+    # bubble as a small solid shape of a LIGHTER tone -- so the edge should be
+    # hard (it is a drawn shape) but the tone step small (it is under the surface,
+    # not on it). Uniform cells read as a pattern, so a noise perturbs the
+    # threshold and the shapes come out different sizes, some suppressed entirely.
+    tex = nt.nodes.new("ShaderNodeTexCoord")
+    vor = nt.nodes.new("ShaderNodeTexVoronoi")
+    vor.feature = "F1"
+    vor.inputs["Scale"].default_value = 5.5
+    vor.inputs["Randomness"].default_value = 1.0
+    nt.links.new(tex.outputs["Object"], vor.inputs["Vector"])
+
+    nz = nt.nodes.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value = 2.6
+    nz.inputs["Detail"].default_value = 2.0
+    nt.links.new(tex.outputs["Object"], nz.inputs["Vector"])
+    nmul = nt.nodes.new("ShaderNodeMath")
+    nmul.operation = "MULTIPLY"
+    nmul.inputs[1].default_value = 0.22
+    nt.links.new(nz.outputs["Fac"], nmul.inputs[0])
+    dsum = nt.nodes.new("ShaderNodeMath")
+    dsum.operation = "ADD"
+    nt.links.new(vor.outputs["Distance"], dsum.inputs[0])
+    nt.links.new(nmul.outputs["Value"], dsum.inputs[1])
+
+    bramp = nt.nodes.new("ShaderNodeValToRGB")
+    bramp.color_ramp.interpolation = "CONSTANT"
+    bramp.color_ramp.elements[0].position = 0.0
+    bramp.color_ramp.elements[0].color = (1.0, 1.0, 1.0, 1.0)
+    bramp.color_ramp.elements[1].position = 0.17
+    bramp.color_ramp.elements[1].color = (0.0, 0.0, 0.0, 1.0)
+    nt.links.new(dsum.outputs["Value"], bramp.inputs["Factor"])
+
+    base = nt.nodes.new("ShaderNodeMixRGB")
+    base.inputs["Color2"].default_value = TOON_BUBBLE
+    nt.links.new(bramp.outputs["Color"], base.inputs["Factor"])
+    nt.links.new(attr.outputs["Color"], base.inputs["Color1"])
+
+    # ---- light, quantised ---------------------------------------------------
+    # CONSTANT interpolation is the whole point. Any smoothing here and it is a
+    # soft gradient wearing a toon costume.
+    lit = nt.nodes.new("ShaderNodeBsdfDiffuse")
+    lit.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+    s2r = nt.nodes.new("ShaderNodeShaderToRGB")
+    nt.links.new(lit.outputs["BSDF"], s2r.inputs["Shader"])
+    bands = nt.nodes.new("ShaderNodeValToRGB")
+    bands.color_ramp.interpolation = "CONSTANT"
+    bands.color_ramp.elements[0].position = 0.0
+    bands.color_ramp.elements[0].color = (0.0, 0.0, 0.0, 1.0)
+    bands.color_ramp.elements[1].position = 0.30
+    bands.color_ramp.elements[1].color = (0.55, 0.55, 0.55, 1.0)
+    e3 = bands.color_ramp.elements.new(0.62)
+    e3.color = (1.0, 1.0, 1.0, 1.0)
+    nt.links.new(s2r.outputs["Color"], bands.inputs["Factor"])
+
+    # Shadow is a MIX toward a saturated cool blue, NOT a multiply. Multiplying
+    # the body colour was the first version and it crushed the lower half to mud:
+    # a dark albedo times a dark shadow leaves nothing to read. Cel shadow shifts
+    # HUE and keeps value, which is why anime shadows stay legible.
+    shade = nt.nodes.new("ShaderNodeMixRGB")
+    shade.inputs["Factor"].default_value = 0.62
+    shade.inputs["Color2"].default_value = TOON_SHADE
+    nt.links.new(base.outputs["Color"], shade.inputs["Color1"])
+
+    body = nt.nodes.new("ShaderNodeMixRGB")
+    nt.links.new(bands.outputs["Color"], body.inputs["Factor"])
+    nt.links.new(shade.outputs["Color"], body.inputs["Color1"])
+    nt.links.new(base.outputs["Color"], body.inputs["Color2"])
+
+    # ---- the hard highlight -------------------------------------------------
+    # A slime's signature is a crisp bright SHAPE sitting on the dome, not a soft
+    # specular smear, so the glossy response is thresholded to a hard edge.
+    gloss = nt.nodes.new("ShaderNodeBsdfGlossy")
+    gloss.inputs["Roughness"].default_value = 0.16
+    g2r = nt.nodes.new("ShaderNodeShaderToRGB")
+    nt.links.new(gloss.outputs["BSDF"], g2r.inputs["Shader"])
+    gramp = nt.nodes.new("ShaderNodeValToRGB")
+    gramp.color_ramp.interpolation = "CONSTANT"
+    gramp.color_ramp.elements[0].position = 0.0
+    gramp.color_ramp.elements[0].color = (0.0, 0.0, 0.0, 1.0)
+    gramp.color_ramp.elements[1].position = 0.62
+    gramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    nt.links.new(g2r.outputs["Color"], gramp.inputs["Factor"])
+
+    # ANIME NEVER PUTS SPECULAR ON LINE ART. The eye strokes are dark geometry,
+    # and a physically-correct glossy pass ran a bright white streak down each of
+    # them -- the face read as two bent metal wires instead of two drawn strokes.
+    # Masking by the albedo's own luminance kills the highlight wherever the
+    # surface is ink, which is wrong for physics and right for the medium.
+    bw = nt.nodes.new("ShaderNodeRGBToBW")
+    nt.links.new(attr.outputs["Color"], bw.inputs["Color"])
+    ink = nt.nodes.new("ShaderNodeValToRGB")
+    ink.color_ramp.interpolation = "CONSTANT"
+    ink.color_ramp.elements[0].position = 0.0
+    ink.color_ramp.elements[0].color = (0.0, 0.0, 0.0, 1.0)
+    ink.color_ramp.elements[1].position = 0.12
+    ink.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    nt.links.new(bw.outputs["Val"], ink.inputs["Factor"])
+    gmask = nt.nodes.new("ShaderNodeMixRGB")
+    gmask.blend_type = "MULTIPLY"
+    gmask.inputs["Factor"].default_value = 1.0
+    nt.links.new(gramp.outputs["Color"], gmask.inputs["Color1"])
+    nt.links.new(ink.outputs["Color"], gmask.inputs["Color2"])
+
+    spec = nt.nodes.new("ShaderNodeMixRGB")
+    spec.inputs["Color2"].default_value = (0.95, 0.99, 1.0, 1.0)
+    nt.links.new(gmask.outputs["Color"], spec.inputs["Factor"])
+    nt.links.new(body.outputs["Color"], spec.inputs["Color1"])
+
+    # ---- the translucent crescent -------------------------------------------
+    # The strongest gel cue on a cel slime: a bright saturated band hugging the
+    # silhouette where the mass is thinnest and light crosses it. Hard-edged,
+    # like everything else here.
+    fres = nt.nodes.new("ShaderNodeFresnel")
+    fres.inputs["IOR"].default_value = 1.33
+    framp = nt.nodes.new("ShaderNodeValToRGB")
+    framp.color_ramp.interpolation = "CONSTANT"
+    framp.color_ramp.elements[0].position = 0.0
+    framp.color_ramp.elements[0].color = (0.0, 0.0, 0.0, 1.0)
+    framp.color_ramp.elements[1].position = 0.58
+    framp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    nt.links.new(fres.outputs["Fac"], framp.inputs["Factor"])
+    # Masked by the same ink test: a stroke is a tube, so its own grazing edges
+    # would catch the crescent and outline the eyes in bright cyan.
+    fmask = nt.nodes.new("ShaderNodeMixRGB")
+    fmask.blend_type = "MULTIPLY"
+    fmask.inputs["Factor"].default_value = 1.0
+    nt.links.new(framp.outputs["Color"], fmask.inputs["Color1"])
+    nt.links.new(ink.outputs["Color"], fmask.inputs["Color2"])
+    rim = nt.nodes.new("ShaderNodeMixRGB")
+    rim.inputs["Color2"].default_value = TOON_CRESCENT
+    nt.links.new(fmask.outputs["Color"], rim.inputs["Factor"])
+    nt.links.new(spec.outputs["Color"], rim.inputs["Color1"])
+
+    emit = nt.nodes.new("ShaderNodeEmission")
+    emit.inputs["Strength"].default_value = 1.0
+    nt.links.new(rim.outputs["Color"], emit.inputs["Color"])
+    nt.links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    return m
+
+
+mat = toon_material() if STYLE == "toon" else gel_material()
+print("[pet] material style: %s%s" % (STYLE, "  (LOOKDEV)" if LOOKDEV else ""))
 
 
 def sun(name, energy, color, rot):
@@ -501,12 +1179,18 @@ def sun(name, energy, color, rot):
 
 sun("key", 2.6, (1.0, 0.97, 0.92), (math.radians(52), 0, math.radians(28)))
 sun("fill", 1.1, (0.72, 0.82, 1.0), (math.radians(66), 0, math.radians(-124)))
-sun("rim", 1.6, (0.88, 0.94, 1.0), (math.radians(112), 0, math.radians(190)))
+# The rim is now doing real work, not decorating an outline: subsurface only
+# reads when there is light BEHIND the mass to come through it. On an opaque
+# body this was a taste setting; on a translucent one it is the light that
+# produces the effect, so it is the brightest lamp in the rig.
+sun("rim", 4.2, (0.88, 0.94, 1.0), (math.radians(112), 0, math.radians(190)))
 
 world = bpy.data.worlds.new("w")
 scene.world = world
 world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[0].default_value = (0.05, 0.06, 0.08, 1.0)
+# Lifted off near-black: scattering needs some ambient to carry, and the world is
+# never seen anyway (film_transparent), so this is pure lighting, not backdrop.
+world.node_tree.nodes["Background"].inputs[0].default_value = (0.09, 0.11, 0.15, 1.0)
 
 # For a GAME asset the GLB is the product and EEVEE is the honest preview. Here
 # the RENDER IS the product, so Cycles earns its cost: real contact shadow and gel
@@ -544,6 +1228,11 @@ if "CYCLES" in engines:
         print("[pet] GPU unavailable, cycles on CPU:", exc)
 else:
     scene.render.engine = "BLENDER_EEVEE"
+# Screen-space raytracing is what lets EEVEE Next carry refraction and proper
+# subsurface instead of a flat approximation. Probed present on this build --
+# the claim that translucency here needed Cycles was never measured.
+if hasattr(scene.eevee, "use_raytracing"):
+    scene.eevee.use_raytracing = True
 scene.view_settings.view_transform = "Standard"
 # Transparent film: a desktop pet has to sit on the user's wallpaper, not a card.
 scene.render.film_transparent = True
@@ -561,10 +1250,11 @@ scene.collection.objects.link(cam)
 scene.camera = cam
 
 print("[pet] rendering %d expressions" % len(EXPRESSIONS))
-for key, fn in EXPRESSIONS:
+for key, fn in ([] if LOOKDEV else EXPRESSIONS):
     for o in [o for o in scene.objects if o.type == "MESH"]:
         bpy.data.objects.remove(o, do_unlink=True)
     DARK.clear()
+    WET.clear()
     bm = fn(scene)
     obj = finalize(bm, "pet_" + key, scene)
     obj.data.materials.append(mat)
@@ -574,15 +1264,68 @@ for key, fn in EXPRESSIONS:
     print("[pet] %-16s verts=%4d tris=%4d  -> renders/pet_%s.png"
           % (key, len(obj.data.vertices), tris, key))
 
+# ------------------------------------------------------------------- idle ----
+# The expressions above are stills. Viscosity is not a still: a drop that lags the
+# body cannot be shown in one frame, by definition. So the idle also ships as a
+# frame SEQUENCE, and that sequence -- not a hero render -- is what gets judged.
+ANIM_DIR = os.path.join(REN_DIR, "anim")
+os.makedirs(ANIM_DIR, exist_ok=True)
+FPS = 12
+FRAMES = 24                              # 2.0 s per clip
+
+CLIPS = ([("hop", make_hop_frame)] if LOOKDEV
+         else [("idle", make_idle_frame), ("hop", make_hop_frame)])
+clip_paths = {}
+for name, fn in CLIPS:
+    paths = []
+    frames = LOOKDEV_FRAMES if LOOKDEV else list(range(FRAMES))
+    print("[pet] rendering %d %s frames (%d fps, %.1fs loop)"
+          % (len(frames), name, FPS, FRAMES / FPS))
+    for f in frames:
+        t = f / FRAMES
+        for o in [o for o in scene.objects if o.type == "MESH"]:
+            bpy.data.objects.remove(o, do_unlink=True)
+        DARK.clear()
+        WET.clear()
+        obj = finalize(fn(scene, t), "pet_%s_%02d" % (name, f), scene)
+        obj.data.materials.append(mat)
+        path = (os.path.join(REN_DIR, "_lookdev_%s_%02d.png" % (STYLE, f))
+                if LOOKDEV else os.path.join(ANIM_DIR, "%s_%02d.png" % (name, f)))
+        scene.render.filepath = path
+        bpy.ops.render.render(write_still=True)
+        paths.append(path)
+    clip_paths[name] = paths
+    if LOOKDEV:
+        continue
+    grid = os.path.join(REN_DIR, "_%s_grid.png" % name)
+    frame_grid(paths[::2], cell=200, cols=4, out_path=grid)
+    print("[pet] %s -> renders/anim/%s_*.png + %s" % (name, name, os.path.basename(grid)))
+
 # THE BUILD IS ITS OWN GATE. A desktop pet lives at 72-120 px; the first pass was
 # judged on a 512 px sheet where the eyes merely looked weak, and only a later
 # check revealed the face vanishes entirely at real size. Under
 # --python-exit-code 1 this raises and fails the build if the evidence cannot be
 # produced, so no future pass can be judged at a flattering size by accident.
+if LOOKDEV:
+    # Said out loud rather than skipped quietly: a lookdev run produces no
+    # shippable asset, so the use-size gate has nothing to gate. A silent skip is
+    # how a gate quietly stops existing.
+    print("[pet] LOOKDEV: use-size gate SKIPPED — this run ships nothing")
+    print("[pet] DONE")
+    sys.exit(0)
+
 use_size.require_use_size(
     os.path.join(REN_DIR, "pet_idle.png"),
     sizes=[512, 200, 120, 72],
     out_path=os.path.join(REN_DIR, "_use_size.png"),
+)
+
+# The drip has to survive the same shrink the face had to. A viscous detail that
+# only exists at 512 px is decoration for the build log, not for the desktop.
+use_size.require_use_size(
+    os.path.join(ANIM_DIR, "hop_18.png"),          # just after impact: full spray
+    sizes=[512, 200, 120, 72],
+    out_path=os.path.join(REN_DIR, "_use_size_shed.png"),
 )
 
 print("[pet] DONE")

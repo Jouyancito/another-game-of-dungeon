@@ -61,6 +61,10 @@ game/tools/blender/_preview_golem.png
 game/tools/godot/anim_capture/
 *.blend1
 game/tools/blender/*/renders/anim/
+# Lookdev A/B scratch: regenerable with `--style=<x> --lookdev`, and a run of it
+# ships nothing. The decision it settled belongs in the commit message, not in
+# eight throwaway PNGs.
+game/tools/blender/*/renders/_lookdev_*
 game/tools/blender/**/*_run.log
 game/tools/blender/**/__pycache__/
 __pycache__/
