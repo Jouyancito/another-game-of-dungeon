@@ -21,7 +21,8 @@ FPS = 12
 FRAME_MS = round(1000 / FPS)
 CARD = (237, 240, 235)
 
-CLIPS = ["idle", "hop"]
+# Reaction clips are named for the SITUATION, not for the face they land on.
+CLIPS = ["idle", "hop", "curious", "escalate", "strain", "delighted"]
 
 
 def frames_for(clip):

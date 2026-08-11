@@ -173,6 +173,13 @@ DARK = set()
 # read by the light, and light-read detail is exactly what dies on downscale.
 WET = set()
 
+# Vertices belonging to beads that CLING (sweat). Tinted DEEPER, the opposite of
+# WET, and the difference is not a contradiction: contrast is against the LOCAL
+# tone, never a fixed direction. Shed gel hangs off the dark underside, so it has
+# to brighten; sweat sits high on the lit dome, so brightening it merged it with
+# the cel highlight and it read as one more glint instead of a drop.
+BEAD = set()
+
 
 def add_eye_stroke(bm, side, radius, arc=0.30, height=0.32, thick=0.030,
                    dip=0.18, proud=0.012, n=13, squash=0.62):
@@ -390,6 +397,8 @@ def finalize(bm, name, scene):
                for v in DARK if v.is_valid}
     wet_co = {(round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
               for v in WET if v.is_valid}
+    bead_co = {(round(v.co.x, 5), round(v.co.y, 5), round(v.co.z, 5))
+               for v in BEAD if v.is_valid}
     me = bpy.data.meshes.new(name + "_mesh")
     bm.to_mesh(me)
     bm.free()
@@ -410,6 +419,8 @@ def finalize(bm, name, scene):
             # buried it in exactly the tone it needed to separate from. A wet bead
             # catching light on a shadowed belly is also how the frames draw it.
             c = lerp3(c, GEL_LIGHT, 0.55)
+        elif key in bead_co:
+            c = lerp3(c, GEL_DEEP, 0.55)
         col.data[i].color = (c[0], c[1], c[2], 1.0)
     obj = bpy.data.objects.new(name, me)
     scene.collection.objects.link(obj)
@@ -505,6 +516,30 @@ def surf_point(ax, ay, az, theta, phi):
     return Vector((ax * math.cos(phi) * math.cos(theta),
                    ay * math.cos(phi) * math.sin(theta),
                    az * math.sin(phi)))
+
+
+def surf_frame(ax, ay, az, theta, phi):
+    """Position, outward normal and down-slope tangent on the body's surface.
+
+    The outward normal of an ellipsoid is (x/ax^2, y/ay^2, z/az^2), NOT the
+    position vector -- the same trap add_eye_stroke documents, and the reason a
+    bead placed with the position vector floats off the surface at the flanks.
+
+    Used by anything that CLINGS to the body rather than flying off it: the sweat
+    drops today, and the idle drips before movement took that job over.
+    """
+    p = surf_point(ax, ay, az, theta, phi)
+    n = Vector((p.x / (ax * ax), p.y / (ay * ay), p.z / (az * az)))
+    if n.length > 1e-9:
+        n.normalize()
+    d = Vector((-ax * math.sin(phi) * math.cos(theta),
+                -ay * math.sin(phi) * math.sin(theta),
+                az * math.cos(phi)))
+    t = -d                               # decreasing phi is downhill
+    t -= n * t.dot(n)                    # keep it tangent after the flip
+    if t.length > 1e-9:
+        t.normalize()
+    return p, n, t
 
 
 def basis_from(direction):
@@ -728,37 +763,73 @@ def make_hyperbole(kind, scale):
     g = glyph_bm(char, height=scale * 1.45, depth=0.55 * scale, bevel=0.085 * scale)
     merge_bm(bm, g)
     g_hi = max(v.co.z for v in bm.verts)
-    if char == "?":
-        face_r, face_h = scale * 0.46, g_hi * 0.58
-    else:
-        face_r, face_h = scale * 0.30, g_hi * 0.62
+    face_h = g_hi * (0.58 if char == "?" else 0.62)
+    # MEASURE the glyph's own half-width at the face band instead of deriving it
+    # from `scale`. Derived, the strokes stuck out past the silhouette like
+    # whiskers -- an exclamation mark's bar is simply narrower than two eyes side
+    # by side, and no constant guessed from the glyph's HEIGHT can know that.
+    # add_eye_stroke's outermost point lands at (0.46 + arc) * face_r, so solving
+    # for that keeps the whole face inside the mark with a margin.
+    band = [abs(v.co.x) for v in bm.verts if abs(v.co.z - face_h) < 0.12 * g_hi]
+    half_w = max(band) if band else scale * 0.30
+    ARC = 0.42
+    face_r = 0.78 * half_w / (0.46 + ARC)
     # It has to stay the SAME creature, or the hyperbole reads as a prop someone
     # left on the desk. Two short strokes across the glyph's thickest span.
+    # Bigger and heavier than the dome's strokes, because they are competing with
+    # a whole glyph instead of sitting on a blank dome. At arc 0.26 / thick 0.055
+    # they rendered as two faint dashes and the hyperbole read as a signboard --
+    # which is exactly the failure this function's own docstring warns about, a
+    # prop someone left on the desk rather than the same creature.
     for side in (-1, 1):
-        add_eye_stroke(bm, side, face_r, arc=0.26,
-                       height=face_h / face_r, thick=0.055, dip=0.16, n=9,
+        add_eye_stroke(bm, side, face_r, arc=ARC,
+                       height=face_h / face_r, thick=0.115, dip=0.16, n=11,
                        squash=1.0)
     return bm
 
 
+DEFLATE_SQUASH = 0.45
+
+
 def make_deflate(scene):
-    """Melted: the mass gives up and spreads. Volume still conserved."""
+    """Melted: the mass gives up and spreads. Volume still conserved.
+
+    Squash was 0.30, which conserves volume by widening 1/sqrt(0.30) = 1.83x --
+    a body 1.83 m across inside a frame 1.57 m wide. It overflowed left AND right
+    and shipped as a crop of a slab for three commits. 0.45 still reads as clearly
+    collapsed against the 0.62 rest pose and fits with margin, so the fix costs a
+    little droop and breaks no rule; capping the widen would have been the version
+    that quietly abandons volume conservation to save a pose.
+    """
     bm = new_bm_sphere(BODY_R)
-    settle_dome(bm, BODY_R, squash=0.30, base_flat=-0.55)
-    DEFLATE_SQUASH = 0.30
-    for v in bm.verts:                      # eyes become flat resigned lines
-        pass
-    for side in (-1, 1):
+    settle_dome(bm, BODY_R, squash=DEFLATE_SQUASH, base_flat=-0.50)
+    for side in (-1, 1):                    # eyes become flat resigned lines
         add_eye_stroke(bm, side, BODY_R, arc=0.26, height=0.20, thick=0.034,
                        dip=0.10, squash=DEFLATE_SQUASH)
     return bm
 
 
 def make_sweat(scene):
-    bm = make_idle(scene, squint_eyes=True, squash=0.66)
-    for (x, z, r) in ((-0.42, 0.46, 0.052), (0.40, 0.52, 0.044), (0.52, 0.30, 0.036)):
-        add_ball(bm, Vector((x * BODY_R * 1.6, -0.30 * BODY_R, z * BODY_R * 1.6)),
-                 r, segments=8)
+    """Strain: fat drops CLINGING to the head, not hovering over it.
+
+    The first version placed them with raw offsets that put every drop above the
+    dome's own top, so they read as soap bubbles floating past a calm creature --
+    the opposite of the tension the pose is for. Anime sweat touches the head.
+    These reuse the drip bead recipe: seated on the surface with surf_frame,
+    fractionally proud, and stretched down-slope so each one is a teardrop
+    about to run.
+    """
+    s = 0.66
+    bm = make_idle(scene, squint_eyes=True, squash=s)
+    ax, ay, az = body_axes(s)
+    for theta_deg, phi_deg, r in ((-150.0, 32.0, 0.075), (-30.0, 26.0, 0.055)):
+        p, n, t = surf_frame(ax, ay, az, math.radians(theta_deg),
+                             math.radians(phi_deg))
+        b = n.cross(t)
+        before = set(bm.verts)
+        add_blob(bm, p + n * (r * 0.18), (t, b, n),
+                 (r * 1.70, r * 0.95, r * 0.62))
+        BEAD.update(set(bm.verts) - before)
     return bm
 
 
@@ -863,6 +934,164 @@ def frame_grid(paths, cell, cols, out_path, pad=8, card=(0.93, 0.94, 0.92),
     sheet.save()
     bpy.data.images.remove(sheet)
     return out_path
+
+
+# ------------------------------------------------------------- reactions ----
+# Joan, 2026-08-11: *"ver fisicamente como cambia o se mueve ante x situacion."*
+#
+# So a reaction is not a pose, it is a TRANSITION, and the clips are named for
+# the SITUATION rather than for the face they end on. The eight expressions were
+# always stills; what was missing is the part between them, which is where all
+# the character lives.
+#
+# Every clip obeys the three rules the hop already proved: anticipation before
+# the move, the shape arriving LATE and going PAST, and a settle rather than a
+# stop. And they return to rest by the last frame, because a desktop pet plays
+# its reaction and then has to be idle again.
+TENDRIL_SCALE = 0.34
+HYPER_SCALE = 0.62
+
+
+def back_out(k, over=1.9):
+    """Ease that overshoots its target and settles. Gel never stops dead."""
+    k = max(0.0, min(1.0, k))
+    c1 = over
+    c3 = c1 + 1.0
+    return 1.0 + c3 * (k - 1.0) ** 3 + c1 * (k - 1.0) ** 2
+
+
+def smooth(k):
+    k = max(0.0, min(1.0, k))
+    return k * k * (3.0 - 2.0 * k)
+
+
+def make_curious(scene, t):
+    """SITUATION: something unfamiliar -- it wonders, mildly.
+
+    The soft register: the dome stays whole and the glyph GROWS OUT of it. The
+    growth overshoots because it is being pushed up through gel, not switched on.
+    """
+    s = idle_squash(t)
+    bm = make_idle(scene, squash=s)
+    if t < 0.10:
+        sc = 0.0
+    elif t < 0.34:
+        sc = TENDRIL_SCALE * back_out((t - 0.10) / 0.24)
+    elif t < 0.78:
+        # Holding, but not frozen: the tendril breathes a beat behind the body.
+        sc = TENDRIL_SCALE * (1.0 + 0.05 * math.sin(math.tau * (t - 0.34) * 1.6))
+    else:
+        sc = TENDRIL_SCALE * (1.0 - smooth((t - 0.78) / 0.22))
+    if sc > 0.05:
+        with_tendril(bm, "question", sc)
+    return place(bm, 0.0)
+
+
+def make_escalate(scene, t):
+    """SITUATION: something goes wrong, and then it sinks in.
+
+    The one clip that shows the design's whole point -- the ESCALATION between
+    the two registers. A small "!" on an intact dome, then the body itself
+    becomes the glyph. The file header calls that escalation the expressiveness,
+    and one register alone going stale on a desktop in three days.
+
+    The jump from dome to glyph is a hard CUT on purpose. An impact is
+    instantaneous and anime cuts on the snap; what sells it is the anticipation
+    crouch immediately before and the overshoot immediately after, not a morph.
+    """
+    if t < 0.40:
+        # Soft register on a body that flinches first.
+        if t < 0.08:
+            s, sc = idle_squash(t), 0.0
+        elif t < 0.24:
+            k = (t - 0.08) / 0.16
+            s = 0.62 + 0.10 * math.sin(math.pi * k)      # a small startle
+            sc = TENDRIL_SCALE * back_out(k)
+        else:
+            s = idle_squash(t)
+            sc = TENDRIL_SCALE
+        bm = make_idle(scene, squint_eyes=True, squash=s)
+        if sc > 0.05:
+            with_tendril(bm, "bang", sc)
+        return place(bm, 0.0)
+    if t < 0.48:
+        # ANTICIPATION: it gathers and flattens before the escalation. Without
+        # this frame the cut reads as a glitch instead of as a reaction.
+        k = (t - 0.40) / 0.08
+        bm = make_idle(scene, squint_eyes=True, squash=0.62 - 0.18 * smooth(k))
+        return place(bm, 0.0)
+    if t < 0.86:
+        k = (t - 0.48) / 0.10
+        scale = HYPER_SCALE * (back_out(k, over=2.4) if k < 1.0 else 1.0)
+        if t >= 0.58:
+            # Held, wobbling off the overshoot rather than standing still.
+            w = (t - 0.58) / 0.28
+            scale = HYPER_SCALE * (1.0 + 0.05 * math.cos(math.tau * 1.5 * w)
+                                   * math.exp(-2.6 * w))
+        return place(make_hyperbole("bang", max(scale, 0.08)), 0.0)
+    # Collapse back to rest, landing flat and rebounding -- the same impact
+    # signature as the hop, because it is the same event: a mass dropping.
+    k = (t - 0.86) / 0.14
+    s = 0.62 - 0.16 * math.cos(math.tau * 1.2 * k) * math.exp(-3.0 * k)
+    return place(make_idle(scene, squash=s), 0.0)
+
+
+def make_strain(scene, t):
+    """SITUATION: a long job is running and it is holding on.
+
+    Squinting, breathing faster than rest, and shedding sweat that actually RUNS:
+    each drop swells on the temple, slides down the flank and is gone by the lip.
+    Two drops on different phases, so the head is never symmetric.
+    """
+    s = 0.66 + 0.020 * math.sin(math.tau * 2.0 * t)
+    bm = make_idle(scene, squint_eyes=True, squash=s)
+    ax, ay, az = body_axes(s)
+    # On the TEMPLE, high on the front dome, not out at the silhouette. At theta
+    # -150/-30 the drops sat on the outline and read as nubs on the rim -- the
+    # same failure the idle drips hit, for the same reason: a bead seen edge-on
+    # is a lump, not a drop. Brought round to the front and kept ABOVE the eye
+    # strokes (which sit at phi ~19 deg), so the run never crosses the face.
+    for theta_deg, r, off in ((-128.0, 0.085, 0.0), (-46.0, 0.065, 0.45)):
+        u = (t + off) % 1.0
+        if u < 0.30:
+            rr = r * (0.35 + 0.65 * (u / 0.30))
+            phi = math.radians(48.0)
+        elif u < 0.72:
+            rr = r
+            phi = math.radians(48.0 - 22.0 * smooth((u - 0.30) / 0.42))
+        else:
+            continue                        # gone: it ran off the lip
+        pp, n, tt = surf_frame(ax, ay, az, math.radians(theta_deg), phi)
+        b = n.cross(tt)
+        before = set(bm.verts)
+        add_blob(bm, pp + n * (rr * 0.18), (tt, b, n),
+                 (rr * 1.70, rr * 0.95, rr * 0.62))
+        BEAD.update(set(bm.verts) - before)
+    return place(bm, 0.0)
+
+
+def make_delighted(scene, t):
+    """SITUATION: it worked. Two quick bounces, the second smaller.
+
+    Deliberately NOT the hop: no shedding and barely any height. A hop is
+    travel, this is a reaction -- the difference is that the body squashes far
+    more than it rises, which is what reads as delight rather than as jumping.
+    """
+    beat = (t * 2.0) % 1.0
+    decay = 1.0 if t < 0.5 else 0.62         # the second bounce is smaller
+    if beat < 0.30:
+        s = 0.55 - 0.10 * decay * math.sin(math.pi * (beat / 0.30))
+        h = 0.0
+    elif beat < 0.72:
+        k = (beat - 0.30) / 0.42
+        s = 0.55 + 0.34 * decay * math.sin(math.pi * k)
+        h = 0.13 * decay * 4.0 * k * (1.0 - k)
+    else:
+        k = (beat - 0.72) / 0.28
+        s = 0.55 - 0.12 * decay * math.cos(math.tau * 1.4 * k) * math.exp(-3.4 * k)
+        h = 0.0
+    bm = make_idle(scene, squash=max(s, 0.24))
+    return place(bm, h)
 
 
 EXPRESSIONS = [
@@ -1244,8 +1473,23 @@ scene.render.resolution_y = 512
 cam_data = bpy.data.cameras.new("cam")
 cam_data.lens = 62
 cam = bpy.data.objects.new("cam", cam_data)
-cam.location = (0.15, -2.35, 0.62)
-cam.rotation_euler = (math.radians(83), 0.0, math.radians(4))
+# MEASURED framing, after every pose turned out to be clipped at the bottom.
+# Alpha bounding boxes on the old rig: idle 94% wide and touching the bottom
+# edge, deflate 100% wide and touching left, right AND bottom, both hyperbole
+# glyphs cut off at the bottom -- which is the real reason the big "?" read as a
+# seahorse. It was never the bevel. Its DOT was being cropped, and a question
+# mark without its dot is a hook.
+#
+# The cause is perspective, not arithmetic: the frame is wide enough at the
+# origin plane, but the body's near-bottom edge sits ~0.6 m closer to the camera,
+# where the frame is proportionally smaller and its bottom edge is higher. So the
+# rig backs off and looks down harder, which brings the whole contact line inside
+# with margin at the cost of a little size.
+# x nudged 0.15 -> 0.19 because the 4-degree yaw left the body sitting 13 px
+# right of centre, which cost the widest pose (deflate) its right edge. Centring
+# the frame is the fix; shrinking the pose to fit a crooked frame is not.
+cam.location = (0.19, -2.70, 0.78)
+cam.rotation_euler = (math.radians(79), 0.0, math.radians(4))
 scene.collection.objects.link(cam)
 scene.camera = cam
 
@@ -1255,7 +1499,13 @@ for key, fn in ([] if LOOKDEV else EXPRESSIONS):
         bpy.data.objects.remove(o, do_unlink=True)
     DARK.clear()
     WET.clear()
-    bm = fn(scene)
+    BEAD.clear()
+    # Every pose seated on the SAME desk line. Without this each expression sat
+    # wherever its own squash happened to leave it -- the hyperbole glyphs in
+    # particular floated, centred on z=0 rather than standing on anything. A
+    # sprite set has to be registered to one box or the pet jumps when it changes
+    # expression.
+    bm = place(fn(scene), 0.0)
     obj = finalize(bm, "pet_" + key, scene)
     obj.data.materials.append(mat)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
@@ -1273,8 +1523,15 @@ os.makedirs(ANIM_DIR, exist_ok=True)
 FPS = 12
 FRAMES = 24                              # 2.0 s per clip
 
-CLIPS = ([("hop", make_hop_frame)] if LOOKDEV
-         else [("idle", make_idle_frame), ("hop", make_hop_frame)])
+CLIPS = ([("hop", make_hop_frame)] if LOOKDEV else [
+    ("idle", make_idle_frame),
+    ("hop", make_hop_frame),
+    # Named for the SITUATION, not for the face they land on.
+    ("curious", make_curious),        # something unfamiliar
+    ("escalate", make_escalate),      # it goes wrong, then it sinks in
+    ("strain", make_strain),          # a long job is running
+    ("delighted", make_delighted),    # it worked
+])
 clip_paths = {}
 for name, fn in CLIPS:
     paths = []
@@ -1287,6 +1544,7 @@ for name, fn in CLIPS:
             bpy.data.objects.remove(o, do_unlink=True)
         DARK.clear()
         WET.clear()
+        BEAD.clear()
         obj = finalize(fn(scene, t), "pet_%s_%02d" % (name, f), scene)
         obj.data.materials.append(mat)
         path = (os.path.join(REN_DIR, "_lookdev_%s_%02d.png" % (STYLE, f))
