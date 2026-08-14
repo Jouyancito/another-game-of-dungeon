@@ -12,6 +12,15 @@ uniform float ramp_steps : hint_range(2.0, 6.0, 1.0) = 3.0;
 uniform float ramp_smoothness : hint_range(0.0, 0.2) = 0.02;
 uniform float shadow_intensity : hint_range(0.0, 1.0) = 0.55;
 
+// --- Shadow tint ---
+// Un cel shade que solo OSCURECE deja la sombra del mismo matiz que la luz, y
+// eso se lee sucio: la piel calida en sombra queda marron barro en vez de
+// violeta frio. Este uniform corre el matiz del lado en sombra sin tocar el
+// iluminado.
+// Blanco = comportamiento identico al anterior, asi ningun material existente
+// cambia hasta que se le asigne un tinte a proposito.
+uniform vec4 shadow_tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+
 // --- Rim light ---
 uniform vec4 rim_color : source_color = vec4(1.0, 0.95, 0.85, 1.0);
 uniform float rim_power : hint_range(0.5, 16.0) = 4.0;
@@ -49,7 +58,11 @@ void light() {
 	// Remap so lowest band is not pitch black — respect shadow_intensity
 	shade = mix(1.0 - shadow_intensity, 1.0, shade);
 
-	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * ATTENUATION * shade;
+	// El tinte se aplica en proporcion a lo OSCURA que este la banda: pleno en
+	// la sombra, nulo en la luz. Con shadow_tint blanco, tinted == 1.0 y la
+	// linea queda identica a la version anterior.
+	vec3 tinted = mix(shadow_tint.rgb, vec3(1.0), shade);
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * ATTENUATION * shade * tinted;
 
 	// Rim light (Fresnel-like) — only for primary directional-like lights
 	float rim_n_dot_v = 1.0 - max(dot(NORMAL, VIEW), 0.0);
