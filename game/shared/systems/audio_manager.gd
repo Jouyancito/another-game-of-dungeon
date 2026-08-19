@@ -35,6 +35,11 @@ const SFX_MAP: Dictionary = {
 	&"enemy_die_slime":    "res://assets/sounds/sfx/enemy_die_slime.wav",
 	&"item_pickup_common": "res://assets/sounds/sfx/item_pickup_common.wav",
 	&"level_up":           "res://assets/sounds/sfx/level_up.wav",
+	# Pieza completa del mismo tema (7.70 s), para momentos que pasan pocas
+	# veces por partida: hoy la muerte de un jefe. El corte de `level_up`
+	# (4.20 s) es para el uso frecuente; éste no debe dispararse seguido o se
+	# solapa consigo mismo.
+	&"level_up_fanfare":   "res://assets/sounds/sfx/level_up_fanfare.wav",
 }
 
 const MUSIC_MAP: Dictionary = {

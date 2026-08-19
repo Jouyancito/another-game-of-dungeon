@@ -128,7 +128,7 @@ func test_level_up_shows_notification() -> void:
 	var h = await _create_hud()
 	h._on_level_up(5, 3)
 	assert_true(h.level_up_label.visible, "Notificación visible al subir nivel")
-	assert_eq(h.level_up_label.text, "¡NIVEL 5!")
+	assert_eq(h.level_up_label.text, "¡SUBISTE DE NIVEL!\nNIVEL 5")
 
 
 func test_level_up_notification_hidden_initially() -> void:

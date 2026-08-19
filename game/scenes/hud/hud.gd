@@ -14,6 +14,7 @@ extends CanvasLayer
 @onready var level_up_label: Label = $LevelUpNotification
 
 var _player: Node = null  # Referencia al jugador vinculado a este HUD
+var _level_up_tween: Tween = null  # Se mata al reentrar: ver _show_level_up_notification
 
 # Hint de interacción — "Presioná [E] para recoger" / "para abrir" / etc.
 var _pickup_hint_panel: PanelContainer
@@ -372,20 +373,27 @@ func _on_level_up(new_level: int, _points: int) -> void:
 
 
 func _show_level_up_notification(new_level: int) -> void:
-	level_up_label.text = "¡NIVEL %d!" % new_level
+	level_up_label.text = "¡SUBISTE DE NIVEL!\nNIVEL %d" % new_level
 	level_up_label.visible = true
 	level_up_label.modulate = Color(1, 0.85, 0.1, 1)
 	level_up_label.scale = Vector2(0.5, 0.5)
 	level_up_label.pivot_offset = level_up_label.size / 2
 
+	# Dos niveles seguidos entran dentro de los 4.20 s que dura la animación —
+	# pasa con un solo golpe que otorgue mucha XP. Sin matar el tween anterior,
+	# su callback final oculta el cartel del segundo a mitad de camino.
+	if _level_up_tween and _level_up_tween.is_valid():
+		_level_up_tween.kill()
 	var tween = create_tween()
+	_level_up_tween = tween
 	# Aparece con scale up
 	tween.tween_property(level_up_label, "scale", Vector2(1.2, 1.2), 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 	tween.tween_property(level_up_label, "scale", Vector2(1.0, 1.0), 0.15)
-	# Se mantiene 1.5s
-	tween.tween_interval(1.5)
-	# Fade out hacia arriba
-	tween.tween_property(level_up_label, "modulate:a", 0.0, 0.8)
+	# El hold acompaña al sonido: level_up.wav dura 4.20 s y antes el cartel se
+	# iba a los 2.75 s, dejando la cola sonando sobre la pantalla vacia.
+	# 0.30 + 0.15 + 2.65 + 1.10 = 4.20 s exactos.
+	tween.tween_interval(2.65)
+	tween.tween_property(level_up_label, "modulate:a", 0.0, 1.10)
 	tween.tween_callback(func(): level_up_label.visible = false)
 
 
@@ -425,12 +433,19 @@ func show_floor_cleared(floor_number: int, boss_name: String, is_first_clear: bo
 	death_label.text = "%s\n\n%s derrotado" % [headline, boss_name]
 
 	if AudioManager:
-		AudioManager.play_sfx(&"level_up")  # non-positional: the HUD is 2D
+		# La pieza completa, no el corte. Derrotar un jefe pasa un puñado de
+		# veces por partida, asi que aca los 7.7 s lucen en vez de estorbar --
+		# al reves que subir de nivel, que pasa seguido y usa el corte.
+		AudioManager.play_sfx(&"level_up_fanfare")  # non-positional: the HUD is 2D
 
 	var tween := create_tween()
+	# Los tiempos acompañan a level_up_fanfare.wav, que dura 7.70 s: antes
+	# sumaban 5.0 s y dejaban 2.7 s de cola sonando sobre pantalla vacía —
+	# el mismo defecto que se corrigió en el cartel de nivel.
+	# 0.5 + 4.9 + 2.3 = 7.70 s exactos.
 	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.35), 0.5)
-	tween.tween_interval(3.0)
-	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.0), 1.5)
+	tween.tween_interval(4.9)
+	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.0), 2.3)
 	tween.tween_callback(_clear_floor_cleared_banner)
 
 
