@@ -126,7 +126,7 @@ func _attack_heavy() -> void:
 		_attack_frenzy()
 
 func _attack_frenzy() -> void:
-	while can_attack and is_holding_attack and not is_dead:
+	while can_attack and is_holding_attack and not is_incapacitated():
 		can_attack = false
 
 		# Frenesí: alterna rápido derecha-izquierda, knockback reducido

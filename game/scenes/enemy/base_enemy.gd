@@ -107,6 +107,17 @@ var _is_flashing := false
 var _anim = null  # EnemyAnimator or null
 
 # Nameplate nodes
+#
+# HP_BAR_WIDTH is a const rather than a local because BOTH the builder and
+# _update_nameplate() need it: the fill is a centred QuadMesh, so emptying it to the
+# left means scaling it AND sliding it by half the bar's width. That half-width used
+# to be typed as a literal 0.25 in the update while the bar was built 0.8 wide, so the
+# fill slid only 62.5% of the way and never reached the left edge — at 20% HP it sat
+# detached, ending at 35% of the track. The tell was the colour disagreeing with the
+# length: red (the <=25% threshold) under a bar that looked more than half full.
+const HP_BAR_WIDTH: float = 0.8
+const HP_BAR_HEIGHT: float = 0.06
+
 var _nameplate: Node3D
 var _name_label: Label3D
 var _hp_bar_bg: MeshInstance3D
@@ -284,8 +295,8 @@ func _setup_nameplate() -> void:
 	_nameplate.add_child(_name_label)
 
 	# Barra HP — fondo (gris oscuro)
-	var bar_width := 0.8
-	var bar_height := 0.06
+	var bar_width := HP_BAR_WIDTH
+	var bar_height := HP_BAR_HEIGHT
 	var bg_mat := StandardMaterial3D.new()
 	bg_mat.albedo_color = Color(0.2, 0.2, 0.2, 0.8)
 	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
@@ -360,8 +371,10 @@ func _update_nameplate() -> void:
 
 	# Escala horizontal del fill según vida
 	_hp_bar_fill.scale.x = hp_ratio
-	# Offset para que la barra se vacíe de derecha a izquierda
-	_hp_bar_fill.position.x = -(1.0 - hp_ratio) * 0.25
+	# Offset para que la barra se vacíe de derecha a izquierda. La distancia es media
+	# anchura de barra: el quad está centrado, así que al escalarlo a `hp_ratio` su
+	# centro queda en el medio y hay que correrlo hasta apoyar el borde izquierdo.
+	_hp_bar_fill.position.x = -(1.0 - hp_ratio) * (HP_BAR_WIDTH / 2.0)
 
 	# Color: verde → amarillo → rojo
 	var fill_mat: StandardMaterial3D = _hp_bar_fill.mesh.material as StandardMaterial3D

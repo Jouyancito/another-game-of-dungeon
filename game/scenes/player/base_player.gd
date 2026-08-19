@@ -924,6 +924,21 @@ func is_stunned() -> bool:
 	return status_effects.has(&"stun")
 
 
+## True while the player must not land an attack, for any reason.
+##
+## _unhandled_input() already refuses to START an action in these states, but the
+## per-class attack loops are COROUTINES: once running, they outlive the input event
+## that spawned them and keep swinging on their own timer. A guard on the event path
+## therefore does not cover them, which is how a downed player could still hit things
+## (reported in the 2026-08-19 playtest) — every loop tested `is_dead` and nothing else.
+##
+## Downed is total incapacitation waiting on a revive (canon _system.md MVP #5), and
+## stun is "sin acción" (canon §2.2), so both belong here next to dead. Ask this, not
+## the individual flags, anywhere an in-flight action has to stop.
+func is_incapacitated() -> bool:
+	return is_dead or is_downed or is_stunned()
+
+
 func take_damage(amount: float, element: String = "", attacker: Node = null) -> void:
 	if is_dead or is_downed:
 		return  # downed state = invul a más dmg (canon MVP #5)
