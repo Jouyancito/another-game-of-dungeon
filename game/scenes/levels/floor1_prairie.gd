@@ -355,6 +355,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--finish="):
 			ENTRANCE_FINISH = clampi(int(a.split("=", true, 1)[1]), 0, 3)
+		elif a.begins_with("--rocksat="):
+			ROCK_SAT = clampi(int(a.split("=", true, 1)[1]), 0, ROCK_SAT_STEPS.size() - 1)
 
 	# Cargar escenas de enemigos nuevos
 	SCENE_RAT = load("res://scenes/enemy/rat.tscn")
@@ -5216,8 +5218,31 @@ const FINISH_TEX_DIR := "res://assets/art/piso1_pradera/terrain/tex/"
 const FINISH_TEX_PERIOD_M: float = 2.0
 
 
+## Albedo saturation ramp, 0..3, chosen with --rocksat=N. Index into ROCK_SAT_STEPS.
+##
+## Level 1 measured the wall at saturation 0.64 against a 0.45 target taken from the
+## mine photographs — 42% over, the same overshoot that hit all five warrior skin
+## tones. The knob has to sit HERE, on the albedo, and not on the tint: the tint is
+## already almost white (0.11) because _pbr_tint() pushes value to 1.0, so the
+## saturation is arriving from the photograph itself plus the warm lanterns. A tint
+## can only multiply, and multiplying never desaturates.
+static var ROCK_SAT: int = 1
+
+const ROCK_SAT_STEPS: Array[float] = [1.00, 0.75, 0.55, 0.40]
+
+
 func _finish_tex(slug: String, map: String) -> Texture2D:
-	return load(FINISH_TEX_DIR + "%s_%s_512.jpg" % [slug, map]) as Texture2D
+	var tex: Texture2D = load(FINISH_TEX_DIR + "%s_%s_512.jpg" % [slug, map]) as Texture2D
+	# Only the albedo carries colour. Desaturating a normal map would rotate its
+	# vectors and desaturating roughness would flatten it, so both pass through.
+	if map != "diff":
+		return tex
+	var f: float = ROCK_SAT_STEPS[clampi(ROCK_SAT, 0, ROCK_SAT_STEPS.size() - 1)]
+	if is_equal_approx(f, 1.0):
+		return tex
+	var img: Image = tex.get_image()
+	img.adjust_bcs(1.0, 1.0, f)
+	return ImageTexture.create_from_image(img)
 
 
 ## Palette colour turned into a tint that MULTIPLIES a photo texture without

@@ -30,6 +30,10 @@ const EYE := 1.7
 ## overwriting each other — comparing a ramp needs all of it on screen at once.
 var _finish := -1
 
+## Albedo saturation step under test. Shots go to their own folder for the same
+## reason the finish level does: a ramp is only judgeable side by side.
+var _rocksat := -1
+
 var _sv: SubViewport
 var _cam: Camera3D
 var _floor: Node3D
@@ -42,6 +46,8 @@ func _ready() -> void:
 			_seed = int(a.split("=", true, 1)[1])
 		elif a.begins_with("--finish="):
 			_finish = clampi(int(a.split("=", true, 1)[1]), 0, 3)
+		elif a.begins_with("--rocksat="):
+			_rocksat = clampi(int(a.split("=", true, 1)[1]), 0, 3)
 
 	var win := get_window()
 	win.size = Vector2i(1, 1)
@@ -53,6 +59,8 @@ func _ready() -> void:
 		# through, and routing one flag through two owners is how they drift apart.
 		# All this branch does is keep each level's shots in their own folder.
 		_out_dir = OUT_DIR + "finish_%d/" % _finish
+	if _rocksat >= 0:
+		_out_dir = OUT_DIR + "rocksat_%d/" % _rocksat
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
 
 	var svc := SubViewportContainer.new()
