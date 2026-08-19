@@ -83,3 +83,66 @@ Si se usa como base: empujar proporciones (nalcas de 3-4m, helechos gigantes) y 
 ---
 
 *Síntesis de dirección verbal. Entrevista Joan 2026-07-02/03. Sin imágenes aún — commitear refs aquí cuando lleguen y actualizar esta síntesis antes de construir cualquier asset del P2.*
+
+---
+
+# ADENDA 2026-08-19 — llegaron las imágenes
+
+El pendiente bloqueante de arriba queda **saldado**. Joan pasó capturas de **Shangri-La
+Frontier**: *"los colores, el piso, hongos, luces, colores, se ven preciosos como para el
+piso dos"*.
+
+- `p2_bosque_slf_night_biolum_confetti.png` — bosque nocturno bioluminiscente: verde profundo,
+  flores magenta y violeta como confeti, puntos dorados flotando, un hongo, insecto azul.
+- `p2_bosque_slf_day_mushroom_flowerfield.png` — la versión diurna: campo de flores saturadas,
+  hongos grandes de sombrero rosa/naranja/violeta, nenúfares y agua.
+
+*(Fuente: Shangri-La Frontier, ©Katarina / Ryosuke Fuji / KODANSHA / MBS. Capturas de
+Crunchyroll, guardadas como referencia de dirección visual interna.)*
+
+## Lo que MIDEN, que no es lo que parecen
+
+Cuantizada la imagen nocturna a 7 colores, por porcentaje de píxeles:
+
+| color | % | H | S | V |
+|---|---|---|---|---|
+| `#041110` | 21.0 | 175° | 0.76 | **0.07** |
+| `#121D18` | 19.6 | 153° | 0.38 | **0.11** |
+| `#406856` | 13.8 | 153° | 0.38 | 0.41 |
+| `#343C31` | 12.7 | 104° | 0.18 | 0.24 |
+| `#ABC7B2` | 11.6 | 135° | 0.14 | 0.78 |
+| `#123942` | 9.7 | 191° | 0.73 | 0.26 |
+
+**El 67% de la imagen es verde oscuro y casi negro.** El magenta y el dorado que uno recuerda
+son una MINORÍA de píxeles: dominan la percepción porque están saturados contra un campo muy
+oscuro. **La vivacidad no viene de mucho color — viene del contraste contra la oscuridad.**
+
+Consecuencia dura para construir: un P2 con color saturado repartido por todos lados no va a
+leer como mágico, va a leer como ruido. El color es un ACENTO sobre negro, no un ambiente.
+
+## Qué CONFIRMAN de la dirección verbal
+
+- Base muy oscura. De hecho **más oscura que el canon**: `#041110`/`#0D180D` (V 0.07-0.09)
+  contra el `#2E3D24` del canon P2, que en la medición aparece recién como tono medio.
+- Puntos dorados tipo luciérnaga flotando. Confirmado.
+- Cian/turquesa presente (175°, 191°) — el `#7ECFD8` del canon está bien encaminado.
+- Hongos luminiscentes. Confirmado en las dos.
+
+## Qué CONTRADICEN o EXTIENDEN — decisión pendiente de Joan
+
+1. **La paleta fluorescente del canon es sólo dorado + cian.** Estas refs traen **magenta,
+   rosa, violeta, naranja y rojo** (339° medido en la diurna). Es una ampliación grande del
+   espectro, no un matiz.
+2. **⚠️ La lluvia y la niebla del canon pelean con esto.** La niebla LEVANTA los negros, y
+   todo el efecto depende de que el 21% del cuadro esté en V=0.07. Con niebla baja cubriendo
+   el suelo, el confeti de color deja de recortar y el piso se apaga. **No se puede tener las
+   dos cosas**: o la niebla tormentosa del canon, o el contraste que Joan llamó "precioso".
+3. **El registro emocional cambia.** El canon dice *"el bosque vivo que te observa, nada del
+   todo seguro"*. Estas refs leen **maravilladas y acogedoras**, sobre todo la diurna. Se
+   puede reconciliar —una belleza demasiado perfecta lee como señuelo— pero hay que decidirlo,
+   no descubrirlo a mitad de camino.
+
+**Ninguna de las tres se resuelve acá.** Van a Joan.
+
+*Adenda escrita al recibir las imágenes, siguiendo el protocolo de arriba: releer la síntesis y
+registrar qué confirman y qué contradicen.*
