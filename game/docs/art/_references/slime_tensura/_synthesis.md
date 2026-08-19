@@ -32,6 +32,25 @@ Esto importa por tres razones:
 
 Regla que sale de acá: **el cuerpo se mantiene, el símbolo se agrega.**
 
+### Pero hay DOS registros, no uno (Joan, 2026-08-09)
+
+> *"sería entrete que si fuera un `!!!` de una expresión casi de susto, y la de `???` que
+> puede ser como real ¿preguntas eso? Esas expresiones podrían ser que cambie el cuerpo a
+> signo de interrogación o exclamación — no es sólo generarlo pequeño arriba por duda, es
+> una hipérbole."*
+
+| registro | qué pasa | cuándo |
+|---|---|---|
+| **Leve** | zarcillo chico arriba, cuerpo intacto | duda, "mmm", una pregunta menor |
+| **Hipérbole** | **el cuerpo ENTERO se vuelve el símbolo** | `!!!` susto, `???` incredulidad |
+
+La escalada entre los dos registros **es** la expresividad. Un solo registro se vuelve
+monótono a los tres días de tenerlo en el escritorio; dos dan lectura instantánea de
+gravedad — se nota de reojo si el bicho está murmurando o gritando.
+
+Y es convención del propio anime: la deformación hiperbólica del cuerpo es un recurso
+cómico estándar, no una licencia nuestra.
+
 ---
 
 ## Vocabulario de cara
