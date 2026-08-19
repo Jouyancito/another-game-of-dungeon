@@ -13,6 +13,54 @@ Ambos rigen todo el trabajo en Dungeon Party. No son opt-in.
    - Corolario duramente ganado (2026-07-14): **los docs de diseño mienten**. Varios listan como "GAP / no implementado" cosas que están hechas hace tiempo (`habitat_type` en BaseEnemy, fauna ambiental, world_select, agua+vegetación del piso 1). **Verificá contra el código antes de construir.** Reescribir lo que ya existe es la peor violación de ponytail.
 2. **Caveman** — respuestas comprimidas. Toda la sustancia técnica queda; se va el relleno. NO aplica a código, commits, UI copy ni docs (esos van en inglés y prosa normal).
 
+## 🔨 MODELAR = MODELADO FULL (regla dura — Joan, 2026-08-15)
+
+Joan, textual: *"ya ha pasado muchas veces que te digo modelar y lo haces al mínimo"*. **Es un
+patrón recurrente, no un incidente.** Vive acá, en el archivo que se carga siempre, y no sólo
+en la skill `blender-asset-smith` — porque una regla que depende de que yo me acuerde de
+invocar la skill ya falló antes de empezar.
+
+**Cualquier pedido de modelar dispara el preflight, y el preflight se ESCRIBE en la respuesta
+antes de generar.** Incluye "solo re-correr un generador que ya existe" — ese fue exactamente
+el caso del pelo del guerrero (2026-08-15): re-corrido con los defaults sobre un cráneo nuevo,
+salió agujereado, y la referencia, la lección del golem sobre solapamiento, la receta
+`bvh_glue.py` y los gates estaban TODOS disponibles sin invocar. El fallo es de activación, no
+de conocimiento.
+
+```
+PREFLIGHT modelado full — <asset>
+0. QUÉ ES ................ qué es la cosa, cómo funciona, cómo es normalmente
+                           → de ahí sale el criterio de éxito, ANTES de tocar nada
+1. refs cargadas ......... _references/<X>/ : <qué muestran, citado>
+2. lecciones aplicables .. <asset previo con el mismo fallo de forma> → <regla>
+3. recetas del motor ..... <cuáles> (o: ninguna aplica, porque <razón>)
+4. métrica de éxito ...... <el número que decide, definido ANTES de construir>
+5. rampa .................. <N variantes del parámetro dudoso>
+6. vistas de juicio ....... frente/perfil/3-4 + ingratas (nuca, cenital) + tamaño de uso
+7. LECTURA DEL RESULTADO . ¿encaja? ¿se fusiona con la malla? — no "¿está puesto?"
+```
+
+**El punto 0 es el que más rinde y el que más se saltea.** Joan: *"sin el pensar qué es, cómo
+funciona, cómo es normalmente"*. El pelo del guerrero se generó como "placas apoyadas sobre un
+cráneo" sin preguntarse qué es el pelo: crece de folículos, cae por gravedad, se peina en una
+dirección, y **los mechones SE SOLAPAN** — en una cabeza con pelo no se ve el cuero cabelludo
+salvo en la raya. Razonado eso primero, el criterio de éxito era obvio sin renderizar nada.
+
+**El punto 7 es el que convierte "terminado" en "hecho".** La pregunta no es si la pieza está
+puesta sino si **encaja y se fusiona**: las 38 placas estaban todas ahí y no formaban pelo.
+Mismo error que el golem ("¿están juntos los chunks?" en vez de "¿lee como una masa?") y que
+el corpóreo ("está todo" en vez de "se ve natural"). Cohesión NUNCA es aprobación.
+
+Un punto sin evidencia concreta al lado cuenta como NO hecho. Si el preflight no aparece
+escrito, el trabajo se hizo al mínimo — y Joan lo detecta de un vistazo, que es el punto.
+
+**La métrica (4) se define ANTES de construir.** Definida después de ver el render, se elige la
+que aprueba lo que ya se hizo.
+
+**El valor lo elige Joan sobre una rampa (5), no yo.** Medido en la sesión del guerrero: cuello
+0.70, nubian 0.70, frente 1.00, ceja 0.85 y los cinco de piel entraron todos pasados de rosca.
+Cinco de cinco.
+
 ## 🧠 Calyx — canon consultable (grounding)
 
 El canon de diseño (`game/docs/**/*.md`, 1975 chunks) vive ingestado en un vault Calyx con
@@ -280,6 +328,7 @@ Convenciones de proceso acordadas con Joan (2026-06-05):
 - **Investigar con datos antes de afirmar**: medir en código (alturas de gltf, bones, parámetros reales) en vez de adivinar o usar cifras del brief sin verificar.
 - **Ultracode / effort selectivo**: usar ultracode (orquestación multi-agente) SOLO para saltos grandes (retrospectivas, visión integral, auditorías, mapeos masivos de codebase). Para iteración fina o fixes puntuales, volver a `/effort high`. Ultracode consume muchos tokens — no dejarlo ON por default.
 - **Engram proactivo**: guardar decisiones, preferencias y descubrimientos en engram sin esperar que se pida. Cualquier decisión de diseño, bug raiz encontrado, o convención nueva se guarda inmediatamente.
+- **Devlog de Discord = acumular + verificar (convención 2026-08-07, OBLIGATORIA)**: NUNCA postear al Discord un mensaje por cambio. Llegar a un resultado toma varios commits; un post por commit convierte el canal en un git log que nadie lee. Las entradas se acumulan en `tools/discord/devlog_pending.md` durante la sesión y salen **en tanda al cerrar sesión**. Y la mitad crítica: **ninguna entrada se postea sin que Joan la verifique en el juego corriendo**. Cada entrada lleva una línea `@ ` con dónde verlo, y un checkbox que arranca `[ ]`; solo las `[x]` se postean, y **la tilde la pone Joan, nunca el agente**. Razón textual de Joan: *"si colocás que se mejoró el pasto, pero cuando entro no veo eso, es una falacia o pensamiento netamente tuyo"*. Escribir la entrada es del agente; afirmar que el cambio se ve, es de quien miró.
 - **Referencias = GUARDAR + USAR (convención 2026-06-14, OBLIGATORIA)**: cuando Joan pasa una referencia visual (imagen/video/link) para un tema X: (1) **commitear la imagen al repo** en `game/docs/art/_references/<X>/` (engram guarda solo texto — la imagen DEBE vivir en el repo o se pierde entre sesiones), (2) **sintetizar** estructurado (Idea/Colores/Forma/Movimiento-Feel/Qué capturar/Fuente) en `_references/<X>/_synthesis.md`, (3) **puntero engram** `reference/<X>`. Y la mitad crítica: **ANTES de construir/renderizar/iterar cualquier asset, CARGAR sus referencias primero** (`_references/<X>/`) y construir DESDE ellas — nunca desde el recuerdo de una descripción. Guardar memoria que no se usa = peso muerto (Joan). Enforcement detallado en la skill `blender-asset-smith` → "Reference-driven workflow (MANDATORY)". Esta regla vive acá (CLAUDE.md, siempre cargado) para que NO se caiga entre sesiones.
 
 ## Notas de Sesión

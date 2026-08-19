@@ -26,11 +26,22 @@ desktop.ini
 .dept-status/*.json
 !.dept-status/README.md
 
-# Claude Code coordination state (local per-worker)
-.claude/
+# Claude Code coordination state (local per-worker).
+#
+# `.claude/*`, NOT `.claude/` — git never descends into an excluded DIRECTORY, so
+# a `!` negation under one is dead text. The four hooks below only survived
+# because they were force-added once and tracked files ignore this file entirely;
+# every hook added afterwards was silently dropped. That is how settings.json came
+# to register domain-context-router.ps1 while the script itself, its domains.json
+# and its test suite were never versioned — a hook that exists on one machine
+# only. Excluding the ENTRIES instead of the directory makes the negations work.
+.claude/*
 !.claude/settings.json
+!.claude/domains.json
 !.claude/hooks/
 !.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
 
 # Test artifacts
 .test-hook

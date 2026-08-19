@@ -1,0 +1,50 @@
+{
+  "_comment": [
+    "Domain context router table. One entry per subject domain of the game.",
+    "The router (.claude/hooks/domain-context-router.ps1) reads this on every",
+    "UserPromptSubmit and injects a load instruction for the matching domain skill.",
+    "",
+    "Adding a domain = add an entry here + create .claude/skills/<skill>/SKILL.md.",
+    "The router never touches: it only emits for domains whose skill exists on disk,",
+    "so an entry with no skill yet is inert instead of promising context that is",
+    "not there. Add its cases to hooks/tests/test_domain_router.py in the same commit.",
+    "",
+    "Patterns are matched case-insensitively against the prompt. Keep them ASCII:",
+    "write the unaccented substring ('rbol' matches arbol and arbol with accent,",
+    "'vegetaci' matches vegetacion and vegetacion with accent) so the table stays",
+    "readable from PowerShell 5 regardless of file encoding."
+  ],
+
+  "work_intent": "crea|gener|model|constru|dise|hace|haga|arma|agrega|sum[ae]|repon|rehac|rehag|arregl|corrig|ajust|tune|cambi|mejor|reemplaz|borr|elimin|saca|quita|escrib|implement|integra|cablea|wire|build|make|sculpt|render|anima|rig\\b|fix|add|remove|replace|tweak",
+
+  "meta_veto": "contexto|skill|hook|router|engram|memoria|slash|comando|protocolo|convenci|workflow|se carga|cargar[ií]a|deber[ií]a cargar|c[oó]mo funciona|documenta|devlog|commit|status|retrospectiva",
+
+  "domains": [
+    {
+      "name": "vegetation",
+      "skill": "dp-vegetation",
+      "pattern": "vegetaci|flora|rbol|arbol|tree_pack|foliage|follaje|hoja|pasto|c.sped|brizna|grass|arbusto|bush|matorral|flor\\b|flores|hongo|mushroom|junco|scatter|sotobosque|copa ancha|oto.al"
+    },
+    {
+      "name": "mobs",
+      "skill": "dp-mobs",
+      "pattern": "\\bmob|enemig|criatura|bestia|slime|golem|bandit|lobo|wolf|fauna|spawn(er)?\\b|bestiario"
+    },
+    {
+      "name": "boss",
+      "skill": "dp-boss",
+      "pattern": "\\bboss\\b|jefe\\b|sub-?jefe|king slime|cuervo|guardian"
+    },
+    {
+      "name": "terrain",
+      "skill": "dp-terrain",
+      "_note": "'mapa' deliberately absent: nearly every floor-1 request says it, and a mutation run showed it pulling terrain into a bush prompt. Match the terrain itself, not the place it lives in.",
+      "pattern": "terreno|terrain|worldgen|heightmap|loma|colina|relieve|topograf|r[ií]o\\b|arroyo|orilla|bioma|biome"
+    },
+    {
+      "name": "vfx",
+      "skill": "dp-vfx",
+      "pattern": "\\bvfx\\b|part[ií]cul|particle|shader|niebla|fog|efecto visual|trail\\b|impacto visual"
+    }
+  ]
+}
