@@ -462,6 +462,16 @@ func _ready() -> void:
 		Vector3(mouth_x + run * 1.1, surface + 26.0, anchor.z + 30.0),
 		Vector3(anchor.x, surface - 3.0, anchor.z))
 
+	# 04 — from ON TOP of the mound, looking almost straight down. Added 2026-08-19
+	# after the owner walked up there and found the paving floating over green with a
+	# void beside it, none of which any of the four shots above could see: 00 and 01
+	# look along the tunnel, 02 stands on the ramp, and 03 is far enough away that a
+	# seam between the built strip and the terrain closes up. A player can climb the
+	# mound in ten seconds, so this is not an exotic angle — it was a blind spot.
+	await _shot("04_from_above",
+		Vector3(mouth_x - 2.0, surface + 9.0, anchor.z + 3.0),
+		Vector3(mouth_x + 3.0, floor_y, anchor.z))
+
 	print("[entrance_capture] DONE -> %s" % _out_dir)
 	get_tree().quit(0)
 

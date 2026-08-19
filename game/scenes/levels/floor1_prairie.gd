@@ -2048,7 +2048,11 @@ func _build_mouth_rag(pos: Vector3, floor_y: float, x_face: float,
 			# ruled; a jamb has to lose its line, so the biggest bites take most of a
 			# metre. The player capsule wants 1 m and the opening keeps 4.4 at worst.
 			var s: float = rng.randf_range(0.34, 0.78)
-			var bite: float = rng.randf_range(0.02, 0.80)
+			# Bite bounded BY THE CHUNK. Letting it reach 0.8 m while the piece measured
+			# 0.34 left rock hanging in the opening with nothing behind it — the
+			# floating stones the owner spotted at the mouth. A piece that protrudes
+			# from an edge stays attached to that edge.
+			var bite: float = rng.randf_range(0.0, s * 0.7)
 			_rock_chunk_into(st,
 				Vector3(x_face + rng.randf_range(-0.35, 0.35), floor_y + y,
 					pos.z + sgn * (door_w * 0.5 - bite)),
@@ -2062,7 +2066,9 @@ func _build_mouth_rag(pos: Vector3, floor_y: float, x_face: float,
 	var m: int = 0
 	while z < door_w * 0.5 and m < 22:
 		var s2: float = rng.randf_range(0.34, 0.80)
-		var drop: float = rng.randf_range(0.0, 0.70)
+		# Same rule overhead: a block hanging further than its own size is a block with
+		# nothing holding it.
+		var drop: float = rng.randf_range(0.0, s2 * 0.75)
 		_rock_chunk_into(st,
 			Vector3(x_face + rng.randf_range(-0.35, 0.35), floor_y + door_h - drop,
 				pos.z + z),
@@ -2076,7 +2082,9 @@ func _build_mouth_rag(pos: Vector3, floor_y: float, x_face: float,
 		for i in range(7):
 			var s3: float = rng.randf_range(0.16, 0.36)
 			_rock_chunk_into(st,
-				Vector3(x_face + rng.randf_range(-0.6, 0.6), floor_y + s3 * 0.15,
+				# Inside the facade's 1 m thickness, so the piece is bedded in the wall
+				# rather than parked in front of it.
+				Vector3(x_face + rng.randf_range(-0.38, 0.38), floor_y + s3 * 0.15,
 					pos.z + sgn2 * (door_w * 0.5 - rng.randf_range(0.0, 0.9))),
 				Vector3(s3, s3 * 0.6, s3), 600 + k2 * 20 + i)
 
@@ -2142,14 +2150,24 @@ func _floor_relief_y(x: float, z: float, pos: Vector3, floor_y: float,
 	var tx: float = (x - (pos.x - half_l)) / (2.0 * half_l)
 	var fall: float = -0.14 * (1.0 - across)
 	var ditch: float = -0.22 * smoothstep(0.13, 0.0, across)
-	var swell: float = swell_n.get_noise_2d(x, z) * amp
+	# Heaped, not oscillating. A symmetric swell dips below the slab, and clamping
+	# those dips is what produced the owner's "colocar un segmento y bajarlo": flat
+	# polygonal bottoms with a hard rim, which read as pushed-down panels rather than
+	# as holes. Mapped to [0, amp] the ground only ever RISES off the slab, which is
+	# also the truer thing — spoil is material heaped ON a floor, and real hollows are
+	# rare and cut by water, not by the same noise that makes the mounds.
+	var swell: float = (swell_n.get_noise_2d(x, z) * 0.5 + 0.5) * amp
 	var lump: float = fine_n.get_noise_2d(x, z) * amp * 0.45
 	var rim: float = smoothstep(0.0, 0.14, minf(across, 1.0 - across))
 	# Fades over the last ~7 m rather than the last 3, leaving a flat apron inside the
 	# mouth. Not a concession to the test: an adit HAS a trodden flat near its portal,
 	# because that is the stretch everything gets dragged over. It also happens to be
 	# where a player-sized body was still catching on rising ground.
-	rim *= smoothstep(0.0, 0.22, 1.0 - tx)
+	# Fades over the last ~5.5 m. At 0.22 the ground was still 0.27 m proud 1.7 m
+	# inside the mouth and a player-sized body caught on it, which the doorway test
+	# reported with the exact offsets. An adit HAS a trodden flat by its portal, so
+	# this is the shape as much as it is the fix.
+	rim *= smoothstep(0.0, 0.35, 1.0 - tx)
 	# LIFT rides the taper too. Left outside it, the floor stayed 0.45 m proud right at
 	# the threshold and then fell away — a 79.5-degree face, which Godot reads as WALL,
 	# i.e. the invisible barrier this entrance already lost a night to. Caught by
@@ -2344,18 +2362,26 @@ func _add_log(node_name: String, base_pos: Vector3, axis: Vector3, length: float
 	# cut is a shallow rough facet and that a row of tidy cones was the tell of an
 	# invented shape.
 	for r in [0, RINGS]:
-		var n: Vector3 = (up if r == RINGS else -up)
 		var centre2: Vector3 = base_pos + up * (length * float(r) / float(RINGS)) \
 			+ side * (lean * length * float(r) / float(RINGS))
 		for i in range(SIDES):
 			var i2: int = (i + 1) % SIDES
-			st.set_normal(n); st.set_uv(Vector2(0.5, 0.5)); st.add_vertex(centre2)
+			# Cap UVs by PLANAR projection onto the log's own cross-section, not the
+			# (0.5, 0/1) line the first version used. That line fanned one column of
+			# the bark map around the disc and came out as a radial starburst — the
+			# owner saw it in game and read it exactly right: "es como estar viendo los
+			# troncos desde dentro hacia afuera". A planar patch samples the map like
+			# any other surface, so a cut end reads as rough sawn wood.
+			var cu := func(v: Vector3) -> Vector2:
+				var d: Vector3 = v - centre2
+				return Vector2(0.5 + d.dot(side) * 0.7, 0.5 + d.dot(fwd) * 0.7)
+			st.set_uv(cu.call(centre2)); st.add_vertex(centre2)
 			if r == RINGS:
-				st.set_uv(Vector2(0.5, 0.0)); st.add_vertex(pts[r][i])
-				st.set_uv(Vector2(0.5, 1.0)); st.add_vertex(pts[r][i2])
+				st.set_uv(cu.call(pts[r][i])); st.add_vertex(pts[r][i])
+				st.set_uv(cu.call(pts[r][i2])); st.add_vertex(pts[r][i2])
 			else:
-				st.set_uv(Vector2(0.5, 0.0)); st.add_vertex(pts[r][i2])
-				st.set_uv(Vector2(0.5, 1.0)); st.add_vertex(pts[r][i])
+				st.set_uv(cu.call(pts[r][i2])); st.add_vertex(pts[r][i2])
+				st.set_uv(cu.call(pts[r][i])); st.add_vertex(pts[r][i])
 
 	st.generate_normals()
 	var mi := MeshInstance3D.new()
@@ -2747,7 +2773,17 @@ func _build_entrance(poi: POISystem.POI) -> void:
 			Vector3(x_frame, floor_y + post_h + 0.4, pos.z),
 			Vector3(0.95, 0.8, door_w + 2.9), COLOR_TIMBER, true)
 
-	if ENTRANCE_FINISH >= 3:
+	# _build_mouth_rag() is DISABLED, not deleted. Seen in the running game it read as
+	# flat angular shards stuck around the opening — the owner's "piedras flotando... se
+	# ve medio rarito" — because the chunks are flattened boxes hung in open air at the
+	# facade plane, and edge-on a flattened box is a shard. Three rounds of tuning
+	# their size and bite did not change what they fundamentally are.
+	#
+	# The lesson is about the approach, not the numbers: an opening is made irregular by
+	# SHAPING THE OPENING, not by parking decoration around a rectangle. That needs the
+	# facade hole itself to be cut from a mesh, which is real work rather than a patch,
+	# so it waits instead of shipping as debris.
+	if false:
 		_build_mouth_rag(pos, floor_y, x_face, door_w, door_h)
 
 	# Umbral: marca dónde termina la trinchera y empieza el piso construido.
