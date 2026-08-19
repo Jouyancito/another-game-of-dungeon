@@ -2131,6 +2131,36 @@ func _rock_chunk_into(st: SurfaceTool, centre: Vector3, size: Vector3, seed_i: i
 			st.add_vertex(v)
 
 
+## Height of the rubble floor at (x, z). The mesh and the spoil scattered on it BOTH
+## ask this, because the first version computed the surface in one place and dropped
+## chunks at the old flat height in another — so raising the floor swallowed every
+## chunk whole. One surface, one function.
+func _floor_relief_y(x: float, z: float, pos: Vector3, floor_y: float,
+		half_l: float, half_w: float, swell_n: FastNoiseLite, fine_n: FastNoiseLite,
+		amp: float, lift: float) -> float:
+	var across: float = (z - (pos.z - half_w)) / (2.0 * half_w)
+	var tx: float = (x - (pos.x - half_l)) / (2.0 * half_l)
+	var fall: float = -0.14 * (1.0 - across)
+	var ditch: float = -0.22 * smoothstep(0.13, 0.0, across)
+	var swell: float = swell_n.get_noise_2d(x, z) * amp
+	var lump: float = fine_n.get_noise_2d(x, z) * amp * 0.45
+	var rim: float = smoothstep(0.0, 0.14, minf(across, 1.0 - across))
+	# Fades over the last ~7 m rather than the last 3, leaving a flat apron inside the
+	# mouth. Not a concession to the test: an adit HAS a trodden flat near its portal,
+	# because that is the stretch everything gets dragged over. It also happens to be
+	# where a player-sized body was still catching on rising ground.
+	rim *= smoothstep(0.0, 0.22, 1.0 - tx)
+	# LIFT rides the taper too. Left outside it, the floor stayed 0.45 m proud right at
+	# the threshold and then fell away — a 79.5-degree face, which Godot reads as WALL,
+	# i.e. the invisible barrier this entrance already lost a night to. Caught by
+	# test_entrance_walkable.gd, which exists for precisely this.
+	# The 2 cm base rides the taper as well. Left constant it was a 2 cm LIP at the
+	# threshold, and the doorway test caught a player-sized body catching on exactly
+	# that. At rim 0 the relief is now flush with the slab: nothing to trip on, and
+	# nothing for the physics to call a wall.
+	return maxf(floor_y + (0.02 + lift + fall + ditch + swell + lump) * rim, floor_y)
+
+
 ## Rubble-and-mud relief laid over the flat floor box. Visual only: the box keeps the
 ## collision, because a walking surface with bumps in it is how a player trips on
 ## nothing they can see.
@@ -2145,32 +2175,50 @@ func _build_floor_relief(pos: Vector3, floor_y: float, half_l: float, half_w: fl
 	noise.frequency = 0.42        # ~2.4 m lumps: heaped spoil, not a pebbled surface
 	noise.fractal_octaves = 3
 	noise.seed = 5150
+	# Broad swell, several metres per wave. This is the layer the floor was missing:
+	# `noise` alone gives surface break-up, and break-up on a plane is still a plane.
+	var swell_n: FastNoiseLite = FastNoiseLite.new()
+	swell_n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	swell_n.frequency = 0.16       # ~6 m per wave: you walk UP one and DOWN the next
+	swell_n.fractal_octaves = 2
+	swell_n.seed = 5151
 	# Amplitude was 0.075 m on the first pass and simply did not read: at eye height a
 	# grazing light over 7 cm of relief shades almost identically to a plane, and the
 	# owner still called the floor smooth. 0.18 m is the smallest that casts visible
 	# shadow from a lantern at this height, and it stays well under the 0.35 m step a
 	# player can no longer walk up — the relief is decoration, the box is the floor.
-	var amp: float = 0.18
+	# 0.42 m, up from 0.18. The old figure was chosen to be visible in a still; the
+	# owner walked it and it still read flat, because a still shows shading and a walk
+	# shows the CAMERA rising and falling. Bounded on purpose: over the 0.55 m between
+	# grid samples this is a 37-degree slope at worst, under Godot's 45-degree wall
+	# threshold, and no single step exceeds the 0.35 m a player can climb.
+	var amp: float = 0.42
+
+	# Covers the whole SLAB footprint, not just the room. The slab is dropped 0.9 m at
+	# this level so it stops burying the relief, and anything the relief fails to cover
+	# becomes a hole straight through to the prairie — which is what the first attempt
+	# did, in green.
+	const LIFT := 0.45
+	var hw: float = half_w + 1.0
+	# West of the room it overhangs to cover the slab. East it STOPS 1.6 m short of the
+	# mouth: this mesh carries collision, and collision anywhere near the threshold is
+	# the invisible barrier this entrance has already lost a night to. The doorway is
+	# pure slab, dead level, and the relief fades into it well before the player gets
+	# there. Verified by test_entrance_walkable.gd, which failed twice on the way here.
+	var hl_w: float = half_l + 1.0
+	var hl_e: float = half_l
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rows: Array[PackedVector3Array] = []
 	for j in range(NZ + 1):
 		var tz: float = float(j) / float(NZ)
-		var z: float = pos.z - half_w + (2.0 * half_w) * tz
+		var z: float = pos.z - hw - (2.0 * hw) * 0.0 + (2.0 * hw) * tz
 		var row := PackedVector3Array()
 		for i in range(NX + 1):
-			var x: float = pos.x - half_l + (2.0 * half_l) * float(i) / float(NX)
-			# Cross-fall to the north wall, deepening into a shallow ditch in the last
-			# metre and a half.
-			var across: float = (z - (pos.z - half_w)) / (2.0 * half_w)
-			var fall: float = -0.10 * (1.0 - across)
-			var ditch: float = -0.16 * smoothstep(0.13, 0.0, across)
-			var lump: float = noise.get_noise_2d(x, z) * amp
-			# Flatten toward the rim so the relief meets the walls and the doorway on
-			# the same level the box does.
-			var rim: float = smoothstep(0.0, 0.10, minf(across, 1.0 - across))
-			row.append(Vector3(x, floor_y + 0.02 + (fall + ditch + lump) * rim, z))
+			var x: float = pos.x - hl_w + (hl_w + hl_e) * float(i) / float(NX)
+			row.append(Vector3(x, _floor_relief_y(x, z, pos, floor_y, half_l, half_w,
+				swell_n, noise, amp, LIFT), z))
 		rows.append(row)
 
 	for j in range(NZ):
@@ -2188,6 +2236,11 @@ func _build_floor_relief(pos: Vector3, floor_y: float, half_l: float, half_w: fl
 	mi.mesh = st.commit()
 	mi.material_override = _make_ballast_material()
 	add_child(mi)
+	# This one DOES take collision, unlike the wall shell. A floor you can see rolling
+	# under you while you walk a flat plane is worse than a flat floor — the feet have
+	# to agree with the eyes. It is safe here and not on the walls because the slope is
+	# bounded by construction above, and because the mouth end is tapered to level.
+	mi.create_trimesh_collision()
 
 	# Spoil on top of the swell. The graded surface alone reads as ground; the chunks
 	# are what say the ground is BROKEN ROCK. Weighted toward the walls, because that
@@ -2206,7 +2259,9 @@ func _build_floor_relief(pos: Vector3, floor_y: float, half_l: float, half_w: fl
 		# object placed on a floor; sunk to -0.16 of its size it flattened into brown
 		# patches, which is where the first correction landed. Just under a tenth proud
 		# keeps the facets catching light while the base disappears into the muck.
-		_rock_chunk_into(cst, Vector3(x, floor_y + s * 0.06, z),
+		var gy: float = _floor_relief_y(x, z, pos, floor_y, half_l, half_w,
+			swell_n, noise, 0.42, 0.45)
+		_rock_chunk_into(cst, Vector3(x, gy + s * 0.06, z),
 			Vector3(s, s * rng.randf_range(0.45, 0.8), s * rng.randf_range(0.7, 1.3)), k)
 	var chunks := MeshInstance3D.new()
 	chunks.name = "EntranceFloorSpoil"
@@ -2480,8 +2535,12 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	# COLOR_BORDER, no COLOR_ROCK: el gris neutro 0.502 es exactamente lo que se leía
 	# como hormigón (reportado 2026-08-01). La piedra de caverna ya existe en la
 	# paleta, es más cálida y más oscura, y hace juego con el borde del mapa.
+	# The slab stays put. Dropping it to make room for the relief exposed the PRAIRIE
+	# TERRAIN underneath — the carve leaves ground at that level, so the room filled
+	# with green. The relief rises above the slab instead; see _build_floor_relief.
+	var slab_drop: float = 0.0
 	var floor_box: CSGBox3D = _add_cave_csg_box("EntranceFloor",
-		Vector3(pos.x, floor_y - t * 0.5, pos.z),
+		Vector3(pos.x, floor_y - t * 0.5 - slab_drop, pos.z),
 		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
 	# Gravel underfoot, not the wall rock. Below finish level 1 this returns the wall
 	# material, so the baseline is byte-identical to what shipped.
