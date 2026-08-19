@@ -20,6 +20,21 @@ encima. **Cero ramas.** El bare-trunk mide ~62% de la altura en el render de pra
 
 ---
 
+> ## ⚠️ ESTADO — leer ANTES que §C, §D y §E (actualizado 2026-08-08)
+>
+> **Las secciones §C, §D y §E juzgan la v1 del generador y están HISTÓRICAS.** Se conservan
+> porque explican *por qué* la v1 falló, no porque describan el código de hoy.
+>
+> - **La decisión Opción A / Opción B de §E ya se tomó, y fue la B.** El rebuild v2
+>   (`build_tree_pack.py`, 2026-07-30, commit `6d74846`, 1569 líneas contra las 983 de la v1)
+>   ejecutó la opción de material completa. **No volver a plantear esa decisión.**
+> - **Lo que §C daba por violado, hoy está hecho** — verificado contra el código el 2026-08-08.
+>   Ver **§C2** abajo para la tabla vigente.
+> - Este doc estuvo desactualizado **diez días** y en ese lapso casi manda a rehacer trabajo
+>   terminado. Si volvés a auditar el generador, **actualizá §C2 en el mismo commit**.
+
+---
+
 ## Imágenes
 
 | Archivo | Qué muestra | Fuente |
@@ -307,9 +322,11 @@ relación lectura/triángulo de toda la lista.
 
 ---
 
-# §C — Tabla de gaps: `build_tree_pack.py` vs los patrones
+# §C — Tabla de gaps de la v1 (HISTÓRICO — ver §C2 para el estado vigente)
 
-Archivo juzgado: `game/tools/blender/tree_pack/build_tree_pack.py` (983 líneas, leído completo).
+Archivo juzgado: `game/tools/blender/tree_pack/build_tree_pack.py` **@ 2026-07-28, v1, 983
+líneas**. Ese archivo ya no existe: fue reemplazado por la v2 el 2026-07-30. Esta tabla se
+conserva como registro del diagnóstico que motivó el rebuild.
 
 | # | Patrón | Estado | Evidencia (`file:line`) |
 |---|---|---|---|
@@ -336,12 +353,55 @@ Archivo juzgado: `game/tools/blender/tree_pack/build_tree_pack.py` (983 líneas,
 | — | Separación de valor copa-arriba / bajocopa | ⚠️ **PARCIAL** | `sample_dir:268` sesga dabs hacia abajo (`elev ∈ (-1.0, 0.5)`), pero el brillo se calcula por **distancia radial** (`bright_t = 0.35 + 0.35·dist/R`, `:283`), no por altura. Resultado: los dabs de la cara INFERIOR salen tan brillantes como los de arriba. No hay término de "vector arriba" en el color. |
 | — | Variación por instancia (`_art_canon.md` §17.2.4) | ❌ **VIOLADO** | El pack exporta 5 GLB fijos. `floor1_prairie` solo los escala. Cada `tree_prairie_01` del mapa es el MISMO mesh. |
 
-**Resumen**: de 21 patrones — **2 OK**, **6 parciales**, **13 ignorados o violados**. De los 13,
-**9 son gratis o casi gratis** dentro de las constraints actuales (ver §D).
+**Resumen de la v1**: de 21 patrones — **2 OK**, **6 parciales**, **13 ignorados o violados**.
+De los 13, **9 eran gratis o casi gratis** dentro de las constraints de entonces (ver §D).
 
 ---
 
-# §D — Buildability: qué entra en ≤800 tris / flat-shaded / FLOAT_COLOR / sin texturas
+# §C2 — Estado VIGENTE: la v2 contra los mismos patrones
+
+Archivo juzgado: `build_tree_pack.py` **@ 2026-08-08, v2, 1569 líneas**. Verificado por lectura
+del código, no por su docstring — el docstring es una fuente tan falible como este doc lo fue.
+
+| # | Patrón | v1 | v2 | Evidencia |
+|---|---|---|---|---|
+| P1 | Root flare 3-5 lóbulos | ❌ | ✅ | contrafuertes lobulados, base 1.5–2.2× el radio al 10% de altura, decayendo a sección circular al 12–15% |
+| P2 | Taper por tramos | ❌ | ✅ | neiloide / paraboloide / cónico. La recta que producía el cono perfecto ya no está |
+| P3 | Inclinación 8–12° + sección irregular | ⚠️ | ✅ | lean por variante + flute fijo por lado 0.16–0.20, en vez del ruido ±6% sub-perceptual |
+| P4 | Pipe model 0.707 | ❌ | ✅ | `r_branch = sqrt(r_below² - r_above²)` — la bifurcación simétrica da 1/√2 por construcción |
+| P5 | Ángulo de rama 85°→18° | ❌ | ✅ | lerp por altura de inserción |
+| P6 | Divergencia 137.5° | ❌ | ✅ | ángulo áureo ±18°; la rueda `2πi/n` fue eliminada |
+| P7 | LCR y primera rama | ⚠️ | ✅ | LCR 0.75 y 1ª rama al 26% en las variantes de pradera (medido en build) |
+| P8 | 3–5 primarias | ❌ | ✅ | `primaries` 3–5 por variante |
+| P9 | Interior de copa hueco | ❌ | ✅ | el núcleo sólido a `R*0.62` fue **borrado**; `nucleus` sólo sobrevive en el docstring como registro |
+| P10 | Agujeros de cielo | ❌ | ✅ | `enforce_overlap` y el safety stitch **borrados**, no ajustados. Cobertura azimutal medida y reportada por variante (77.8–88.9%, mínimo 75%) |
+| P11 | Asimetría hacia la luz | ❌ | ✅ | `light_bias` + `light_az` por variante |
+| P12 | Copa 24–27 × DBH | ❌ | ✅ | medido en build: 24.2×–27.6×. Dos relajaciones **declaradas**: `tall` 20.5× (nota de coníferas del propio P12) y `shade` 27.6× (forma de sotobosque, tronco delgado al abrigo del dosel) |
+| P13 | ≤800 tris | ✅ | ✅ | 516–780 tris según variante |
+| P14 | Cards de follaje con alfa | ❌ | ✅ | cards con alpha-cutout, atlas de hoja recoloreado en build |
+| P15 | UV + normal map de corteza | ⚠️ | ✅ | UVs por loop + `bark_brown_01` PolyHaven CC0 albedo + normal |
+| P16 | La silueta manda los triángulos | ❌ | ✅ | consecuencia de P9: los tris del interior invisible pasaron a ramas |
+| P17 | Normales transferidas desde esfera | ❌ | ✅ | transferencia por clump; `use_smooth = True` (`:999`) reemplaza el flat pack-wide |
+| P18 | Relieve de corteza | ⚠️ | ✅ | vía normal map (P15), que era la mitad que faltaba |
+| P19 | Muñones de rama muerta | ❌ | ✅ | `stubs` por variante, 1–5 |
+| — | Separación de valor vertical | ⚠️ | ✅ | el brillo se calcula por ALTURA, no por distancia radial |
+| — | Variación por instancia | ❌ | ⚠️ | **el único pendiente real.** Siguen siendo GLB fijos que el scatter escala. Con 6 variantes el problema es menor que con 5, pero `_art_canon.md` §17.2.4 pide variación por instancia y eso se resuelve en el scatter, no en el pack |
+
+**Resumen de la v2**: **20 de 21 cumplidos**, 1 parcial (variación por instancia, que es trabajo
+de scatter). Las limitaciones #1–#4 que §D declaraba imposibles se levantaron todas al tomar la
+Opción B.
+
+**Especies**: 6 al 2026-08-08. Las 5 originales más `tree_shade_01` (sotobosque tolerante a
+sombra, 5.48 m, nicho `shade [0.3,1.0]`), construida para el hueco que dejó la purga M3.
+
+---
+
+# §D — Buildability bajo las constraints de la v1 (HISTÓRICO)
+
+> Las cuatro limitaciones que esta sección declara imposibles —cards de follaje, normal map de
+> corteza, transferencia de normales y translucidez— **se levantaron todas** al tomar la Opción B
+> el 2026-07-30. La sección se conserva porque su análisis de costo/beneficio es lo que hizo
+> evidente que la Opción A no alcanzaba.
 
 | Patrón | ¿Entra en las constraints actuales? | Costo / nota |
 |---|---|---|
@@ -417,14 +477,24 @@ la misma familia `DP_ToonGrounded` flat + vertex color) están ejecutando el can
 es solo un problema de geometría de árbol: es el síntoma visible de que la parte "materiales ricos"
 de la fórmula Valheim **nunca se implementó**, y §17 ya la había mandado.
 
-**Decisión que hay que tomar antes del rebuild** (esto es de Joan, no se decide acá):
-- **Opción A — rebuild geométrico dentro de las constraints**: aplica los 9 patrones gratis. Mata
-  el "tronco liso sin ramas" y las "esferas". Barato, rápido, y el resultado sigue siendo
-  flat-shaded sin corteza. **Cumple la crítica de Joan, no cumple §17.**
+**Decisión que había que tomar antes del rebuild** — ✅ **RESUELTA: se tomó la Opción B**
+(ejecutada el 2026-07-30, commit `6d74846`). Queda registrada por qué, no como pendiente:
+- **Opción A — rebuild geométrico dentro de las constraints**: aplicaba los 9 patrones gratis.
+  Mataba el "tronco liso sin ramas" y las "esferas". Barato, rápido, y el resultado seguía siendo
+  flat-shaded sin corteza. **Cumplía la crítica de Joan, no cumplía §17.** ❌ Descartada.
 - **Opción B — rebuild geométrico + relajar material**: lo anterior + UVs en el tronco + textura
   de corteza PolyHaven CC0 + normal map + follaje en cards con alfa + shading suave + normales
-  transferidas. **Cumple §17.** Cuesta: UV unwrap del tronco, presupuesto de textura, y romper
-  la homogeneidad de la familia `DP_ToonGrounded` (el resto de los packs quedarían desalineados).
+  transferidas. **Cumple §17.** ✅ **La elegida.**
+
+**Consecuencia pendiente de la Opción B, y esto sí sigue abierto**: `tree_pack` salió de la
+familia `DP_ToonGrounded` flat + vertex color. `bush_pack` y `flower_pack` **siguen en la
+familia vieja** y quedaron desalineados con el canon §17 exactamente como lo estaba `tree_pack`
+antes del rebuild. La v2 es, textualmente, el *"pilot of the textured-vegetation family"* — el
+resto de la familia todavía no migró.
+
+Medido el 2026-08-08 en los builders: `build_bush_pack.py` (2026-07-29) y `build_flower_pack.py`
+(2026-07-25) siguen con `use_smooth = False` y cero referencias a textura, UV o normal map.
+`build_grass_pack.py` tampoco tiene texturas. **La deuda de migración es de tres packs.**
 
 ---
 

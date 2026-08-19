@@ -2389,14 +2389,23 @@ func _build_camp(poi: POISystem.POI) -> void:
 ## PURGA M3 (2026-08-07): era env_tree_common_01.gltf (CC0). Pasa a tree_prairie_wide,
 ## que el tree_pack construyó justamente como "shade tree in clearings, deliberately
 ## rare/standout" — el mismo rol de árbol-hito que cumplía el gigante.
-const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_wide_01.glb")
+## The landmark tree, BUILT at 22 m rather than scaled up to it (2026-08-08).
+## It used to be env_tree_prairie_wide_01 — an 8.57 m tree — blown up x4.5 to
+## 38.6 m. Under elastic self-similarity a trunk's buckling height goes with
+## diameter^(2/3), so diameter has to grow as height^1.5: a uniform x4.5 leaves
+## the giant with the trunk proportions of a tree a quarter its size, which is
+## why it read as a blown-up toy instead of a colossus. The `ancient` stage in
+## build_tree_pack.py builds it at height with the girth that height requires.
+const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_ancient_01.glb")
 
 func _build_giant_tree(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
 
-	# Landmark-sized REAL tree (model native ~7m → ~31m at 4.5x) — replaces the old
-	# CSGCylinder trunk + flat green CSGBox canopy that read as a box floating on a stick.
-	var giant_scale: float = 4.5
+	# Landmark tree at its NATIVE 22 m — no scale factor. The old 4.5x blow-up is
+	# gone: see SCENE_GIANT_TREE above for why scaling a tree is not the same as
+	# growing one. A small per-instance jitter stays, because two colossi should
+	# not be identical, but it is jitter now and not a size multiplier.
+	var giant_scale: float = _rng.randf_range(0.94, 1.06)
 	var tree: Node3D = SCENE_GIANT_TREE.instantiate() as Node3D
 	if tree != null:
 		var rot_y: float = _rng.randf() * TAU
@@ -3110,29 +3119,60 @@ func _scatter_stream_reeds() -> void:
 ## combined tree_pack.glb is intentionally NOT wired — only the 5 individual
 ## variants. See FLORA_NICHES below for the humidity/shade niche of each.
 const POOL_TREES: Array[PackedScene] = [
-	# PURGA M3 (2026-08-07). Se fueron los 12 slots CC0 —2 birch, 7 maple, 3 common—
-	# por directiva de Joan: *"eliminamos todos los modelos que no son M3"*, todo
-	# construido con el motor al máximo. El pool queda con las 5 especies del
-	# tree_pack, que SON M3 (`_motor_tiers.md`). Deuda registrada en
-	# `_asset_inventory_p1.md`: faltan especies de copa ancha y de color otoñal para
-	# reponer la variedad que daban maple y common — el motor tiene que darlas.
-	# 5 tree_prairie — dominant generalist (highest single weight among the new set)
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"),
-	# 2 tree_prairie_tall — approximated "map edge" niche (see FLORA_NICHES comment)
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb"),
-	# 1 tree_prairie_wide — shade tree in clearings, deliberately rare/standout
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_wide_01.glb"),
-	# 2 tree_young — transition sapling between denser tree masses
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_young_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_young_01.glb"),
-	# 2 tree_dry — dry-zone companion to bush_dry
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_01.glb"),
-	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_01.glb"),
+	# TAXONOMY 2026-08-08 (Joan: "son especies o fases de una especie?"). Four
+	# SPECIES, each with its own bark, leaf atlas and foliage value range, times
+	# the STAGES it is worth showing, times height instances sampled across a
+	# range. The old flat list mixed the two axes: prairie/tall/wide/young shared
+	# every material, so they were one species in four shapes, and `young` was a
+	# stage filed as a species.
+	# Slot count = relative frequency; heights are BUILT metres, solved by the
+	# builder rather than predicted, and capped under TERRAIN_MAX_HEIGHT so the
+	# hills keep deciding what the player can see.
+	# prairie_young_01 x2 — regeneration under the canopy
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_01.glb"),
+	# prairie_young_02 x2 — regeneration, taller sapling
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_02.glb"),
+	# prairie_mature_01 x3 — the dominant filler
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb"),
+	# prairie_mature_02 x4 — the dominant filler, mid height
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	# prairie_mature_03 x2 — tall mature, starts to shade others
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb"),
+	# prairie_old_01 x2 — old: owns the canopy, sits in sun
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01.glb"),
+	# prairie_old_02 x1 — the biggest common tree, deliberately rare
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_02.glb"),
+	# dry_young_01 x1 — dry-zone sapling, needs some shelter
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_young_01.glb"),
+	# dry_mature_01 x2 — dry zone, paired with bush_dry
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_01.glb"),
+	# dry_mature_02 x2 — dry zone, larger
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_02.glb"),
+	# shade_young_01 x1 — deepest shade tolerance in the pack
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_young_01.glb"),
+	# shade_mature_01 x2 — understory, under a canopy
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_01.glb"),
+	# shade_mature_02 x2 — understory, larger
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_02.glb"),
+	# autumn_mature_01 x1 — the red the purge took away
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_01.glb"),
+	# autumn_mature_02 x1 — autumn broadleaf, larger
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_02.glb"),
+	# autumn_old_01 x1 — old autumn: a landmark you walk toward
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_old_01.glb"),
 ]
 
 ## Dead tree scene — managed separately so laetiporus can attach at spawn time.
@@ -3307,41 +3347,61 @@ const FLORA_NICHES: Dictionary = {
 	# tolerant of open sun since banks are rarely deep-canopy.
 	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb":
 		{"humidity": [0.55, 1.0], "shade": [0.0, 0.5]},
-	# Registered for completeness (spec §3 lists them explicitly) even though these
-	# three are placed by their OWN substrate-aware passes (_scatter_dead_trees,
-	# _scatter_understory_mushrooms), not through _pick_flora_for_point — a dead
-	# snag's "any open ground" rule and a fungus's wood/shade-base rule are already
-	# stronger, more specific placement logic than a flat humidity/shade query.
-	# PURGA M3 (2026-08-07): árbol muerto, laetiporus y hongo común eran CC0. Sus
-	# pasadas (_scatter_dead_trees, _scatter_understory_mushrooms) siguen en el
-	# código y se saltean solas hasta que el motor dé los tres assets en M3.
-	# ── 2026-07-27 tree_pack + bush_pack (pradera canon) ────────────────────
-	# tree_prairie — dominant generalist: broadest tolerance of the new trees,
-	# open sun through light-medium shade, the "fills everywhere" species.
-	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb":
-		{"humidity": [0.0, 0.9], "shade": [0.0, 0.6]},
-	# tree_prairie_tall — "map edge/border" is not a modeled axis in this
-	# humidity/shade proxy system (no distance-to-border query exists here).
-	# Approximated the same way birch's "near crystal-spotlight zones by chance"
-	# comment already does: bias to the driest, most open band, which correlates
-	# with the outer ring (streams run from the outer ring toward the center, so
-	# open/dry ground away from them tends toward the map's margins).
-	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb":
-		{"humidity": [0.0, 0.5], "shade": [0.0, 0.25]},
-	# tree_prairie_wide — shade tree standing in open clearings (low pool weight
-	# keeps it a rare, deliberate "spot" tree rather than a common filler).
-	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_wide_01.glb":
-		{"humidity": [0.1, 0.85], "shade": [0.0, 0.35]},
-	# tree_young — sapling reads as a transition species between denser tree
-	# masses: medium shade tolerance, same family as common broadleaf.
-	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_young_01.glb":
-		{"humidity": [0.1, 0.75], "shade": [0.15, 0.6]},
-	# tree_dry — dry-zone tree, paired with bush_dry below on the same low-
-	# humidity band (away from streams/ponds).
-	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_01.glb":
-		{"humidity": [0.0, 0.3], "shade": [0.0, 0.35]},
 	# bush_round + bush_large (new) — clearing-edge shrubs, semi-shade, same
 	# family as the legacy env_bush_01/large_01 generic-understory niche above.
+	# ── tree_pack taxonomy (2026-08-08) ─────────────────────────────────────
+	# Humidity is a SPECIES trait; the shade band is a SPECIES trait shifted by
+	# STAGE. Saplings tolerate more shade than their own adults — seedlings grow
+	# up under their parents — so the scatter puts regeneration beneath the big
+	# trees on its own, without a dedicated pass.
+	# prairie_young_01: regeneration under the canopy
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_01.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.25, 0.85]},
+	# prairie_young_02: regeneration, taller sapling
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_02.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.25, 0.85]},
+	# prairie_mature_01: the dominant filler
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.6]},
+	# prairie_mature_02: the dominant filler, mid height
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.6]},
+	# prairie_mature_03: tall mature, starts to shade others
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.55]},
+	# prairie_old_01: old: owns the canopy, sits in sun
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01.glb":
+		{"humidity": [0.0, 0.85], "shade": [0.0, 0.45]},
+	# prairie_old_02: the biggest common tree, deliberately rare
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_02.glb":
+		{"humidity": [0.0, 0.85], "shade": [0.0, 0.4]},
+	# dry_young_01: dry-zone sapling, needs some shelter
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_young_01.glb":
+		{"humidity": [0.0, 0.35], "shade": [0.15, 0.55]},
+	# dry_mature_01: dry zone, paired with bush_dry
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_01.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.35]},
+	# dry_mature_02: dry zone, larger
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_02.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.35]},
+	# shade_young_01: deepest shade tolerance in the pack
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_young_01.glb":
+		{"humidity": [0.1, 0.9], "shade": [0.45, 1.0]},
+	# shade_mature_01: understory, under a canopy
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_01.glb":
+		{"humidity": [0.1, 0.9], "shade": [0.3, 1.0]},
+	# shade_mature_02: understory, larger
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_02.glb":
+		{"humidity": [0.1, 0.9], "shade": [0.3, 1.0]},
+	# autumn_mature_01: the red the purge took away
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.0, 0.45]},
+	# autumn_mature_02: autumn broadleaf, larger
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_02.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.0, 0.45]},
+	# autumn_old_01: old autumn: a landmark you walk toward
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_old_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.0, 0.4]},
 	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_round_01.glb":
 		{"humidity": [0.1, 0.8], "shade": [0.3, 0.8]},
 	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.glb":

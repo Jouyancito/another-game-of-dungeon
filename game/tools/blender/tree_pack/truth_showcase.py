@@ -34,8 +34,19 @@ ASSET_DIR = os.path.normpath(os.path.join(
     SCRIPT_DIR, "..", "..", "..", "assets", "art", "piso1_pradera",
     "vegetation", "tree_pack"))
 
-VARIANTS = ["tree_prairie_01", "tree_prairie_tall_01", "tree_prairie_wide_01",
-            "tree_young_01", "tree_dry_01"]
+import glob as _glob, os as _os
+_here = _os.path.dirname(_os.path.abspath(__file__))
+_glbdir = _os.path.join(_here, "..", "..", "..", "assets", "art", "piso1_pradera",
+                        "vegetation", "tree_pack")
+VARIANTS = sorted(
+    _os.path.splitext(_os.path.basename(f))[0].removeprefix("env_")
+    for f in _glob.glob(_os.path.join(_glbdir, "env_tree_*.glb")))
+print(f"[truth_showcase] {len(VARIANTS)} variants discovered")
+
+# Spacing and the lineup camera both scale with the variant count now. They were
+# hardcoded for a 5-variant pack; at 17 variants and a 21 m ancient crown the old
+# numbers cropped most of the pack out of frame and overlapped the rest.
+SPACING = 13.0
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -70,7 +81,11 @@ add_light("fill", (18.0, -22.0, 12.0), 900, 12.0)
 add_light("rim", (4.0, 24.0, 18.0), 3200, 10.0)
 
 # ground
-bpy.ops.mesh.primitive_plane_add(size=140.0, location=(0.0, 0.0, 0.0))
+# Ground must outrun the lineup, or the end variants stand off the grass and
+# the render reads as floating geometry -- a showcase bug that looks like an
+# asset bug. Sized from the variant count, like the camera.
+bpy.ops.mesh.primitive_plane_add(
+    size=max(140.0, SPACING * (len(VARIANTS) - 1) + 90.0), location=(0.0, 0.0, 0.0))
 gp = bpy.context.object
 gmat = bpy.data.materials.new("g")
 gmat.use_nodes = True
@@ -101,7 +116,6 @@ def spawn_ref(loc):
     return o
 
 
-SPACING = 10.0
 groups = {}
 for i, name in enumerate(VARIANTS):
     path = os.path.join(ASSET_DIR, f"env_{name}.glb")
@@ -145,12 +159,15 @@ def show_only(name):
     gp.hide_render = False
 
 
-render_to("TRUTH_lineup.png", (0.0, -52.0, 11.0), (0.0, 0.0, 5.0), lens=36)
+_span_m = SPACING * (len(VARIANTS) - 1) + 24.0
+_cam_d = _span_m * 1.02          # lens 36 on 36 mm film: ~53 deg horizontal FOV
+render_to("TRUTH_lineup.png", (0.0, -_cam_d, _span_m * 0.16),
+          (0.0, 0.0, 7.0), lens=36, res=(2400, 900))
 
 # multi-angle turntable of the generalist, from the shipped GLB
-show_only("tree_prairie_01")
-px = groups["tree_prairie_01"][0].location.x if groups["tree_prairie_01"] else 0.0
-px = (0 - (len(VARIANTS) - 1) / 2.0) * SPACING
+HERO = "tree_prairie_mature_02"
+show_only(HERO)
+px = (VARIANTS.index(HERO) - (len(VARIANTS) - 1) / 2.0) * SPACING
 rt = spawn_ref((px + 5.2, 0.0, 0.0))
 for az in (0, 90, 180, 270):
     a = math.radians(az)
@@ -178,8 +195,7 @@ scene.render.film_transparent = False
 gp.hide_render = False
 bpy.data.objects.remove(rt, do_unlink=True)
 
-for name, tag in (("tree_prairie_tall_01", "tall"), ("tree_prairie_wide_01", "wide"),
-                  ("tree_young_01", "young"), ("tree_dry_01", "dry")):
+for name, tag in ((v, v.removeprefix("tree_")) for v in VARIANTS if v != HERO):
     show_only(name)
     idx = VARIANTS.index(name)
     ox = (idx - (len(VARIANTS) - 1) / 2.0) * SPACING

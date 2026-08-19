@@ -41,8 +41,12 @@ const FRAMES := 41          # -> 40 consecutive-frame deltas
 const CAM_DIST := 12.0      # metres from the framed tree
 const EYE_HEIGHT := 1.7
 
-const TREE_PATH := "res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_01.glb"
-const TREE_FAR_PATH := "res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_tall_01.glb"
+# Retargeted 2026-08-08 to the species x stage taxonomy: prairie_01 became
+# prairie_mature_02 (the dominant filler) and prairie_tall_01 became
+# prairie_mature_03 (the tall mature). Shimmer is a foliage-density problem, so
+# the probe wants the two densest common crowns, which is what these are.
+const TREE_PATH := "res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"
+const TREE_FAR_PATH := "res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb"
 const BUSH_PATH := "res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb"
 const GRASS_PATH := "res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"
 

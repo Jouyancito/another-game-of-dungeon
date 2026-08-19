@@ -127,6 +127,8 @@ scene = bpy.context.scene
 # so the tint desaturates and cools it, and the AO ramp buries the base.
 BARK_TINT = (0.40, 0.41, 0.47)
 BARK_TINT_DRY = (0.60, 0.55, 0.44)
+BARK_TINT_AUTUMN = (0.52, 0.44, 0.40)   # warmer and lighter than the prairie grey
+BARK_TINT_SHADE = (0.34, 0.36, 0.40)    # damp understory bark: darker, bluer
 BARK_AO_BASE = 0.34     # multiplier at z=0 (P18: baked AO where trunk meets soil)
 BARK_AO_TOP = 1.00
 BARK_AO_HEIGHT = 0.22   # fraction of trunk height the AO ramp spans
@@ -137,9 +139,26 @@ FOL_DARK = (0.150, 0.180, 0.125)
 FOL_LIGHT = (1.000, 0.985, 0.760)
 FOL_DARK_DRY = (0.185, 0.150, 0.100)
 FOL_LIGHT_DRY = (1.000, 0.880, 0.520)
+# Shade-tolerant variant: growing under a canopy means diffuse light, so the
+# vertical value axis COMPRESSES -- there is no sun-bleached top to play against
+# a near-black underside. LIGHT stays cool and well short of the sunlit variants
+# (no warm lime), DARK lifts slightly because sky-lit shade is bluer, not blacker.
+FOL_DARK_SHADE = (0.135, 0.170, 0.145)
+FOL_LIGHT_SHADE = (0.620, 0.720, 0.520)
+# Autumn species: the red the map lost when the CC0 maples were purged. Warm and
+# saturated at the lit top, deep oxblood underneath -- a wider value range than
+# any green species, because a turning canopy is the loudest thing in a prairie.
+FOL_DARK_AUTUMN = (0.300, 0.150, 0.100)
+FOL_LIGHT_AUTUMN = (1.000, 0.760, 0.420)
 
 LEAF_TINT_GREEN = (0.255, 0.400, 0.115)   # sRGB, painted into the atlas RGB
 LEAF_TINT_GOLD = (0.560, 0.420, 0.115)
+# Autumn atlas has to be BRIGHT, not "the colour we want": glTF multiplies
+# baseColorFactor x texture x COLOR_0, so the shipped pixel is atlas x vertex
+# colour. A dark-red atlas times a dark-red tint gave (0.52,0.16,0.04) on the LIT
+# face and (0.10,0.02,0.01) underneath -- brown mud, not autumn. The atlas carries
+# the headroom and the vertex colour does the shading.
+LEAF_TINT_RUST = (0.850, 0.400, 0.160)
 
 
 # =============================================================================
@@ -258,8 +277,18 @@ def build_leaf_cluster_atlas(out_name, tint, seed, n_leaves=58, leaf_px=(34, 58)
     gradient.
     """
     out = os.path.join(TEX_CACHE, out_name)
-    if os.path.exists(out):
-        return out
+    # Cache on the PARAMETERS, not just the filename. Keyed on the name alone this
+    # silently served a stale atlas after the autumn tint was changed: the build
+    # ran clean, the GLB was rewritten, and the render came back pixel-identical
+    # because the texture underneath was the previous one. A cache that cannot
+    # notice its inputs changed is a cache that lies.
+    sig = repr((tuple(round(c, 5) for c in tint), seed, n_leaves, tuple(leaf_px)))
+    sig_path = out + ".params"
+    if os.path.exists(out) and os.path.exists(sig_path):
+        with open(sig_path, encoding="utf-8") as fh:
+            if fh.read() == sig:
+                return out
+        print(f"[tree_pack] atlas {out_name}: params changed, rebuilding")
     sprites = _leaf_sprites()
     rng = np.random.default_rng(seed)
     R = TEX_RES
@@ -305,6 +334,8 @@ def build_leaf_cluster_atlas(out_name, tint, seed, n_leaves=58, leaf_px=(34, 58)
     dst.file_format = 'PNG'
     dst.save()
     bpy.data.images.remove(dst)
+    with open(sig_path, "w", encoding="utf-8") as fh:
+        fh.write(sig)
     print(f"[tree_pack] atlas {out_name}: coverage {(alpha > 0.45).mean():.3f}")
     return out
 
@@ -314,6 +345,10 @@ BARK_NOR = _cache_resized(BARK_NOR_SRC, f"bark_brown_01_nor_{TEX_RES}.jpg")
 LEAF_GREEN = build_leaf_cluster_atlas(f"leaf_green_{TEX_RES}.png", LEAF_TINT_GREEN, 4711)
 LEAF_GOLD = build_leaf_cluster_atlas(f"leaf_gold_{TEX_RES}.png", LEAF_TINT_GOLD, 4712,
                                      n_leaves=40, leaf_px=(30, 50))
+# Broader leaves and fewer of them: the autumn species is a wide-crowned broadleaf,
+# and a sparser atlas keeps the loud red from reading as a solid painted mass.
+LEAF_RUST = build_leaf_cluster_atlas(f"leaf_rust_{TEX_RES}.png", LEAF_TINT_RUST, 4713,
+                                     n_leaves=46, leaf_px=(38, 60))
 
 
 # =============================================================================
@@ -1235,73 +1270,213 @@ BASE = dict(
     side_spread=1.35,
 )
 
-TREES = {
-    "tree_prairie_01": dict(
-        BASE, height=5.1, crown_radius=3.20, primaries=4, first_branch_u=0.26,
-        # crown_dbh_ratio is the DESIGN input that sets trunk thickness; the
-        # printed ratio is measured off the built geometry. Re-solved for the
-        # v2.1 crown, which is wider than v2's lobe was, to keep P12's 24-27x.
-        crown_dbh_ratio=26.5,
-        clump_r=0.92, clumps_per_tip=3, clumps_along=4, leader_clumps=4,
-        light_az=math.radians(35.0),
-    ),
-    "tree_prairie_tall_01": dict(
-        BASE, height=8.5, crown_radius=1.95, primaries=5, first_branch_u=0.26,
-        # P12's own note: conifers/columnar forms carry crown LENGTH > crown
-        # width, so the 24-27x broadleaf ratio is deliberately relaxed here.
-        crown_dbh_ratio=20.5, top_r=0.05, clump_r=0.78, light_bias=0.26,
-        clumps_per_tip=3, clumps_along=3, leader_clumps=4, stubs=3,
-        low_reach=0.62,
-        # P3's 8-12 deg lean is a broadleaf figure. On a 10 m columnar form it
-        # walks the crown 1.4 m sideways — comparable to the whole crown radius
-        # — and the render reads as a sapling bent over, not a tall tree. Same
-        # relaxation P12 already takes for this variant, same reason: columnar
-        # forms are not what the broadleaf references measured.
-        lean_deg=(4.0, 6.5),
-        light_az=math.radians(200.0),
-    ),
-    "tree_prairie_wide_01": dict(
-        BASE, height=4.2, crown_radius=3.90, primaries=5, first_branch_u=0.26,
-        crown_dbh_ratio=23.5, top_r=0.07, clump_r=0.98, light_bias=0.16,
-        clumps_per_tip=3, clumps_along=3, leader_clumps=4,
-        # the widest crown on the pack is also the one that split into two
-        # floating masses; it needs the flattest reach profile of the five so
-        # no single limb carries the silhouette.
-        low_reach=0.66, branch_arc=0.58,
-        light_az=math.radians(110.0),
-    ),
-    "tree_young_01": dict(
-        BASE, height=2.3, crown_radius=1.00, primaries=3, first_branch_u=0.30,
-        top_r=0.028, clump_r=0.40, clumps_per_tip=3, clumps_along=3,
-        light_bias=0.28, leader_clumps=4, stubs=1,
-        light_az=math.radians(300.0),
-    ),
-    "tree_dry_01": dict(
-        BASE, height=3.4, crown_radius=1.90, primaries=4, first_branch_u=0.25,
-        crown_dbh_ratio=21.5, top_r=0.04, clump_r=0.58, light_bias=0.30,
-        clumps_per_tip=3, clumps_along=3, leader_clumps=3, stubs=5,
-        bark_tint=BARK_TINT_DRY, fol_dark=FOL_DARK_DRY, fol_light=FOL_LIGHT_DRY,
-        leaf="gold", light_az=math.radians(15.0),
-    ),
+# =============================================================================
+# TAXONOMY — species x stage x instance
+# =============================================================================
+# Joan, 2026-08-08: "son especies o fases de una especie?" Measured, and the flat
+# table was mixing two axes: prairie/tall/wide/young shared bark, leaf atlas AND
+# foliage tints, so they were one species in four shapes, with `young` literally
+# commented as a sapling -- a STAGE filed as a species.
+#
+# The two axes are now explicit:
+#   SPECIES carries the MATERIALS (bark tint, leaf atlas, foliage value range).
+#     Two trees of different species look different standing side by side even at
+#     the same age. This is what "another species" means.
+#   STAGE carries the FORM the same species takes over its life. A sapling has a
+#     thin trunk, a narrow crown and no dead stubs; an old tree has a flattened
+#     asymmetric crown, a thick trunk and many stubs. Same knobs, different values.
+#
+# And within a stage, HEIGHT IS A RANGE, not a value -- Joan again: "puedes jugar
+# con alturas, onda rangos de altura". That range is what finally covers §17.2.4
+# (variation per instance), the one pattern the tree_poe audit still had open.
+#
+# ---- Why height cannot be a free scale ------------------------------------
+# Joan's own caveat: "habria que ver que estructuras tienen y si eso le permite
+# crecer de esa altura". It does not, not for free. Under elastic self-similarity
+# (McMahon), a trunk's buckling height scales with diameter^(2/3), i.e. the
+# diameter must grow as height^1.5. A tree scaled uniformly therefore has a trunk
+# too thin for its height, which is exactly why the map's `giant_tree` -- the
+# 8.57 m wide variant scaled x4.5 to 38.6 m -- reads as a toy blown up.
+#
+# Here `dbh = crown_diameter / crown_dbh_ratio` (see build_tree), and crown scales
+# roughly with height, so holding dbh ~ h^1.5 means:
+#       crown_dbh_ratio(h) = species_ratio * sqrt(H_REF / h)
+# Taller instance -> lower ratio -> proportionally thicker trunk. A short instance
+# of the same species gets a slimmer trunk, which is equally correct: P12's 24-27x
+# was measured on mid-size open-grown broadleaves, and the spread around it IS the
+# allometry, not noise.
+#
+# ---- Height ceiling -------------------------------------------------------
+# Hills cap at TERRAIN_MAX_HEIGHT = 16 m, raised from 9 m last session precisely so
+# the terrain occludes and there is something to walk toward. Common trees stay
+# under that so the LAND keeps deciding what you can see. The 20-25 m class is
+# reserved for the giant_tree landmark, which has to be built at its height rather
+# than scaled up.
+
+# How much the crown adds on top of the trunk, per metre of crown radius. This is
+# NOT one constant: measured against the first taxonomy build, the lift tracks the
+# stage, because low_reach and branch_arc change how far the crown rides above the
+# leader. A single 1.09 (calibrated on mature) overshot the old stage by 11-15% --
+# it put a "15 m" tree at 17.28 m, above the 16 m hills we agreed not to clear.
+# Only a seed for solve_height() now, not the answer -- close enough that the
+# solver converges in a pass or two instead of walking there from nothing.
+CROWN_LIFT = {"young": 0.76, "mature": 1.09, "old": 1.33, "ancient": 1.33}
+
+SPECIES = {
+    # bark/leaf/foliage = the identity. ratio = crown/DBH quoted at H_REF.
+    "prairie": dict(bark_tint=BARK_TINT, leaf="green",
+                    fol_dark=FOL_DARK, fol_light=FOL_LIGHT, ratio=26.5),
+    "dry":     dict(bark_tint=BARK_TINT_DRY, leaf="gold",
+                    fol_dark=FOL_DARK_DRY, fol_light=FOL_LIGHT_DRY, ratio=21.5),
+    "shade":   dict(bark_tint=BARK_TINT_SHADE, leaf="green",
+                    fol_dark=FOL_DARK_SHADE, fol_light=FOL_LIGHT_SHADE, ratio=25.0),
+    "autumn":  dict(bark_tint=BARK_TINT_AUTUMN, leaf="rust",
+                    fol_dark=FOL_DARK_AUTUMN, fol_light=FOL_LIGHT_AUTUMN, ratio=23.5),
 }
+
+# crown_frac = crown_radius / built height. Measured off the old variants:
+# prairie 0.373, wide 0.455, young 0.294 -- the stages below sit on those numbers.
+STAGES = {
+    "young": dict(crown_frac=0.30, first_branch_u=0.30, stubs=1, primaries=3,
+                  top_r=0.075, light_bias=0.28, low_reach=0.50, branch_arc=0.66,
+                  clumps_per_tip=3, clumps_along=3, leader_clumps=4,
+                  # a sapling is barely tapered: it has not built girth yet
+                  lean_deg=(9.0, 13.0)),
+    "mature": dict(crown_frac=0.38, first_branch_u=0.26, stubs=3, primaries=4,
+                   top_r=0.055, light_bias=0.24, low_reach=0.58, branch_arc=0.62,
+                   clumps_per_tip=3, clumps_along=4, leader_clumps=4,
+                   lean_deg=(8.0, 12.0)),
+    # `old` runs one more primary and twice the stubs, which blew the 800-tri
+    # budget at 870 on the first build. Paid for by thinning the along-branch
+    # clumps: an old crown is GAPPIER anyway, so the cheaper option is also the
+    # more correct one.
+    "old":    dict(crown_frac=0.47, first_branch_u=0.22, stubs=5, primaries=5,
+                   # flattened, heavily asymmetric crown; limbs reach far and low
+                   top_r=0.040, light_bias=0.30, low_reach=0.74, branch_arc=0.52,
+                   clumps_per_tip=2, clumps_along=3, leader_clumps=3,
+                   lean_deg=(10.0, 15.0)),
+    # The landmark class, above the 16 m hills on purpose -- this is the tree you
+    # navigate BY. Built at its height rather than scaled: the map's giant_tree
+    # was the 8.57 m wide variant blown up x4.5 to 38.6 m, which under the
+    # allometry above leaves it with the trunk of a tree a quarter its size.
+    # Crown fraction is pulled BACK from `old`: at 22 m, 0.47 would give an 18 m
+    # crown radius and one tree would roof a whole clearing.
+    "ancient": dict(crown_frac=0.40, first_branch_u=0.20, stubs=6, primaries=5,
+                    top_r=0.035, light_bias=0.26, low_reach=0.78, branch_arc=0.50,
+                    clumps_per_tip=2, clumps_along=3, leader_clumps=3,
+                    lean_deg=(6.0, 9.0)),   # a colossus stands straighter
+}
+
+# (species, stage, n_instances, (min_m, max_m), light_az_deg)
+# Instance count follows visibility: the dominant species earns the most, the
+# specialists fewer. Heights are BUILT metres, sampled evenly across the range.
+PLAN = [
+    ("prairie", "young",  2, (2.6,  4.4),  35.0),
+    ("prairie", "mature", 3, (7.0, 11.0),  35.0),
+    ("prairie", "old",    2, (12.0, 15.0), 110.0),
+    ("dry",     "young",  1, (2.4,  3.2),  15.0),
+    ("dry",     "mature", 2, (4.6,  6.4),  15.0),
+    ("shade",   "young",  1, (2.2,  3.0), 255.0),
+    ("shade",   "mature", 2, (4.6,  6.2), 255.0),
+    ("autumn",  "mature", 2, (7.5, 10.5), 200.0),
+    ("autumn",  "old",    1, (12.5, 14.5), 200.0),
+    # The landmark. One instance, placed by the giant_tree POI, not by scatter.
+    ("prairie", "ancient", 1, (22.0, 22.0),  60.0),
+]
+
+
+def _instance_heights(lo, hi, n):
+    """Evenly spread across the range, deterministic -- no RNG, so a rebuild is
+    reproducible and the set always covers both ends instead of clustering."""
+    if n == 1:
+        return [(lo + hi) * 0.5]
+    return [lo + (hi - lo) * i / (n - 1) for i in range(n)]
+
+
+# Trunk thickness relative to the species baseline, by stage. An old tree has laid
+# down decades of girth for the same crown; a sapling has not built any yet.
+STAGE_GIRTH = {"young": 1.14, "mature": 1.00, "old": 0.92, "ancient": 0.86}
+
+
+def _make_spec(species, stage, h_built, h_mid, light_az_deg):
+    sp, st = SPECIES[species], STAGES[stage]
+    crown_radius = h_built * st["crown_frac"]
+    spec = dict(BASE)
+    spec.update({k: v for k, v in st.items() if k != "crown_frac"})
+    spec.update(bark_tint=sp["bark_tint"], leaf=sp["leaf"],
+                fol_dark=sp["fol_dark"], fol_light=sp["fol_light"])
+    # Allometry is applied WITHIN the stage, against that stage's own mid height --
+    # not against a global adult reference. Measured against H_REF the first build
+    # gave saplings crown/DBH of 50-54x: the d ~ h^1.5 law holds BETWEEN adults of
+    # a species, and extrapolating it down to a 2 m sapling is out of its domain
+    # (a sapling is a flexible whip, not a self-supporting column). Compared to
+    # other saplings instead, the spread lands where P12 expects it.
+    ratio = sp["ratio"] * STAGE_GIRTH[stage] * math.sqrt(h_mid / h_built)
+    spec.update(
+        crown_radius=crown_radius,
+        # invert the measured crown lift so `height` lands the tree at h_built
+        height=max(0.6, h_built - CROWN_LIFT[stage] * crown_radius),
+        crown_dbh_ratio=ratio,
+        clump_r=max(0.30, crown_radius * 0.29),
+        light_az=math.radians(light_az_deg),
+        h_target=h_built,      # what the solver below drives the build toward
+    )
+    return spec
+
+
+def solve_height(spec, seed_i, iters=4, tol=0.10):
+    """Drive the BUILT height onto spec["h_target"] by measuring, not predicting.
+
+    The crown rides above the leader by an amount that depends on low_reach,
+    branch_arc and clump counts, so any closed-form correction goes stale the
+    moment the crown recipe changes -- which is exactly what happened twice: a
+    constant calibrated on `mature` put a "15 m" old tree at 17.28 m, and after
+    re-tuning it a "12 m" old tree came out at 10.98 m, level with a mature one.
+    Build, read the real height off the bmesh, correct, repeat. Same seed every
+    pass, so the geometry the solver measures is the geometry that ships.
+    """
+    for _ in range(iters):
+        bm, _uvl, _vcol, _clumps, _m = build_tree(spec, random.Random(seed_i))
+        zs = [v.co.z for v in bm.verts]
+        built = max(zs) - min(zs)
+        bm.free()
+        err = spec["h_target"] - built
+        if abs(err) <= tol:
+            break
+        spec = dict(spec, height=max(0.5, spec["height"] + err))
+    return spec
+
+
+TREES = {}
+for _species, _stage, _n, (_lo, _hi), _az in PLAN:
+    _mid = (_lo + _hi) * 0.5
+    for _i, _h in enumerate(_instance_heights(_lo, _hi, _n), start=1):
+        TREES[f"tree_{_species}_{_stage}_{_i:02d}"] = _make_spec(
+            _species, _stage, _h, _mid, _az)
 
 TRI_BUDGET = 800
 
+# One bark material for every species: make_bark_material takes no tint -- the
+# per-species bark colour rides on vertex colour -- so the old `tree_bark_dry_mat`
+# was a byte-identical copy of `tree_bark_mat` under another name.
 bark_mat = make_bark_material("tree_bark_mat")
-bark_mat_dry = make_bark_material("tree_bark_dry_mat")
-leaf_mat_green = make_leaf_material("tree_leaf_green_mat", LEAF_GREEN)
-leaf_mat_gold = make_leaf_material("tree_leaf_gold_mat", LEAF_GOLD)
+LEAF_MATS = {
+    "green": make_leaf_material("tree_leaf_green_mat", LEAF_GREEN),
+    "gold": make_leaf_material("tree_leaf_gold_mat", LEAF_GOLD),
+    "rust": make_leaf_material("tree_leaf_rust_mat", LEAF_RUST),
+}
 
 objects = []
 metrics = {}
 print(f"\n[tree_pack] seed={SEED}  budget={TRI_BUDGET} tris/variant\n")
 for i, (name, spec) in enumerate(TREES.items()):
-    rng = random.Random(SEED * 1000 + i * 131)
-    bm, uvl, vcol, clumps, m = build_tree(spec, rng)
+    seed_i = SEED * 1000 + i * 131
+    spec = solve_height(spec, seed_i)
+    TREES[name] = spec
+    bm, uvl, vcol, clumps, m = build_tree(spec, random.Random(seed_i))
     obj, bark_end, n_cards = finalize(
         name, bm, uvl, vcol, clumps, spec["cards_per_clump"],
-        bark_mat_dry if spec["leaf"] == "gold" else bark_mat,
-        leaf_mat_gold if spec["leaf"] == "gold" else leaf_mat_green)
+        bark_mat, LEAF_MATS[spec["leaf"]])
     tris = count_tris(obj)
     bark_tris = sum(len(p.vertices) - 2 for p in obj.data.polygons[:bark_end])
     dims = obj.dimensions
@@ -1486,9 +1661,9 @@ def render_to(path, cam_loc, target_loc, lens=35, res=(1920, 1080)):
     bpy.data.objects.remove(tgt, do_unlink=True)
 
 
-LABELS = {"tree_prairie_01": "prairie", "tree_prairie_tall_01": "tall",
-          "tree_prairie_wide_01": "wide", "tree_young_01": "young",
-          "tree_dry_01": "dry"}
+# Derived from TREES, so adding a variant to PLAN never again dies here with a
+# KeyError -- which is exactly how the first shade build failed.
+LABELS = {n: n.removeprefix("tree_") for n in TREES}
 label_mat = bpy.data.materials.new("label_mat")
 label_mat.use_nodes = True
 label_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.98, 0.98, 0.95, 1.0)
