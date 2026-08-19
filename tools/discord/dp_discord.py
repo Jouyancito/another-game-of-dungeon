@@ -15,9 +15,12 @@ Usage:
   python dp_discord.py post-file <channel-name> <utf8-file>     # post file contents
   python dp_discord.py post-attachment <channel-name> <file> [message]  # upload a real file
   python dp_discord.py timeline [--days N] [--channel <name>] [--repo <path>]
+  python dp_discord.py devlog <file.md> [--channel <name>] [--dry-run]
+      Posts only entries ticked '[x]' by a human who checked them in a build.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -168,14 +171,98 @@ def git_timeline(days, repo=REPO_ROOT):
     return "\n".join(parts)
 
 
+def parse_devlog(path):
+    """Parse a devlog source file into one entry per '## ' heading.
+
+    `timeline` posts raw commit subjects, which read like `feat(worldgen): mine
+    timber framing for the floor-1 entrance` — accurate, and useless to anyone
+    scanning for what actually changed. A devlog entry carries both audiences:
+    a title you can filter by, a plain sentence for players, and an optional
+    technical note for whoever reads code.
+
+        ## [ ] Title anyone can scan
+        One or more plain lines. What changed, in words a player understands.
+        @ Where to see it: how to reach it in a running build.
+        > Technical detail. Files, systems, numbers. Optional, repeatable.
+
+    Two rules exist because a devlog is a public claim, not a work log:
+
+    - The '@ ' line is REQUIRED. An entry that cannot be checked in a running
+      build is an assertion about intent, not about the game. Owner's words:
+      "si colocás que se mejoró el pasto, pero cuando entro no veo eso, es una
+      falacia o pensamiento netamente tuyo."
+    - The checkbox gates posting. '[ ]' means written but unverified; only
+      '[x]' — ticked by a human who looked at the build — is publishable.
+
+    Blank lines separate paragraphs; '>' lines become the technical block.
+    """
+    entries, current = [], None
+    with open(path, encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.rstrip("\n")
+            if line.startswith("## "):
+                if current:
+                    entries.append(current)
+                title = line[3:].strip()
+                approved = False
+                mark = re.match(r"^\[([ xX])\]\s*(.*)$", title)
+                if mark:
+                    approved = mark.group(1).lower() == "x"
+                    title = mark.group(2).strip()
+                current = {"title": title, "approved": approved, "checkbox": bool(mark),
+                           "plain": [], "where": [], "tech": []}
+            elif current is None:
+                continue  # preamble before the first heading is ignored
+            elif line.startswith(">"):
+                current["tech"].append(line.lstrip("> ").rstrip())
+            elif line.startswith("@ "):
+                current["where"].append(line[2:].strip())
+            else:
+                current["plain"].append(line.rstrip())
+    if current:
+        entries.append(current)
+
+    for e in entries:
+        e["plain"] = "\n".join(e["plain"]).strip()
+        e["where"] = " ".join(e["where"]).strip()
+        e["tech"] = "\n".join(e["tech"]).strip()
+
+    problems = []
+    for e in entries:
+        if not e["plain"]:
+            problems.append(f"{e['title']!r}: title with no plain-language body")
+        if not e["where"]:
+            problems.append(f"{e['title']!r}: missing '@ ' line — say where to see it in the build")
+        if not e["checkbox"]:
+            problems.append(f"{e['title']!r}: missing '[ ]'/'[x]' checkbox in the heading")
+    if problems:
+        sys.exit("Devlog entries are not postable:\n  " + "\n  ".join(problems))
+    return entries
+
+
+def render_devlog(entry):
+    out = "## " + entry["title"]
+    if entry["plain"]:
+        out += "\n" + entry["plain"]
+    if entry["where"]:
+        out += "\n*Dónde verlo: " + entry["where"] + "*"
+    if entry["tech"]:
+        # Blockquote keeps the technical half visually secondary, so a reader
+        # who does not code can skip it without losing the entry.
+        out += "\n" + "\n".join("> " + ln if ln else ">" for ln in entry["tech"].splitlines())
+    return out
+
+
 def main():
     load_env()
-    if "DISCORD_BOT_TOKEN" not in os.environ:
-        sys.exit("Missing DISCORD_BOT_TOKEN — copy .env.example to .env and fill it in.")
     args = sys.argv[1:]
     if not args:
         sys.exit(__doc__)
     cmd, rest = args[0], args[1:]
+    # A dry run only formats text, so it must work without credentials.
+    offline = cmd == "devlog" and "--dry-run" in rest
+    if not offline and "DISCORD_BOT_TOKEN" not in os.environ:
+        sys.exit("Missing DISCORD_BOT_TOKEN — copy .env.example to .env and fill it in.")
 
     if cmd == "guilds":
         for g in api("GET", "/users/@me/guilds"):
@@ -227,6 +314,36 @@ def main():
             sys.exit(f"No commits in the last {days} days.")
         post_message(find_channel(channel)["id"], text)
         print(f"Timeline ({days} days) posted to #{channel}")
+    elif cmd == "devlog":
+        if not rest:
+            sys.exit("devlog needs a source file. See --help.")
+        channel = rest[rest.index("--channel") + 1] if "--channel" in rest else "devlog"
+        entries = parse_devlog(rest[0])
+        if not entries:
+            sys.exit(f"No '## ' entries found in {rest[0]}.")
+        approved = [e for e in entries if e["approved"]]
+        pending = [e for e in entries if not e["approved"]]
+        if "--dry-run" in rest:
+            # Preview without a token, so an entry can be proofread — and
+            # checked against a running build — before it reaches the server.
+            for e in entries:
+                print(("[x] " if e["approved"] else "[ ] ") + "-" * 56)
+                print(render_devlog(e))
+            print(f"\n{len(approved)} approved, {len(pending)} awaiting review.")
+            if pending:
+                print("Pending: " + ", ".join(e["title"] for e in pending))
+            print(f"Would post the {len(approved)} approved to #{channel}")
+            return
+        if not approved:
+            sys.exit(f"Nothing approved in {rest[0]}. Tick '[x]' on the entries you "
+                     "checked in a running build. Nothing was posted.")
+        cid = find_channel(channel)["id"]
+        for e in approved:
+            # One message per entry: Discord shows each as its own block, so the
+            # channel stays scannable by title instead of one wall of text.
+            post_message(cid, render_devlog(e))
+        print(f"Posted {len(approved)} devlog entries to #{channel}"
+              + (f"; {len(pending)} left unapproved" if pending else ""))
     else:
         sys.exit(f"Unknown command: {cmd}\n{__doc__}")
 
