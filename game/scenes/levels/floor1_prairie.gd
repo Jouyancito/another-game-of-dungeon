@@ -1996,6 +1996,145 @@ func _find_entrance_pos(pois: Array) -> Vector3:
 ## Dimensiones contra el maniquí de 1.80 m: sala de 4.5 m de alto (2.5 jugadores),
 ## vano de 3.5 m y 6 m de ancho (pasan seis de frente), 1.5 m de tierra sobre el
 ## techo.
+## Cross-section of an excavated gallery, as (z, y) pairs from one wall foot, up and
+## over the vault, down to the other.
+##
+## A short vertical wall and then an arch, because that is what the reference
+## photographs show and what rock physically allows: an arch carries its own load, a
+## rectangular span of 14 m does not. The room it replaces was a box with 90-degree
+## corners, which is the shape a miner cannot leave standing — and the shape the owner
+## kept naming, playtest after playtest, as "polígonos perfectos".
+##
+## See docs/art/_references/mine_adit/ — mine_adit_hewn_horseshoe_rails_people is the
+## one that settles the profile.
+## Height of the vault directly above `z`, in metres over the floor. The single place
+## the arch is solved, so anything that has to LAND on the rock — a prop, a lamp
+## bracket, a hanging root — asks instead of assuming. Assuming is what buried one set
+## of posts and left their collar in mid-air.
+func _vault_y(z: float, half_w: float, h: float) -> float:
+	var c: float = clampf(absf(z) / maxf(half_w, 0.001), 0.0, 1.0)
+	# Inverse of the ring: z = -half_w * cos(a), so sin(a) = sqrt(1 - (z/half_w)^2).
+	return GALLERY_H_SPRING + (h - GALLERY_H_SPRING) * sqrt(maxf(0.0, 1.0 - c * c))
+
+
+func _gallery_ring(half_w: float, h: float, h_spring: float, arch_steps: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	const WALL_STEPS := 3
+	for i in range(WALL_STEPS):
+		pts.append(Vector2(-half_w, h_spring * float(i) / float(WALL_STEPS)))
+	# Half ellipse: a=0 sits on the left springing, a=PI/2 is the crown, a=PI the right.
+	for i in range(arch_steps + 1):
+		var a: float = PI * float(i) / float(arch_steps)
+		pts.append(Vector2(-half_w * cos(a), h_spring + (h - h_spring) * sin(a)))
+	for i in range(WALL_STEPS, 0, -1):
+		pts.append(Vector2(half_w, h_spring * float(i - 1) / float(WALL_STEPS)))
+	return pts
+
+
+## Inward normal at ring point `i`, in the ZY plane. Derived from the tangent and then
+## flipped toward the interior, rather than left to generate_normals(): the shell is
+## seen only from inside, and a normal set that points outward lights the room as if
+## every surface faced away from it.
+func _ring_normal(ring: PackedVector2Array, i: int, h_spring: float) -> Vector2:
+	var prev: Vector2 = ring[maxi(i - 1, 0)]
+	var next: Vector2 = ring[mini(i + 1, ring.size() - 1)]
+	var tangent: Vector2 = next - prev
+	if tangent.length_squared() < 0.000001:
+		return Vector2(0.0, 1.0)
+	var n := Vector2(tangent.y, -tangent.x).normalized()
+	if n.dot(Vector2(0.0, h_spring * 0.5) - ring[i]) < 0.0:
+		n = -n
+	return n
+
+
+## The excavated shell: walls and vault as one swept mesh, replacing the roof box, the
+## two side walls and the west wall. `displace` is the amplitude in metres of the
+## surface break-up; 0 gives a clean gallery (finish 2), above 0 gives hand-picked rock
+## (finish 3). The floor stays a separate box — it carries ballast, not wall rock.
+func _build_gallery_shell(pos: Vector3, floor_y: float, half_l: float, half_w: float,
+		h: float, displace: float) -> void:
+	const ARCH_STEPS := 18
+	const LEN_STEPS := 26
+
+	var ring: PackedVector2Array = _gallery_ring(half_w, h, GALLERY_H_SPRING, ARCH_STEPS)
+	var rings: int = ring.size()
+
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.28          # ~3.5 m per lobe: the decimetre-to-metre swells the
+	noise.fractal_octaves = 3       # references show, not a pebbled surface
+	noise.seed = 20260819
+
+	# Every vertex up front, so the triangle pass can just index them and both the
+	# position and its displaced normal stay consistent across shared edges.
+	var pts: Array[PackedVector3Array] = []
+	var nrm: Array[PackedVector3Array] = []
+	for j in range(LEN_STEPS + 1):
+		var x: float = pos.x - half_l + (2.0 * half_l) * float(j) / float(LEN_STEPS)
+		var row := PackedVector3Array()
+		var nrow := PackedVector3Array()
+		for i in range(rings):
+			var n2: Vector2 = _ring_normal(ring, i, GALLERY_H_SPRING)
+			var n3 := Vector3(0.0, n2.y, n2.x)
+			var p := Vector3(x, floor_y + ring[i].y, pos.z + ring[i].x)
+			if displace > 0.0:
+				# Taper to zero at both ends of the sweep so the shell still meets the
+				# facade and the west cap on a clean seam. A displaced rim would open
+				# gaps exactly where the player walks through.
+				var t: float = float(j) / float(LEN_STEPS)
+				var taper: float = smoothstep(0.0, 0.12, t) * smoothstep(0.0, 0.12, 1.0 - t)
+				# ...and to zero at the wall feet, so the shell keeps meeting the floor.
+				var foot: float = smoothstep(0.0, 0.5, ring[i].y)
+				p += n3 * noise.get_noise_3d(p.x, p.y, p.z) * displace * taper * foot
+			row.append(p)
+			nrow.append(n3)
+		pts.append(row)
+		nrm.append(nrow)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in range(LEN_STEPS):
+		for i in range(rings - 1):
+			var a: Vector3 = pts[j][i]
+			var b: Vector3 = pts[j][i + 1]
+			var c: Vector3 = pts[j + 1][i + 1]
+			var d: Vector3 = pts[j + 1][i]
+			var na: Vector3 = nrm[j][i]
+			var nb: Vector3 = nrm[j][i + 1]
+			var nc: Vector3 = nrm[j + 1][i + 1]
+			var nd: Vector3 = nrm[j + 1][i]
+			st.set_normal(na); st.add_vertex(a)
+			st.set_normal(nb); st.add_vertex(b)
+			st.set_normal(nc); st.add_vertex(c)
+			st.set_normal(na); st.add_vertex(a)
+			st.set_normal(nc); st.add_vertex(c)
+			st.set_normal(nd); st.add_vertex(d)
+
+	# West cap — the dead end of the adit, a fan from the last ring to its centre.
+	var cap_c := Vector3(pos.x - half_l, floor_y + GALLERY_H_SPRING * 0.9, pos.z)
+	var cap_n := Vector3(1.0, 0.0, 0.0)   # faces back down the gallery, into the room
+	for i in range(rings - 1):
+		st.set_normal(cap_n); st.add_vertex(cap_c)
+		st.set_normal(cap_n); st.add_vertex(pts[0][i + 1])
+		st.set_normal(cap_n); st.add_vertex(pts[0][i])
+
+	var mesh: ArrayMesh = st.commit()
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceGalleryShell"
+	mi.mesh = mesh
+	var mat: StandardMaterial3D = _make_cave_material(COLOR_BORDER).duplicate()
+	# Seen only from inside, and a winding mistake here would make the whole room
+	# vanish rather than look wrong. At ~1.7k triangles the doubled overdraw is free,
+	# and the explicit normals above mean lighting does not depend on the winding.
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	add_child(mi)
+	# No collision on purpose. The backing boxes already carry it, and a trimesh of
+	# DISPLACED rock is precisely the shape a player snags on — the doorway saga of
+	# 2026-08-08 was three chained bugs of exactly that kind. Rock you can see and
+	# cannot catch on beats rock that is honest and traps you.
+
+
 func _build_entrance(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
 	# Misma cota que usó el tallado del terreno. Recalcularla acá a partir de pos.y
@@ -2020,6 +2159,17 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	# material, so the baseline is byte-identical to what shipped.
 	floor_box.material_override = _make_ballast_material()
 
+	# The boxes stay at every finish level, and above level 1 they stop being the
+	# visible surface and become BACKING. They are 1 m thick and solid, and that
+	# thickness is load-bearing in a way the first shell attempt missed: it plugs the
+	# space between the room and the carved trench. A zero-thickness shell on its own
+	# let the prairie show through around the portal — measured, not guessed, by
+	# shooting 01_inside_to_portal at level 1 and level 3 side by side.
+	#
+	# They also keep the collision. The vault dips to the springing line at the walls
+	# while the box ceiling stays flat at h, so a player cannot bump the rock they can
+	# see up there — an acceptable trade at a ceiling nobody touches, and far cheaper
+	# than a trimesh of the displaced shell.
 	_add_cave_csg_box("EntranceRoof",
 		Vector3(pos.x, floor_y + h + t * 0.5, pos.z),
 		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
@@ -2033,21 +2183,53 @@ func _build_entrance(poi: POISystem.POI) -> void:
 		Vector3(pos.x - half_l - t * 0.5, floor_y + h * 0.5, pos.z),
 		Vector3(t, h, half_w * 2.0), COLOR_BORDER, true)
 
+	if ENTRANCE_FINISH >= 2:
+		# The excavated surface, built just inside the boxes. The boxes are what
+		# produced the 90-degree corners the owner kept naming, and no amount of
+		# texture reaches a silhouette, so the SECTION changes. Level 3 adds the
+		# displacement that makes it read hand-picked rather than bored — construction
+		# stage A of _entrance_antechamber.md.
+		var displace: float = 0.32 if ENTRANCE_FINISH >= 3 else 0.0
+		_build_gallery_shell(pos, floor_y, half_l, half_w, h, displace)
+
 	# ── Marcos de mina adentro ────────────────────────────────────────────────
 	# Sin esto la sala vuelve a ser una caja lisa: la roca sola no tiene escala, y
 	# 16 m de pared plana se leen igual de largos que 5. Los marcos repetidos son
 	# lo que da el ritmo y dice de una que esto es una galería apuntalada.
 	var set_post: float = 0.55
+	# Where the posts stand, and how tall, both follow the SECTION.
+	#
+	# Two wrong versions preceded this one, and both are worth naming. Posts sized for
+	# a flat ceiling stand BURIED once the ceiling curves, with their collar hanging in
+	# the open — the floating-pillar defect from the playtest, reintroduced by me the
+	# moment the vault landed. Then posts cut to the springing line put a 14 m collar
+	# beam at 1.55 m, dead level with the eye: three of those read as a plank wall
+	# across the room.
+	#
+	# The mistake behind both was borrowing the shape of a narrow gallery. A three-piece
+	# set spanning wall to wall is right for a 3 m drift; this is a 14 m CHAMBER, and
+	# what holds a chamber up is free-standing props inland of the walls, each cut to
+	# the rock directly above it. So the prop stands where the vault is still high, its
+	# height is SOLVED from the vault equation rather than typed, and the collar clears
+	# a head by metres instead of blocking the room.
+	var prop_z: float = half_w * 0.72
 	var set_h: float = h - 0.45
+	if ENTRANCE_FINISH >= 2:
+		set_h = _vault_y(prop_z, half_w, h) - 0.12   # 12 cm of bite into the rock
 	for i in range(3):
 		var sx: float = pos.x + (float(i) - 1.0) * 5.0
+		var post_z: float = (prop_z if ENTRANCE_FINISH >= 2 else half_w - set_post * 0.5 - 0.05)
 		for side in [-1.0, 1.0]:
 			_add_timber_box("EntranceSetPost%d%s" % [i, "N" if side < 0 else "S"],
-				Vector3(sx, floor_y + set_h * 0.5, pos.z + side * (half_w - set_post * 0.5 - 0.05)),
+				Vector3(sx, floor_y + set_h * 0.5, pos.z + side * post_z),
 				Vector3(set_post, set_h, set_post), COLOR_TIMBER, true)
+		# Collar spans post to post, not wall to wall: past the props there is no post
+		# to carry it, and a beam ending in mid-air is the defect this whole block is
+		# about.
+		var collar_len: float = (post_z * 2.0 + set_post if ENTRANCE_FINISH >= 2 else half_w * 2.0)
 		_add_timber_box("EntranceSetCap%d" % i,
 			Vector3(sx, floor_y + set_h + 0.22, pos.z),
-			Vector3(set_post, 0.45, half_w * 2.0), COLOR_TIMBER, false)
+			Vector3(set_post, 0.45, collar_len), COLOR_TIMBER, false)
 
 	# ── Fachada este: dos jambas dejando el vano, más el dintel ────────────────
 	# La estructura que tapa (jambas + dintel) es tablonería, no piedra: esto es un
@@ -5226,9 +5408,17 @@ const FINISH_TEX_PERIOD_M: float = 2.0
 ## already almost white (0.11) because _pbr_tint() pushes value to 1.0, so the
 ## saturation is arriving from the photograph itself plus the warm lanterns. A tint
 ## can only multiply, and multiplying never desaturates.
-static var ROCK_SAT: int = 1
+## Default 2 (x0.55): picked by the owner off the four-step ramp, 2026-08-19. Lands
+## the wall at saturation 0.53 — still warm the way the mine photographs are, without
+## the brick cast that x1.00 gave.
+static var ROCK_SAT: int = 2
 
 const ROCK_SAT_STEPS: Array[float] = [1.00, 0.75, 0.55, 0.40]
+
+## Springing line of the gallery vault: below it the wall is vertical, above it the
+## arch starts. Shared by the shell and by the timber sets that have to LAND on it —
+## two copies of this number is how a post ends up buried and its collar floating.
+const GALLERY_H_SPRING: float = 1.55
 
 
 func _finish_tex(slug: String, map: String) -> Texture2D:
