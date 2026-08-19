@@ -1039,7 +1039,15 @@ const ENTRANCE_TRENCH_FLAT: float = 12.0  # fondo plano frente al vano (>> 6.25 
 const ENTRANCE_TRENCH_HALF_W: float = 13.0
 const ENTRANCE_TRENCH_FLAT_W: float = 6.0 # mitad del ancho a profundidad completa
 const ENTRANCE_HALL_LEN: float = 16.0    # profundidad de la sala hacia el oeste
-const ENTRANCE_HALL_HALF_W: float = 7.0
+## Halved from 7.0 on 2026-08-19 (owner: "que se sienta más como un túnel, quizás de
+## un ancho se debía el cincuenta por ciento... que deje un poquito más grande que la
+## puerta"). 7 m of room around a 6 m doorway.
+##
+## It also repairs an argument I got wrong earlier: I rejected the classic wall-to-wall
+## mine set because a three-piece frame is for a narrow drift and this was a 14 m
+## chamber. At 7 m it IS a drift, and the set shape is right again — which is the point
+## of narrowing it, not a side effect. A tunnel and a hall want different carpentry.
+const ENTRANCE_HALL_HALF_W: float = 3.5
 const ENTRANCE_HALL_H: float = 4.5       # 2.5x la altura del jugador
 
 var _entrance_anchor: Vector3 = Vector3.ZERO
@@ -2007,6 +2015,50 @@ func _find_entrance_pos(pois: Array) -> Vector3:
 ##
 ## See docs/art/_references/mine_adit/ — mine_adit_hewn_horseshoe_rails_people is the
 ## one that settles the profile.
+## One angular chunk of spoil: a cube whose eight corners are each shoved somewhere
+## else, so every face stays FLAT and every edge stays sharp.
+##
+## This is the shape smooth noise cannot make. Displacing a grid gave soft dunes and
+## the owner read them as exactly that — rounded, sandy, wrong. Broken rock is facets
+## and edges, because it fractures rather than erodes, and a mine floor is the rock
+## that came out of the walls. Angularity is not a style choice here, it is what tells
+## you the stuff was BROKEN.
+func _rock_chunk_into(st: SurfaceTool, centre: Vector3, size: Vector3, seed_i: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31337 + seed_i
+	var yaw: float = rng.randf_range(0.0, TAU)
+	var basis := Basis(Vector3(0, 1, 0), yaw)
+	basis = basis.rotated(Vector3(1, 0, 0), rng.randf_range(-0.35, 0.35))
+	basis = basis.rotated(Vector3(0, 0, 1), rng.randf_range(-0.35, 0.35))
+
+	var corner := PackedVector3Array()
+	for i in range(8):
+		var c := Vector3(
+			-0.5 if (i & 1) == 0 else 0.5,
+			-0.5 if (i & 2) == 0 else 0.5,
+			-0.5 if (i & 4) == 0 else 0.5)
+		# Each corner wanders on its own: a uniform wobble would just make a smaller,
+		# rounder cube.
+		c += Vector3(rng.randf_range(-0.26, 0.26), rng.randf_range(-0.26, 0.26),
+			rng.randf_range(-0.26, 0.26))
+		corner.append(centre + basis * (c * size))
+
+	# Six quads, wound outward. No shared normals: flat shading IS the facet.
+	const FACES: Array = [[0,2,3,1],[4,5,7,6],[0,1,5,4],[2,6,7,3],[0,4,6,2],[1,3,7,5]]
+	for f in FACES:
+		var a: Vector3 = corner[f[0]]
+		var b: Vector3 = corner[f[1]]
+		var c2: Vector3 = corner[f[2]]
+		var d: Vector3 = corner[f[3]]
+		var n: Vector3 = (b - a).cross(c2 - a).normalized()
+		if n.dot(a - centre) < 0.0:
+			n = -n
+		for v in [a, b, c2, a, c2, d]:
+			st.set_normal(n)
+			st.set_uv(Vector2(v.x * 0.5, v.z * 0.5))
+			st.add_vertex(v)
+
+
 ## Rubble-and-mud relief laid over the flat floor box. Visual only: the box keeps the
 ## collision, because a walking surface with bumps in it is how a player trips on
 ## nothing they can see.
@@ -2064,6 +2116,31 @@ func _build_floor_relief(pos: Vector3, floor_y: float, half_l: float, half_w: fl
 	mi.mesh = st.commit()
 	mi.material_override = _make_ballast_material()
 	add_child(mi)
+
+	# Spoil on top of the swell. The graded surface alone reads as ground; the chunks
+	# are what say the ground is BROKEN ROCK. Weighted toward the walls, because that
+	# is where muck ends up once a floor gets walked: the middle wears to a path.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8402
+	var cst := SurfaceTool.new()
+	cst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in range(120):
+		var x: float = pos.x + rng.randf_range(-half_l, half_l)
+		# Push toward a wall: squaring a signed unit keeps the sign and thins the middle.
+		var u: float = rng.randf_range(-1.0, 1.0)
+		var z: float = pos.z + signf(u) * (u * u) * half_w * 0.96
+		var s: float = rng.randf_range(0.10, 0.34)
+		# Bedded, not set down and not buried. Resting exactly on the plane reads as an
+		# object placed on a floor; sunk to -0.16 of its size it flattened into brown
+		# patches, which is where the first correction landed. Just under a tenth proud
+		# keeps the facets catching light while the base disappears into the muck.
+		_rock_chunk_into(cst, Vector3(x, floor_y + s * 0.06, z),
+			Vector3(s, s * rng.randf_range(0.45, 0.8), s * rng.randf_range(0.7, 1.3)), k)
+	var chunks := MeshInstance3D.new()
+	chunks.name = "EntranceFloorSpoil"
+	chunks.mesh = cst.commit()
+	chunks.material_override = _make_cave_material(COLOR_BORDER)
+	add_child(chunks)
 
 
 ## A mine prop: a tree cut to length, not a piece of lumber.
@@ -2437,14 +2514,53 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	# horizontales trabadas contra los postes, no un muro labrado.
 	var x_face: float = pos.x + half_l + t * 0.5
 	var jamb_w: float = half_w - door_w * 0.5
-	for side in [-1.0, 1.0]:
-		_add_timber_box("EntranceJamb%s" % ("N" if side < 0 else "S"),
-			Vector3(x_face, floor_y + h * 0.5,
-				pos.z + side * (door_w * 0.5 + jamb_w * 0.5)),
-			Vector3(t, h, jamb_w), COLOR_TIMBER_DARK, true)
-	_add_timber_box("EntranceLintelFill",
-		Vector3(x_face, floor_y + door_h + (h - door_h) * 0.5, pos.z),
-		Vector3(t, h - door_h, door_w), COLOR_TIMBER_DARK, true)
+	if ENTRANCE_FINISH >= 3:
+		# Lagging as individual BOARDS, not one box with a plank photograph on it.
+		# That box was the last perfectly-made thing in the room, and the owner named
+		# the whole class: "todo lo que me hace es como muro, piedra, muralla, vigas,
+		# todo eso lo hace perfecto, y eso no es así en la vida real". A texture of
+		# planks on a flat slab is a picture of carpentry; boards of unequal width,
+		# each proud or shy of its neighbour by a centimetre and none quite plumb, is
+		# carpentry. The irregularity has to live in the GEOMETRY or it reads as
+		# wallpaper.
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 4711
+		for side in [-1.0, 1.0]:
+			var z0: float = pos.z + side * (door_w * 0.5)
+			var laid: float = 0.0
+			var n: int = 0
+			while laid < jamb_w - 0.02 and n < 24:
+				var bw: float = minf(rng.randf_range(0.18, 0.38), jamb_w - laid)
+				_add_timber_box("EntranceLag%s%d" % ["N" if side < 0 else "S", n],
+					Vector3(x_face + rng.randf_range(-0.05, 0.05),
+						floor_y + h * 0.5 + rng.randf_range(-0.04, 0.04),
+						z0 + side * (laid + bw * 0.5)),
+					Vector3(t * rng.randf_range(0.75, 1.0), h + rng.randf_range(-0.12, 0.0),
+						bw * 0.94), COLOR_TIMBER_DARK, true)
+				laid += bw
+				n += 1
+		# The panel over the door, boarded the same way but laid flat.
+		var over_h: float = h - door_h
+		var stacked: float = 0.0
+		var m: int = 0
+		while stacked < over_h - 0.02 and m < 16:
+			var bh: float = minf(rng.randf_range(0.16, 0.34), over_h - stacked)
+			_add_timber_box("EntranceLagOver%d" % m,
+				Vector3(x_face + rng.randf_range(-0.05, 0.05),
+					floor_y + door_h + stacked + bh * 0.5, pos.z + rng.randf_range(-0.05, 0.05)),
+				Vector3(t * rng.randf_range(0.75, 1.0), bh * 0.94,
+					door_w + rng.randf_range(-0.2, 0.1)), COLOR_TIMBER_DARK, true)
+			stacked += bh
+			m += 1
+	else:
+		for side in [-1.0, 1.0]:
+			_add_timber_box("EntranceJamb%s" % ("N" if side < 0 else "S"),
+				Vector3(x_face, floor_y + h * 0.5,
+					pos.z + side * (door_w * 0.5 + jamb_w * 0.5)),
+				Vector3(t, h, jamb_w), COLOR_TIMBER_DARK, true)
+		_add_timber_box("EntranceLintelFill",
+			Vector3(x_face, floor_y + door_h + (h - door_h) * 0.5, pos.z),
+			Vector3(t, h - door_h, door_w), COLOR_TIMBER_DARK, true)
 
 	# ── Entibado: el marco de mina que se lee en silueta ──────────────────────
 	# El marco NO va pegado a la fachada. La costura de la loma cae en mouth.x + 1.0
@@ -2503,8 +2619,13 @@ func _build_entrance(poi: POISystem.POI) -> void:
 		var lantern: OmniLight3D = OmniLight3D.new()
 		lantern.name = "EntranceLanternLight%s" % ("N" if side < 0 else "S")
 		lantern.light_color = Color(1.0, 0.80, 0.55)
-		lantern.light_energy = 4.0
-		lantern.omni_range = 16.0
+		# 16 m of range in a 16 m room lit every corner evenly, which is the opposite
+		# of what a lamp does and what the reference photographs show: pools with black
+		# between them. Pulled back so the light falls off inside the room and the
+		# darkness has somewhere to live. Energy up to keep the pool itself bright —
+		# a dimmer even light would just be a duller even light.
+		lantern.light_energy = 6.5
+		lantern.omni_range = 9.0
 		lantern.position = lantern_pos
 		add_child(lantern)
 

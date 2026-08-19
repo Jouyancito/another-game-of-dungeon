@@ -78,6 +78,35 @@ jugador:
 | **B — apuntalada** | 3-4 | marcos regulares y bien cortados, tablonería completa, piso emparejado | el ritmo: los marcos se repiten a paso constante |
 | **C — obra de ingeniería** | 5 | túnel con bóveda construida, luminarias fijas, revestimiento | la roca ya no se ve: la obra la tapa |
 
+**Rieles y durmientes: recién en B** (Joan, 2026-08-19). Aparecen en las cuatro fotos
+de mina de `_references/mine_adit/` y son la firma más fuerte de "esto lo hizo
+alguien" — precisamente por eso **no van en el piso 1**. Un socavón picado a mano es
+anterior a que alguien invierta en vía. Ponerlos en la etapa A gastaría de una la
+señal que tiene que aparecer cuando el jugador sube.
+
+### Ancho: 7 m, no 14 (Joan, 2026-08-19)
+
+> *"que se sienta más como un túnel, quizás de un ancho se debía el cincuenta por
+> ciento... que deje un poquito más grande que la puerta"*
+
+`ENTRANCE_HALL_HALF_W` 7.0 → 3.5. Siete metros de sala alrededor de un vano de seis.
+
+Y arregla un razonamiento que yo había hecho mal: descarté el marco de mina clásico
+—postes de pared a pared con su collar— porque un marco de tres piezas es de galería
+angosta y esto era una sala de 14 m. **A 7 m ES una galería.** Un túnel y un salón
+piden carpintería distinta; angostarlo es el punto, no un efecto secundario.
+
+### La regla que atraviesa todo esto
+
+> Joan, 2026-08-19: *"todo lo que me hace es como muro, piedra, muralla, vigas, todo
+> eso lo hace perfecto, y eso no es así en la vida real"*
+
+**La irregularidad tiene que vivir en la GEOMETRÍA.** Una textura de tablas sobre una
+losa plana es una foto de carpintería, no carpintería: se lee como empapelado. Vale
+igual para el cascote (ruido suave da dunas, no roca partida — la piedra se fractura,
+no se erosiona) y para el entablado (tablas de anchos distintos, cada una un
+centímetro adelantada o atrasada respecto a la vecina, ninguna a plomo).
+
 Es un **termómetro narrativo**: el jugador lee cuánto avanzó la civilización en la torre por
 cómo está hecha la puerta, sin que nadie se lo cuente. Encaja con el modelo
 Descubrimiento → Conquista → Civilización de `_world_seeds_postalpha.md`.
