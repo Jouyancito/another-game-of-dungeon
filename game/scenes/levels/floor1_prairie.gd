@@ -2007,6 +2007,185 @@ func _find_entrance_pos(pois: Array) -> Vector3:
 ##
 ## See docs/art/_references/mine_adit/ — mine_adit_hewn_horseshoe_rails_people is the
 ## one that settles the profile.
+## Rubble-and-mud relief laid over the flat floor box. Visual only: the box keeps the
+## collision, because a walking surface with bumps in it is how a player trips on
+## nothing they can see.
+##
+## The dish toward one side is not decoration either — an adit drains, water being the
+## first problem a real mine has, so the floor falls to a ditch along one wall.
+func _build_floor_relief(pos: Vector3, floor_y: float, half_l: float, half_w: float) -> void:
+	const NX := 30
+	const NZ := 26
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.42        # ~2.4 m lumps: heaped spoil, not a pebbled surface
+	noise.fractal_octaves = 3
+	noise.seed = 5150
+	# Amplitude was 0.075 m on the first pass and simply did not read: at eye height a
+	# grazing light over 7 cm of relief shades almost identically to a plane, and the
+	# owner still called the floor smooth. 0.18 m is the smallest that casts visible
+	# shadow from a lantern at this height, and it stays well under the 0.35 m step a
+	# player can no longer walk up — the relief is decoration, the box is the floor.
+	var amp: float = 0.18
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rows: Array[PackedVector3Array] = []
+	for j in range(NZ + 1):
+		var tz: float = float(j) / float(NZ)
+		var z: float = pos.z - half_w + (2.0 * half_w) * tz
+		var row := PackedVector3Array()
+		for i in range(NX + 1):
+			var x: float = pos.x - half_l + (2.0 * half_l) * float(i) / float(NX)
+			# Cross-fall to the north wall, deepening into a shallow ditch in the last
+			# metre and a half.
+			var across: float = (z - (pos.z - half_w)) / (2.0 * half_w)
+			var fall: float = -0.10 * (1.0 - across)
+			var ditch: float = -0.16 * smoothstep(0.13, 0.0, across)
+			var lump: float = noise.get_noise_2d(x, z) * amp
+			# Flatten toward the rim so the relief meets the walls and the doorway on
+			# the same level the box does.
+			var rim: float = smoothstep(0.0, 0.10, minf(across, 1.0 - across))
+			row.append(Vector3(x, floor_y + 0.02 + (fall + ditch + lump) * rim, z))
+		rows.append(row)
+
+	for j in range(NZ):
+		for i in range(NX):
+			var a: Vector3 = rows[j][i]
+			var b: Vector3 = rows[j][i + 1]
+			var c: Vector3 = rows[j + 1][i + 1]
+			var d: Vector3 = rows[j + 1][i]
+			st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+			st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+	st.generate_normals()
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceFloorRelief"
+	mi.mesh = st.commit()
+	mi.material_override = _make_ballast_material()
+	add_child(mi)
+
+
+## A mine prop: a tree cut to length, not a piece of lumber.
+##
+## The boxes this replaces read as milled timber — "material muy caro para lo que
+## son" (owner, 2026-08-19), and he is right about the economics. A mine takes the
+## trunk that HOLDS; nobody planes it, and the bark often stays on. village_palisade
+## says the same thing about real stockades: thick, ROUND, axe-cut tops whose height
+## staggers log to log.
+##
+## Two properties do the work here, and both are structural rather than decorative:
+##
+##   * UVs run V ALONG THE AXIS, so the grain follows the piece. Under the triplanar
+##     mapping used everywhere else the grain comes from world space, which gave the
+##     collar beam the same grain as the posts holding it up. That is not merely
+##     repetitive, it is impossible: timber is far stronger along the grain than
+##     across it, and a beam grained crosswise splits under its own load. Grain
+##     direction is a claim about how the piece carries weight.
+##   * Every log is DIFFERENT. Radius, taper, lean and grain offset all come off the
+##     seed, because a stand of identical props is the "puestos ahí nomás" the owner
+##     named — pieces imported into a place rather than cut for it.
+func _add_log(node_name: String, base_pos: Vector3, axis: Vector3, length: float,
+		radius: float, seed_i: int) -> MeshInstance3D:
+	const SIDES := 9          # enough to lose the box silhouette, few enough to stay M3
+	const RINGS := 4
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77000 + seed_i
+
+	var taper: float = rng.randf_range(0.80, 0.93)     # trees narrow toward the top
+	var lean: float = rng.randf_range(-0.035, 0.035)   # nothing stands perfectly plumb
+	var v_off: float = rng.randf()                     # grain does not start at the same knot
+
+	var up: Vector3 = axis.normalized()
+	var side: Vector3 = up.cross(Vector3(0, 1, 0))
+	if side.length_squared() < 0.001:
+		side = up.cross(Vector3(1, 0, 0))
+	side = side.normalized()
+	var fwd: Vector3 = up.cross(side).normalized()
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts: Array[PackedVector3Array] = []
+	for r in range(RINGS + 1):
+		var t: float = float(r) / float(RINGS)
+		var rad: float = radius * lerpf(1.0, taper, t) * rng.randf_range(0.94, 1.06)
+		var centre: Vector3 = base_pos + up * (length * t) + side * (lean * length * t)
+		var row := PackedVector3Array()
+		for i in range(SIDES):
+			var a: float = TAU * float(i) / float(SIDES)
+			var knot: float = 1.0 + sin(a * 3.0 + t * 5.0) * 0.05   # shallow flutes, like bark
+			row.append(centre + (side * cos(a) + fwd * sin(a)) * rad * knot)
+		pts.append(row)
+
+	for r in range(RINGS):
+		for i in range(SIDES):
+			var i2: int = (i + 1) % SIDES
+			var a: Vector3 = pts[r][i]
+			var b: Vector3 = pts[r][i2]
+			var c: Vector3 = pts[r + 1][i2]
+			var d: Vector3 = pts[r + 1][i]
+			# U wraps the girth, V climbs the length: the grain runs with the trunk.
+			var u1: float = float(i) / float(SIDES)
+			var u2: float = float(i + 1) / float(SIDES)
+			var v1: float = v_off + (length * float(r) / float(RINGS)) * 0.55
+			var v2: float = v_off + (length * float(r + 1) / float(RINGS)) * 0.55
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(a)
+			st.set_uv(Vector2(u2, v1)); st.add_vertex(b)
+			st.set_uv(Vector2(u2, v2)); st.add_vertex(c)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(a)
+			st.set_uv(Vector2(u2, v2)); st.add_vertex(c)
+			st.set_uv(Vector2(u1, v2)); st.add_vertex(d)
+
+	# Axe-cut ends, capped flat. Not cones: village_palisade is explicit that a real
+	# cut is a shallow rough facet and that a row of tidy cones was the tell of an
+	# invented shape.
+	for r in [0, RINGS]:
+		var n: Vector3 = (up if r == RINGS else -up)
+		var centre2: Vector3 = base_pos + up * (length * float(r) / float(RINGS)) \
+			+ side * (lean * length * float(r) / float(RINGS))
+		for i in range(SIDES):
+			var i2: int = (i + 1) % SIDES
+			st.set_normal(n); st.set_uv(Vector2(0.5, 0.5)); st.add_vertex(centre2)
+			if r == RINGS:
+				st.set_uv(Vector2(0.5, 0.0)); st.add_vertex(pts[r][i])
+				st.set_uv(Vector2(0.5, 1.0)); st.add_vertex(pts[r][i2])
+			else:
+				st.set_uv(Vector2(0.5, 0.0)); st.add_vertex(pts[r][i2])
+				st.set_uv(Vector2(0.5, 1.0)); st.add_vertex(pts[r][i])
+
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = st.commit()
+	mi.material_override = _make_log_material(seed_i)
+	add_child(mi)
+	return mi
+
+
+## Bark, not sawn boards, and NOT triplanar: the log carries its own UVs so the grain
+## goes where the mesh says. A small per-log tint keeps two neighbours from reading as
+## the same tree twice.
+func _make_log_material(seed_i: int) -> StandardMaterial3D:
+	var key: int = seed_i % 4
+	if _log_mats.has(key):
+		return _log_mats[key]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 91000 + key
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color.from_hsv(0.075 + rng.randf_range(-0.012, 0.012),
+		0.30 * 0.35, rng.randf_range(0.86, 1.0))
+	mat.metallic = 0.0
+	mat.albedo_texture = _finish_tex("bark_brown_01", "diff")
+	mat.normal_enabled = true
+	mat.normal_texture = _finish_tex("bark_brown_01", "nor")
+	mat.roughness_texture = _finish_tex("bark_brown_01", "rough")
+	_log_mats[key] = mat
+	return mat
+
+
+var _log_mats: Dictionary = {}
+
+
 ## Height of the vault directly above `z`, in metres over the floor. The single place
 ## the arch is solved, so anything that has to LAND on the rock — a prop, a lamp
 ## bracket, a hanging root — asks instead of assuming. Assuming is what buried one set
@@ -2159,6 +2338,13 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	# material, so the baseline is byte-identical to what shipped.
 	floor_box.material_override = _make_ballast_material()
 
+	if ENTRANCE_FINISH >= 3:
+		# A mine floor is rubble and mud, never a plane. The box keeps the collision —
+		# a displaced walking surface is how a player trips on nothing — and this rides
+		# 2 cm above it purely as relief, dished toward one side because a real adit
+		# drains: water is a mine's first problem, and the floor slopes to the ditch.
+		_build_floor_relief(pos, floor_y, half_l, half_w)
+
 	# The boxes stay at every finish level, and above level 1 they stop being the
 	# visible surface and become BACKING. They are 1 m thick and solid, and that
 	# thickness is load-bearing in a way the first shell attempt missed: it plugs the
@@ -2219,17 +2405,31 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	for i in range(3):
 		var sx: float = pos.x + (float(i) - 1.0) * 5.0
 		var post_z: float = (prop_z if ENTRANCE_FINISH >= 2 else half_w - set_post * 0.5 - 0.05)
-		for side in [-1.0, 1.0]:
-			_add_timber_box("EntranceSetPost%d%s" % [i, "N" if side < 0 else "S"],
-				Vector3(sx, floor_y + set_h * 0.5, pos.z + side * post_z),
-				Vector3(set_post, set_h, set_post), COLOR_TIMBER, true)
-		# Collar spans post to post, not wall to wall: past the props there is no post
-		# to carry it, and a beam ending in mid-air is the defect this whole block is
-		# about.
-		var collar_len: float = (post_z * 2.0 + set_post if ENTRANCE_FINISH >= 2 else half_w * 2.0)
-		_add_timber_box("EntranceSetCap%d" % i,
-			Vector3(sx, floor_y + set_h + 0.22, pos.z),
-			Vector3(set_post, 0.45, collar_len), COLOR_TIMBER, false)
+		if ENTRANCE_FINISH >= 2:
+			# Round logs. Each post is cut to the rock ABOVE IT, so a set standing where
+			# the vault is lower is a shorter set — the frame answers to the excavation
+			# instead of being dropped into it.
+			for k in range(2):
+				var sgn: float = -1.0 if k == 0 else 1.0
+				var pz: float = pos.z + sgn * post_z
+				var post_h: float = _vault_y(post_z, half_w, h) - 0.12
+				_add_log("EntranceProp%d%d" % [i, k],
+					Vector3(sx, floor_y, pz), Vector3(0, 1, 0), post_h, 0.26, i * 2 + k)
+			# The collar is a log laid ACROSS, so its grain runs along the span it
+			# carries — the posts' grain runs vertically. Two pieces of the same tree
+			# used two different ways, which is the whole point.
+			var collar_y: float = floor_y + _vault_y(post_z, half_w, h) - 0.12
+			_add_log("EntranceCollar%d" % i,
+				Vector3(sx, collar_y, pos.z - post_z - 0.26), Vector3(0, 0, 1),
+				post_z * 2.0 + 0.52, 0.22, 60 + i)
+		else:
+			for side in [-1.0, 1.0]:
+				_add_timber_box("EntranceSetPost%d%s" % [i, "N" if side < 0 else "S"],
+					Vector3(sx, floor_y + set_h * 0.5, pos.z + side * post_z),
+					Vector3(set_post, set_h, set_post), COLOR_TIMBER, true)
+			_add_timber_box("EntranceSetCap%d" % i,
+				Vector3(sx, floor_y + set_h + 0.22, pos.z),
+				Vector3(set_post, 0.45, half_w * 2.0), COLOR_TIMBER, false)
 
 	# ── Fachada este: dos jambas dejando el vano, más el dintel ────────────────
 	# La estructura que tapa (jambas + dintel) es tablonería, no piedra: esto es un
