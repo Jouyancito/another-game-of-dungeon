@@ -70,6 +70,88 @@ MACRO = {
     "race": {"asian": 0.60, "caucasian": 0.25, "african": 0.15},
 }
 
+# ---------------------------------------------------------------------------
+# Detail targets -- the structure the macros cannot reach.
+#
+# The macros above set VOLUME (muscle, fat). Measured against the D2R
+# Barbarian, volume was never the deficit: chest came in at 1.05x the
+# reference. Structure was -- neck at 3.1x and a skull reading androgynous.
+# See _references/warrior_archetype/_synthesis.md (c.2) and (c.3).
+#
+# Raising muscle/weight to close that gap is the trap rule 5 of
+# _char_warrior_male_v1.md warns about: a body inflated until it feels solid
+# NAKED becomes a tank once equipment goes on. These targets add none of that
+# volume -- they change proportion and bone.
+#
+# Weights are a FIRST PASS, chosen from the isolated per-target response
+# measured in the sweep (see audit output). They are not calibrated thresholds;
+# the render is the judge and these move.
+# Pass 2. Pass 1 ran neck-height 0.70 / shoulder 0.55 and the render showed
+# the failure the numbers could not: the trapezius swallowed the head, which
+# reads as hunched shoulders, not mass. In D2R and Farkas the trapezius is
+# thick AND the head still sits clearly above it. Both dials roughly halved;
+# the thickening dials (depth/horiz) keep their weight because they add
+# girth without raising the shoulder line.
+#
+# Pass 4. Joan compared the full-weight neck against the plain body on the
+# profile and picked the plain one: "la v3 se ve rara". A ramp at 0/30/55/80/
+# 100% showed why -- it is not the girth, it is that at full weight the neck
+# SWALLOWS THE JAWLINE. In D2R and Farkas the neck is thick AND the jaw still
+# separates from it. NECK_SCALE is the single knob for that trade.
+NECK_SCALE = 0.55
+
+_NECK_FULL = {
+    "measure-neck-height-decr":   0.35,   # shorten the throat, +53.6 mm/unit
+    "neck-scale-depth-incr":      0.85,   # thicken front-to-back, +22.9 mm/unit
+    "neck-scale-horiz-incr":      1.00,   # thicken side-to-side, +4.2 mm/unit
+    "measure-shoulder-dist-incr": 0.30,   # trapezius mass, +49.8 mm/unit
+    "torso-muscle-dorsi-incr":    0.45,   # lat spread under the trapezius
+}
+NECK = {k: v * NECK_SCALE for k, v in _NECK_FULL.items()}
+
+# The six bony traits constant across D2R / Farkas / Arthur. All structure,
+# no expression -- a warrior face is a skull, not a mood.
+SKULL = {
+    "chin-bones-incr":            0.80,   # gonion reads as a corner
+    "chin-width-incr":            0.70,   # square, never pointed
+    "chin-prominent-incr":        0.45,
+    "chin-height-decr":           0.35,
+    "head-square":                0.45,   # cranial silhouette, FRONT view only
+    # THE BROW, take three. forehead-trans-forward was the wrong tool and it
+    # was measured wrong twice: it does not build a ridge, it pushes the whole
+    # frontal plane out, and it SATURATES past 0.50 -- the forehead angle went
+    # 71.3 deg (dial off) -> 75.0 (0.50) -> 74.9 (1.00), so raising it from
+    # 0.55 to 1.00 in pass 2 bought nothing and left a near-vertical forehead
+    # Joan clocked immediately ("parece un angulo de 90 grados xd").
+    #
+    # The ridge does exist, just not under a name containing "brow": pushing
+    # the eyebrow band forward and down while easing the forehead BACK carves
+    # a real supraorbital arch and lands the profile at 62.7 deg.
+    #
+    # Weight picked off a ramp, not guessed -- every dial I chose by hand this
+    # session came in too hot (neck 0.70, nubian 0.70, forehead 1.00, brow
+    # 0.85, four for four). Joan on the 0.85 build: "las cejas se ven muy
+    # voluptuosas". 0.30 is the gentlest step that still carves an arch;
+    # forehead angle lands at 67.1 deg against 62.7 at 0.85.
+    "eyebrows-trans-forward":     0.30,
+    "eyebrows-trans-down":        0.16,   # kept at the ramp's 0.45 x (f/0.85)
+    "forehead-trans-backward":    0.25,
+    # forehead-nubian-decr is DELIBERATELY ABSENT. At 0.70 it flattened the
+    # cranial vault into a bevelled box with a hard ridge running front to
+    # back -- a shape no skull has. Caught by Joan on the profile; the front
+    # view hid it completely. Isolated across five variants: dropping
+    # head-square changed nothing, dropping nubian restored the dome. So
+    # head-square stays (it is what reads square from the front, which was
+    # never the problem) and nubian goes to zero.
+    "nose-scale-horiz-incr":      0.70,   # thick dorsum, wide base
+    "nose-scale-depth-incr":      0.70,
+    "mouth-upperlip-volume-decr": 0.60,   # thin lip -- the second female tell
+    "mouth-lowerlip-volume-decr": 0.55,
+}
+
+DETAIL = dict(NECK)
+DETAIL.update(SKULL)
+
 
 def boot_mpfb():
     """MPFB installs as an extension, so its module is bl_ext.blender_org.mpfb.
@@ -103,6 +185,30 @@ def measured_height(obj):
     return max(zs) - min(zs)
 
 
+def apply_detail(obj):
+    """Load the detail targets onto the body.
+
+    set_target_value() only retunes a shape key that is already loaded -- on a
+    fresh human it silently does nothing and has_target() stays False, which
+    reads exactly like "this target has no effect". load_target() with the
+    resolved absolute path is the route that actually creates the key.
+    """
+    from mpfb.services.targetservice import TargetService
+
+    applied, missing = [], []
+    for name, weight in sorted(DETAIL.items()):
+        path = TargetService.target_full_path(name)
+        if not path or not os.path.isfile(path):
+            missing.append(name)
+            continue
+        TargetService.load_target(obj, path, weight=weight)
+        applied.append(name)
+    bpy.context.view_layer.update()
+    if missing:
+        raise RuntimeError("targets not found in MPFB data: %s" % ", ".join(missing))
+    return applied
+
+
 def build_human(height_param):
     from mpfb.services.humanservice import HumanService
     for ob in list(bpy.data.objects):
@@ -110,7 +216,12 @@ def build_human(height_param):
             bpy.data.objects.remove(ob, do_unlink=True)
     macro = dict(MACRO)
     macro["height"] = height_param
-    return HumanService.create_human(macro_detail_dict=macro)
+    obj = HumanService.create_human(macro_detail_dict=macro)
+    # Applied INSIDE the solve loop on purpose: shortening the neck changes
+    # stature, so a height solved on the plain macro body would drift once the
+    # details landed. Solve the body that actually ships.
+    apply_detail(obj)
+    return obj
 
 
 def solve_height():
@@ -199,9 +310,51 @@ def audit(obj):
     print("  luz brazo-torso %.3f m  (%s)"
           % (gap, "separado" if gap > 0.030 else "pegado — A-pose necesaria"))
 
+    # Neck and jaw -- the two structural deficits (c.2)/(c.3). Reported as raw
+    # measurements with NO pass/fail: the D2R reference silhouette includes
+    # pauldrons, so its 0.209 normalised width is not a threshold this naked
+    # body can be judged against. Rule 6 -- do not invent a gate to pass.
+    z_neck = (LANDMARKS["hombro"] + LANDMARKS["menton"]) / 2.0
+    neck = [c for c in co if abs(c.z - z_neck) < 0.012]
+    neck_w = 2.0 * max((abs(c.x) for c in neck), default=0.0)
+    neck_d = (max(c.y for c in neck) - min(c.y for c in neck)) if neck else 0.0
+    # The throat is FOUND, not assumed. Two earlier metrics keyed off the
+    # canon's menton=1.56 landmark and both returned zeros: jaw width came
+    # back 0.0000 m and head clearance came back negative on the BASELINE
+    # too -- at that height the widest geometry is the skull, not the jaw.
+    # A zero from a probe that cannot see the thing is not a measurement.
+    #
+    # Scan for the narrowest slice between chest and crown instead. That
+    # minimum IS the throat, wherever the morphs put it; the slice above it
+    # is the jaw, and how high it sits says whether the head still clears the
+    # shoulders.
+    prof = []
+    z = 1.30
+    while z <= 1.72:
+        sl = [abs(c.x) for c in co if abs(c.z - z) < 0.008]
+        if sl:
+            prof.append((z, 2.0 * max(sl)))
+        z += 0.005
+    z_throat, w_throat = min(prof, key=lambda p: p[1]) if prof else (0.0, 0.0)
+    above = [p for p in prof if p[0] > z_throat + 0.02]
+    jaw_w = max((w for _, w in above), default=0.0)
+
+    print("\n  --- estructura (SIN CALIBRAR — se reporta, no se aprueba) ---")
+    print("  cuello+trap    %.4f m   (%.3f de la altura)" % (neck_w, neck_w / h))
+    print("  cuello fondo   %.4f m" % neck_d)
+    print("  garganta       %.4f m ancho  @ z %.3f   (el punto mas angosto)"
+          % (w_throat, z_throat))
+    print("  mandibula      %.4f m   (lo mas ancho por encima de la garganta)"
+          % jaw_w)
+    print("  garganta/hombro %.3f    (mas alto = menos garganta)"
+          % (w_throat / span if span else 0.0))
+    print("  altura garganta %.3f m  (mas alto = cabeza mas hundida)" % z_throat)
+
     print("\n  dials: muscle %.2f · weight %.2f · age %.2f · proportions %.2f"
           % (MACRO["muscle"], MACRO["weight"], MACRO["age"], MACRO["proportions"]))
-    return {"height": h, "span": span, "verts": len(obj.data.vertices)}
+    print("  detail targets: %d cuello/trapecio · %d craneo" % (len(NECK), len(SKULL)))
+    return {"height": h, "span": span, "verts": len(obj.data.vertices),
+            "neck_w": neck_w, "neck_d": neck_d, "jaw_w": jaw_w}
 
 
 def bounds(obj):
@@ -246,12 +399,21 @@ def stage_and_render(obj):
     sc.collection.objects.link(cam)
     sc.camera = cam
 
+    # Head landmark drives the face shots: the skull targets are the point of
+    # this pass and no full-body frame can show whether a jaw reads square.
+    hz = LANDMARKS["menton"] + 0.10
+
     shots = [
         ("silhouette",    True,  need, (0.0, -4.0, mid), (90, 0, 0)),
         ("ortho_front",   True,  need, (0.0, -4.0, mid), (90, 0, 0)),
         ("ortho_profile", True,  need, (4.0, 0.0, mid), (90, 0, 90)),
         ("threequarter",  False, 50.0, (2.35, -3.05, mid + 0.62), (80, 0, 38)),
         ("player_eye",    False, 24.0, (0.9, -5.9, 1.65), (88.5, 0, 9)),
+        ("face_front",    False, 85.0, (0.0, -1.25, hz), (90, 0, 0)),
+        ("face_tresq",    False, 85.0, (0.72, -1.02, hz + 0.02), (90, 0, 35)),
+        ("face_profile",  False, 85.0, (1.25, 0.0, hz), (90, 0, 90)),
+        ("neck_tresq",    False, 60.0, (0.95, -1.35, LANDMARKS["hombro"]),
+         (92, 0, 35)),
     ]
 
     for label, ortho, val, loc, rot in shots:
@@ -289,6 +451,16 @@ def stage_and_render(obj):
 
 
 def main():
+    global DETAIL, RENDER_DIR
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    # The v1 body, for an A/B that isolates what the detail targets did. Two
+    # runs a week apart are not a comparison; two runs of the same script are.
+    baseline = "--no-detail" in argv
+    if baseline:
+        DETAIL = {}
+        RENDER_DIR = RENDER_DIR + "_baseline"
+        print("\n  MODO BASELINE — sin detail targets (reproduce v1)")
+
     boot_mpfb()
     print("\n  resolviendo altura...")
     obj = normalise(solve_height())
@@ -296,6 +468,10 @@ def main():
 
     stats = audit(obj)
     stage_and_render(obj)
+
+    if baseline:
+        print("\n  baseline: no se guarda .blend, solo renders + numeros")
+        return stats
 
     os.makedirs(OUT_DIR, exist_ok=True)
     blend = os.path.join(OUT_DIR, "char_warrior_male_mh.blend")

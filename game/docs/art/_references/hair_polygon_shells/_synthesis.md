@@ -38,5 +38,43 @@ Encaja con el canon del proyecto sin adaptación:
 ### Contra qué NO sirve
 No resuelve pelo largo con física ni barba. Para el guerrero — pelo corto o recogido bajo el trarilonko — es exactamente lo que hace falta.
 
+## Lote 2 — 2026-08-15: la técnica vista completa (corrige el lote 1)
+
+Joan volvió a grabar el video *"para que te des cuenta que no es solamente placas"*, después de
+que la primera implementación saliera rala y con placas volando sobre el cráneo. Sesión
+`2026-08-15_12-37-33`, 483 frames. Seis recortados y commiteados acá.
+
+| Archivo | Qué muestra |
+|---|---|
+| `shell_00193_paint_divisions.png` | La cáscara en blanco con trazos negros dibujados encima: se marcan las divisiones de mechones SOBRE la superficie continua |
+| `shell_00216_paint_side.png` | Lo mismo de perfil |
+| `shell_00299_shells_underside.png` | **La clave** — la cáscara vista desde abajo/adentro: pocas placas ENORMES, reverso blanco |
+| `shell_00311_shells_open.png` | Las cáscaras separadas: bordes recortados irregulares, no rectángulos |
+| `shell_00326_shells_stack.png` | Cómo se apilan, superpuestas como tejas |
+| `shell_00339_result_front.png` | Resultado final: pelo corto ondulado con volumen |
+
+### Lo que corrige
+
+El lote 1 se leyó como "placas anchas repartidas sobre el cráneo" y se implementó como **39
+tiras angostas de ancho constante** que avanzan por raycast. El video muestra otra cosa:
+
+1. **Pocas cáscaras GRANDES, no muchas tiras.** Del orden de 10-15, cada una cubriendo una
+   porción importante del cráneo. El nombre de la carpeta ya lo decía — *shells*, cáscaras.
+2. **El borde de cada cáscara está RECORTADO en forma irregular, y ese borde ES el mechón.**
+   El detalle no viene de una textura ni de subdividir: viene de la silueta del contorno.
+3. **Se solapan como tejas**, cada una montada sobre la anterior.
+4. **Sin textura alpha.** Se descartó explícitamente la vía UV + atlas de mechones + alpha que
+   se había propuesto el 2026-08-15: es la técnica de otro estilo (hair cards realistas) y acá
+   no hace falta. El color es un parámetro plano — en el video aparece la misma cabeza en
+   borgoña y en rubio.
+
+### Implicancia para el generador
+
+`gen_char_hair_plates.py` construye tiras de `SEGMENTS × STEP` de largo y `ROOT_W` de
+semi-ancho. Eso hay que reemplazarlo por cáscaras: superficies grandes conformadas al cráneo
+con contorno dentado. El **scalp cap** que se agregó el 2026-08-15 sigue siendo válido y de
+hecho se parece a la cáscara base del video (frames 65-171) — lo que falta es que las capas de
+encima sean cáscaras y no tiras.
+
 ## Fuente
 Grabación de pantalla de Joan, sesión `2026-08-13_03-24-14` (499 frames, Instagram). La sesión original **ya fue borrada** por la auto-limpieza de `capturar.ps1`, que conserva sólo las últimas 3. Estas hojas de contacto son la única copia sobreviviente.

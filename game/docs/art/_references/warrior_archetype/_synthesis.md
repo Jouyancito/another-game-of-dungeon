@@ -26,6 +26,8 @@ Por cada franquicia: 2-3 búsquedas desde ángulos distintos (wiki oficial, arte
 | 12 | `12_d2_barbarian_painted_fanart.png` | Diablo II — Barbarian (reinterpretación) | DeviantArt (vinn47) | Pintura dinámica, doble hacha, hombrera con cráneo, grito de batalla |
 | 13 | `13_general_armor_design_sheet.jpg` | Género general — hoja de diseño de armadura | DeviantArt (lucasciama) | Turnaround front/back + desglose modular de casco/brazo/pierna — referencia de METODOLOGÍA modular, no de un personaje específico |
 | 14 | `14_general_dualaxe_sketch.png` | Género general — boceto guerrero | DeviantArt (RhoviArt) | Boceto de pose dinámica con doble hacha — lenguaje de silueta en acción |
+| 15 | `15_swordaxe_veteran_red_tabard.png` | Veterano espada+hacha | aportada por Joan 2026-08-15 | Cuerpo entero, barba llena, hombrera de placas asimétrica (solo izquierda), faldón/tabardo rojo con motivo, vendas rojas en antebrazo, botas altas con hebillas, DOS armas de perfil distinto |
+| 16 | `16_hammer_shield_braided_heavy.png` | Guerrero pesado martillo+escudo | aportada por Joan 2026-08-15 | Pose de acción, barba trenzada con anillos, armadura oscura pesada de placas grandes, escudo enorme con emblema grabado, grebas y hombreras sobredimensionadas |
 
 ## Síntesis — qué define visualmente a "guerrero" cruzando medios
 
@@ -52,3 +54,123 @@ Cruzando las 6 franquicias + los 4 referentes ya aprobados (Havel, Gyomei, Berse
 **Recomendación**: la base andina/mapuche ya fijada (azul andino `#2E4560`, plata oxidada `#B8B8B0`, rojo tierra `#6B2A20`) se ubica mejor en el límite **veterano-curtido / primitivo-tribal** — más cerca del lenguaje piel+metal-forjado de los Nord y el codificado vikingo de Gareth/D2 que de la placa pulida de Gazef o el dorado ceremonial de LOTR. Plata oxidada = metal "trabajado, no pulido" (dirección tribal-forjada), rojo tierra = acento disperso/adyacente-a-pintura-de-guerra en vez de heráldica en bloque, y el trarilonko como el ÚNICO marcador ornamentado contra una base plana y desgastada — un solo prop que lee la silueta, no ornamentación repartida.
 
 **Fuentes**: ver tabla de imágenes arriba. Investigación textual complementaria (personajes/clases exactos, verificación de nombres) corrida vía agente de research 2026-07-20 — no repetir la búsqueda, esta síntesis ya la incorpora.
+
+---
+
+## (b.2) Lote de Joan — 2026-08-15 (refs 15 y 16)
+
+Dos guerreros aportados por Joan, ambos del registro **veterano-curtido / primitivo-tribal**
+que (b) ya recomendaba. Confirman los seis universales de (a) y agregan tres cosas que las
+catorce anteriores no mostraban con esta claridad:
+
+1. **Asimetría de hombrera como decisión de diseño.** En la 15 hay placa en UN hombro y el
+   otro va descubierto. No es descuido: rompe la silueta, marca el brazo de arma, y abarata
+   el modelo a la mitad en la pieza más cara. El golem ya usa el mismo truco (hombro
+   izquierdo sobredimensionado como quiebre asimétrico) — es vocabulario del proyecto.
+2. **La barba es masa de silueta, no textura.** Ref 15 barba llena, ref 16 barba trenzada con
+   anillos. A tamaño de juego una barba lee como una forma que cuelga de la mandíbula y
+   ensancha el tercio inferior de la cabeza. Va como GEOMETRÍA, igual que las placas de pelo
+   y las cejas — no como valor pintado. Corrige lo que se asumió el 2026-08-13 desde el
+   primer plano de Arthur Morgan, donde la barba de tres días sí es valor: **rala se pinta,
+   llena se modela**, y el Warrior de Dungeon Party va con llena.
+3. **Dos armas de perfil distinto.** La 15 lleva espada Y hacha, la 16 martillo Y escudo. La
+   lectura a distancia sale del contraste entre las dos siluetas (una fina y larga, otra
+   ancha y pesada), no de la calidad de ninguna. Refuerza (a.3): el prop de identidad es lo
+   que se lee, y acá el prop es el PAR.
+
+**Paleta observada**: base negro/marrón oscuro con acento rojo tierra en tabardo y vendas
+(ref 15) — coincide con el `#6B2A20` ya fijado en el canon. La ref 16 es casi monocroma
+oscura, y su único quiebre es el emblema grabado del escudo.
+
+**Confirmación de (c.1)**: en ambas, la piel visible se reduce a rostro, cuello y una franja
+de antebrazo. La 15 muestra torso parcialmente descubierto — el registro tribal que (b)
+recomienda y que mantiene el torso en la lista de zonas expuestas.
+
+## (c) Generales ANATÓMICOS — el cuerpo debajo del equipo (2026-08-13)
+
+Las secciones (a) y (b) describen **vestuario, silueta y materiales**. No dicen nada del
+cuerpo, y `char_warrior_male` v1 es exactamente eso: un cuerpo desnudo. Esta sección cierra
+ese hueco, releyendo las mismas referencias por anatomía en vez de por indumentaria.
+
+Fuentes releídas para esto: `11_d2r_barbarian_official` (cuerpo casi entero visible),
+`07_skyrim_farkas` (armadura completa), `10_rdr_arthur_ingame_closeup` (rostro en primer
+plano), `13_general_armor_design_sheet` (turnaround front/back). Cuatro sujetos
+independientes, tres medios distintos.
+
+### c.1 — Lo que queda EXPUESTO es lo que hay que resolver
+
+En las tres referencias con equipo, la piel visible se reduce a cuatro zonas: **rostro,
+cuello, manos y antebrazos**. El design sheet lo hace explícito — el turnaround entero
+muestra tela y placa; lo único de carne son la cara, los dedos y una franja de antebrazo.
+
+Consecuencia directa de presupuesto: el detalle del cuerpo (torso, muslos, espalda) es
+esfuerzo que el jugador **nunca va a ver** una vez que haya equipo. El detalle de rostro,
+cuello y manos se ve **siempre**, y en primerísimo plano en pantallas de personaje.
+
+Excepción única: el registro primitivo-tribal (Barbarian D2) va con el torso desnudo por
+diseño. Si el Warrior de Dungeon Party adopta ese registro — que es el que (b) recomienda —
+el torso vuelve a la lista de zonas expuestas, pero **sólo el torso**, no las piernas.
+
+### c.2 — El guerrero NO tiene garganta
+
+Medición de silueta, ancho normalizado por altura total del sujeto:
+
+| Altura relativa | v1 (desnudo) | Barbarian D2R (equipado) | Ratio |
+|---|---|---|---|
+| cabeza · 0.06 | 0.081 | 0.101 | 1.25× |
+| cuello · 0.13 | **0.067** | **0.209** | **3.1×** |
+| hombro · 0.20 | 0.273 | 0.338 | 1.24× |
+| pecho · 0.27 | 0.339 | 0.355 | 1.05× |
+| cintura · 0.40 | 0.256 | 0.428 | 1.67× |
+| cadera · 0.48 | 0.194 | 0.431 | 2.22× |
+| muslo · 0.60 | 0.189 | 0.402 | 2.13× |
+
+La lectura del cuadro: **el pecho ya está bien** (1.05×). Es la confirmación independiente
+de la regla 5 de `_char_warrior_male_v1.md` — la masa maciza viene del equipo, y cintura,
+cadera y muslo son exactamente donde van el cinturón, el faldón y las botas.
+
+Pero el cuello NO se arregla con equipo. En las cuatro referencias la transición
+cabeza→hombro es continua: trapecio alto, esternocleidomastoideo grueso, **sin garganta
+visible**. Farkas y Arthur lo tienen incluso con la armadura y el cuello de la camisa
+puestos. El guerrero se lee poderoso desde el cuello para arriba, antes de cualquier prop.
+
+> Regla: la anatomía que hay que resolver en el CUERPO es cuello y trapecio.
+> Todo el resto de la masa la pone el equipo.
+
+### c.3 — La cara es estructura ósea, no expresión
+
+Cruzando Arthur (fotorrealista), Farkas (game art) y el Barbarian (concept), los rasgos
+constantes del rostro guerrero masculino son óseos, no de expresión:
+
+1. **Ceja proyectada** — el arco superciliar sobresale y arroja sombra sobre la cuenca. Es
+   el rasgo dimórfico más fuerte y el que más barato lee "masculino".
+2. **Mandíbula ancha, gonion marcado** — el ángulo de la mandíbula se ve como esquina, no
+   como curva. Mentón cuadrado y ancho, nunca en punta.
+3. **Nariz de dorso grueso**, base ancha. Ninguna de las tres es fina.
+4. **Labio delgado y sin saturación** — el labio lleno y rosado es el segundo tell femenino
+   después del mentón. En las tres refs el labio casi no se separa en valor de la piel.
+5. **Cejas presentes y pesadas.** Las tres las tienen. Un rostro sin cejas no lee humano
+   adulto, lee maniquí.
+6. **Zonas de piel con valores distintos** — Arthur tiene pómulos y nariz enrojecidos,
+   frente más clara, mentón más oscuro por la barba corta. La barba de pocos días es
+   **valor, no geometría**: se pinta, no se modela.
+
+### c.4 — El desgaste es lo que separa "personaje" de "maniquí"
+
+(a.5) ya lo dice para el equipo; a nivel de piel es lo mismo y es 100% textura: poros,
+arrugas de expresión grabadas (frontal, patas de gallo, surco nasogeniano), cicatrices,
+enrojecimiento en zonas de roce, mugre en los pliegues. Es lo que Arthur tiene y ninguna
+malla limpia puede fingir con luz.
+
+### c.5 — Aplicación al Warrior de Dungeon Party
+
+Orden de trabajo que sale de (c), de mayor a menor impacto perceptual:
+
+1. **Cuello + trapecio** (geometría, dial MPFB o esculpido) — el único déficit de cuerpo
+   que el equipo no tapa.
+2. **Estructura del rostro** (geometría): ceja, mandíbula, mentón, nariz, labio. Ningún
+   mapa de textura corrige un cráneo con proporción equivocada.
+3. **Cejas** (geometría o placas, mismo método que el pelo).
+4. **Textura de piel** (albedo + normal + roughness) con variación por zona y desgaste.
+5. Torso — sólo si se confirma el registro tribal con torso desnudo.
+6. Piernas y espalda — última prioridad, quedan cubiertas.
