@@ -2015,6 +2015,78 @@ func _find_entrance_pos(pois: Array) -> Vector3:
 ##
 ## See docs/art/_references/mine_adit/ — mine_adit_hewn_horseshoe_rails_people is the
 ## one that settles the profile.
+## Broken rock crowding the edge of the doorway, so the opening stops being a cut
+## rectangle.
+##
+## The owner asked for this directly — "esa puerta ojalá también sea irregular, que se
+## vea como una construcción no perfecta" — and it is the hardest of the perfect shapes
+## to lose, because a doorway is a HOLE: there is no surface to texture and no mesh to
+## displace. What can change is what crowds its edge. Nobody cuts a clean rectangle
+## through rock with hand tools; the hole ends where the rock decided to stop breaking,
+## and the rubble that came out of it sits in the corners.
+##
+## No collision, deliberately: the whole doorway saga of 2026-08-08 was three chained
+## bugs about geometry blocking a doorway, and the last thing this opening needs is
+## loose rock with hitboxes. Every piece bites at most 0.55 m off a 6 m span, so the
+## 1 m the player capsule wants is never in question.
+func _build_mouth_rag(pos: Vector3, floor_y: float, x_face: float,
+		door_w: float, door_h: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 60613
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	# Down each jamb: pieces eating inward by a varying amount, so the vertical edge
+	# wanders instead of ruling a line.
+	for k in range(2):
+		var sgn: float = -1.0 if k == 0 else 1.0
+		var y: float = 0.15
+		var n: int = 0
+		while y < door_h - 0.1 and n < 20:
+			# Sized against the SPAN, not against a comfortable-looking number. At
+			# 0.2-0.46 on a 6 m opening the pieces nibbled an edge that still read as
+			# ruled; a jamb has to lose its line, so the biggest bites take most of a
+			# metre. The player capsule wants 1 m and the opening keeps 4.4 at worst.
+			var s: float = rng.randf_range(0.34, 0.78)
+			var bite: float = rng.randf_range(0.02, 0.80)
+			_rock_chunk_into(st,
+				Vector3(x_face + rng.randf_range(-0.35, 0.35), floor_y + y,
+					pos.z + sgn * (door_w * 0.5 - bite)),
+				Vector3(s * 1.4, s, s), 400 + k * 40 + n)
+			y += rng.randf_range(0.22, 0.5)
+			n += 1
+
+	# Along the head of the opening, hanging down. A lintel of rock is never level:
+	# it follows the bed the roof happened to part along.
+	var z: float = -door_w * 0.5
+	var m: int = 0
+	while z < door_w * 0.5 and m < 22:
+		var s2: float = rng.randf_range(0.34, 0.80)
+		var drop: float = rng.randf_range(0.0, 0.70)
+		_rock_chunk_into(st,
+			Vector3(x_face + rng.randf_range(-0.35, 0.35), floor_y + door_h - drop,
+				pos.z + z),
+			Vector3(s2 * 1.4, s2, s2 * 1.3), 500 + m)
+		z += rng.randf_range(0.3, 0.62)
+		m += 1
+
+	# And spoil heaped in the two bottom corners, where nobody sweeps.
+	for k2 in range(2):
+		var sgn2: float = -1.0 if k2 == 0 else 1.0
+		for i in range(7):
+			var s3: float = rng.randf_range(0.16, 0.36)
+			_rock_chunk_into(st,
+				Vector3(x_face + rng.randf_range(-0.6, 0.6), floor_y + s3 * 0.15,
+					pos.z + sgn2 * (door_w * 0.5 - rng.randf_range(0.0, 0.9))),
+				Vector3(s3, s3 * 0.6, s3), 600 + k2 * 20 + i)
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceMouthRag"
+	mi.mesh = st.commit()
+	mi.material_override = _make_cave_material(COLOR_BORDER)
+	add_child(mi)
+
+
 ## One angular chunk of spoil: a cube whose eight corners are each shoved somewhere
 ## else, so every face stays FLAT and every edge stays sharp.
 ##
@@ -2576,22 +2648,48 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	# se ve el travesaño contra el cielo desde el otro lado de la pradera.
 	var post_h: float = door_h + 1.8
 	var post_z: float = door_w * 0.5 + post_side * 0.5 + 0.1
-	for side in [-1.0, 1.0]:
-		_add_timber_box("EntrancePost%s" % ("N" if side < 0 else "S"),
-			Vector3(x_frame, floor_y + post_h * 0.5, pos.z + side * post_z),
-			Vector3(post_side, post_h, post_side), COLOR_TIMBER, true)
+	if ENTRANCE_FINISH >= 3:
+		# The headframe in logs. It was the most conspicuously milled thing left
+		# outside — square posts, a square beam, square braces, all plumb — and it is
+		# the FIRST structure a player ever sees, at the mouth, against the sky. A
+		# bocamina is trunks stood up and lashed: nothing is square, nothing is plumb,
+		# and the two posts are not the same tree.
+		for k in range(2):
+			var sgn: float = -1.0 if k == 0 else 1.0
+			_add_log("EntrancePost%d" % k,
+				Vector3(x_frame, floor_y, pos.z + sgn * post_z),
+				Vector3(0, 1, 0), post_h, 0.36, 200 + k)
+			# Brace: the angle is what says this is CARRYING something. Without it the
+			# frame is a U and reads as a prop from a set.
+			var ang: float = deg_to_rad(38.0)
+			_add_log("EntranceBrace%d" % k,
+				Vector3(x_frame, floor_y + post_h - 2.1, pos.z + sgn * (post_z - 0.15)),
+				Vector3(0.0, cos(ang), -sgn * sin(ang)), 2.3, 0.17, 210 + k)
+		# Head beam laid across, grain along its span, overhanging both posts the way
+		# a log cut long does — nobody trims the ends flush on a mine portal.
+		_add_log("EntranceHeadBeam",
+			Vector3(x_frame, floor_y + post_h + 0.32, pos.z - post_z - 1.45),
+			Vector3(0, 0, 1), post_z * 2.0 + 2.9, 0.30, 220)
+	else:
+		for side in [-1.0, 1.0]:
+			_add_timber_box("EntrancePost%s" % ("N" if side < 0 else "S"),
+				Vector3(x_frame, floor_y + post_h * 0.5, pos.z + side * post_z),
+				Vector3(post_side, post_h, post_side), COLOR_TIMBER, true)
 
-		# Tornapunta: sin ella el marco es una U y se lee como utilería. El ángulo
-		# es lo que dice "esto está aguantando peso".
-		var brace: CSGBox3D = _add_timber_box("EntranceBrace%s" % ("N" if side < 0 else "S"),
-			Vector3(x_frame, floor_y + post_h - 1.25, pos.z + side * (post_z - 0.62)),
-			Vector3(0.42, 1.9, 0.36), COLOR_TIMBER, false)
-		brace.rotation.x = -side * deg_to_rad(38.0)
+			# Tornapunta: sin ella el marco es una U y se lee como utilería. El ángulo
+			# es lo que dice "esto está aguantando peso".
+			var brace: CSGBox3D = _add_timber_box("EntranceBrace%s" % ("N" if side < 0 else "S"),
+				Vector3(x_frame, floor_y + post_h - 1.25, pos.z + side * (post_z - 0.62)),
+				Vector3(0.42, 1.9, 0.36), COLOR_TIMBER, false)
+			brace.rotation.x = -side * deg_to_rad(38.0)
 
-	# Viga cabecera, apoyada sobre los postes y volando un poco a cada lado.
-	_add_timber_box("EntranceHeadBeam",
-		Vector3(x_frame, floor_y + post_h + 0.4, pos.z),
-		Vector3(0.95, 0.8, door_w + 2.9), COLOR_TIMBER, true)
+		# Viga cabecera, apoyada sobre los postes y volando un poco a cada lado.
+		_add_timber_box("EntranceHeadBeam",
+			Vector3(x_frame, floor_y + post_h + 0.4, pos.z),
+			Vector3(0.95, 0.8, door_w + 2.9), COLOR_TIMBER, true)
+
+	if ENTRANCE_FINISH >= 3:
+		_build_mouth_rag(pos, floor_y, x_face, door_w, door_h)
 
 	# Umbral: marca dónde termina la trinchera y empieza el piso construido.
 	_add_timber_box("EntranceSill",
