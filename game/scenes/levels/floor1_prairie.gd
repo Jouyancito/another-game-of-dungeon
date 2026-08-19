@@ -2011,9 +2011,12 @@ func _build_entrance(poi: POISystem.POI) -> void:
 	# COLOR_BORDER, no COLOR_ROCK: el gris neutro 0.502 es exactamente lo que se leía
 	# como hormigón (reportado 2026-08-01). La piedra de caverna ya existe en la
 	# paleta, es más cálida y más oscura, y hace juego con el borde del mapa.
-	_add_cave_csg_box("EntranceFloor",
+	var floor_box: CSGBox3D = _add_cave_csg_box("EntranceFloor",
 		Vector3(pos.x, floor_y - t * 0.5, pos.z),
 		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
+	# Gravel underfoot, not the wall rock. Below finish level 1 this returns the wall
+	# material, so the baseline is byte-identical to what shipped.
+	floor_box.material_override = _make_ballast_material()
 
 	_add_cave_csg_box("EntranceRoof",
 		Vector3(pos.x, floor_y + h + t * 0.5, pos.z),
@@ -5217,9 +5220,24 @@ func _finish_tex(slug: String, map: String) -> Texture2D:
 	return load(FINISH_TEX_DIR + "%s_%s_512.jpg" % [slug, map]) as Texture2D
 
 
+## Palette colour turned into a tint that MULTIPLIES a photo texture without
+## crushing it.
+##
+## Albedo tint times texture is a product, so feeding the raw palette colour in
+## darkens twice: COLOR_BORDER sits at value 0.345 and brown_mud_dry averages 0.45,
+## and 0.345 * 0.45 = 0.155 — which is exactly the 0.148 measured on the level-1
+## render, a room noticeably darker than the level-0 flat colour it replaced.
+##
+## So the value goes to 1.0 and the texture decides brightness. Saturation keeps a
+## third of the palette's, enough that COLOR_PILLAR and COLOR_ROCK still read as
+## different stone, not enough to fight the photograph. Hue is kept whole: it is
+## already right — measured against the reference set, our rock sits at 30 degrees
+## where real mine walls sit at 27 to 38 (docs/art/_references/mine_adit).
+func _pbr_tint(color: Color) -> Color:
+	return Color.from_hsv(color.h, color.s * 0.35, 1.0)
+
+
 ## Photographic albedo + normal + roughness, triplanar so CSG needs no UVs.
-## `color` stays as an albedo TINT so the existing palette still drives the mood —
-## the texture supplies detail, the palette supplies the hue.
 func _apply_pbr_set(mat: StandardMaterial3D, slug: String, period_m: float) -> void:
 	mat.albedo_texture = _finish_tex(slug, "diff")
 	mat.normal_enabled = true
@@ -5234,16 +5252,47 @@ func _apply_pbr_set(mat: StandardMaterial3D, slug: String, period_m: float) -> v
 	mat.uv1_scale = Vector3(s, s, s)
 
 
+## Loose gravel underfoot — the ballast a mine floor is made of. Split from the wall
+## material because the reference set is emphatic about where each belongs: every
+## photograph puts undulating rock on the walls and gravel on the FLOOR, between the
+## sleepers. One material for both is what made the room read as a single moulded
+## shell. Falls back to the wall material below level 1, so the ramp's baseline is
+## untouched.
+func _make_ballast_material() -> StandardMaterial3D:
+	if ENTRANCE_FINISH < 1:
+		return _make_cave_material(COLOR_BORDER)
+	if _ballast_mat != null:
+		return _ballast_mat
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = _pbr_tint(COLOR_BORDER)
+	mat.metallic = 0.0
+	# Tighter than the walls: gravel is small, and a 2 m period would blow single
+	# stones up to the size of a boot.
+	_apply_pbr_set(mat, "rocky_trail", 1.2)
+	_ballast_mat = mat
+	return mat
+
+
+var _ballast_mat: StandardMaterial3D = null
+
+
 func _make_cave_material(color: Color) -> StandardMaterial3D:
 	# Cache check — return existing material if this color was already built.
 	if _cave_mat_cache.has(color):
 		return _cave_mat_cache[color] as StandardMaterial3D
 
 	if ENTRANCE_FINISH >= 1:
+		# brown_mud_dry, NOT rocky_trail. Measured against the reference set: a mine
+		# wall is large undulation crossed by long cracks, and gravel appears only on
+		# the FLOOR as ballast — putting gravel on the wall is the exact opposite of
+		# what every photograph shows. brown_mud_dry also lands on the measured target
+		# by itself (H 32, S 0.46, V 0.45 against a reference average of H 27-38,
+		# S 0.45, V 0.50) and carries the most contrast of the candidates, 0.111
+		# against rocky_trail's 0.066.
 		var pbr: StandardMaterial3D = StandardMaterial3D.new()
-		pbr.albedo_color = color
+		pbr.albedo_color = _pbr_tint(color)
 		pbr.metallic = 0.0
-		_apply_pbr_set(pbr, "rocky_trail", FINISH_TEX_PERIOD_M)
+		_apply_pbr_set(pbr, "brown_mud_dry", FINISH_TEX_PERIOD_M)
 		_cave_mat_cache[color] = pbr
 		return pbr
 
@@ -5316,13 +5365,18 @@ func _make_timber_material(color: Color) -> StandardMaterial3D:
 
 	if ENTRANCE_FINISH >= 1:
 		var pbr: StandardMaterial3D = StandardMaterial3D.new()
-		pbr.albedo_color = color
+		pbr.albedo_color = _pbr_tint(color)
 		pbr.metallic = 0.0
-		# A shorter period than the rock: a pit prop is ~0.55 m across, so a 2 m
+		# brown_planks_03 over weathered_planks: 2.5x the contrast (0.100 against
+		# 0.040) and half a stop brighter (V 0.42 against 0.31). The weathered set
+		# measured almost flat, which is why the timber went unreadable in the first
+		# level-1 render — a plank with no contrast is a coloured box.
+		#
+		# And a shorter period than the rock: a pit prop is ~0.55 m across, so a 2 m
 		# tile would show a twelfth of the map on it and read as flat colour. At
-		# 1.1 m each post carries half a plank map, which is where the sawn edge
-		# and the splitting become visible at the size the piece is actually used.
-		_apply_pbr_set(pbr, "weathered_planks", 1.1)
+		# 1.1 m each post carries half a plank map, which is where the sawn edge and
+		# the splitting become visible at the size the piece is actually used.
+		_apply_pbr_set(pbr, "brown_planks_03", 1.1)
 		_timber_mat_cache[color] = pbr
 		return pbr
 

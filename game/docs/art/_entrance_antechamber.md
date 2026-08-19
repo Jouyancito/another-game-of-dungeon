@@ -65,6 +65,38 @@ jugador:
 | 1 — Pradera | madera de entibado, socavón de mina |
 | 2-5 | progresivamente más labrado / antiguo / ajeno — a definir |
 
+### Las tres etapas de obra (Joan, 2026-08-19) — el "a definir" resuelto
+
+> *"lo ideal sería que tuviera tres formas la antesala. Primero sería como una cueva bien
+> picada a mano, la segunda quizá ya con unos soportes más bonitos, y la tercera ya un
+> túnel hecho con techo, con luces, con antorchas, con todo, bien diseñado por humanos.
+> Esas tres etapas las podríamos dividir según qué tanto avanzan los primeros cinco pisos."*
+
+| etapa | pisos | qué es | qué la delata de un vistazo |
+|---|---|---|---|
+| **A — picada a mano** | 1-2 | socavón crudo. Roca irregular, entibado mínimo y desparejo, piso de escombro | ninguna superficie repetida, ningún ángulo recto en la roca |
+| **B — apuntalada** | 3-4 | marcos regulares y bien cortados, tablonería completa, piso emparejado | el ritmo: los marcos se repiten a paso constante |
+| **C — obra de ingeniería** | 5 | túnel con bóveda construida, luminarias fijas, revestimiento | la roca ya no se ve: la obra la tapa |
+
+Es un **termómetro narrativo**: el jugador lee cuánto avanzó la civilización en la torre por
+cómo está hecha la puerta, sin que nadie se lo cuente. Encaja con el modelo
+Descubrimiento → Conquista → Civilización de `_world_seeds_postalpha.md`.
+
+### ⚠️ Etapa de obra y nivel de acabado son EJES DISTINTOS
+
+La confusión es fácil y saldría cara, así que queda escrita:
+
+- **`ENTRANCE_FINISH` (0-3) = fidelidad de render.** Cuánta textura, cuánta irregularidad de
+  malla. Es **temporal**: existe para que el owner elija un punto sobre una rampa, y una vez
+  elegido se congela y la perilla desaparece.
+- **Etapa A/B/C = calidad de la obra EN EL MUNDO.** Es **permanente**, narrativa, y escala
+  con el piso.
+
+Un piso 1 en etapa A tiene que estar **groseramente construido y completamente renderizado**:
+roca picada a mano, con toda la textura y la luz que el motor pueda dar. Si las dos perillas
+se funden en una, "el piso 1 es tosco" se convierte en "el piso 1 está peor renderizado", que
+es un bug con cara de estilo.
+
 Encaja con el gradiente de realidad P1→P5 de `_world_seeds_postalpha.md` (familiar → imposible)
 y con §17 del canon: **silueta = geometría, superficie = textura**.
 
