@@ -21,8 +21,14 @@ extends Node3D
 ## Output: game/tools/godot/entrance_capture/*.png
 
 const OUT_DIR := "res://tools/godot/entrance_capture/"
+var _out_dir := OUT_DIR
 const SV_SIZE := Vector2i(1280, 720)
 const EYE := 1.7
+
+## Finish level under test (see floor1_prairie.ENTRANCE_FINISH). Shots land in a
+## per-level subfolder so the four runs of a ramp can sit side by side instead of
+## overwriting each other — comparing a ramp needs all of it on screen at once.
+var _finish := -1
 
 var _sv: SubViewport
 var _cam: Camera3D
@@ -34,12 +40,20 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			_seed = int(a.split("=", true, 1)[1])
+		elif a.begins_with("--finish="):
+			_finish = clampi(int(a.split("=", true, 1)[1]), 0, 3)
 
 	var win := get_window()
 	win.size = Vector2i(1, 1)
 	win.position = Vector2i(-4000, -4000)
 	win.set_flag(Window.FLAG_NO_FOCUS, true)
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
+	if _finish >= 0:
+		# The level parses --finish= itself, off the same command line, so nothing is
+		# assigned here — floor1_prairie.gd has no class_name to reach its static
+		# through, and routing one flag through two owners is how they drift apart.
+		# All this branch does is keep each level's shots in their own folder.
+		_out_dir = OUT_DIR + "finish_%d/" % _finish
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
 
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
@@ -440,7 +454,7 @@ func _ready() -> void:
 		Vector3(mouth_x + run * 1.1, surface + 26.0, anchor.z + 30.0),
 		Vector3(anchor.x, surface - 3.0, anchor.z))
 
-	print("[entrance_capture] DONE -> %s" % OUT_DIR)
+	print("[entrance_capture] DONE -> %s" % _out_dir)
 	get_tree().quit(0)
 
 
@@ -454,5 +468,5 @@ func _shot(name: String, eye: Vector3, look: Vector3) -> void:
 	if img == null:
 		print("[entrance_capture] [FATAL] %s: get_image() null" % name)
 		return
-	img.save_png(OUT_DIR + name + ".png")
+	img.save_png(_out_dir + name + ".png")
 	print("[entrance_capture] shot %s" % name)

@@ -348,6 +348,14 @@ var _crystal_ceiling: CrystalCeiling = null
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
+	# --finish=N picks the stone/timber finish level (see ENTRANCE_FINISH). Read here
+	# as well as in the capture harness so the ramp can be walked in the real game,
+	# not only shot from fixed cameras — a still hides what a step through the doorway
+	# shows. The harness sets the static directly and this parse is then a no-op.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--finish="):
+			ENTRANCE_FINISH = clampi(int(a.split("=", true, 1)[1]), 0, 3)
+
 	# Cargar escenas de enemigos nuevos
 	SCENE_RAT = load("res://scenes/enemy/rat.tscn")
 	SCENE_SNAKE = load("res://scenes/enemy/snake.tscn")
@@ -5182,10 +5190,62 @@ func _make_material(color: Color) -> Material:
 ##   - Normal map: a second NoiseTexture2D with as_normal_map=true provides real bump shading.
 ##   - Memo cache (_cave_mat_cache keyed by Color): repeated calls with the same color reuse
 ##     one material + one NoiseTexture2D pair instead of allocating dozens at load time.
+## Finish ramp for the floor-1 stone and timber, 0..3. Set from the command line
+## (`--finish=N`) so one build can be shot at four levels and compared; see
+## docs/art/_entrance_antechamber.md and the 2026-08-19 playtest.
+##
+##   0  procedural noise, box section       — what shipped, the baseline
+##   1  real textures, box section          — isolates what texture alone buys
+##   2  + excavated gallery section         — the box stops being a box
+##   3  + displaced rock, rubble, drainage  — the full mine reading
+##
+## Why a ramp and not one "better" version: the doubtful parameter is HOW MUCH
+## irregularity, and picking that number myself has a measured failure rate here —
+## on the warrior every one of five skin tones came back overcooked.
+static var ENTRANCE_FINISH: int = 3
+
+const FINISH_TEX_DIR := "res://assets/art/piso1_pradera/terrain/tex/"
+
+## Texture period in metres. A 512 px map over 2 m is 256 texels/m, which is the
+## target set before building; the noise it replaces ran one 128 px period every
+## 3 m, i.e. 43 texels/m — six times coarser, and the reason the walls read as
+## untextured even though a normal map was technically present.
+const FINISH_TEX_PERIOD_M: float = 2.0
+
+
+func _finish_tex(slug: String, map: String) -> Texture2D:
+	return load(FINISH_TEX_DIR + "%s_%s_512.jpg" % [slug, map]) as Texture2D
+
+
+## Photographic albedo + normal + roughness, triplanar so CSG needs no UVs.
+## `color` stays as an albedo TINT so the existing palette still drives the mood —
+## the texture supplies detail, the palette supplies the hue.
+func _apply_pbr_set(mat: StandardMaterial3D, slug: String, period_m: float) -> void:
+	mat.albedo_texture = _finish_tex(slug, "diff")
+	mat.normal_enabled = true
+	mat.normal_texture = _finish_tex(slug, "nor")
+	mat.normal_scale = 1.0
+	mat.roughness_texture = _finish_tex(slug, "rough")
+	mat.uv1_triplanar = true
+	mat.uv1_triplanar_sharpness = 4.0
+	# Triplanar UVs are world position * uv1_scale, so the map repeats every
+	# 1/uv1_scale metres.
+	var s: float = 1.0 / maxf(period_m, 0.01)
+	mat.uv1_scale = Vector3(s, s, s)
+
+
 func _make_cave_material(color: Color) -> StandardMaterial3D:
 	# Cache check — return existing material if this color was already built.
 	if _cave_mat_cache.has(color):
 		return _cave_mat_cache[color] as StandardMaterial3D
+
+	if ENTRANCE_FINISH >= 1:
+		var pbr: StandardMaterial3D = StandardMaterial3D.new()
+		pbr.albedo_color = color
+		pbr.metallic = 0.0
+		_apply_pbr_set(pbr, "rocky_trail", FINISH_TEX_PERIOD_M)
+		_cave_mat_cache[color] = pbr
+		return pbr
 
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = color
@@ -5253,6 +5313,18 @@ func _make_cave_material(color: Color) -> StandardMaterial3D:
 func _make_timber_material(color: Color) -> StandardMaterial3D:
 	if _timber_mat_cache.has(color):
 		return _timber_mat_cache[color] as StandardMaterial3D
+
+	if ENTRANCE_FINISH >= 1:
+		var pbr: StandardMaterial3D = StandardMaterial3D.new()
+		pbr.albedo_color = color
+		pbr.metallic = 0.0
+		# A shorter period than the rock: a pit prop is ~0.55 m across, so a 2 m
+		# tile would show a twelfth of the map on it and read as flat colour. At
+		# 1.1 m each post carries half a plank map, which is where the sawn edge
+		# and the splitting become visible at the size the piece is actually used.
+		_apply_pbr_set(pbr, "weathered_planks", 1.1)
+		_timber_mat_cache[color] = pbr
+		return pbr
 
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = color
