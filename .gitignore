@@ -53,6 +53,22 @@ game/tools/godot/_golem_*.png
 game/tools/godot/_t_*.png
 game/tools/blender/_pg_*.png
 game/tools/blender/_preview_golem.png
+# ...and their .import sidecars. The rule at the top of this file keeps .import
+# because it carries the import SETTINGS of a versioned asset; a sidecar for a
+# PNG that is itself ignored carries the settings of nothing, and 97 of them had
+# accumulated for renders no clone will ever have.
+game/tools/godot/_golem_*.png.import
+game/tools/godot/_t_*.png.import
+game/tools/blender/_pg_*.png.import
+game/tools/blender/_preview_golem.png.import
+
+# Per-asset judgment renders (_review_<asset>/): the frente/perfil/nuca/cenital
+# boards the modelling preflight demands before an asset is called done. They are
+# evidence for one verdict, regenerable from the .blend, and they weigh ~3.5 MB
+# per board — 41 MB over twelve assets on the warrior alone. Same doctrine as the
+# lookdev scratch below: the decision they settled belongs in the commit message
+# and in docs/art/, not in 180 PNGs. Curated renders/ boards DO stay versioned.
+game/tools/blender/_review_*/
 
 .atl/
 
