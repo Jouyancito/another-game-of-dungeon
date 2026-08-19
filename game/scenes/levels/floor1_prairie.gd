@@ -2907,12 +2907,35 @@ func _build_entrance_paving(mouth: Vector3, door_w: float) -> void:
 		for v in [v00, v10, v11, v00, v11, v01]:
 			st.set_uv(Vector2(v.x, v.z) * 0.35)
 			st.add_vertex(v)
+
+		# Skirts down both edges, to the terrain. PAVE_LIFT holds the strip 0.28 m
+		# clear of the ground so it does not fight the terrain's triangulation, and
+		# that gap is invisible from eye height — but the owner climbed the mound and
+		# saw the whole thing as a slab hovering over grass, because from above you
+		# look straight into the gap. A ribbon with sides is solid from every angle; a
+		# floating plane is only solid from the angles you happened to shoot.
+		for zz in [za, zb]:
+			var top_a := Vector3(xa, get_terrain_height(xa, zz) + PAVE_LIFT, zz)
+			var top_b := Vector3(xb, get_terrain_height(xb, zz) + PAVE_LIFT, zz)
+			# A little BELOW the terrain, not exactly on it: the same triangulation
+			# disagreement that forced the lift would otherwise open pinholes here.
+			var bot_a := Vector3(xa, get_terrain_height(xa, zz) - 0.15, zz)
+			var bot_b := Vector3(xb, get_terrain_height(xb, zz) - 0.15, zz)
+			for v in [top_a, bot_a, bot_b, top_a, bot_b, top_b]:
+				st.set_uv(Vector2(v.x + v.z, v.y) * 0.35)
+				st.add_vertex(v)
 	st.generate_normals()
 
 	var mi := MeshInstance3D.new()
 	mi.name = "EntrancePaving"
 	mi.mesh = st.commit()
-	mi.material_override = _make_cave_material(COLOR_BORDER)
+	# Duplicated so cull_disabled stays on the paving alone. The two skirts face
+	# opposite ways, so one of them is wound inward whatever order I emit; culling off
+	# costs nothing on a couple of hundred triangles and removes a whole class of
+	# "solid from one side only" bug.
+	var pave_mat: StandardMaterial3D = _make_cave_material(COLOR_BORDER).duplicate()
+	pave_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = pave_mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -5386,6 +5409,14 @@ func _mound_strip(st: SurfaceTool, xa: float, xb: float, za: float, zb: float,
 			# vano, que es justo lo que tiene que verse.
 			if absf((ax + bx) * 0.5 - seam_x) < MOUND_STEP * 1.5 \
 					and absf((az + bz) * 0.5 - mouth.z) < MOUND_DOOR_HALF:
+				# NOTE 2026-08-19: an attempt to close this cut with a vertical earth
+				# face was reverted. It went into the mound's own SurfaceTool, which
+				# gets one trimesh body, so the face arrived with collision and stood
+				# in the doorway — test_entrance_walkable named EntranceMoundBody at
+				# eight offsets across the opening. Anything closing this hole has to
+				# be a SEPARATE, collision-free mesh. The hole is also probably not
+				# the defect the owner is seeing from above; that was three guesses in
+				# a row and none of them moved the render.
 				continue
 			var v00 := Vector3(ax, _mound_height(ax, az, seam_x, mouth, notch_half), az)
 			var v10 := Vector3(bx, _mound_height(bx, az, seam_x, mouth, notch_half), az)
