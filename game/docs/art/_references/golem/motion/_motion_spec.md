@@ -720,3 +720,40 @@ Organized by priority (most critical to the animation build first):
 | `death_collapse` | HIGH | SotC + GoW troll death are ideal refs; canon decision documented |
 
 **Moves needing Joan's visual annex most urgently**: `root_snare` (channel posture), `lumber_walk` (hip-drop confirmation), `trunk_rip` (BFME clip).
+
+---
+
+## PO additions 2026-08-27 (Joan, over the v12-v14 Godot preview)
+
+These CLOSE the "open/unspecced" gaps above and add three new moves. General feel
+rule, verbatim: "que duela el golpe, pero que no sea tan dificil esquivar" — heavy,
+telegraphed, punishing but readable (consistent with the Nemesis-class pacing note).
+
+### Phase-1 basics — 3-hit combo (fills the unspecced single-arm punch)
+1. Basic 1: single-hand punch.
+2. Basic 2: alternates — punch with the OTHER hand.
+3. Basic 3: BOTH hands joined into one double-fist slam.
+
+### Spin attack (new)
+Heavy rotation: starts SLOW, accelerates a little, decelerates before stopping
+(ease-in -> short cruise -> ease-out). Never an instant spin.
+
+### Ground-drag rock throw (new)
+Drags an arm along the ground; the drag scoops and THROWS rocks forward (projectile
+fan). Telegraph = the drag itself.
+
+### Mini-golem summon — "el rezo" (new)
+Both palms turn UP in front of the torso at ABDOMEN height (prayer-like pose); the
+mini-golems ("pimpollos") spawn ONE BY ONE on the palms and run at the player.
+Mini-golems: fast runners; they GRAB the player (legs or arms, blocking arm use);
+escape = button-mash QTE. Reference feel: chunky round golem (golem_ref pending).
+
+### Move-loop v14 (implemented in Blender, 2026-08-27)
+Heavy knuckle-walk per Joan: one arm plants first, the other follows, slow, and the
+ground gets HIT on every arm swap — slam pulse on the torso (damped bounce), head
+nods one beat late, tree whips later still. 64f loop. Replaces the light alternating
+sway.
+
+### Post-defeat (design, see engram golem/respawn-gruta-secreta)
+Respawn altar asks materials; spamming it opens a trapdoor to the 4-golem grotto
+(oculus-lit stone cave, ref golem_ref_27_gruta_4golems_niebla.png).

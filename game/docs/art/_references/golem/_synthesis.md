@@ -81,3 +81,27 @@ es "más o menos bien, pero no tanto". Cuatro problemas concretos + 5 refs nueva
    final de partículas de polvo es tarea de Godot, no de este pipeline.
 
 **Fuente**: 5 imágenes de Joan, 2026-07-20.
+
+## Refs 20-27 (Joan, 2026-08-27) — "sigue siendo muy cuadrado/poligono perfecto"
+
+Veredicto sobre guardian v12 (hull facetado): mejor, pero TODAS las piedras siguen
+leyendo como poliedros limpios. Las 7 refs nuevas comparten DOS propiedades que el
+build no tiene:
+
+| # | Qué es | Aporte clave |
+|---|---|---|
+| 20/22 | Escultura clay: golem de piedras EMPAQUETADAS | Cada masa = racimo apretado (nucleo + medianas + chicas presionadas); superficie erosionada granulosa |
+| 21 | Trio TTCombat minis | Cuerpos = conglomerado de guijarros redondeados variados; caras talladas anchas |
+| 23 | MythForged: puños de LASCAS verticales | Manos = haces de esquirlas largas + dedos de canto; cristales/puas como acento |
+| 24 | Soul Calibur golem | Boulders REDONDEADOS apilados, core glow cyan pecho, musgo en manchas |
+| 25 | Anime bosque musgo | Masas de rocas grandes + follaje denso en hombros/cabeza |
+| 26 | Cara calavera bosque | Piedras redondas river-stone, brazos-columna, cara con cuencas profundas |
+| 27 | 4 golems en niebla, ojos brillando (Kari) | FEEL de la gruta secreta de 4 golems: siluetas oscuras, solo ojos y musgo leen |
+
+### Sintesis accionable
+1. **Superficie**: hull anguloso + EROSION organica (subdiv + noise por normal) — nunca
+   facetas planas perfectas ni aristas rectas largas.
+2. **Composicion**: cada masa corporal = NUCLEO grande + satelites presionados (~40%
+   embebidos) de tamano variado. "Algunas en monton y otras mas grandes en menor cantidad"
+   aplica DENTRO de cada miembro, no solo alrededor.
+3. Ref 27 reservada para la arena secreta (topic golem/respawn-gruta-secreta).
