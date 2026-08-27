@@ -1469,6 +1469,10 @@ for _v in torso.data.vertices:
     if abs(_v.co.x - 0.05) < 0.40 and -0.30 < _wy < 0.40:
         _anchor_z.append(_wz)
 TREE_PIVOT = Vector((0.05, 0.02, max(_anchor_z) - 0.18))
+# Torso-LOCAL anchor (v20): un-lean the sampled world seat so every clip can
+# re-derive the tree's position from the torso's live transform — the
+# authoring loop overrides pose["tree"] location with this each frame.
+TREE_ANCHOR_REL = Euler((-_lean, 0, 0)).to_matrix() @ (TREE_PIVOT - TORSO_PIVOT)
 # v17 tree realism (PO: "un arbol muy low poly... como los de la pradera,
 # sin ramas simetricas que apuntan a todos lados — mas al azar"): CURVED
 # tapered trunk tube (no more straight cone-pole), 3 SHORT branches at
@@ -2369,51 +2373,46 @@ def death_state(f, frames=48):
 
 
 def sample_death(f, frames=48):
+    """v20 (PO 2026-08-27: "deberia volverse un monticulo... el arbol
+    deberia quedar en pie"): death is the awaken in reverse — the guardian
+    COLLAPSES INWARD and ends EXACTLY at the DORMANT mound pose (canon
+    2026-06-14: "muerte = derrumbe, callback to the dormant silhouette").
+    Body parts converge fully to their dormant tuck (loc+rot+SCALE — the
+    shrink reads as the pieces burying themselves), each at its own cascade
+    delay; loose stones still roll OUTWARD as debris flavor. The tree's
+    position rides the torso via the global anchor override; here we only
+    give its rotation a decaying wobble that settles UPRIGHT."""
     out = {}
     lean, drop_u = death_state(f, frames)
-    torso_rot = math.radians(lean)
-    torso_loc = lerp_v(STANDING["torso"]["loc"], DORMANT["torso"]["loc"] + Vector((0, -0.15, 0)), drop_u)
-    out["torso"] = (torso_loc, Vector((torso_rot, 0, 0)), Vector((1, 1, 1)))
+
+    def to_dormant(name, u):
+        loc = lerp_v(STANDING[name]["loc"], DORMANT[name]["loc"], u)
+        rot = lerp_v(STANDING[name]["rot"], DORMANT[name]["rot"], u)
+        scl = lerp_v(STANDING[name]["scale"], DORMANT[name]["scale"], u)
+        return loc, rot, scl
+
+    t_loc, t_rot, t_scl = to_dormant("torso", drop_u)
+    t_rot = t_rot + Vector((math.radians(lean) * (1.0 - drop_u), 0, 0))
+    out["torso"] = (t_loc, t_rot, t_scl)
 
     head_f = cascade_frame(f, "head", frames)
     h_lean, h_drop_u = death_state(head_f, frames)
-    head_loc = lerp_v(STANDING["head"]["loc"], DORMANT["head"]["loc"] + Vector((0, -0.20, 0)), h_drop_u)
-    out["head"] = (head_loc, Vector((math.radians(h_lean) * 0.9, 0, 0)), Vector((1, 1, 1)))
+    h_loc, h_rot, h_scl = to_dormant("head", h_drop_u)
+    h_rot = h_rot + Vector((math.radians(h_lean) * 0.6 * (1.0 - h_drop_u), 0, 0))
+    out["head"] = (h_loc, h_rot, h_scl)
 
-    for side, arm_name, fist_name, sign in (("L", "arm_L", "fist_L", -1.0), ("R", "arm_R", "fist_R", 1.0)):
-        arm_f = cascade_frame(f, arm_name, frames)
-        fist_f = cascade_frame(f, fist_name, frames)
-        _, a_drop_u = death_state(arm_f, frames)
-        _, f_drop_u = death_state(fist_f, frames)
-        fly_a = lerp(0.0, 55.0, a_drop_u)
-        fly_f = lerp(0.0, 55.0, f_drop_u)
-        rot, _ = arm_end(side, math.radians(-fly_a), 0.0, math.radians(sign * fly_a * 0.4))
-        _, fistpos = arm_end(side, math.radians(-fly_f), 0.0, math.radians(sign * fly_f * 0.4))
-        a_loc = lerp_v(STANDING[arm_name]["loc"], DORMANT[arm_name]["loc"], a_drop_u * 0.5)
-        out[arm_name] = (a_loc, rot, Vector((1, 1, 1)))
-        f_loc = fistpos + (torso_loc - STANDING["torso"]["loc"])
-        out[fist_name] = (f_loc, Vector((0, 0, 0)), Vector((1, 1, 1)))
+    for name in ("arm_L", "arm_R", "fist_L", "fist_R", "leg_L", "leg_R"):
+        p_f = cascade_frame(f, name, frames)
+        _, p_drop_u = death_state(p_f, frames)
+        loc, rot, scl = to_dormant(name, p_drop_u)
+        wobble = math.radians(9.0) * math.sin(p_drop_u * math.pi * 2.2) * (1.0 - p_drop_u)
+        out[name] = (loc, rot + Vector((wobble, 0, wobble * 0.4)), scl)
 
-    out["tree"] = (lerp_v(STANDING["tree"]["loc"], DORMANT["tree"]["loc"] + Vector((0, -0.3, -0.3)), drop_u),
-                    Vector((torso_rot * 0.8, 0, 0)), Vector((1, 1, 1)))
+    tree_wobble = (math.radians(lean) * 0.25 * (1.0 - drop_u)
+                   + math.radians(4.0) * math.sin(drop_u * math.pi * 3.0) * (1.0 - drop_u))
+    out["tree"] = (STANDING["tree"]["loc"], Vector((tree_wobble, 0, tree_wobble * 0.3)),
+                    Vector((1, 1, 1)))
 
-    # legs buckle as the torso topples — knees fold toward the dormant tuck
-    # (partial, 0.5x, same treatment as the arms above), sampled at their own
-    # depth1 cascade delay same as the arms above, instead of staying rigid/
-    # lockstep while everything above them collapses.
-    for leg_name in ("leg_L", "leg_R"):
-        leg_f = cascade_frame(f, leg_name, frames)
-        _, l_drop_u = death_state(leg_f, frames)
-        l_loc = lerp_v(STANDING[leg_name]["loc"], DORMANT[leg_name]["loc"], l_drop_u * 0.5)
-        l_rot = lerp_v(STANDING[leg_name]["rot"], DORMANT[leg_name]["rot"], l_drop_u * 0.5)
-        out[leg_name] = (l_loc, l_rot, Vector((1, 1, 1)))
-
-    # PASS 6 fix 3: a stone rolling to a NEW xy on uneven terrain must
-    # resample its own resting height THERE, not carry over the Z it had
-    # before it moved — that carry-over is exactly the "debris ends up
-    # floating" bug Joan flagged (a stone displaced sideways onto a locally
-    # higher/lower patch of ground used to keep its old Z, so it visibly
-    # hovered or clipped once the terrain stopped being flat).
     for nm in ("stone_1", "stone_2", "stone_3"):
         start = STANDING[nm]["loc"]
         start_xy = Vector((start.x, start.y, 0.0))
@@ -2475,6 +2474,16 @@ for clip_name, (frames, sampler, render_step) in CLIPS.items():
 
     for f in range(1, frames + 1, 2):
         pose, glow = sampler(f)
+        # v20 TREE ANCHOR OVERRIDE (PO: "sigue flotando, anclalo a la piedra
+        # mas grande"): in EVERY clip the tree's position is derived from the
+        # torso's live loc/rot/scale carrying the build-time anchor point —
+        # hand-keyed tree positions can drift off the bust, this cannot. The
+        # sampler keeps authoring only the tree's ROTATION (sway/wobble).
+        _to_loc, _to_rot, _to_scl = pose["torso"]
+        _rel = Vector((TREE_ANCHOR_REL.x * _to_scl.x, TREE_ANCHOR_REL.y * _to_scl.y,
+                       TREE_ANCHOR_REL.z * _to_scl.z))
+        _t_loc = _to_loc + Euler(_to_rot).to_matrix() @ _rel
+        pose["tree"] = (_t_loc, pose["tree"][1], pose["tree"][2])
         for name, obj in PARTS.items():
             loc, rot, sc = pose[name]
             obj.location = loc

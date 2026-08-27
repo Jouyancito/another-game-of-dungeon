@@ -150,15 +150,20 @@ func _process(delta: float) -> void:
 	# the AnimationPlayer stopped resetting the pose, the addition compounded
 	# and the head/eyes spun endlessly (Joan: "la cabeza gira como loca...
 	# los ojos giran en 360").
-	if _anim != null and _anim.is_playing():
-		_head_base_rot_y = _head.rotation.y
-		_head_base_pos = _head.position
-		if _glow_head != null:
-			_glow_base_pos = _glow_head.position
-			_glow_base_rot_y = _glow_head.rotation.y
-		_bases_valid = true
-	if not _bases_valid:
+	# Only an AWAKE golem tracks (PO: a dead/dormant stone must not stare) —
+	# and never fight awaken's own head-look choreography.
+	var awake := _anim != null and _anim.is_playing() \
+		and String(_anim.current_animation) in ["idle", "move", "attack", "hit"]
+	if not awake:
+		_head_yaw = 0.0
+		_bases_valid = false
 		return
+	_head_base_rot_y = _head.rotation.y
+	_head_base_pos = _head.position
+	if _glow_head != null:
+		_glow_base_pos = _glow_head.position
+		_glow_base_rot_y = _glow_head.rotation.y
+	_bases_valid = true
 	var to_cam := _cam.global_position - _head.global_position
 	to_cam.y = 0.0
 	if to_cam.length() < 0.5:
