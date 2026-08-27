@@ -189,15 +189,20 @@ func _apply_bioma() -> void:
 	# and made everything one cold/green wash). Only the ceiling plane keeps a bioma
 	# hue; the warm hero + cool fill come from the constants above.
 	if _material != null and daylight_sky:
-		# Luminous day-sky plane: opaque, unshaded, colors from the photo
-		# samples (zenith 0.48/0.675/0.768 pushed toward the pale horizon so
-		# it reads airy, plus a soft emission kiss for the glow pass).
+		# Luminous CRYSTAL day-sky (2026-08-27, PO: "el cielo es azul completo
+		# — la idea era que fueran cristales, la referencia de DanMachi"): the
+		# plane carries the generated crystal-sky texture (pale white-cyan
+		# haze, vertical crystalline striations, sparkle motes — ref
+		# danmachi_18f_under_resort.png), unshaded + soft emission so it
+		# reads as the glowing ceiling that lights the floor.
 		_material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 		_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_material.albedo_color = Color(0.66, 0.77, 0.86, 1.0)
+		_material.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+		_material.albedo_texture = load("res://assets/art/piso1_pradera/textures/sky_crystal_01.png")
 		_material.emission_enabled = true
-		_material.emission = Color(0.48, 0.675, 0.768)
-		_material.emission_energy_multiplier = 0.35
+		_material.emission = Color(1.0, 1.0, 1.0)
+		_material.emission_texture = _material.albedo_texture
+		_material.emission_energy_multiplier = 0.3
 	elif _material != null:
 		_material.albedo_color = Color(tint.r, tint.g, tint.b, 0.55)
 		_material.emission = HERO_WARM   # warm glowing "sky" (blooms via env glow)

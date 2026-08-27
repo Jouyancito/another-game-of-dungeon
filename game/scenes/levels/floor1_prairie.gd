@@ -1247,30 +1247,21 @@ func _generate_terrain_mesh() -> void:
 	mat.roughness = 0.6  # Wave1.5: 0.92→0.6 — damp sheen so crystal/river light streaks across ground
 	mat.metallic = 0.0
 
-	# ── Procedural detail noise (stand-in for a real ground atlas) ────────────
-	var detail_noise := FastNoiseLite.new()
-	detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	detail_noise.frequency = 0.35   # fine surface grain
-	detail_noise.fractal_octaves = 2
-	detail_noise.seed = world_seed + 7  # offset from terrain height noise
-
-	# Color ramp biased high so MUL blend modulates subtly instead of darkening.
-	# Range 0.78..1.0 means detail never drops albedo below 78% — grain reads as
-	# surface texture, not a dark filter.
-	var detail_ramp := Gradient.new()
-	detail_ramp.set_color(0, Color(0.78, 0.78, 0.78))
-	detail_ramp.set_color(1, Color(1.0, 1.0, 1.0))
-
-	var detail_tex := NoiseTexture2D.new()
-	detail_tex.noise = detail_noise
-	detail_tex.width = 256
-	detail_tex.height = 256
-	detail_tex.seamless = true
-	detail_tex.color_ramp = detail_ramp  # subtly modulate, not darken
+	# ── Real grass detail (2026-08-27, PO: "el pasto sigue siendo textura de
+	# un puro color... refeo"): the grey noise stand-in is replaced by the
+	# generated grass textures (game/tools/textures/gen_prairie_textures.py).
+	# grass_mod is MEAN-NORMALIZED so the MUL blend adds patch + blade
+	# variation without darkening or repainting the vertex-color zone ramp,
+	# and the blade-scale normal map gives the ground micro-relief under the
+	# new day key light.
+	var detail_tex: Texture2D = load("res://assets/art/piso1_pradera/textures/grass_mod_01.png")
+	var detail_nrm: Texture2D = load("res://assets/art/piso1_pradera/textures/grass_normal_01.png")
 
 	mat.detail_enabled = true
 	mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
 	mat.detail_albedo = detail_tex
+	mat.detail_normal = detail_nrm
+	mat.normal_scale = 0.55
 
 	# uv1_triplanar does NOT affect the detail layer — detail uses UV0 (set per vertex
 	# above). Triplanar was removed here because it only applies to the base albedo
