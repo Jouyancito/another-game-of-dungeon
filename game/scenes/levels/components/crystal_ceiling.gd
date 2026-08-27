@@ -71,6 +71,7 @@ class_name CrystalCeiling
 			# casts.
 			_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			_apply_height()
+			_apply_size()  # re-pad: the floor sets `size` before this flag
 
 @export var show_ceiling_plane: bool = true:
 	set(value):
@@ -216,7 +217,11 @@ func _apply_bioma() -> void:
 
 func _apply_size() -> void:
 	if _mesh != null and _mesh.mesh is PlaneMesh:
-		(_mesh.mesh as PlaneMesh).size = size
+		# daylight_sky: the sky must extend PAST the rock roof (size+100) or
+		# the slab's dark side face reads as a black horizon line beyond the
+		# plane's edge (caught in the 2026-08-27 field captures).
+		var pad: float = 240.0 if daylight_sky else 0.0
+		(_mesh.mesh as PlaneMesh).size = size + Vector2(pad, pad)
 	_apply_rock_roof()
 
 

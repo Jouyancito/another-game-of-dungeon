@@ -42,7 +42,7 @@ extends Node3D
 ## Multiplicador de densidad del tapiz de hierba. 1.0 = presupuesto nominal (≤120k blades a 600m).
 ## Reduce para iterar más rápido o en hardware débil.
 ## Default 1.0 = ~120k blades en el mapa completo (70m cull makes rendered count ~13k max).
-@export var grass_density: float = 1.0
+@export var grass_density: float = 2.2
 
 ## Distancia de culling de la hierba en metros. Los MultiMeshInstance3D de hierba usan
 ## visibility_range_end = este valor con fade SELF para que desaparezcan suavemente.
@@ -1452,7 +1452,15 @@ func _build_organic_border() -> void:
 		wall.name = "BorderWall%d" % i
 		wall.use_collision = true
 		# FIX #5: cave stone material — roughness + triplanar noise instead of flat color
-		wall.material_override = _make_cave_material(COLOR_BORDER)
+		# Caverna-dia (2026-08-27, idea de Joan): la muralla APARECE al acercarte
+		# (PixelDither con min>max = visible de cerca) — de lejos se desvanece y
+		# el horizonte lo hace la ladera-montaña del anillo que ya existe detras.
+		# La colision CSG no depende de lo visual: el limite sigue bloqueando.
+		var wall_mat: StandardMaterial3D = _make_cave_material(COLOR_BORDER).duplicate()
+		wall_mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+		wall_mat.distance_fade_min_distance = 95.0
+		wall_mat.distance_fade_max_distance = 55.0
+		wall.material_override = wall_mat
 		# Task 1 (2026-07-20): anchor the wall's BASE to the local terrain height
 		# instead of assuming y=0. This is THE actual non-climbable guarantee for the
 		# new border-ring mountain slope (see _compute_height_at's Task 1 comment) —
@@ -4578,7 +4586,7 @@ func _build_grass_carpet() -> void:
 					# so the RNG sequence after this blade is unchanged.
 					_rng.randf()   # rot_y
 					_rng.randf_range(-0.17, 0.17)  # tilt
-					_rng.randf_range(0.8, 1.2)     # s
+					_rng.randf_range(1.1, 1.7)     # s
 					_rng.randi()   # variant
 					continue
 			# Igual que el canal del arroyo: nada de pasto dentro de la antesala ni de
@@ -4588,7 +4596,7 @@ func _build_grass_carpet() -> void:
 			if _inside_entrance_footprint(x, z):
 				_rng.randf()                   # rot_y
 				_rng.randf_range(-0.17, 0.17)  # tilt
-				_rng.randf_range(0.8, 1.2)     # s
+				_rng.randf_range(1.1, 1.7)     # s
 				_rng.randi()                   # variant
 				continue
 			var y: float = get_terrain_height(x, z)
@@ -4597,7 +4605,7 @@ func _build_grass_carpet() -> void:
 			# Slight forward tilt (−10°..+10°) for organic look
 			var tilt: float = _rng.randf_range(-0.17, 0.17)  # ~±10°
 			var basis: Basis = Basis.from_euler(Vector3(tilt, rot_y, 0.0))
-			var s: float = _rng.randf_range(0.8, 1.2)
+			var s: float = _rng.randf_range(1.1, 1.7)
 			basis = basis.scaled(Vector3(s, s, s))
 			var variant: int = _rng.randi() % blade_meshes.size()
 			buckets[variant].append(Transform3D(basis, Vector3(x, y, z)))
@@ -4683,8 +4691,8 @@ shader_type spatial;
 // within the <=13k-blade rendered red-line enforced by visibility_range_end.
 render_mode cull_disabled, shadows_disabled;
 
-uniform vec3 tint_lush : source_color = vec3(0.20, 0.34, 0.18);
-uniform vec3 tint_dry : source_color = vec3(0.46, 0.43, 0.21);
+uniform vec3 tint_lush : source_color = vec3(0.30, 0.45, 0.11);
+uniform vec3 tint_dry : source_color = vec3(0.52, 0.48, 0.16);
 uniform float patch_freq_broad : hint_range(0.001, 0.2) = 0.012;
 uniform float patch_freq_fine : hint_range(0.001, 0.2) = 0.045;
 // Mean vertex-colour luma of THIS mesh, set from GDScript. Dividing by it turns the

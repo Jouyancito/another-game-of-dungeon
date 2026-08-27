@@ -36,3 +36,23 @@ pradera... comparen, se parecen o no"). Observado de las imágenes, no asumido:
    espaciados venden la escala de la pradera.
 5. **Agua = espejo azul-verde claro** que refleja el cielo (lago de
    `wildflowers_lake`), no mancha marrón.
+
+## Refs 2ª tanda (Joan, 2026-08-27) — "¿crees que las praderas se ven así?"
+
+9 fotos reales de pradera (prairie_photo_ref2_63..71.png) entregadas como vara contra
+el estado in-game del caverna-día. Lo que TODAS comparten y el juego no tiene:
+
+1. **PASTO CON VOLUMEN**: briznas densas cubriendo el 100% del suelo — el suelo nunca
+   se ve como superficie lisa. Gap #1. (ref2_64: pasto eléctrico denso; ref2_63: pastizal
+   alto amarillento con flores.)
+2. **CIELO CON NUBES**: cúmulos blancos (65, 66, 71), cirros (67), nublado dramático (63);
+   nunca un azul/celeste liso.
+3. **HORIZONTE NATURAL**: lomas verdes y líneas de bosque en capas de profundidad
+   (63, 65, 66, 67) — nada de paredes visibles.
+4. **FLORES EN DERIVA**: manchones masivos amarillos/rosas (66, 70), no confeti disperso.
+5. **LUZ DRAMÁTICA opcional**: hora dorada con rayos (70, 71), god-rays sobre valle (69),
+   niebla en loma (68) — vocabulario de mood para variantes del bioma.
+6. Verdes más ricos/saturados que el in-game; el amarillo-verde domina en luz.
+
+Acciones derivadas: grass MultiMesh chunked con visibility range (presupuesto ≤2ms del
+research doc), capa de nubes en sky_crystal, tratamiento de murallas como horizonte.

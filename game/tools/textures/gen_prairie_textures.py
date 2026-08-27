@@ -87,6 +87,14 @@ sky = sky * (1 - shard_m[..., None]) + np.array([0.42, 0.62, 0.70])[None, None, 
 spark = vnoise(xx, yy, 96, 41.0)
 spark_m = np.clip((spark - 0.955) / 0.045, 0, 1)
 sky = sky * (1 - spark_m[..., None]) + np.array([0.98, 1.0, 1.0])[None, None, :] * spark_m[..., None]
+# clouds (refs 2a tanda 2026-08-27: every real prairie sky has cumulus, never
+# a flat wash): billowy white masses with soft edges and a faint warm base.
+cloud = fbm(xx, yy, 4, 4, 71.0)
+cloud_m = np.clip((cloud - 0.52) / 0.22, 0, 1)
+cloud_m = cloud_m * cloud_m * (3 - 2 * cloud_m)
+cloud_col = (np.array([0.965, 0.975, 0.985])[None, None, :]
+             - np.clip(0.5 - cloud, 0, 1)[..., None] * np.array([0.06, 0.05, 0.03])[None, None, :])
+sky = sky * (1 - 0.85 * cloud_m[..., None]) + cloud_col * (0.85 * cloud_m[..., None])
 save("sky_crystal_01.png", sky)
 
 # ── Grass albedo (multi-tone, from Joan's photo greens) ────────────────────
