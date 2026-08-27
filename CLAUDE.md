@@ -31,14 +31,38 @@ de conocimiento.
 PREFLIGHT modelado full — <asset>
 0. QUÉ ES ................ qué es la cosa, cómo funciona, cómo es normalmente
                            → de ahí sale el criterio de éxito, ANTES de tocar nada
-1. refs cargadas ......... _references/<X>/ : <qué muestran, citado>
+                           REGLA DE TRADUCCIÓN: cada frase del "qué es" termina
+                           en un NÚMERO o en una ORIENTACIÓN. "Patas palmeadas"
+                           NO es un punto cumplido; "húmero horizontal,
+                           antebrazo vertical, yaw ±40° por cuadrante" SÍ.
+                           La prosa que no baja a geometría no se construye.
+0b. CON QUÉ TRUCO ........ técnica establecida de la familia (capa B).
+                           Si no se sabe cuál es, DECIRLO. Si el contrato la
+                           marca DESCARTADA, no se usa.
+1. refs cargadas ......... _references/<X>/ CITADAS + los DOCS del índice de abajo
+                           que aplican, citados por archivo y sección.
+                           Contar imágenes NO es cargar el contrato.
 2. lecciones aplicables .. <asset previo con el mismo fallo de forma> → <regla>
 3. recetas del motor ..... <cuáles> (o: ninguna aplica, porque <razón>)
 4. métrica de éxito ...... <el número que decide, definido ANTES de construir>
-5. rampa .................. <N variantes del parámetro dudoso>
+                           ¿puede esta métrica VER el defecto que busco?
+4d. PARÁMETROS ........... DOS mitades, las dos obligatorias:
+    · MEDIDA ....... cuánto mide, cuántos hay, a qué velocidad
+    · ESTRUCTURA ... por cada parte móvil: qué PLANO ocupa, qué ÁNGULO
+                     tiene respecto del cuerpo, y qué la LIMITA
+                     Parte sin renglón estructural = NO se modela, se
+                     investiga primero.
+4b. COMPOSICIÓN .......... qué zonas del cuerpo respeta y qué oculta
+4c. PRESUPUESTO .......... qué NO se modela porque no se ve
+5. rampa .................. <N variantes del parámetro dudoso> — elige Joan
 6. vistas de juicio ....... frente/perfil/3-4 + ingratas (nuca, cenital) + tamaño de uso
 7. LECTURA DEL RESULTADO . ¿encaja? ¿se fusiona con la malla? — no "¿está puesto?"
 ```
+
+**Los puntos 0b, 4b y 4c estaban SÓLO en `_asset_creation_contract.md` §4, que es un doc que
+hay que ir a buscar.** El 2026-08-22 se construyeron dos técnicas de pelo seguidas que el
+contrato marcaba como descartadas: el preflight de 8 se escribió completo y no preguntaba por
+la técnica. Por eso ahora los 10 viven acá, donde se cargan solos.
 
 **El punto 0 es el que más rinde y el que más se saltea.** Joan: *"sin el pensar qué es, cómo
 funciona, cómo es normalmente"*. El pelo del guerrero se generó como "placas apoyadas sobre un
@@ -60,6 +84,51 @@ que aprueba lo que ya se hizo.
 **El valor lo elige Joan sobre una rampa (5), no yo.** Medido en la sesión del guerrero: cuello
 0.70, nubian 0.70, frente 1.00, ceja 0.85 y los cinco de piel entraron todos pasados de rosca.
 Cinco de cinco.
+
+## 📇 ÍNDICE DE CANON — qué documento manda sobre qué (regla dura, 2026-08-23)
+
+**Por qué existe este índice.** Medido el 2026-08-23: de todo el conocimiento del motor, sólo
+el **2,5%** se carga solo; el otro 97,5% depende de que yo decida ir a buscarlo. En 48 horas,
+las 4 piezas que se cargaban solas funcionaron y **las 5 que había que ir a buscar fallaron**
+— dos técnicas de pelo equivocadas, cuatro mobs blancos durante un mes, y un criterio de
+inventario inventado teniendo el doc a mano hacía nueve días.
+
+No se puede mover 37.000 líneas acá. **Se mueve el índice**, que es lo que faltaba: los dos
+modos de fallo más comunes son *"no sabía que existía"* y *"no se me ocurrió que aplicaba"*, y
+los dos los cierra una tabla.
+
+**Cómo se usa**: el punto 1 del preflight exige citar de acá el doc que aplica, **por archivo y
+sección**. Un punto sin cita cuenta como no hecho.
+
+| Documento | Manda sobre | Abrir SIEMPRE que… |
+|---|---|---|
+| **`~/motor-blender/LECCIONES.md`** | **las 11 formas de equivocarse que este motor YA demostró tener**, cada una con el caso que la pagó: valores correctos e invisibles · métricas ciegas · prosa que no baja a geometría · pintar estructura sobre superficie continua · arreglos a medias · constantes obsoletas en gates | **antes de cualquier sesión de modelado.** Es corto a propósito |
+| `art/_asset_creation_contract.md` | capa A (mecanismo real) / capa B (técnica) · composición contra el cuerpo · presupuesto · **techo de fidelidad = Skyrim** · sistema de equipo · **técnicas DESCARTADAS** | modeles cualquier cosa que se lleve puesta o se vea de cerca. **Y siempre antes de elegir una técnica** |
+| `art/_modeling_knowledge_base.md` | el *por qué* universal · contrato Blender→glTF→Godot · cheat-sheets por categoría · **pelo en 3 capas** · gate de validación pre-export | escribas o edites cualquier generador |
+| `~/motor-blender/CREATION_PROTOCOL.md` | el diseño ANTES de construir: categoría real · investigación visual+funcional · dimensiones contra el maniquí 1,80 m · función compartida · autocrítica | arranques un asset o un módulo nuevo |
+| `~/motor-blender/recetas/RECETAS.md` | técnicas verificadas + **anti-recetas** (callejones ya probados) | vayas a escribir bpy nuevo |
+| `~/motor-blender/TECNICAS.md` | trucos de referencias traducidos a capacidades del motor · showcase_ficha | montes una escena o presentes un modelo |
+| **`art/_mob_pipeline.md`** | **EL PIPELINE POR MOB** destilado de tortuga+halcon (8/10 ambos): fases con gate y herramienta, catalogo de gotchas por familia, roadmap del mobpack piso 1 con orden de ataque | **antes de tocar CUALQUIER mob** — es el primer doc que se abre, manda sobre el orden del trabajo |
+| `art/_bestiary_visual_bible.md` | identidad visual de criaturas · familias de silueta · **build-method por bicho** · color por bioma y tier | toques cualquier mob |
+| `art/_mob_style_contract.md` | contrato de estilo de mobs | toques cualquier mob |
+| `art/_art_canon.md` | canon visual v2.0 · **modelo Valheim** · paletas por piso | tomes cualquier decisión de estilo |
+| `art/_motor_tiers.md` | **M1/M2/M3 mandan sobre la extensión del archivo** | inventaríes o clasifiques assets |
+| `art/_char_build_brief.md` | construcción de personajes | trabajes el cuerpo o el equipo de una clase |
+| `art/_2d_texturing_pipeline.md` | texturizado 2D | pintes texturas o atlas |
+| `art/_asset_modeling_best_practices.md` | prácticas de modelado de assets | modeles props o estructuras |
+| `art/_visual_pipeline.md` | pipeline visual · shaders · lightmap | toques materiales o iluminación |
+| **`art/_research_realismo_performance_2026-08.md`** | **el plan realismo-con-rendimiento** (encargo Joan 2026-08-27): 6 palancas priorizadas · presupuesto de frame GTX 1080 · método fotograma→Environment (8 pasos) · arquitectura del bestiario (Valheim/MH/SotC/Skyrim) · las 8 mejoras de proceso | toques luz/atmósfera, materiales, LOD, rendimiento, o diseñes la estructura de un jefe/mob nuevo |
+| `art/_sketch_intake_protocol.md` | el pipeline Joan-dibuja → Claude-implementa: carpeta, anotaciones, niveles N0-N3, los 5 pasos, gate silueta-vs-boceto | Joan entregue un boceto/dibujo, o aparezca un archivo en `_references/bocetos/` |
+| `art/_references/<X>/_synthesis.md` | **el sujeto concreto**: medidas reales, silueta, y **tabla de parámetros** | construyas ESE sujeto. Si no existe la ficha, se escribe antes |
+| `art/_references/<X>/motion/_motion_spec.md` | poses clave, tiempos, peso, errores comunes | animes ESE sujeto |
+| `art/_mob_audit_2026-08-22.md` | estado real medido de cada mob (quién está roto, quién no llegó al juego) | vayas a "modelar un mob que falta" |
+| `docs/balance_v2.md` | curvas y fórmulas de balance | toques daño, HP, XP o escalado |
+| `docs/skills/_system.md` | canon del sistema de skills v1.0 | toques skills, ascendencia o recursos de clase |
+| `~/motor-blender/AUDIT_ACTIVACION_2026-08-23.md` | por qué las reglas no se activan · push vs pull | propongas "escribamos esto en un doc" como solución |
+
+**Regla que sale de la auditoría**: *si una regla necesita que yo me acuerde de ir a buscarla,
+ya falló.* Cuando aparezca conocimiento nuevo que valga, la pregunta no es dónde documentarlo
+sino **por qué mecanismo se va a activar**: capa 0, hook que bloquee, o nada.
 
 ## 🧠 Calyx — canon consultable (grounding)
 
