@@ -53,11 +53,34 @@ class_name CrystalCeiling
 ## When false, hides the emissive ceiling PLANE but KEEPS the lights. Floor 1 has a
 ## separate full-size CavernCeiling rock roof, so this small 120x120 plane just read
 ## as a "white square cloud" floating mid-map. Hidden there; lights stay.
+## Caverna-DIA (2026-08-27, PO decision luz/piso1-caverna-dia): the crystal
+## ceiling EMITS daylight — the plane becomes an opaque UNSHADED luminous sky
+## (sampled from Joan's prairie photos) sitting just under the rock roof, so
+## looking up reads as bright day instead of storm-dark stone. Crystals stay
+## as accents above/through it.
+@export var daylight_sky: bool = false:
+	set(value):
+		daylight_sky = value
+		if _material != null:
+			_apply_bioma()
+		if _mesh != null and daylight_sky:
+			_mesh.visible = true
+			# The sky is LIGHT, not matter: an opaque plane above the whole
+			# map with the sun's shadows on plunged the prairie into one giant
+			# shadow (caught by histogram p50 0.35 -> 0.06). The sky never
+			# casts.
+			_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_apply_height()
+
 @export var show_ceiling_plane: bool = true:
 	set(value):
 		show_ceiling_plane = value
 		if is_inside_tree() and _mesh != null:
-			_mesh.visible = show_ceiling_plane
+			# daylight_sky NEEDS the plane (it IS the luminous sky): the
+			# legacy show_ceiling_plane=false writes (proc_lab reconciliation)
+			# must not be able to hide it — caught live 2026-08-27 (generate()
+			# set daylight true, then re-hid the plane two lines later).
+			_mesh.visible = show_ceiling_plane or daylight_sky
 
 ## Task 3 (2026-07-20) ceiling reconciliation: when true, builds a solid rock-roof
 ## CSGBox3D sized to `size` (+100m padding, same margin the old geometry used) at
@@ -157,7 +180,7 @@ func _ready() -> void:
 	if _focus_light != null:
 		_focus_light.visible = enable_focus_light
 	if _mesh != null:
-		_mesh.visible = show_ceiling_plane
+		_mesh.visible = show_ceiling_plane or daylight_sky
 
 
 func _apply_bioma() -> void:
@@ -165,7 +188,17 @@ func _apply_bioma() -> void:
 	# Warm-cozy story: lights are NO LONGER bioma-tinted (that flattened the contrast
 	# and made everything one cold/green wash). Only the ceiling plane keeps a bioma
 	# hue; the warm hero + cool fill come from the constants above.
-	if _material != null:
+	if _material != null and daylight_sky:
+		# Luminous day-sky plane: opaque, unshaded, colors from the photo
+		# samples (zenith 0.48/0.675/0.768 pushed toward the pale horizon so
+		# it reads airy, plus a soft emission kiss for the glow pass).
+		_material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_material.albedo_color = Color(0.66, 0.77, 0.86, 1.0)
+		_material.emission_enabled = true
+		_material.emission = Color(0.48, 0.675, 0.768)
+		_material.emission_energy_multiplier = 0.35
+	elif _material != null:
 		_material.albedo_color = Color(tint.r, tint.g, tint.b, 0.55)
 		_material.emission = HERO_WARM   # warm glowing "sky" (blooms via env glow)
 	if _light != null:
@@ -183,6 +216,15 @@ func _apply_size() -> void:
 
 
 func _apply_height() -> void:
+	if _mesh != null and daylight_sky:
+		# Day-sky plane hangs UNDER the rock roof slab. The CSGBox is CENTERED
+		# at `height` with 2m thickness, so its underside sits at height-1 —
+		# height-0.8 put the sky INSIDE the slab and the roof occluded it
+		# (pixel-probed 2026-08-27: dark with roof, perfect celeste without).
+		_mesh.position.y = height - 1.8
+		if _focus_light != null:
+			_focus_light.position.y = height * 0.5
+		return
 	if _mesh != null:
 		_mesh.position.y = height
 	if _focus_light != null:

@@ -429,8 +429,13 @@ func generate() -> void:
 	# is back ON with hard shadows (Valheim fidelity: dramatic directional light),
 	# and the crystal monarchs downgrade from sole light source to accents.
 	_crystal_ceiling.build_key_light = true
-	_crystal_ceiling.key_light_energy = 1.25
+	# Caverna-DIA retune (2026-08-27): 1.25 still read as dusk against Joan's
+	# daylight prairie photos — full-day key with the sky ambient at ~2:1, and
+	# the ceiling plane switches to the luminous day-sky mode (the dark rock
+	# roof overhead was capping the histogram at p95 0.60 vs the photos' 0.90).
+	_crystal_ceiling.key_light_energy = 1.9
 	_crystal_ceiling.key_light_shadow = true
+	_crystal_ceiling.daylight_sky = true
 	# Judgment Day fix (2026-07-21): the rock roof (build_rock_roof above) is now
 	# the ceiling's real visible geometry — the legacy tinted PlaneMesh is
 	# redundant and z-fights it. floor1_prairie.tscn's pre-declared CrystalCeiling
