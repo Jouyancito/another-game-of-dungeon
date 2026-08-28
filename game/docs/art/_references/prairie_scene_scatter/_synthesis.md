@@ -18,6 +18,22 @@ Seis capturas del reel, en orden de flujo de trabajo. Observado de las imágenes
 
 ## Idea
 
+**Aclaración de Joan (2026-08-28):** *"más que la escena, me interesa la forma del árbol, cómo es,
+las plantas, el césped, movimiento, colores. La idea no es para el juego; el desarrollo de esa idea
+sí."* → esta referencia manda sobre la **TÉCNICA de construcción de cada elemento** (capa B del
+contrato de assets), no sobre el layout del piso 1. La tabla de gaps de abajo se lee como "qué
+técnica desarrollar", no como "qué poner en la pradera".
+
+Técnica por elemento, leída de las capturas:
+
+| Elemento | Cómo está hecho en el reel | Qué desarrollar en nuestro motor |
+|---|---|---|
+| **Árbol** | Librería Botaniq: tronco con textura de corteza real, ramas gruesas horizontales que se afinan, copa = **miles de cards de hojas con textura foto + alpha**, agrupadas en racimos que dejan ver ramas y cielo entre ellos. Variantes por estación = mismo esqueleto, distinto atlas | Generador de árbol en 3 capas: esqueleto de ramas (L-system corto, 3 niveles), tronco+ramas con atlas de corteza horneado, copa por racimos de cards con atlas de hojas y normal hacia afuera del racimo (para que el contraluz lea). Estación = swap de atlas |
+| **Césped** | Briznas altas (40-60 cm), densas, con curvatura, color degradé raíz oscura → punta clara amarillenta | Ya existe `_build_grass_carpet` (MultiMesh + viento). Falta el degradé vertical y el **backlight** (translucidez) |
+| **Flores** | Cabezas chicas blancas/amarillas encima del pasto, a la misma altura; rosa-magenta en el closeup | Cards de 2 quads cruzados con atlas de cabezas, MultiMesh sobre la misma malla que el pasto, misma fase de viento |
+| **Movimiento** | Pétalos cayendo (partículas con rotación lenta), pasto mecido suave, cámara lenta | GPUParticles3D de cards con giro; el viento del pasto ya está — extender a flores y copa (vertex shader con fase por racimo) |
+| **Color** | Verde saturado cálido, contraluz que amarillea bordes, tronco casi negro, copa rosa desaturada con luz atravesando | Material con `backlight` en hojas/pasto/pétalos, sol bajo, bloom moderado (gotcha "white cloud": no pasar de ~1.2) |
+
 Una pradera realista NO es una textura de fondo: es **relieve + densidad + luz**. El reel construye
 la escena con cuatro capas y ninguna es un dibujo: terreno esculpido (loma), scatter de pasto,
 scatter de flores encima del pasto, un árbol de librería fotorealista, y la iluminación hace el
