@@ -134,4 +134,38 @@ n = np.stack([-gx * strength, gy * strength, np.ones_like(h_field)], axis=-1)
 n /= np.linalg.norm(n, axis=-1, keepdims=True)
 save("grass_normal_01.png", n * 0.5 + 0.5)
 
+# ── Horizon ring (PO 2026-08-27: "no se nota como un horizonte — montañas
+# a lo lejos, bosques, como las refs de praderas"): a horizontally-tileable
+# band with THREE silhouette layers, back to front: hazy blue-green
+# mountains, mid green hills, and a dark conifer treeline with jagged tops
+# (refs2_63/65/67). Alpha = sky above the top silhouette; aerial fog does
+# the distance blending in-engine.
+RW, RH = 2048, 512
+ry, rx = np.mgrid[0:RH, 0:RW].astype(np.float64)
+ru = rx / RW          # wraps horizontally (tileable via integer-freq noise)
+rv = 1.0 - ry / RH    # 0 = bottom, 1 = top
+horizon = np.zeros((RH, RW, 4))
+
+LAYERS = [
+    # (base_height, amplitude, freq, color, haze_toward_sky)
+    (0.62, 0.20, 5,  np.array([0.52, 0.62, 0.66]), 0.55),   # far mountains, hazy blue-green
+    (0.44, 0.13, 9,  np.array([0.38, 0.50, 0.36]), 0.30),   # mid hills
+    (0.30, 0.08, 18, np.array([0.16, 0.26, 0.15]), 0.10),   # forest treeline
+]
+SKYREF = np.array([0.80, 0.86, 0.89])
+for base_h, amp, freq, col, haze in LAYERS:
+    ridge = base_h + amp * (fbm(ru, np.zeros_like(ru), freq, 3, freq * 3.3) - 0.5) * 2.0
+    if freq >= 18:  # treeline: add tree-scale jaggies to the ridge
+        ridge += 0.035 * (vnoise(ru, np.zeros_like(ru), 220, 77.0) - 0.5) * 2.0
+    inside = rv < ridge
+    layer_col = col * (1 - haze) + SKYREF * haze
+    # subtle vertical shading inside the layer (darker at base)
+    shade = 0.85 + 0.15 * np.clip(rv / np.maximum(ridge, 1e-4), 0, 1)
+    for c in range(3):
+        horizon[..., c] = np.where(inside, layer_col[c] * shade, horizon[..., c])
+    horizon[..., 3] = np.where(inside, 1.0, horizon[..., 3])
+img = (np.clip(horizon, 0, 1) * 255).astype(np.uint8)
+Image.fromarray(img, "RGBA").save(os.path.join(OUT, "horizon_ring_01.png"))
+print("[textures] horizon_ring_01.png saved")
+
 print("[textures] DONE")
