@@ -1,21 +1,23 @@
 === biome_capture — seed=424242 proc_bounds=260x260 ===
 
 -- New tree_pack trees (5 expected) --
-  tree_prairie: FOUND @ (-19.2244, 7.172707, 3.859749)
-  tree_prairie_tall: FOUND @ (-24.58228, 7.483251, -5.522484)
-  tree_prairie_wide: FOUND @ (-22.02373, 8.100243, 26.4483)
-  tree_young: FOUND @ (-19.29236, 7.113551, -1.611612)
-  tree_dry: FOUND @ (-19.99966, 7.734105, -17.22108)
+  tree_prairie: MISSING (never instantiated this seed)
+  tree_prairie_tall: MISSING (never instantiated this seed)
+  tree_prairie_wide: MISSING (never instantiated this seed)
+  tree_young: MISSING (never instantiated this seed)
+  tree_dry: MISSING (never instantiated this seed)
 -- New bush variants (5 expected) --
-  bush_round: FOUND @ (-28.38604, 7.751599, 21.64466)
-  bush_large_glb: FOUND @ (-20.37475, 7.556551, -12.67762)
-  bush_flowering: FOUND @ (-13.0895, 5.665392, -8.557129)
-  bush_low: FOUND @ (61.07372, 12.10589, 68.30625)
-  bush_dry: FOUND @ (-0.097315, 8.659393, -66.28763)
+  bush_round: FOUND @ (-12.82959, 11.50688, -19.52009)
+  bush_large_glb: FOUND @ (-45.67157, 13.62059, 24.8984)
+  bush_flowering: FOUND @ (-12.292, 11.54786, 18.08977)
+  bush_low: MISSING (never instantiated this seed)
+  bush_dry: FOUND @ (-12.14731, 8.20436, 7.524566)
 -- New flower_pack flowers (5 expected, pale_glow excluded — pre-existing) --
-  flower_yellow_clover: FOUND @ (-14.79038, 6.429366, -9.4435)
-  flower_bicolor_mix: FOUND @ (-10.51279, 7.367791, 31.29888)
-  flower_violet_cluster: FOUND @ (-14.19256, 5.16685, -0.969041)
-  flower_white_star: FOUND @ (-25.41526, 7.449965, 0.264277)
-  flower_tall_stalk: FOUND @ (-20.19734, 7.827404, -20.95477)
+  flower_yellow_clover: FOUND @ (-11.01385, 12.23128, -33.03658)
+  flower_bicolor_mix: FOUND @ (-7.383638, 11.01705, 27.11923)
+  flower_violet_cluster: FOUND @ (-59.55525, 13.88918, 11.1545)
+  flower_white_star: FOUND @ (-26.76332, 11.12709, 17.48543)
+  flower_tall_stalk: FOUND @ (-19.93579, 13.54288, -39.67464)
 
+[FINDING] shot (b) skipped — no new tree_pack species found this seed.
+[FINDING] dry zone shot: env_tree_dry_01 MISSING, framed on bush_dry only.
