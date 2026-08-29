@@ -1,3 +1,26 @@
+> # ⚠️ TÉCNICA DESCARTADA — NO CONSTRUIR CON ESTO
+>
+> **Descartada el 2026-08-15** en `_asset_creation_contract.md` §402: *"⚠️ técnica descartada
+> (anime)"*. El techo de fidelidad del proyecto es **Skyrim** (§3b), y en esa fila el pelo es
+> **cards con alpha + atlas de mechones**. Las cáscaras opacas son el renglón **RDR1**, un
+> escalón por debajo del estándar que Joan corrigió hacia arriba.
+>
+> **Costó dos implementaciones.** El 2026-08-22 se construyó esta técnica dos veces seguidas
+> —`gen_char_hair_shells.py` y el blockout previo— leyendo esta carpeta y sin abrir el
+> contrato. Ninguna leyó como pelo. La técnica vigente está en
+> `gen_char_hair_cards.py` + `gen_hair_atlas.py`, y el método en
+> `_modeling_knowledge_base.md` §Hair.
+>
+> **Qué sigue sirviendo de acá**: la *cáscara base* (frames 65-171) equivale al **scalp cap**
+> del método de tres capas, que sí es canon. Lo descartado son las cáscaras de mechón como
+> reemplazo de las cards.
+>
+> *(Aviso agregado 2026-08-23 por la auditoría de activación: el descarte de una técnica se
+> escribe en su propia carpeta de referencia, porque el lector natural de una referencia es
+> justamente el que está por construir con ella.)*
+
+---
+
 # hair_polygon_shells — pelo construido como cáscaras de polígonos (2026-08-13)
 
 **Joan dijo:** *"es como de una sujeta de que le están haciendo el pelo, y se la hacen con polígonos, pero se ve precioso, hay resultado. Esa idea está muy buena para trabajar quizás en el pelo de los personajes."*
