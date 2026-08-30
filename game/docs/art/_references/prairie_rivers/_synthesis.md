@@ -170,3 +170,60 @@ ve a través del agua en los primeros 2 m desde la orilla.
 una de caliza horneadas desde procedural (como `texture_bake.py` del golem), (2) un shader de
 agua con depth-fade (Godot lo soporta nativo con `depth_texture`), (3) scatter con hundimiento.
 Lo que no se replica 1:1 es la densidad de malla de Megascans — y no hace falta al techo Skyrim.
+
+---
+
+## Tanda 3 — 2026-08-30: siete ríos de Joan tras ver `river_segment_v2` (contexto explícito)
+
+**Joan dijo** (transcripción, sobre la ficha de v2): *"entre el ruido que teníamos en el juego
+y el río de ahora es harta la diferencia, mejoró mucho, pero sí, se siente como un canal: son
+polígonos planos que tienen textura, no son como un grupo de piedras juntas, sino solamente
+una cara plana con una imagen. Me gustaría que fuera más natural, más como en el video. Tenía
+una gradiente suave para entrar en algunas partes; en otras había unas rocas grandes que
+funcionaban como un peñasco, como una pared más lateral, más vertical; otras horizontales. El
+río va siempre variando en tres, nunca es solamente un canal al que se le ponen dos murallas
+verticales a los costados. Y siempre hay vegetación, siempre hay árboles, porque el agua trae
+vida. Musgos, quizás peces."*
+
+Tres pedidos, cada uno con su falla de v2 al lado:
+
+| Pedido de Joan | Falla de v2 | Regla que sale |
+|---|---|---|
+| "grupo de piedras juntas", no "cara plana con imagen" | el lecho es UNA malla con textura Voronoi; a 1 m lee como adoquín | el lecho es un **apilado de cantos con volumen** (instancias con relieve real) sobre una base de grava fina; la textura sola no reemplaza geometría a distancia de juego |
+| "varía en tres": gradiente suave / peñasco-pared vertical / horizontal | perfil transversal único, rectangular, en todo el tramo | cada orilla elige **uno de tres perfiles por tramo** y los dos lados nunca coinciden; el perfil cambia a lo largo del río, no sólo entre ríos |
+| "siempre hay vegetación, árboles, musgo, peces" | segmento mineral puro sobre pasto plano | la orilla lleva arbustos hasta el agua, árboles que se inclinan sobre el cauce y musgo en la cara de sombra de los peñascos; fauna después |
+
+### Imágenes (nombres `prairie_rivers_joan_NN_*`)
+
+| # | Archivo | Qué se VE (observado) |
+|---|---|---|
+| 01 | `…turquoise_gravel_bar_vs_boulder_bank` | río turquesa ancho; orilla izquierda = **barra de grava en gradiente suave** que entra al agua sin escalón; orilla derecha = **peñascos de 0,5-2 m apilados** que sí hacen pared; bosque cerrado en ambos lados |
+| 02 | `…mossy_boulders_wet_gradient` | peñascos redondeados de 0,5-2 m con **musgo y liquen naranja en la cara superior**; hacia el agua se oscurecen (banda mojada visible); árboles otoñales sobre el cauce |
+| 03 | `…aerial_two_bank_types_shrubs_to_water` | aérea: orilla izquierda = playa de grava + **matorral hasta el borde del agua**; orilla derecha = **talud de bloques** (escollera natural); rápidos en el centro; el río cambia de ancho |
+| 04 | `…granite_boulders_cascade_cobbles` | bloques de granito de **2-4 m** en medio y al lado del flujo, caras lisas y aristas redondeadas; cascada entre ellos; cantos de 5-20 cm visibles bajo agua clara; bosque encima |
+| 05 | `…pebble_bed_through_teal_water` | **lecho de guijarros de tamaño mezclado visto a través del agua teal**; orilla de cantos secos claros; peñascos de 1-2 m a ambos lados; ramas colgando |
+| 06 | `…forest_stream_rock_wall_right` | arroyo angosto; derecha = **pared de roca vertical** con vegetación encima; izquierda = playa de cantos en pendiente suave; misma agua, dos perfiles |
+| 07 | `…slab_bed_spruce_overhang` | lecho de **lajas planas horizontales** (esquisto), cantos aplanados apilados; abetos y hojas que **cuelgan sobre el cauce**; agua baja entre lajas |
+
+### Lo que cambia respecto de la tanda 2
+
+La tanda 2 (jerarquía de rocas) resolvió **material y escalas**. Esta tanda corrige lo que
+v2 hizo con eso: un canal recto con dos muros y una alfombra. Las reglas nuevas, con número:
+
+1. **Perfil transversal por tramo**, tres tipos, elegidos por orilla y por segmento de ~4 m:
+   - *gradiente*: pendiente 8-15° desde la orilla seca al fondo, sin escalón, grava fina;
+   - *peñasco-pared*: bloques de 1-3 m apilados 2-3 alto, cara al agua 60-90°, base
+     enterrada 30-50 %;
+   - *horizontal*: lajas/bloques bajos (0,3-0,8 m) a nivel del agua, tope plano, agua entre ellos.
+   Los dos lados de un mismo tramo **no repiten tipo**; a lo largo de 12 m aparecen los tres.
+2. **Lecho = geometría**, no textura: cantos ≥ 8 cm son instancias con volumen (relieve real,
+   LECCIONES §6); la textura horneada sólo cubre la grava < 8 cm. Densidad de cantos visible en
+   los primeros 2 m desde la orilla; bajo el agua profunda, sólo textura.
+3. **Vida en la orilla**: arbustos con `humidity 0.8-1.0` hasta el borde; ≥ 1 árbol por lado
+   inclinado 5-15° hacia el cauce; musgo como slot de material en la cara superior/sombra de
+   peñascos fuera del agua. Peces: pass posterior (fauna).
+
+**Métrica nueva (antes de construir)**: (e) en el cenital, contar tipos de perfil por orilla —
+≥ 2 tipos por lado, 3 en total; (f) a 1 m de la línea de agua, ≥ 60 % del área de lecho
+visible es geometría (cantos con silueta), no textura; (g) desde el ojo del jugador, ningún
+tramo de orilla muestra una arista recta > 2 m.
