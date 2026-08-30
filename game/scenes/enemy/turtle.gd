@@ -4,6 +4,8 @@ extends BaseEnemy
 ## Stats: HP 90, DMG 3, DEF 8, XP 12, speed 1.5, mass 1.5, knockback_resistance 0.5
 ## Mechanic: al recibir daño → retracción (DEF 20, 3s, no ataca ni persigue)
 
+const TURTLE_MODEL := "res://assets/art/piso1_pradera/enemies/small/turtle_dp_01.glb"
+
 const BASE_DEF := 8.0
 const SHELL_DEF := 20.0
 const SHELL_DURATION := 3.0
@@ -24,14 +26,28 @@ func _on_enemy_ready() -> void:
 	knockback_resistance = 0.5
 	spawn_position = global_position
 	_pick_wander_dir()
+	# Hide every placeholder MeshInstance3D that ships in the .tscn, not just
+	# `mesh`: the scene also carries a "Shell" sphere as a sibling, and it kept
+	# floating above the real model. Caught only in Godot -- in Blender the GLB
+	# is alone in the file and the .tscn primitives do not exist.
 	mesh.visible = false
-	var model := EnemyModelBuilder.build_shelled(
-		default_color,
-		Color(0.45, 0.5, 0.35),  # shell_color (slightly different green)
-		0.25,   # shell_radius
-		0.08,   # body_height
-		4       # leg_count
-	)
+	for child in get_children():
+		if child is MeshInstance3D and child != mesh:
+			child.visible = false
+	# Bespoke model from the Blender motor, replacing the primitive stand-in
+	# that build_shelled() produced. The GLB carries its own animations
+	# (idle / move / attack / hit / death) and baked vertex colour -- see
+	# _mob_audit_2026-08-22.md for why the colour has to be IN the file.
+	var model: Node3D = null
+	var glb := load(TURTLE_MODEL) if ResourceLoader.exists(TURTLE_MODEL) else null
+	if glb != null:
+		model = glb.instantiate()
+	else:
+		# Fall back to the primitive build rather than spawning an invisible
+		# enemy: a missing asset should look wrong, not absent.
+		push_warning("turtle: no encuentro %s, uso el modelo primitivo" % TURTLE_MODEL)
+		model = EnemyModelBuilder.build_shelled(
+			default_color, Color(0.45, 0.5, 0.35), 0.25, 0.08, 4)
 	model.name = "Model"
 	add_child(model)
 

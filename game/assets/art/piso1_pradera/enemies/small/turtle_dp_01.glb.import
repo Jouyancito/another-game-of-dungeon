@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bqp7vv07dm5ll"
-path="res://.godot/imported/turtle.glb-9b3b050ab09c58f058501c3a2aacb2c8.scn"
+uid="uid://dgqku6vn2qb8t"
+path="res://.godot/imported/turtle_dp_01.glb-3024a48b9381f75eb1bfb758b80bec64.scn"
 
 [deps]
 
-source_file="res://tools/blender/turtle/turtle.glb"
-dest_files=["res://.godot/imported/turtle.glb-9b3b050ab09c58f058501c3a2aacb2c8.scn"]
+source_file="res://assets/art/piso1_pradera/enemies/small/turtle_dp_01.glb"
+dest_files=["res://.godot/imported/turtle_dp_01.glb-3024a48b9381f75eb1bfb758b80bec64.scn"]
 
 [params]
 
