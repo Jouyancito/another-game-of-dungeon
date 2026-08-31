@@ -142,7 +142,7 @@ func _channel_drain() -> void:
 	if _drain_active:
 		return
 	_drain_active = true
-	while is_draining and is_holding_attack and not is_dead:
+	while is_draining and is_holding_attack and not is_incapacitated():
 		if not use_mana(drain_mana_cost):
 			_stop_drain()
 			return

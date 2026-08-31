@@ -14,7 +14,14 @@ extends Node3D
 
 ## Bounds del mundo procedural en metros. Default (600, 600) = mapa demo.
 ## proc_lab usa celdas chicas (~120x120) para iterar rápido.
-@export var proc_bounds: Vector2 = Vector2(600.0, 600.0)
+## 2026-08-07: 600 -> 780 (área ×1.69). Joan, tras caminar el mapa: *"la pradera
+## debería ser por lo menos un 50% más grande, para generar ese ambiente de
+## exploración, sino veo lo que hay al otro lado del mapa altiro y zzz, se
+## identifica muy rápido que hay un lugar de jefe o escenario alternativo"*.
+## OJO: agrandar esto SOLO no cumple ese objetivo — ver la nota de frecuencia en
+## _setup_terrain_noise() y TERRAIN_MAX_HEIGHT. El tamaño da la caminata; la
+## oclusión da la exploración.
+@export var proc_bounds: Vector2 = Vector2(780.0, 780.0)
 
 ## Capas activas. Permite generar solo lo que interesa al iterar.
 ## TODO true = pipeline completo (idéntico al demo).
@@ -35,7 +42,7 @@ extends Node3D
 ## Multiplicador de densidad del tapiz de hierba. 1.0 = presupuesto nominal (≤120k blades a 600m).
 ## Reduce para iterar más rápido o en hardware débil.
 ## Default 1.0 = ~120k blades en el mapa completo (70m cull makes rendered count ~13k max).
-@export var grass_density: float = 1.0
+@export var grass_density: float = 2.2
 
 ## Distancia de culling de la hierba en metros. Los MultiMeshInstance3D de hierba usan
 ## visibility_range_end = este valor con fade SELF para que desaparezcan suavemente.
@@ -44,6 +51,11 @@ extends Node3D
 ## Si true, omite el setup de UI compartida (pausa/inventario/etc).
 ## proc_lab lo desactiva: es un banco de pruebas visual, no una partida.
 @export var skip_game_ui: bool = false
+
+## Vacío = comportamiento normal. Con un tipo de POI ("camp", "ruins", etc.), proc_lab
+## genera SOLO ese POI a escala real (600m, tamaño canon) y lo recentra al origen —
+## ve el asset a su tamaño verdadero sin caminar el mapa completo. Ver generate().
+@export var lab_poi_focus: String = ""
 
 ## ── Crystal glass material tweaks ────────────────────────────────────────────
 ## Alpha 0-1: 0 = invisible, 1 = opaque. ~0.65 = translucent gem look (Danmachi F18).
@@ -69,46 +81,138 @@ func _proc_scale() -> float:
 const BORDER_RADIUS_BASE: float = 250.0
 const BORDER_NOISE_AMP: float = 45.0
 const BORDER_NOISE_FREQ: float = 4.0
-const BORDER_WALL_HEIGHT: float = 25.0
+const BORDER_WALL_HEIGHT: float = 32.0  # Task 1 (2026-07-20): 25->32 — extra margin above the taller/rugged mountain-slope terrain now leading up to it
 const BORDER_WALL_SEGMENTS: int = 64
+## Judgment Day fix (2026-07-21): min gap kept between a border wall segment's
+## TOP and CEILING_HEIGHT. At high-ridge azimuthal sections the flat
+## BORDER_WALL_HEIGHT addition on top of real terrain height could reach/exceed
+## the roof plane — see the per-segment clamp in _build_organic_border().
+const BORDER_WALL_CEILING_MARGIN: float = 4.0
 
 # Ceiling — NO projeta sombras para evitar oscuridad invertida
-const CEILING_HEIGHT: float = 45.0
+# Task 3 (2026-07-20, Joan): 45->68 — taller ceiling so the light source reads as
+# ambiguous/deep rather than "obviously one flat plane up there" (crystal_ceiling_
+# lightning gap doc). Every CEILING_HEIGHT-relative system (crystal field, landmark
+# pillars, biolum) scales up automatically with this constant.
+const CEILING_HEIGHT: float = 68.0
 
-# Crystal field — cuarzos distribuidos en curva S (vía láctea mineral)
-const CRYSTAL_PATH_CLUSTERS: int = 35       # clusters a lo largo de la curva
+# Crystal field — Task 3 (2026-07-20): "lightning bolt" branching distribution
+# across MULTIPLE height bands (see _build_lightning_branch_points +
+# CRYSTAL_BAND_RANGES) replaces the old single sine-curve path at one narrow band.
+## Joan (2026-07-20): the crystals must read as "un cúmulo de cristales de
+## diferentes tamaños y formas como techo, y de ahí sale la iluminación" — a
+## sparse scatter of a few small shards does not sell that. Doubled the
+## cluster count and raised light output since the key light is now gone and
+## these are the prairie's ONLY light source.
+const CRYSTAL_PATH_CLUSTERS: int = 70       # clusters a lo largo de las ramas
 const CRYSTAL_SCATTER_WIDTH: float = 60.0    # ancho de dispersión lateral
-const CRYSTAL_MIN_HEIGHT: float = 32.0       # altura mínima (cuelgan del techo)
-const CRYSTAL_MAX_HEIGHT: float = 42.0
+const CRYSTAL_MIN_HEIGHT: float = 20.0       # altura mínima (banda más baja)
+const CRYSTAL_MAX_HEIGHT: float = 66.0       # altura máxima (banda más alta, casi al techo)
+## Distinct height bands a lightning-branch point can land in — index = branch
+## `band` (its generation/fork depth). Overlap a little at the edges so clusters
+## blend naturally instead of showing a hard seam between tiers.
+const CRYSTAL_BAND_RANGES: Array[Vector2] = [
+	Vector2(20.0, 32.0),
+	Vector2(30.0, 45.0),
+	Vector2(42.0, 56.0),
+	Vector2(54.0, 66.0),
+]
 const CRYSTAL_LIGHT_RANGE: float = 22.0      # quick-win: 10→22 for visible colored ground pools (clamp raised below)
-const CRYSTAL_LIGHT_ENERGY: float = 3.0      # Wave1.5: boosted 1.1→3.0 — OmniLights now actually illuminate ground
+# 3.0->4.5 (2026-07-20): crystals now carry the WHOLE scene's illumination
+# (key light removed) — the old value was tuned as a fill light alongside a
+# directional sun, not as the sole light source.
+const CRYSTAL_LIGHT_ENERGY: float = 4.5
 const CRYSTAL_AMBIENT_ENERGY: float = 0.25   # legacy — ya no se usa (flood gigante eliminado; fill en WorldEnv)
 const CRYSTAL_MONARCH_COUNT: int = 3         # cristales gigantes "príncipe"
-const CRYSTAL_LIGHTS_EVERY: int = 3          # luz real cada N clusters (reduce OmniLights)
+const CRYSTAL_LIGHTS_EVERY: int = 2          # 3->2: more real lights per cluster now that they're the only source
 const CEILING_BIOLUM_PATCHES: int = 50       # parches bioluminiscentes en el techo
 const CEILING_BIOLUM_COLOR: Color = Color(0.4, 0.7, 0.55)  # verde azulado orgánico
 
 # Landmarks
 const PILLAR_COUNT: int = 6
-const PILLAR_MIN_HEIGHT: float = 30.0
-const PILLAR_MAX_HEIGHT: float = 50.0
 
 # Vegetation
 const TREE_COUNT: int = 200
 const ROCK_COUNT: int = 120
-const TALL_GRASS_COUNT: int = 80
+## Ground flora is placed as single-species masses (see _scatter_clumps). These
+## count CLUMPS, not plants: at the 780 m map _area_count multiplies by 1.69, so
+## ~372 masses of 5-11 plants each land on the field.
+##
+## Replaces TALL_GRASS_COUNT (80, of which the connective-tissue pass used 70% =
+## 56 plants for the ENTIRE map — one every 4 400 m², against 192 718 carpet
+## blades). That single number is most of why Joan's reference photos and the game
+## do not look like the same kind of place.
+const GROUND_CLUMP_COUNT: int = 220
+## Metres. A mass has to be wide enough to read as a patch of colour from walking
+## distance and tight enough not to dissolve back into scatter.
+const GROUND_CLUMP_RADIUS: float = 3.2
 
 # Enemies
 const FIELD_ENEMY_COUNT: int = 35
 const PATROL_ENEMY_COUNT: int = 8
 
 # Terrain (heightmap)
-const TERRAIN_RESOLUTION: int = 96       # grid cells por lado (96*96 = 9216 verts)
-const TERRAIN_MAX_HEIGHT: float = 9.0    # alto max de colinas
+## 2026-08-07: 96 -> 128. La resolución era FIJA mientras `proc_bounds` es @export, así
+## que al pasar el mapa de 600 a 780 m el paso de grilla saltó de 6.25 a 8.125 m sin que
+## nada avisara. La trinchera de entrada quedó más angosta que la celda que la describe y
+## la interpolación metió tierra sin excavar DENTRO del corredor: el vano mide 6 m y el
+## paso libre real eran 3 m, corridos hacia el norte. Joan quedó trabado saliendo
+## ("se bloquea con suelo y me deja pegado", medido con el barrido de cápsula de
+## scenes/dev/entrance_capture.gd).
+##
+## 128 sobre 780 m = 6.09 m por celda, apenas mejor que los 6.25 originales. Cuesta
+## 16 641 vértices contra 9 409 (+77%) en un heightmap estático, y de paso le da
+## definición a las colinas de 16 m que se subieron en el mismo commit.
+##
+## REGLA: esta constante y `proc_bounds` están acopladas. Si el mapa vuelve a cambiar de
+## tamaño, recalcular para mantener el paso en ~6 m o la entrada se vuelve a tapar.
+const TERRAIN_RESOLUTION: int = 128      # grid cells por lado (128*128 = 16384 verts)
+## Amplitude of the base hill noise ONLY (Section 1 of _compute_height_at) — NOT
+## the overall height ceiling of the map. Historically this doubled as the color
+## ramp's normalisation divisor too, which was wrong: Round-C's bowl/mountain rise
+## (added 2026-07-20, see BOWL_RISE_BASE etc. below) pushes real terrain to ~40m+
+## near the border, so normalising by 9.0 clamped ~82% of the playable disc to the
+## top of the color ramp (measured via game/scenes/dev/_height_probe.gd — see
+## color-normalisation bugfix, 2026-07-30). Use TERRAIN_COLOR_MAX_HEIGHT below for
+## normalisation; this constant stays scoped to what it actually names: hill noise.
+## 2026-08-07: 9.0 -> 16.0. Con el jugador en 1.80 m, una colina de 9 m sobre un
+## mapa de 600 m no esconde NADA a media distancia — se veía el mapa entero de un
+## vistazo y los POIs de jefe se identificaban desde el spawn. 16 m es ~9 jugadores:
+## a 80-150 m tapa lo que sigue, que es la distancia a la que se decide hacia dónde
+## caminar. No sube el techo del mapa (el borde ya llega a ~40 m por bowl+mountain);
+## sube el relieve del INTERIOR, que es donde se explora.
+const TERRAIN_MAX_HEIGHT: float = 16.0   # alto max de colinas (solo ruido base)
 const TERRAIN_NOISE_FREQ: float = 0.004  # frecuencia baja = features grandes
 const TERRAIN_NOISE_OCTAVES: int = 3
 const TERRAIN_EDGE_RISE: float = 6.0     # subida hacia los bordes (acantilados)
 const FLAT_RADIUS_BASE: float = 50.0     # spawn-bowl flatten radius (pre-scale) — single source
+
+## Round-A #3 broad swell amplitude (unscaled — see _compute_height_at section 2 swell block).
+const TERRAIN_SWELL_MAX_HEIGHT: float = 3.5
+## Round-A #2 dirt/rock outcrop bump — threshold + max added metres (unscaled).
+## Hoisted from a local const inside _compute_height_at so TERRAIN_COLOR_MAX_HEIGHT
+## below can reference the same single source instead of a second copy that could drift.
+const TERRAIN_OUTCROP_THRESHOLD: float = 0.7    # top ~15% of noise values trigger an outcrop
+const TERRAIN_OUTCROP_MAX_ADD: float   = 2.5    # max added metres; ~1.5m/6m slope ≈ 14° — climbable
+## Round-C radial bowl / Task 1 mountain-slope rise — metres at _scale=1.0 (the demo
+## map). Hoisted from local consts inside _compute_height_at for the same reason.
+const BOWL_RISE_BASE: float = 12.0      # metres gained from flat_radius edge to border
+const BOWL_LIP_RISE_BASE: float = 4.0   # extra metres in the last 15% (visual border lip)
+const MOUNTAIN_EXTRA_MAX: float = 14.0  # extra metres at full ridge (on top of the baseline)
+const MOUNTAIN_JAG_MAX: float = 7.0     # extra metres of broken-rock detail at full ridge
+
+## Theoretical ceiling of _compute_height_at() at _scale=1.0 — the sum of every
+## additive term's maximum, hit simultaneously (worst case; real sampled max is
+## lower, ~40.7m per _height_probe.gd, because noise/ridge/outcrop rarely peak at
+## the same point). This is a DERIVED constant, not a new magic number: bump any
+## term above and this updates automatically, so the color ramp cannot silently
+## drift out of sync with the generator again (see TERRAIN_MAX_HEIGHT doc comment).
+## _scale-dependent terms (bowl/mountain) are re-derived per map size in generate()
+## as _terrain_color_max_height — this const is the scale=1.0 (demo map) case.
+const TERRAIN_COLOR_MAX_HEIGHT: float = (
+	TERRAIN_MAX_HEIGHT + TERRAIN_SWELL_MAX_HEIGHT + TERRAIN_OUTCROP_MAX_ADD
+	+ BOWL_RISE_BASE + BOWL_LIP_RISE_BASE + MOUNTAIN_EXTRA_MAX + MOUNTAIN_JAG_MAX
+)
 
 # ── Round-B: Streams ──────────────────────────────────────────────────────────
 # 3 stream channels carved deterministically from world_seed (no _rng — pure math).
@@ -125,7 +229,6 @@ const STREAM_SEGMENTS: int = 5          # control points per stream (interpolate
 # Procedural greens/browns desaturated ~28% vs Wave1 — Kimetsu rule: biome is quiet,
 # skills and crystals are the saturated pixels. Crystals remain as jewel accents only.
 const COLOR_FLOOR: Color       = Color(0.286, 0.406, 0.220)  # olive-green, -28% sat
-const COLOR_TRUNK: Color       = Color(0.320, 0.234, 0.163)  # bark brown, -27% sat
 const COLOR_CANOPY: Color      = Color(0.214, 0.302, 0.176)  # cavern leaf, -28% sat
 const COLOR_CANOPY_DARK: Color = Color(0.165, 0.240, 0.131)  # dark understory, -27% sat
 const COLOR_TALL_GRASS: Color  = Color(0.173, 0.252, 0.118)  # dim grass, -27% sat
@@ -143,23 +246,15 @@ const COLOR_CRYSTAL_COOL: Color = Color(0.37, 0.85, 1.0)   # cyan frío #5FD8FF
 const COLOR_CRYSTAL_ROSE: Color = Color(0.69, 0.44, 1.0)   # violeta #B06FFF
 const COLOR_PILLAR: Color      = Color(0.400, 0.380, 0.340)  # stone pillar (already muted)
 const COLOR_WATER: Color       = Color(0.2, 0.4, 0.6, 0.6)
-const COLOR_CAMP_TENT: Color   = Color(0.476, 0.340, 0.230)  # canvas, -26% sat
 const COLOR_ALTAR: Color       = Color(0.635, 0.603, 0.548)  # stone altar, -25% sat
+const COLOR_TIMBER: Color      = Color(0.318, 0.216, 0.129)  # pit prop, rough-sawn
+const COLOR_TIMBER_DARK: Color = Color(0.224, 0.149, 0.090)  # lagging planks, in shadow
 const COLOR_GIANT_TRUNK: Color = Color(0.270, 0.210, 0.155)  # old bark, -26% sat
 const COLOR_GIANT_CANOPY: Color = Color(0.172, 0.262, 0.136)  # dense canopy, -27% sat
 
-# ── Cavern key light (direccional cálido con sombras — el "sol filtrado") ──
-# D2-ACT-1 HYBRID: warm gold key vs cool-dark fill = high contrast defined shadows.
-# Key is the HERO light (warm gold #F5D8A0); fill stays cool-dark from crystal ceiling.
-# Energy 0.8 — strong enough to rim figures warmly against cool shadow but not bleaching.
-@export var key_light_energy: float = 0.8
-@export var key_light_pitch: float = -52.0
-@export var key_light_yaw: float = -35.0
-@export var key_light_color: Color = Color(0.961, 0.847, 0.627)  # #F5D8A0 warm gold
-
 # ── Monarcas: spotlight con sombra dinámica (solo los 3 cristales grandes) ───────
 @export var monarch_shadows: bool = false      # true = sombra dinámica (perf red-line; off by default)
-@export var monarch_light_energy: float = 1.5
+@export var monarch_light_energy: float = 2.6  # 1.5->2.6 (2026-07-20): monarchs are the "sun" now that the key light is gone
 @export var monarch_spot_angle: float = 52.0
 
 # ── Scene references ──────────────────────────────────────────────────────────
@@ -181,6 +276,10 @@ var SCENE_SCORPION: PackedScene
 var SCENE_HAWK: PackedScene
 var SCENE_GOAT: PackedScene
 var SCENE_WASP: PackedScene
+var SCENE_FROG: PackedScene
+var SCENE_JABALI: PackedScene
+var SCENE_SPIDER: PackedScene
+var SCENE_BANDIT_LEADER: PackedScene
 var SCENE_TURTLE: PackedScene
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -202,6 +301,17 @@ var _swell_noise: FastNoiseLite
 ## Round-B: micro-jitter for stream centrelines. Low frequency so curves are gentle,
 ## not jagged. Seeded from world_seed+71 to stay independent of all other noise layers.
 var _stream_jitter_noise: FastNoiseLite
+## Task 1 (2026-07-20): high-frequency noise that breaks the border-ring mountain
+## rise into broken rock-face masses instead of a perfectly smooth radial ramp.
+## Sampled in raw world coords (scale-independent), only applied outside
+## flat_radius — see _compute_height_at.
+var _ridge_detail_noise: FastNoiseLite
+## Deterministic per-seed phase offsets for _ridge_factor_at_angle() — hashed from
+## world_seed (same idiom as _build_stream_polylines' hash_offset) so each seed
+## gets a different azimuthal ruggedness pattern without needing an _rng draw.
+var _ridge_phase_a: float = 0.0
+var _ridge_phase_b: float = 0.0
+var _ridge_phase_c: float = 0.0
 ## Precomputed stream polylines (xz pairs). Built once by _build_stream_polylines()
 ## which is called from _setup_terrain_noise(). Each stream is an Array[Vector2].
 var _stream_polylines: Array = []
@@ -212,6 +322,11 @@ var _terrain_stride: int = 0  # TERRAIN_RESOLUTION + 1
 # En el demo (scale 1.0) coinciden con las constantes históricas.
 var _scale: float = 1.0
 var _border_radius_base: float = BORDER_RADIUS_BASE
+## Color-ramp normalisation ceiling for THIS map's _scale — bowl/mountain terms
+## scale with _scale (same as _compute_height_at), noise/swell/outcrop don't.
+## Recomputed in generate(); defaults to the _scale=1.0 value (TERRAIN_COLOR_MAX_HEIGHT)
+## so any code reading it before generate() runs still gets a sane number.
+var _terrain_color_max_height: float = TERRAIN_COLOR_MAX_HEIGHT
 
 # Snapshot de hijos pre-generación: lo que NO está acá se considera generado
 # y se libera en regenerate() para un reseed limpio.
@@ -222,24 +337,27 @@ var _baseline_children: Array[Node] = []
 ## (and therefore one NoiseTexture2D pair) instead of allocating a new one per CSG node.
 ## Reset in regenerate() to avoid holding stale materials across reseeds.
 var _cave_mat_cache: Dictionary = {}
+var _timber_mat_cache: Dictionary = {}
 
-## Cavern key light — UN DirectionalLight CÁLIDO con sombras: el "sol filtrado"
-## dorado del golden-hour ACOGEDOR (DanMachi F18). Da forma/profundidad y aporta la
-## mitad cálida del contraste warm-key/cool-shadow. Perf: shadow-caster principal.
-func _build_key_light() -> void:
-	var key := DirectionalLight3D.new()
-	key.name = "CavernKeyLight"
-	key.rotation_degrees = Vector3(key_light_pitch, key_light_yaw, 0.0)
-	key.light_color = key_light_color
-	key.light_energy = key_light_energy
-	key.shadow_enabled = true
-	key.shadow_bias = 0.04
-	add_child(key)
-
+## Task 3 (2026-07-20): the single CrystalCeiling instance for this floor — either
+## the one declared in floor1_prairie.tscn (the real 600m demo map) or one
+## instantiated on demand (proc_lab's bare Floor1Prairie root has no pre-declared
+## child nodes). Set once per generate() call by _get_or_build_crystal_ceiling().
+var _crystal_ceiling: CrystalCeiling = null
 
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
+	# --finish=N picks the stone/timber finish level (see ENTRANCE_FINISH). Read here
+	# as well as in the capture harness so the ramp can be walked in the real game,
+	# not only shot from fixed cameras — a still hides what a step through the doorway
+	# shows. The harness sets the static directly and this parse is then a no-op.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--finish="):
+			ENTRANCE_FINISH = clampi(int(a.split("=", true, 1)[1]), 0, 3)
+		elif a.begins_with("--rocksat="):
+			ROCK_SAT = clampi(int(a.split("=", true, 1)[1]), 0, ROCK_SAT_STEPS.size() - 1)
+
 	# Cargar escenas de enemigos nuevos
 	SCENE_RAT = load("res://scenes/enemy/rat.tscn")
 	SCENE_SNAKE = load("res://scenes/enemy/snake.tscn")
@@ -252,6 +370,10 @@ func _ready() -> void:
 	SCENE_HAWK = load("res://scenes/enemy/hawk.tscn")
 	SCENE_GOAT = load("res://scenes/enemy/goat.tscn")
 	SCENE_WASP = load("res://scenes/enemy/wasp.tscn")
+	SCENE_FROG = load("res://scenes/enemy/frog.tscn")
+	SCENE_JABALI = load("res://scenes/enemy/jabali.tscn")
+	SCENE_SPIDER = load("res://scenes/enemy/spider.tscn")
+	SCENE_BANDIT_LEADER = load("res://scenes/enemy/bandit_leader.tscn")
 	SCENE_TURTLE = load("res://scenes/enemy/turtle.tscn")
 
 	var class_path: String = GameManager.selected_class_scene
@@ -278,13 +400,50 @@ func generate() -> void:
 	_rng.seed = world_seed
 	_scale = _proc_scale()
 	_border_radius_base = BORDER_RADIUS_BASE * _scale
+	# Color-ramp ceiling for _height_to_color — same additive terms as _compute_height_at,
+	# with the _scale-dependent ones (bowl/mountain rise) scaled the same way so a small
+	# proc_lab cell doesn't get normalised against the full 600m map's height range.
+	_terrain_color_max_height = (
+		TERRAIN_MAX_HEIGHT + TERRAIN_SWELL_MAX_HEIGHT + TERRAIN_OUTCROP_MAX_ADD
+		+ (BOWL_RISE_BASE + BOWL_LIP_RISE_BASE + MOUNTAIN_EXTRA_MAX + MOUNTAIN_JAG_MAX) * _scale
+	)
 	_precalculate_border()
 	_setup_terrain_noise()
-	_build_key_light()
 
-	# 1. Atmósfera
-	if active_layers.get("ceiling", true):
-		_build_ceiling()
+	# 1. Atmósfera — CrystalCeiling ahora es el dueño único del techo: geometría del
+	# techo de roca + AMBAS luces ambientales (sus propias CeilingLight/FocusLight,
+	# más el ex CavernKeyLight fusionado adentro) — Task 3 (2026-07-20) reconciliación
+	# de los 4 sistemas antes independientes descritos en _prairie_environment_rework.md
+	# §4. Reemplaza los antiguos _build_ceiling()/_build_key_light() duplicados.
+	_crystal_ceiling = _get_or_build_crystal_ceiling()
+	_crystal_ceiling.size = Vector2(proc_bounds.x, proc_bounds.y)
+	# CEILING_HEIGHT is intentionally NOT scaled by _scale — it never was (the old
+	# _build_ceiling() used it unscaled too), so proc_lab's small cells keep the same
+	# absolute roof height as the full 600m map instead of squashing it down to a
+	# few metres.
+	_crystal_ceiling.height = CEILING_HEIGHT
+	_crystal_ceiling.build_rock_roof = active_layers.get("ceiling", true)
+	# DAYLIGHT canon (2026-07-27, Joan): the prairie is a REAL open biome inside
+	# the tower (DanMachi 18F model) — full daylight applies. This supersedes the
+	# 2026-07-20 "crystals replace the sun" cavern-night model: the sun key light
+	# is back ON with hard shadows (Valheim fidelity: dramatic directional light),
+	# and the crystal monarchs downgrade from sole light source to accents.
+	_crystal_ceiling.build_key_light = true
+	# Caverna-DIA retune (2026-08-27): 1.25 still read as dusk against Joan's
+	# daylight prairie photos — full-day key with the sky ambient at ~2:1, and
+	# the ceiling plane switches to the luminous day-sky mode (the dark rock
+	# roof overhead was capping the histogram at p95 0.60 vs the photos' 0.90).
+	_crystal_ceiling.key_light_energy = 1.9
+	_crystal_ceiling.key_light_shadow = true
+	_crystal_ceiling.daylight_sky = true
+	# Judgment Day fix (2026-07-21): the rock roof (build_rock_roof above) is now
+	# the ceiling's real visible geometry — the legacy tinted PlaneMesh is
+	# redundant and z-fights it. floor1_prairie.tscn's pre-declared CrystalCeiling
+	# already sets show_ceiling_plane=false statically, but _get_or_build_crystal_
+	# ceiling() also instantiates a FRESH CrystalCeiling for proc_lab (bare root,
+	# no pre-declared child) that keeps the export's `true` default — set it here
+	# so both paths agree.
+	_crystal_ceiling.show_ceiling_plane = false
 	if active_layers.get("crystals", true):
 		_build_crystal_field()
 	if active_layers.get("pillars", true):
@@ -308,14 +467,45 @@ func generate() -> void:
 		# Gated on vegetation layer so it toggles with the rest of scatter.
 		if active_layers.get("vegetation", true):
 			_scatter_stream_banks()
+			# river_pack wiring (2026-07-27, _references/prairie_rivers/_synthesis.md):
+			# _scatter_stream_banks() above only populates the bank OUTSIDE the channel.
+			# These two passes fill the gap the synthesis called out - rocks INSIDE the
+			# wet/dry channel bed, and reeds rooted right at the waterline.
+			_scatter_stream_channel_rocks()
+			_scatter_stream_reeds()
 
 	# 3. POIs — ajustar al terreno antes de construir
 	var pois: Array = []
 	if active_layers.get("pois", true):
 		var poi_system: POISystem = POISystem.new()
-		pois = poi_system.generate_pois(world_seed, proc_bounds, _is_inside_border)
+		if lab_poi_focus != "":
+			# proc_lab mode: POISystem's sizes/margins/BOSS_MIN_DISTANCE are absolute
+			# metres tuned for the 600m map and do NOT scale with proc_bounds (unlike
+			# terrain height, fixed above). Feeding it a shrunk map_size breaks anchor
+			# POIs (boss is 80x80m with a 350m min-distance rule — inside a 120m cell
+			# it overflows the map itself). So: generate at TRUE 600m scale (real POI
+			# size/position, matches the actual game 1:1), keep only the requested
+			# type, and recenter it to local origin so it lands inside the small
+			# terrain cell without the player having to walk to find it.
+			var raw_pois: Array = poi_system.generate_pois(world_seed, Vector2(600.0, 600.0), Callable())
+			for poi in raw_pois:
+				var p: POISystem.POI = poi as POISystem.POI
+				if p.type == lab_poi_focus:
+					p.position = Vector3.ZERO
+					pois = [p]
+					break
+			if pois.is_empty():
+				push_warning("[floor1_lab] lab_poi_focus='%s' no salió con seed=%d — reseed (R)" % [lab_poi_focus, world_seed])
+		else:
+			pois = poi_system.generate_pois(world_seed, proc_bounds, _is_inside_border)
 		for poi in pois:
 			var p: POISystem.POI = poi as POISystem.POI
+			# La entrada se corrió al vértice de grilla más cercano antes de tallar el
+			# terreno. El POI tiene que seguir ese ajuste o la sala de piedra se
+			# construye a metros del hueco que se excavó para ella.
+			if p.is_entrance and _entrance_anchor_valid:
+				p.position.x = _entrance_anchor.x
+				p.position.z = _entrance_anchor.z
 			p.position.y = get_terrain_height(p.position.x, p.position.z)
 			match p.type:
 				"entrance":   _build_entrance(p)
@@ -351,7 +541,21 @@ func generate() -> void:
 	if active_layers.get("player", true):
 		var player: CharacterBody3D = SCENE_PLAYER.instantiate() as CharacterBody3D
 		add_child(player)
-		player.global_position = entrance_pos + Vector3(0, 2.0, 0)
+		# Dentro de la antesala, no sobre ella: la superficie en el ancla es ahora el
+		# TECHO de la sala, así que el spawn de superficie de antes dejaba al jugador
+		# parado sobre el techo o embutido en la tierra. Se lo pone frente al portal,
+		# mirando hacia el vano del este, para que salga caminando hacia la pradera.
+		var spawned_at_entrance: bool = is_equal_approx(entrance_pos.x, _entrance_anchor.x) \
+			and is_equal_approx(entrance_pos.z, _entrance_anchor.z)
+		if spawned_at_entrance:
+			player.global_position = Vector3(
+				entrance_pos.x - ENTRANCE_HALL_LEN * 0.5 + 3.0,
+				_entrance_floor_y + 1.0,
+				entrance_pos.z)
+			player.rotation.y = -PI * 0.5   # mirando al este, hacia la salida
+		else:
+			# Fallback del centro del mapa (entrada fuera de borde): sin sala, superficie.
+			player.global_position = entrance_pos + Vector3(0, 2.0, 0)
 
 		# 7. HUD — depende del player
 		if active_layers.get("hud", true):
@@ -394,6 +598,7 @@ func regenerate(new_seed: int = -1) -> void:
 	_tree_positions.clear()
 	# Reset cave material cache — new generation allocates fresh materials.
 	_cave_mat_cache.clear()
+	_timber_mat_cache.clear()
 	# Reset stream polylines — rebuilt by _setup_terrain_noise() → _build_stream_polylines().
 	_stream_polylines.clear()
 	# queue_free es diferido: esperar un frame para que el árbol quede limpio
@@ -442,10 +647,19 @@ func _setup_terrain_noise() -> void:
 	_terrain_noise = FastNoiseLite.new()
 	_terrain_noise.seed = world_seed
 	_terrain_noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	# Frecuencia inversa a la escala: en una celda chica subimos la frecuencia para
-	# que el relieve conserve detalle (si no, 80m de mapa quedan casi planos).
-	# En el demo (_scale 1.0) == TERRAIN_NOISE_FREQ, idéntico.
-	_terrain_noise.frequency = TERRAIN_NOISE_FREQ / maxf(_scale, 0.0001)
+	# Frecuencia inversa a la escala, pero SOLO al achicar (divisor topeado en 1.0).
+	#
+	# Al achicar sigue igual: en una celda chica subimos la frecuencia para que el
+	# relieve conserve detalle (si no, 80 m de mapa quedan casi planos).
+	#
+	# Al AGRANDAR ya no. Dividir por _scale>1 estira las mismas lomas en vez de
+	# agregar lomas nuevas: el mapa crece, el relieve se estira igual, y la relación
+	# altura/ancho EMPEORA — o sea que agrandar el mapa lo dejaba más plano de lo que
+	# estaba y más fácil de leer de un vistazo, exactamente lo contrario de lo que se
+	# buscaba (Joan, 2026-08-07: "veo lo que hay al otro lado del mapa altiro").
+	# Con el tope, los metros nuevos traen colinas nuevas: más lugares donde perder
+	# de vista lo que sigue.
+	_terrain_noise.frequency = TERRAIN_NOISE_FREQ / clampf(_scale, 0.0001, 1.0)
 	_terrain_noise.fractal_octaves = TERRAIN_NOISE_OCTAVES
 	_terrain_noise.fractal_lacunarity = 2.0
 	_terrain_noise.fractal_gain = 0.5
@@ -493,6 +707,21 @@ func _setup_terrain_noise() -> void:
 	_stream_jitter_noise.fractal_octaves = 1
 	_stream_jitter_noise.fractal_lacunarity = 2.0
 	_stream_jitter_noise.fractal_gain = 0.5
+
+	# Task 1 (2026-07-20): ridge detail noise — big broken-rock masses (~80m
+	# features) layered onto the border-ring rise, on top of the existing
+	# 20m-scale _outcrop_noise texture. Two different feature sizes read as real
+	# rock, not a single procedural frequency repeating at one scale.
+	_ridge_detail_noise = FastNoiseLite.new()
+	_ridge_detail_noise.seed = world_seed + 89
+	_ridge_detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_ridge_detail_noise.frequency = 0.012
+	_ridge_detail_noise.fractal_octaves = 2
+	_ridge_detail_noise.fractal_lacunarity = 2.0
+	_ridge_detail_noise.fractal_gain = 0.5
+	_ridge_phase_a = float(hash(world_seed ^ 0x5EED1) % 6283) / 1000.0
+	_ridge_phase_b = float(hash(world_seed ^ 0x5EED2) % 6283) / 1000.0
+	_ridge_phase_c = float(hash(world_seed ^ 0x5EED3) % 6283) / 1000.0
 
 	# Build stream polylines ONCE here, so _compute_height_at can use them without
 	# any _rng calls. polylines reference only _stream_jitter_noise + world_seed hashes.
@@ -583,6 +812,21 @@ func _dist_sq_to_streams(px: float, pz: float) -> Array:
 	return [best_dist_sq, best_si]
 
 
+## Task 1 (2026-07-20): deterministic azimuthal ruggedness index for the border-ring
+## mountain slope, 0..1. 0 = the gentlest sections (still the old smooth-bowl rise
+## below — the whole ring stays part of the mountain, nothing goes back to flat),
+## 1 = the steepest, most broken rock-face sections. Three incommensurate sine
+## frequencies (same layering idiom as _precalculate_border's noise blend) keep the
+## silhouette from repeating in an obvious pattern; phases are hashed per-seed.
+func _ridge_factor_at_angle(angle_rad: float) -> float:
+	var w: float = (
+		sin(angle_rad * 2.0 + _ridge_phase_a) * 0.45 +
+		sin(angle_rad * 5.0 + _ridge_phase_b) * 0.35 +
+		sin(angle_rad * 9.0 + _ridge_phase_c) * 0.20
+	)  # roughly -1..1
+	return clampf(remap(clampf(w, -1.0, 1.0), -1.0, 1.0, 0.0, 1.0), 0.0, 1.0)
+
+
 ## Calcula la altura en una coordenada world (x, z).
 ## Suma: noise base + broad swell + subida hacia bordes + flattening en el centro
 ## + dirt/rock outcrops (outside flat_radius only).
@@ -600,6 +844,13 @@ func _compute_height_at(x: float, z: float) -> float:
 
 	# 3. Flatten en el centro (radio 50m) para que la entrada sea plana
 	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	if lab_poi_focus != "":
+		# lab mode: el POI enfocado se recentra al origen a su tamaño REAL (puede medir
+		# 40-80m, más que la celda chica de proc_lab). El bowl/outcrop está pensado para
+		# un mapa de 600m — con una celda chica el POI real cruza del flat al bowl y
+		# termina medio bajo terreno que sube. La celda entera se trata como "adentro del
+		# flat_radius": terreno neutro y parejo para que el foco sea el asset, no el mundo.
+		flat_radius = max_r * 10.0
 	if dist_center < flat_radius:
 		var flat_t: float = dist_center / flat_radius
 		h = lerpf(0.0, h, smoothstep(0.0, 1.0, flat_t))
@@ -612,7 +863,7 @@ func _compute_height_at(x: float, z: float) -> float:
 	if _swell_noise != null:
 		var sw: float = _swell_noise.get_noise_2d(x, z)  # -1..1
 		sw = (sw + 1.0) * 0.5  # 0..1
-		var swell_h: float = sw * 3.5
+		var swell_h: float = sw * TERRAIN_SWELL_MAX_HEIGHT
 		# Attenuate to zero inside flat_radius (same envelope as the base flatten).
 		var swell_blend: float = 1.0
 		if dist_center < flat_radius:
@@ -635,34 +886,70 @@ func _compute_height_at(x: float, z: float) -> float:
 	#
 	# Total rise at border: BOWL_RISE(12) + BOWL_LIP_RISE(4) = 16m over 250m radius
 	# which is a clearly-readable "edge is high / center is low" bowl for cavern P1.
-	const BOWL_RISE: float = 12.0      # metres gained from flat_radius edge to border
-	const BOWL_LIP_RISE: float = 4.0   # extra metres in the last 15% (visual border lip)
+	# Both constants are metres tuned for the full 600m map (proc_bounds default).
+	# flat_radius/max_r already scale with _scale (proc_bounds shrinks them), so the
+	# vertical rise MUST scale too — otherwise a small proc_lab cell keeps the full
+	# 16m rise crushed into a much shorter radius, reading as a steep crater instead
+	# of the intended gentle slope.
+	#
+	# Task 1 (2026-07-20 — Joan's Resolutions note, see _prairie_environment_rework.md):
+	# NOT a separate landmark mound — the border ring ITSELF gets reshaped into an
+	# irregular, non-climbable MOUNTAIN SLOPE across its whole circumference. The old
+	# baseline rise below stays (every angle keeps at least this much — the ring never
+	# goes back to a bare wall), and a NEW azimuthal "mountain extra" term + a
+	# high-frequency jag noise are layered on top, both driven by _ridge_factor_at_angle
+	# (0=gentle scree, 1=steep broken rock face) so the rim reads as ONE continuous
+	# rugged massif with real variation, not a uniform smooth bowl-wall.
+	# Non-climbability: the actual physical guarantee is BorderWall's CSGBox3D collision
+	# ring (_build_organic_border), independently anchored to this same height function —
+	# see that function's comment. The extra height/jag here is the VISUAL read of a
+	# mountain leading up to that wall, not itself required to exceed the engine's floor
+	# slope limit.
+	# BOWL_RISE_BASE / BOWL_LIP_RISE_BASE / MOUNTAIN_EXTRA_MAX / MOUNTAIN_JAG_MAX are
+	# now class-level consts (see TERRAIN_COLOR_MAX_HEIGHT section near TERRAIN_MAX_HEIGHT)
+	# so _height_to_color's normalisation can share the exact same source values.
 	var bowl_blend: float = 0.0
 	if dist_center >= flat_radius:
 		var bowl_span: float = max_r - flat_radius
 		if bowl_span > 0.001:
 			var bowl_t: float = clampf((dist_center - flat_radius) / bowl_span, 0.0, 1.0)
 			bowl_blend = smoothstep(0.0, 1.0, bowl_t)
-			h += bowl_blend * BOWL_RISE
+			h += bowl_blend * BOWL_RISE_BASE * _scale
 			# Steeper lip — only in the outermost 15% of the bowl band
 			if bowl_t > 0.85:
 				var lip_t: float = (bowl_t - 0.85) / 0.15
-				h += smoothstep(0.0, 1.0, lip_t) * BOWL_LIP_RISE
+				h += smoothstep(0.0, 1.0, lip_t) * BOWL_LIP_RISE_BASE * _scale
+
+			var ridge: float = _ridge_factor_at_angle(atan2(z, x))
+			# Steeper sections front-load the extra rise into a shorter remaining
+			# span (start later) — reads as a genuinely steeper local gradient, not
+			# just a taller version of the same gentle curve. Gradual sections start
+			# earlier and spread the same extra height over more distance.
+			var mountain_start: float = lerpf(0.35, 0.80, ridge)
+			if bowl_t > mountain_start:
+				var mountain_t: float = (bowl_t - mountain_start) / (1.0 - mountain_start)
+				h += smoothstep(0.0, 1.0, mountain_t) * ridge * MOUNTAIN_EXTRA_MAX * _scale
+			# Rock-face jag — breaks the ring into individual broken masses instead
+			# of a smooth azimuthal wave. Fades in with bowl_blend (never touches the
+			# flat spawn bowl) and scales with ridge (steep sections get bigger jags).
+			if _ridge_detail_noise != null:
+				var rd: float = _ridge_detail_noise.get_noise_2d(x, z)  # -1..1
+				rd = (rd + 1.0) * 0.5
+				h += bowl_blend * ridge * rd * MOUNTAIN_JAG_MAX * _scale
 
 	# Round-A #2: Dirt/rock outcrops — ONLY outside the flat_radius spawn bowl.
 	# _outcrop_noise is scale-independent (sampled in world coords, freq=0.05).
-	# Where noise > OUTCROP_THRESHOLD we add a smooth bump capped at OUTCROP_MAX_ADD
-	# so the steepest slope stays climbable for CharacterBody3D (~1.5m over ~6m).
-	const OUTCROP_THRESHOLD: float = 0.7    # top ~15% of noise values trigger an outcrop
-	const OUTCROP_MAX_ADD: float   = 2.5    # max added metres; ~1.5m/6m slope ≈ 14° — climbable
+	# Where noise > TERRAIN_OUTCROP_THRESHOLD we add a smooth bump capped at
+	# TERRAIN_OUTCROP_MAX_ADD so the steepest slope stays climbable for CharacterBody3D
+	# (~1.5m over ~6m). Both are class-level consts (see TERRAIN_COLOR_MAX_HEIGHT).
 	if _outcrop_noise != null and dist_center > flat_radius:
 		var on: float = _outcrop_noise.get_noise_2d(x, z)  # -1..1
 		on = (on + 1.0) * 0.5  # 0..1
-		if on > OUTCROP_THRESHOLD:
+		if on > TERRAIN_OUTCROP_THRESHOLD:
 			# Smooth ramp from threshold to 1.0 → clean bump edges, no hard ledges.
-			var ramp: float = (on - OUTCROP_THRESHOLD) / (1.0 - OUTCROP_THRESHOLD)
+			var ramp: float = (on - TERRAIN_OUTCROP_THRESHOLD) / (1.0 - TERRAIN_OUTCROP_THRESHOLD)
 			ramp = smoothstep(0.0, 1.0, ramp)
-			h += ramp * OUTCROP_MAX_ADD
+			h += ramp * TERRAIN_OUTCROP_MAX_ADD
 
 	# Round-B: Stream channel carve.
 	# Subtracts a smoothstep trough wherever (x,z) falls within STREAM_HALF_WIDTH of
@@ -679,6 +966,20 @@ func _compute_height_at(x: float, z: float) -> float:
 			var t_ch: float = sqrt(sd2) / STREAM_HALF_WIDTH   # 0..1
 			var profile: float = 1.0 - smoothstep(0.0, 1.0, t_ch)  # 1 at center, 0 at edge
 			h -= profile * STREAM_DEPTH
+
+	# Safety clamp: Task 1's mountain-slope extras (rise + lip + jag, all layered on
+	# the border ring) can theoretically stack near CEILING_HEIGHT at rare
+	# constructive-noise peaks. CEILING_HEIGHT is a flat plane, not terrain-aware, so
+	# an unclamped peak could poke through the roof geometry. Clamp only outside
+	# flat_radius (the spawn bowl never approaches this regardless).
+	if dist_center >= flat_radius:
+		h = minf(h, CEILING_HEIGHT - 10.0)
+
+	# Antesala de entrada: va DESPUÉS del clamp de arriba, que es un techo y no un
+	# piso — excavar nunca puede empujar nada contra el techo de la cueva. Y va al
+	# final a propósito: cualquier término aditivo posterior volvería a rellenar la
+	# trinchera que la sala necesita.
+	h = _entrance_shape(x, z, h)
 
 	return h
 
@@ -721,7 +1022,163 @@ func get_terrain_height(x: float, z: float) -> float:
 	return lerpf(h0, h1, tz)
 
 
+# ── Antesala de entrada: excavación del terreno ───────────────────────────────
+# El jugador emerge desde el subsuelo, así que hace falta un hueco en el terreno
+# ANTES de que se calculen las alturas. Los POI se generan después del terreno, así
+# que la posición de la entrada se adelanta con POISystem.entrance_position() — la
+# MISMA función que después usa el generador de POI, para que el pozo y la sala no
+# puedan terminar en lugares distintos.
+#
+# NO es un pozo: el piso de un pozo ES la superficie, así que todo lo construido
+# dentro queda POR ENCIMA del terreno y no habría tierra sobre la cabeza. Para estar
+# bajo tierra hace falta un túnel metido en la ladera. Entonces se excava solo la
+# TRINCHERA de acceso, que baja desde la pradera hacia el oeste, y la sala se apoya
+# al oeste de su boca, bajo terreno que no se toca.
+#
+# La trinchera es ancha y suave a la fuerza: con TERRAIN_RESOLUTION=96 sobre 600 m
+# hay un vértice cada 6.25 m, y una zanja angosta simplemente no cae sobre vértices.
+# Las aristas las pone la geometría de piedra de _build_entrance().
+const ENTRANCE_DEPTH: float = 7.0        # metros bajo pradera en la boca
+const ENTRANCE_TRENCH_RUN: float = 32.0   # largo total hacia el este
+const ENTRANCE_TRENCH_FLAT: float = 12.0  # fondo plano frente al vano (>> 6.25 m de grilla)
+const ENTRANCE_TRENCH_HALF_W: float = 13.0
+const ENTRANCE_TRENCH_FLAT_W: float = 6.0 # mitad del ancho a profundidad completa
+const ENTRANCE_HALL_LEN: float = 16.0    # profundidad de la sala hacia el oeste
+## Halved from 7.0 on 2026-08-19 (owner: "que se sienta más como un túnel, quizás de
+## un ancho se debía el cincuenta por ciento... que deje un poquito más grande que la
+## puerta"). 7 m of room around a 6 m doorway.
+##
+## It also repairs an argument I got wrong earlier: I rejected the classic wall-to-wall
+## mine set because a three-piece frame is for a narrow drift and this was a 14 m
+## chamber. At 7 m it IS a drift, and the set shape is right again — which is the point
+## of narrowing it, not a side effect. A tunnel and a hall want different carpentry.
+const ENTRANCE_HALL_HALF_W: float = 3.5
+const ENTRANCE_HALL_H: float = 4.5       # 2.5x la altura del jugador
+
+var _entrance_anchor: Vector3 = Vector3.ZERO
+var _entrance_anchor_valid: bool = false
+## Cota del piso de la sala. Se fija ANTES de tallar, leyendo el terreno natural en
+## el ancla, y después la usan el tallado, la geometría y el spawn — un solo número
+## para los tres, o el piso de piedra y el fondo de la trinchera no coinciden.
+var _entrance_floor_y: float = 0.0
+var _terrain_material: Material = null
+
+
+## Altura del terreno SIN la excavación de la antesala.
+##
+## La loma tiene que reconstruir la superficie original sobre la sala, y el mapa de
+## alturas real está excavado justamente para que no se meta adentro del cuarto.
+func _natural_height_at(x: float, z: float) -> float:
+	var was: bool = _entrance_anchor_valid
+	_entrance_anchor_valid = false
+	var h: float = _compute_height_at(x, z)
+	_entrance_anchor_valid = was
+	return h
+
+
+## Boca del túnel: donde la trinchera se encuentra con la fachada de piedra.
+## La sala va al OESTE de este punto, el cielo abierto al ESTE.
+func _entrance_mouth() -> Vector3:
+	return _entrance_anchor + Vector3(ENTRANCE_HALL_LEN * 0.5, 0.0, 0.0)
+
+
+## ¿Cae (x,z) dentro de la antesala o de su trinchera?
+##
+## El scatter descarta posiciones por distancia al CENTRO del POI, y al pasto se le
+## pidieron 7 m de despeje contra una sala que mide 8 m desde el centro: los matojos
+## aparecían DENTRO de la habitación y clavados en los muros. Un radio no describe
+## una sala rectangular con un corredor pegado; esto sí.
+func _inside_entrance_footprint(x: float, z: float) -> bool:
+	if not _entrance_anchor_valid:
+		return false
+	var mouth: Vector3 = _entrance_mouth()
+	var west: float = _entrance_anchor.x - ENTRANCE_HALL_LEN * 0.5 - 2.0
+	var east: float = mouth.x + ENTRANCE_TRENCH_RUN
+	if x < west or x > east:
+		return false
+	# La trinchera es más ancha que la sala: cada tramo usa su propio semiancho.
+	var half_w: float = ENTRANCE_TRENCH_HALF_W if x > mouth.x else ENTRANCE_HALL_HALF_W + 2.0
+	return absf(z - mouth.z) <= half_w
+
+
+## Talla la trinchera de acceso: devuelve la altura corregida en (x,z).
+##
+## Talla hacia una COTA OBJETIVO (el piso de la sala) en vez de restar una cantidad
+## fija. La diferencia no es cosmética: acá el terreno natural ya baja unos 7.5 m
+## hacia el este, así que restar una profundidad constante cavaba cuesta abajo y
+## dejaba el vano de la puerta enterrado casi un metro. Contra una cota objetivo, la
+## excavación se adapta sola a la pendiente que le toque a cada semilla.
+func _entrance_shape(x: float, z: float, h: float) -> float:
+	if not _entrance_anchor_valid:
+		return h
+	var mouth: Vector3 = _entrance_mouth()
+	var along: float = x - mouth.x
+	# La excavación cubre TAMBIÉN la huella de la sala, hacia el oeste. La versión
+	# anterior cortaba en seco en la boca para dejar tierra sobre el techo, y el
+	# vértice de al lado quedaba a altura de pradera: el terreno interpolaba en recta
+	# entre ese vértice alto y el fondo de la boca, y ese plano diagonal cruzaba por
+	# DENTRO de la habitación (reportado 2026-08-01, el jugador chocaba con la ladera
+	# adentro de la sala). Con 6.25 m entre vértices la transición no puede caer
+	# dentro de un cuarto de 16 m: se la empuja fuera de la huella construida, y la
+	# tierra sobre el techo pasa a ser geometría, no terreno.
+	if along < -(ENTRANCE_HALL_LEN + 4.0) or along > ENTRANCE_TRENCH_RUN:
+		return h
+	var lateral: float = absf(z - mouth.z)
+	if lateral >= ENTRANCE_TRENCH_HALF_W:
+		return h
+	# Al oeste de la boca la profundidad es plena y constante: es el piso de la sala.
+	#
+	# El margen era 0.30 m, para que el terreno no asomara por encima de la losa. Y
+	# creaba EXACTAMENTE el bug que costó la noche del 2026-08-07: la cara superior de
+	# la losa queda en `_entrance_floor_y` y el terreno 30 cm más abajo, así que donde
+	# termina la losa —en la boca, justo al salir— hay un escalón vertical de 0.30 m.
+	# Godot trata como PARED toda superficie de más de `floor_max_angle` (45 grados) y
+	# ese canto mide **71.6 grados**: barrera invisible, ni se sube ni se salta.
+	# Medido con la sonda de pendiente de `entrance_capture.gd`, que fue la única que
+	# lo vio porque las demás preguntaban "¿hay espacio?" en vez de "¿se puede
+	# caminar?" — no es lo mismo.
+	#
+	# 0.02 m mantiene el margen contra z-fighting y desaparece como obstáculo: 2 cm
+	# los sube cualquier cuerpo. Joan lo puso como regla de diseño: *"si haces una
+	# puerta, lo lógico es que pueda pasar por ella"*.
+	if along <= 0.0:
+		return minf(h, _entrance_floor_y - 0.02)
+	# smoothstep en los dos ejes: una caída lineal deja un pliegue visible justo
+	# donde el jugador sale caminando.
+	# Meseta antes de la rampa. Sin ella el peso solo vale 1 en el punto exacto de la
+	# boca, y con un vértice cada 6.25 m ese punto casi nunca cae sobre uno: la
+	# interpolación dejaba el vano enterrado 2 m aunque la fórmula fuera correcta.
+	# Un fondo plano garantiza varios vértices a profundidad completa.
+	var u: float = smoothstep(ENTRANCE_TRENCH_FLAT, ENTRANCE_TRENCH_RUN, along)
+	var v: float = smoothstep(ENTRANCE_TRENCH_FLAT_W, ENTRANCE_TRENCH_HALF_W, lateral)
+	var weight: float = (1.0 - u) * (1.0 - v)
+	if weight <= 0.0:
+		return h
+	# minf: donde el terreno natural YA está por debajo del objetivo, no se rellena.
+	# Excavar nunca debe levantar tierra.
+	return lerpf(h, minf(h, _entrance_floor_y - 0.3), weight)
+
+
 func _generate_terrain_mesh() -> void:
+	# Dos fases, y el orden importa: la cota del piso se lee del terreno NATURAL en el
+	# ancla, así que hay que medir con el tallado apagado. Si se midiera con el
+	# tallado ya activo, la excavación se alimentaría de sí misma.
+	_entrance_anchor = POISystem.entrance_position(
+		world_seed, proc_bounds, Callable(self, "_is_inside_border"))
+	# La BOCA se alinea a un vértice del terreno. El tallado se corta en seco al oeste
+	# de la boca (esa tierra es el techo de la sala), así que el vértice de al lado
+	# queda a altura de pradera; si la boca cae ENTRE dos vértices, la interpolación
+	# contra ese vecino alto deja el vano enterrado ~1.8 m aunque el tallado esté
+	# perfecto. Sobre un vértice, la cota del vano es la tallada, sin promediar.
+	var grid_step: float = proc_bounds.x / float(TERRAIN_RESOLUTION)
+	var grid_half: float = proc_bounds.x * 0.5
+	var mouth_x: float = _entrance_anchor.x + ENTRANCE_HALL_LEN * 0.5
+	mouth_x = -grid_half + roundf((mouth_x + grid_half) / grid_step) * grid_step
+	_entrance_anchor.x = mouth_x - ENTRANCE_HALL_LEN * 0.5
+	_entrance_anchor.z = -grid_half + roundf((_entrance_anchor.z + grid_half) / grid_step) * grid_step
+	_entrance_anchor_valid = false
+	_entrance_floor_y = _compute_height_at(_entrance_anchor.x, _entrance_anchor.z) - ENTRANCE_DEPTH
+	_entrance_anchor_valid = true
 	_precompute_terrain_heights()
 
 	var st: SurfaceTool = SurfaceTool.new()
@@ -781,38 +1238,39 @@ func _generate_terrain_mesh() -> void:
 	# vertex_color_use_as_albedo stays ON — the detail layer multiplies on top.
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
+	# The _height_to_color* palette was authored as DISPLAY (sRGB) tones. Without
+	# this flag Godot feeds vertex colors to the shader as linear, which washes
+	# the olive greens to pale cream ("nieve/desierto" ground, visible the moment
+	# daylight landed on it, 2026-07-28). Same color-space family bug as the
+	# Blender FLOAT_COLOR gotcha in blender-asset-smith.
+	mat.vertex_color_is_srgb = true
 	mat.roughness = 0.6  # Wave1.5: 0.92→0.6 — damp sheen so crystal/river light streaks across ground
 	mat.metallic = 0.0
 
-	# ── Procedural detail noise (stand-in for a real ground atlas) ────────────
-	var detail_noise := FastNoiseLite.new()
-	detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	detail_noise.frequency = 0.35   # fine surface grain
-	detail_noise.fractal_octaves = 2
-	detail_noise.seed = world_seed + 7  # offset from terrain height noise
-
-	# Color ramp biased high so MUL blend modulates subtly instead of darkening.
-	# Range 0.78..1.0 means detail never drops albedo below 78% — grain reads as
-	# surface texture, not a dark filter.
-	var detail_ramp := Gradient.new()
-	detail_ramp.set_color(0, Color(0.78, 0.78, 0.78))
-	detail_ramp.set_color(1, Color(1.0, 1.0, 1.0))
-
-	var detail_tex := NoiseTexture2D.new()
-	detail_tex.noise = detail_noise
-	detail_tex.width = 256
-	detail_tex.height = 256
-	detail_tex.seamless = true
-	detail_tex.color_ramp = detail_ramp  # subtly modulate, not darken
+	# ── Real grass detail (2026-08-27, PO: "el pasto sigue siendo textura de
+	# un puro color... refeo"): the grey noise stand-in is replaced by the
+	# generated grass textures (game/tools/textures/gen_prairie_textures.py).
+	# grass_mod is MEAN-NORMALIZED so the MUL blend adds patch + blade
+	# variation without darkening or repainting the vertex-color zone ramp,
+	# and the blade-scale normal map gives the ground micro-relief under the
+	# new day key light.
+	var detail_tex: Texture2D = load("res://assets/art/piso1_pradera/textures/grass_mod_01.png")
+	var detail_nrm: Texture2D = load("res://assets/art/piso1_pradera/textures/grass_normal_01.png")
 
 	mat.detail_enabled = true
 	mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
 	mat.detail_albedo = detail_tex
+	mat.detail_normal = detail_nrm
+	mat.normal_scale = 0.55
 
 	# uv1_triplanar does NOT affect the detail layer — detail uses UV0 (set per vertex
 	# above). Triplanar was removed here because it only applies to the base albedo
 	# channel (which uses vertex colors, so scale is irrelevant there too).
 	# UV0 world-scale is set in the vertex loop: uv_scale=0.22 → ~4.5m tile.
+
+	# Lo guarda la loma de la antesala: es geometría aparte que tiene que leerse como
+	# la MISMA tierra, o se ve como un parche pegado sobre el pasto.
+	_terrain_material = mat
 
 	var terrain_mi := MeshInstance3D.new()
 	terrain_mi.name = "TerrainMesh"
@@ -832,7 +1290,15 @@ func _generate_terrain_mesh() -> void:
 
 
 func _height_to_color(h: float) -> Color:
-	var t: float = clampf(h / TERRAIN_MAX_HEIGHT, 0.0, 1.0)
+	# Bugfix 2026-07-30: normalising by TERRAIN_MAX_HEIGHT (9.0, base hill-noise
+	# amplitude only) clamped ~82% of the playable disc to t=1.0 (top-of-ramp
+	# "dry mud" brown) because the bowl/mountain rise added since Round-C pushes
+	# real terrain to ~40m+ near the border — see game/docs/art/_references/
+	# biome_landscape/_synthesis.md and game/scenes/dev/_height_probe.gd (measured
+	# fraction before/after). Normalise against _terrain_color_max_height instead —
+	# derived from the SAME constants that generate the height, so it tracks any
+	# future change to the bowl/mountain/outcrop terms automatically.
+	var t: float = clampf(h / _terrain_color_max_height, 0.0, 1.0)
 	# Verdes DESATURADOS (oliva/apagado) — descansan la vista y respetan el
 	# principio Kimetsu del _art_canon: bioma desaturado para que las skills
 	# (color saturado) resalten. Evita la fatiga/after-images del verde chillón.
@@ -984,32 +1450,117 @@ func _build_organic_border() -> void:
 
 		var wall: CSGBox3D = CSGBox3D.new()
 		wall.name = "BorderWall%d" % i
-		wall.size = Vector3(seg_len + 0.5, BORDER_WALL_HEIGHT, 3.0)
 		wall.use_collision = true
 		# FIX #5: cave stone material — roughness + triplanar noise instead of flat color
-		wall.material_override = _make_cave_material(COLOR_BORDER)
-		wall.position = mid + Vector3(0, BORDER_WALL_HEIGHT * 0.5, 0)
+		# Caverna-dia (2026-08-27, idea de Joan): la muralla APARECE al acercarte
+		# (PixelDither con min>max = visible de cerca) — de lejos se desvanece y
+		# el horizonte lo hace la ladera-montaña del anillo que ya existe detras.
+		# La colision CSG no depende de lo visual: el limite sigue bloqueando.
+		var wall_mat: StandardMaterial3D = _make_cave_material(COLOR_BORDER).duplicate()
+		wall_mat.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_DITHER
+		wall_mat.distance_fade_min_distance = 95.0
+		wall_mat.distance_fade_max_distance = 55.0
+		wall.material_override = wall_mat
+		# Task 1 (2026-07-20): anchor the wall's BASE to the local terrain height
+		# instead of assuming y=0. This is THE actual non-climbable guarantee for the
+		# new border-ring mountain slope (see _compute_height_at's Task 1 comment) —
+		# a CSGBox3D with collision blocks movement regardless of terrain gradient.
+		# Before this fix the wall's base silently assumed flat ground at y=0; with
+		# the reshaped ring rising well above that near the edge, an unanchored wall
+		# would end up partially buried with a shrinking exposed height wherever the
+		# terrain is tall. _compute_height_at is safe to call here: _setup_terrain_noise()
+		# already ran earlier in generate(), so every noise/stream input it needs exists.
+		var ground_y: float = _compute_height_at(mid.x, mid.z)
+		# Judgment Day fix (2026-07-21): clamp the wall's effective height so its
+		# top never exceeds CEILING_HEIGHT (minus a small margin) — at high-ridge
+		# azimuthal sections (common by construction of the terrain rework) the flat
+		# BORDER_WALL_HEIGHT addition on top of real ground_y could reach/exceed the
+		# roof plane. Clamped PER-SEGMENT using the real ground height at that
+		# segment; BORDER_WALL_HEIGHT's own constant is untouched. Floored at 1.0 so
+		# a pathological ground_y (already at/above the ceiling) never collapses the
+		# CSGBox3D to a zero/negative-size degenerate shape.
+		var actual_wall_height: float = maxf(
+			minf(BORDER_WALL_HEIGHT, CEILING_HEIGHT - ground_y - BORDER_WALL_CEILING_MARGIN), 1.0)
+		wall.size = Vector3(seg_len + 0.5, actual_wall_height, 3.0)
+		wall.position = mid + Vector3(0, ground_y + actual_wall_height * 0.5, 0)
 		wall.rotation.y = -seg_angle
 		add_child(wall)
 
 # ── Atmosphere ────────────────────────────────────────────────────────────────
 
-func _build_ceiling() -> void:
-	var ceiling: CSGBox3D = CSGBox3D.new()
-	ceiling.name = "CavernCeiling"
-	ceiling.size = Vector3(proc_bounds.x + 100, 2.0, proc_bounds.y + 100)
-	ceiling.position = Vector3(0, CEILING_HEIGHT, 0)
-	ceiling.use_collision = false
-	ceiling.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+const CRYSTAL_CEILING_SCENE: PackedScene = preload("res://scenes/levels/components/crystal_ceiling.tscn")
 
-	# El techo NECESITA emisión propia — Godot no tiene GI, sin esto es negro
-	var ceil_mat: StandardMaterial3D = StandardMaterial3D.new()
-	ceil_mat.albedo_color = Color(0.35, 0.32, 0.28)
-	ceil_mat.emission_enabled = true
-	ceil_mat.emission = Color(0.24, 0.22, 0.20)  # quick-win: brighter so overhead reads as stone dome, not void
-	ceil_mat.emission_energy_multiplier = 1.4
-	ceiling.material_override = ceil_mat
-	add_child(ceiling)
+## Task 3 (2026-07-20): finds the floor's CrystalCeiling child, or instantiates one
+## if none exists. The real 600m demo (floor1_prairie.tscn) already declares one
+## statically — reused as-is (never duplicated). proc_lab's bare Floor1Prairie root
+## (proc_lab.tscn only wires WorldEnvironment + ProcLabController as children, no
+## CrystalCeiling) gets one created here; being outside _baseline_children, it is
+## freed and rebuilt every regenerate() cycle exactly like the other procedural
+## nodes (crystal field, pillars) — no special-casing needed at the cleanup site.
+func _get_or_build_crystal_ceiling() -> CrystalCeiling:
+	var existing: CrystalCeiling = get_node_or_null("CrystalCeiling") as CrystalCeiling
+	if existing != null:
+		return existing
+	var inst: CrystalCeiling = CRYSTAL_CEILING_SCENE.instantiate() as CrystalCeiling
+	inst.name = "CrystalCeiling"
+	add_child(inst)
+	return inst
+
+## Task 3 (2026-07-20): recursive branching walk producing a "lightning bolt"
+## silhouette instead of the old single sine-curve path — Joan's verbal brief
+## (crystal_ceiling_lightning gap doc): "generación más tipo rayo... cristales de
+## diferentes altura". 2-3 independent trunks branch outward and occasionally fork;
+## each returned point carries a `band` (0 = trunk, higher = deeper into a fork)
+## that _build_crystal_field() maps to a distinct CRYSTAL_BAND_RANGES height tier,
+## so clusters land at genuinely varied heights along the branch instead of one
+## narrow shared range. Bounded to `target_count` points (matches the old
+## CRYSTAL_PATH_CLUSTERS budget — same perf envelope, no extra multimesh cost).
+func _build_lightning_branch_points(target_count: int) -> Array:
+	var points: Array = []
+	var stack: Array = []
+	var trunk_count: int = _rng.randi_range(2, 3)
+	for t in range(trunk_count):
+		var start_angle: float = (TAU / float(trunk_count)) * float(t) + _rng.randf_range(-0.4, 0.4)
+		stack.append({
+			"pos": Vector2.ZERO, "angle": start_angle,
+			"len": 220.0 * _scale, "band": 0,
+		})
+	while points.size() < target_count:
+		if stack.is_empty():
+			# Judgment Day fix (2026-07-21): the walk used to stop as soon as the
+			# initial 2-3 trunks + their forks drained, stalling well short of
+			# target_count (~48/70 realized) — forking alone can't be relied on
+			# to reach the budget since it's capped by CRYSTAL_BAND_RANGES depth
+			# and a 30% roll per step. Keep seeding fresh trunks with the SAME
+			# pattern as the initial loop above until points.size() >= target_count.
+			stack.append({
+				"pos": Vector2.ZERO, "angle": _rng.randf_range(0.0, TAU),
+				"len": 220.0 * _scale, "band": 0,
+			})
+		var branch: Dictionary = stack.pop_front()
+		var pos: Vector2 = branch["pos"]
+		var angle: float = branch["angle"]
+		var remaining: float = branch["len"]
+		var band: int = branch["band"]
+		var steps: int = _rng.randi_range(3, 6)
+		var seg_len: float = remaining / float(steps)
+		for s in range(steps):
+			if points.size() >= target_count:
+				break
+			angle += _rng.randf_range(-0.55, 0.55)   # jagged kink — reads as "lightning"
+			pos += Vector2(cos(angle), sin(angle)) * seg_len
+			points.append({"pos": pos, "band": band})
+			# Fork occasionally, one generation deeper (taller/shorter band) —
+			# capped depth via band so it can't recurse past the last band tier.
+			if s > 0 and band < CRYSTAL_BAND_RANGES.size() - 1 and _rng.randf() < 0.3:
+				var fork_sign: float = 1.0 if _rng.randf() < 0.5 else -1.0
+				var fork_angle: float = angle + _rng.randf_range(0.6, 1.4) * fork_sign
+				stack.append({
+					"pos": pos, "angle": fork_angle,
+					"len": remaining * 0.5, "band": band + 1,
+				})
+	return points
+
 
 func _build_crystal_field() -> void:
 	# NOTE: el flood OmniLight gigante (omni_range=350, CRYSTAL_AMBIENT_ENERGY) fue ELIMINADO (2026-06-06).
@@ -1081,14 +1632,54 @@ func _build_crystal_field() -> void:
 
 		# (sin luz up secundaria — el techo ya tiene emisión propia)
 
-	# ── 2. Clusters regulares — variedad de tamaños ──────────────────────────
-	for i in range(CRYSTAL_PATH_CLUSTERS):
-		var t: float = float(i) / float(CRYSTAL_PATH_CLUSTERS - 1)
+	# Task 3 (2026-07-20): two-tier hierarchy formalization — monarch 0 is the
+	# designated CORE (brightest, "sun") and anchors CrystalCeiling's FocusLight so
+	# the two independently-authored systems (this field's crystals + the
+	# component's ambient lights) agree on where the "sun" actually is, instead of
+	# each picking its own unrelated position. SKY accents are the regular cluster
+	# field below — already trends cooler by construction (2 of 3 crystal_colors —
+	# cool cyan + violet — outweigh the 1 warm amber in the random draw).
+	if not monarch_positions.is_empty() and _crystal_ceiling != null:
+		_crystal_ceiling.anchor_focus_light(Vector2(monarch_positions[0].x, monarch_positions[0].z))
 
-		var path_x: float = lerp(-200.0 * _scale, 200.0 * _scale, t)
-		var path_z: float = sin(t * PI * 1.6 + 0.3) * 130.0 * _scale
-		path_x += _rng.randf_range(-25.0, 25.0) * _scale
-		path_z += _rng.randf_range(-CRYSTAL_SCATTER_WIDTH * 0.5, CRYSTAL_SCATTER_WIDTH * 0.5) * _scale
+	# ── 2. Clusters — "lightning bolt" branching distribution across MULTIPLE
+	# height bands (Task 3, 2026-07-20 — Joan: DanMachi's crystal-sky is one
+	# mostly-flat layer; ours should read taller/deeper, with clusters at varying
+	# heights along a branching path so the light source stops reading as one flat
+	# plane — see crystal_ceiling_lightning gap doc). Replaces the old single
+	# sine-curve path + flat [MIN,MAX] height roll shared by the whole field.
+	# Judgment Day fix (2026-07-21): border/monarch-proximity rejections below
+	# (both `continue`) used to drop points with no replacement, so the
+	# REALIZED cluster count landed ~30% short of CRYSTAL_PATH_CLUSTERS even
+	# with a one-shot over-generated batch (measured: some seeds still landed
+	# ~50/70 with a flat 1.3x margin). Index-driven loop: once the current
+	# batch is exhausted and the target isn't met yet, top up with another
+	# batch sized to the remaining shortfall instead of stopping — bounded by
+	# MAX_TOPUP_TRIES so a pathological seed can't loop forever.
+	const MAX_TOPUP_TRIES: int = 4
+	var branch_points: Array = _build_lightning_branch_points(int(ceil(float(CRYSTAL_PATH_CLUSTERS) * 1.3)))
+	var realized_clusters: int = 0
+	var topup_tries: int = 0
+	var idx: int = 0
+	while realized_clusters < CRYSTAL_PATH_CLUSTERS:
+		if idx >= branch_points.size():
+			if topup_tries >= MAX_TOPUP_TRIES:
+				break
+			var shortfall: int = CRYSTAL_PATH_CLUSTERS - realized_clusters
+			var before_size: int = branch_points.size()
+			branch_points.append_array(_build_lightning_branch_points(int(ceil(float(shortfall) * 1.5))))
+			topup_tries += 1
+			if branch_points.size() <= before_size:
+				break  # generator produced nothing new — bail out safely
+		var i: int = idx
+		var bp: Dictionary = branch_points[idx]
+		idx += 1
+		var p2: Vector2 = bp["pos"]
+		var band: int = bp["band"]
+		var band_range: Vector2 = CRYSTAL_BAND_RANGES[band % CRYSTAL_BAND_RANGES.size()]
+
+		var path_x: float = p2.x
+		var path_z: float = p2.y
 
 		var cluster_pos: Vector3 = Vector3(path_x, 0, path_z)
 		if not _is_inside_border(cluster_pos):
@@ -1102,6 +1693,7 @@ func _build_crystal_field() -> void:
 				break
 		if too_close:
 			continue
+		realized_clusters += 1
 
 		var cluster_color: Color = crystal_colors[_rng.randi_range(0, crystal_colors.size() - 1)]
 
@@ -1109,7 +1701,7 @@ func _build_crystal_field() -> void:
 		var cluster_type: float = _rng.randf()
 		if cluster_type < 0.2:
 			# Tipo A: Un cristal grande dominante + muchos chiquitos
-			var cy: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT + 4.0, CRYSTAL_MAX_HEIGHT)
+			var cy: float = _rng.randf_range(band_range.x, band_range.y)
 			_spawn_crystal_shard("Crystal%d_Dom" % i,
 				Vector3(path_x, cy, path_z), cluster_color,
 				4.0, 10.0, 1.5, 3.0)
@@ -1119,14 +1711,14 @@ func _build_crystal_field() -> void:
 					0.3, 2.0, 0.15, 0.6)
 		elif cluster_type < 0.5:
 			# Tipo B: Formación densa — muchos medianos agrupados
-			var cy: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT, CRYSTAL_MAX_HEIGHT)
+			var cy: float = _rng.randf_range(band_range.x, band_range.y)
 			for s in range(_rng.randi_range(5, 9)):
 				_spawn_crystal_shard("Crystal%d_%d" % [i, s],
 					Vector3(path_x, cy, path_z), cluster_color,
 					1.0, 5.0, 0.4, 1.5)
 		elif cluster_type < 0.75:
 			# Tipo C: Disperso — pocos cristales sueltos esparcidos
-			var cy: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT, CRYSTAL_MAX_HEIGHT)
+			var cy: float = _rng.randf_range(band_range.x, band_range.y)
 			for s in range(_rng.randi_range(2, 4)):
 				var spread: float = 8.0
 				_spawn_crystal_shard("Crystal%d_%d" % [i, s],
@@ -1137,9 +1729,12 @@ func _build_crystal_field() -> void:
 					), cluster_color,
 					1.5, 6.0, 0.5, 1.8)
 		else:
-			# Tipo D: Cascada — cristales que bajan del techo en escalera
+			# Tipo D: Cascada — desciende DENTRO de la banda del propio punto de
+			# rama, en vez de arrancar siempre desde el techo — así hay cascadas
+			# en cada altura, no solo cerca del techo.
+			var cascade_top: float = band_range.y
 			for s in range(_rng.randi_range(4, 7)):
-				var step_y: float = CEILING_HEIGHT - 2.0 - float(s) * _rng.randf_range(1.5, 3.0)
+				var step_y: float = cascade_top - float(s) * _rng.randf_range(1.5, 3.0)
 				var drift: float = float(s) * _rng.randf_range(0.5, 1.5)
 				_spawn_crystal_shard("Crystal%d_%d" % [i, s],
 					Vector3(path_x + drift, step_y, path_z + drift * 0.5),
@@ -1147,9 +1742,9 @@ func _build_crystal_field() -> void:
 					0.8, 4.5, 0.3, 1.2)
 
 		# Luz real solo cada N clusters — Wave1.5: tight pool (range 7-12m) at energy 3.0
-		# so cluster omnis actually reach the ground ~35m below the ceiling.
+		# so cluster omnis actually reach the ground below the ceiling.
 		if i % CRYSTAL_LIGHTS_EVERY == 0:
-			var cy_light: float = _rng.randf_range(CRYSTAL_MIN_HEIGHT - 2.0, CRYSTAL_MAX_HEIGHT - 2.0)
+			var cy_light: float = _rng.randf_range(band_range.x, band_range.y)
 			var cl: OmniLight3D = OmniLight3D.new()
 			cl.name = "CrystalLight%d" % i
 			# Tint-matched to crystal color (saturated, not washed toward white)
@@ -1354,11 +1949,30 @@ func _get_crystal_mesh() -> Mesh:
 func _build_landmark_pillars() -> void:
 	for i in range(PILLAR_COUNT):
 		var angle: float = (float(i) / float(PILLAR_COUNT)) * TAU + _rng.randf_range(-0.2, 0.2)
-		var dist: float = _rng.randf_range(100.0 * _scale, 200.0 * _scale)
-		var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+		# Task 1 (2026-07-20): the first half of the pillars now crown the new
+		# rugged mountain rim (per the spec's own "_build_landmark_pillars() is the
+		# natural hook" suggestion) instead of all 6 scattering at the old mid-ring
+		# distance — reinforces the border-ring reshape visually. The rest stay at
+		# the old distance so the floor doesn't read as ringed-by-pillars-only.
+		var crown: bool = i < int(PILLAR_COUNT / 2)
+		var dist: float = _rng.randf_range(190.0, 235.0) * _scale if crown \
+			else _rng.randf_range(100.0, 200.0) * _scale
+		var base_x: float = cos(angle) * dist
+		var base_z: float = sin(angle) * dist
+		var pos: Vector3 = Vector3(base_x, 0, base_z)
 		if not _is_inside_border(pos):
 			continue
-		var height: float = _rng.randf_range(PILLAR_MIN_HEIGHT, PILLAR_MAX_HEIGHT)
+		# Snap the pillar's BASE to the actual terrain height instead of assuming
+		# y=0 — with the mountain-slope rework the ring terrain is no longer near-
+		# flat out here, so an unsnapped base used to end up partially buried.
+		# _compute_height_at is safe here: _setup_terrain_noise() already ran.
+		var ground_y: float = _compute_height_at(base_x, base_z)
+		# Piso-a-techo: el pilar SIEMPRE llega al techo de la cueva (Joan, 2026-07-18 —
+		# antes la altura era aleatoria 30-50m contra un techo fijo en 45m, así que la
+		# mayoría de las tiradas quedaban cortas y el pilar no tocaba el techo).
+		var height: float = CEILING_HEIGHT - ground_y
+		if height <= 1.0:
+			continue
 
 		var pillar: CSGCylinder3D = CSGCylinder3D.new()
 		pillar.name = "LandmarkPillar%d" % i
@@ -1368,7 +1982,7 @@ func _build_landmark_pillars() -> void:
 		pillar.use_collision = true
 		# Round-A #1: landmark pillars use cave material (worked stone, not flat color)
 		pillar.material_override = _make_cave_material(COLOR_PILLAR)
-		pillar.position = pos + Vector3(0, height * 0.5, 0)
+		pillar.position = Vector3(base_x, ground_y + height * 0.5, base_z)
 		add_child(pillar)
 
 # ── POI builders ──────────────────────────────────────────────────────────────
@@ -1380,30 +1994,955 @@ func _find_entrance_pos(pois: Array) -> Vector3:
 			return p.position
 	return Vector3.ZERO
 
+## Antesala de entrada — el jugador emerge del subsuelo hacia la pradera.
+##
+## Reemplaza la losa decorativa de 30x30 y 4 cm que había acá, que no tenía
+## colisión (se atravesaba) y era plana sobre terreno inclinado, así que un borde
+## flotaba y el otro se enterraba.
+##
+## Canon (_world_canon.md:81): "cada piso es portal dimensional... el piso ES otra
+## capa de realidad que la torre CONECTA". No hay distancia física hasta la ciudad,
+## así que el pasillo NO va a la ciudad: el portal está al fondo de la sala y ES la
+## conexión. Se emerge desde abajo igual, y el canon queda intacto.
+##
+## Dimensiones contra el maniquí de 1.80 m: sala de 4.5 m de alto (2.5 jugadores),
+## vano de 3.5 m y 6 m de ancho (pasan seis de frente), 1.5 m de tierra sobre el
+## techo.
+## Cross-section of an excavated gallery, as (z, y) pairs from one wall foot, up and
+## over the vault, down to the other.
+##
+## A short vertical wall and then an arch, because that is what the reference
+## photographs show and what rock physically allows: an arch carries its own load, a
+## rectangular span of 14 m does not. The room it replaces was a box with 90-degree
+## corners, which is the shape a miner cannot leave standing — and the shape the owner
+## kept naming, playtest after playtest, as "polígonos perfectos".
+##
+## See docs/art/_references/mine_adit/ — mine_adit_hewn_horseshoe_rails_people is the
+## one that settles the profile.
+## Broken rock crowding the edge of the doorway, so the opening stops being a cut
+## rectangle.
+##
+## The owner asked for this directly — "esa puerta ojalá también sea irregular, que se
+## vea como una construcción no perfecta" — and it is the hardest of the perfect shapes
+## to lose, because a doorway is a HOLE: there is no surface to texture and no mesh to
+## displace. What can change is what crowds its edge. Nobody cuts a clean rectangle
+## through rock with hand tools; the hole ends where the rock decided to stop breaking,
+## and the rubble that came out of it sits in the corners.
+##
+## No collision, deliberately: the whole doorway saga of 2026-08-08 was three chained
+## bugs about geometry blocking a doorway, and the last thing this opening needs is
+## loose rock with hitboxes. Every piece bites at most 0.55 m off a 6 m span, so the
+## 1 m the player capsule wants is never in question.
+func _build_mouth_rag(pos: Vector3, floor_y: float, x_face: float,
+		door_w: float, door_h: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 60613
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	# Down each jamb: pieces eating inward by a varying amount, so the vertical edge
+	# wanders instead of ruling a line.
+	for k in range(2):
+		var sgn: float = -1.0 if k == 0 else 1.0
+		var y: float = 0.15
+		var n: int = 0
+		while y < door_h - 0.1 and n < 20:
+			# Sized against the SPAN, not against a comfortable-looking number. At
+			# 0.2-0.46 on a 6 m opening the pieces nibbled an edge that still read as
+			# ruled; a jamb has to lose its line, so the biggest bites take most of a
+			# metre. The player capsule wants 1 m and the opening keeps 4.4 at worst.
+			var s: float = rng.randf_range(0.34, 0.78)
+			# Bite bounded BY THE CHUNK. Letting it reach 0.8 m while the piece measured
+			# 0.34 left rock hanging in the opening with nothing behind it — the
+			# floating stones the owner spotted at the mouth. A piece that protrudes
+			# from an edge stays attached to that edge.
+			var bite: float = rng.randf_range(0.0, s * 0.7)
+			_rock_chunk_into(st,
+				Vector3(x_face + rng.randf_range(-0.35, 0.35), floor_y + y,
+					pos.z + sgn * (door_w * 0.5 - bite)),
+				Vector3(s * 1.4, s, s), 400 + k * 40 + n)
+			y += rng.randf_range(0.22, 0.5)
+			n += 1
+
+	# Along the head of the opening, hanging down. A lintel of rock is never level:
+	# it follows the bed the roof happened to part along.
+	var z: float = -door_w * 0.5
+	var m: int = 0
+	while z < door_w * 0.5 and m < 22:
+		var s2: float = rng.randf_range(0.34, 0.80)
+		# Same rule overhead: a block hanging further than its own size is a block with
+		# nothing holding it.
+		var drop: float = rng.randf_range(0.0, s2 * 0.75)
+		_rock_chunk_into(st,
+			Vector3(x_face + rng.randf_range(-0.35, 0.35), floor_y + door_h - drop,
+				pos.z + z),
+			Vector3(s2 * 1.4, s2, s2 * 1.3), 500 + m)
+		z += rng.randf_range(0.3, 0.62)
+		m += 1
+
+	# And spoil heaped in the two bottom corners, where nobody sweeps.
+	for k2 in range(2):
+		var sgn2: float = -1.0 if k2 == 0 else 1.0
+		for i in range(7):
+			var s3: float = rng.randf_range(0.16, 0.36)
+			_rock_chunk_into(st,
+				# Inside the facade's 1 m thickness, so the piece is bedded in the wall
+				# rather than parked in front of it.
+				Vector3(x_face + rng.randf_range(-0.38, 0.38), floor_y + s3 * 0.15,
+					pos.z + sgn2 * (door_w * 0.5 - rng.randf_range(0.0, 0.9))),
+				Vector3(s3, s3 * 0.6, s3), 600 + k2 * 20 + i)
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceMouthRag"
+	mi.mesh = st.commit()
+	mi.material_override = _make_cave_material(COLOR_BORDER)
+	add_child(mi)
+
+
+## One angular chunk of spoil: a cube whose eight corners are each shoved somewhere
+## else, so every face stays FLAT and every edge stays sharp.
+##
+## This is the shape smooth noise cannot make. Displacing a grid gave soft dunes and
+## the owner read them as exactly that — rounded, sandy, wrong. Broken rock is facets
+## and edges, because it fractures rather than erodes, and a mine floor is the rock
+## that came out of the walls. Angularity is not a style choice here, it is what tells
+## you the stuff was BROKEN.
+func _rock_chunk_into(st: SurfaceTool, centre: Vector3, size: Vector3, seed_i: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31337 + seed_i
+	var yaw: float = rng.randf_range(0.0, TAU)
+	var basis := Basis(Vector3(0, 1, 0), yaw)
+	basis = basis.rotated(Vector3(1, 0, 0), rng.randf_range(-0.35, 0.35))
+	basis = basis.rotated(Vector3(0, 0, 1), rng.randf_range(-0.35, 0.35))
+
+	var corner := PackedVector3Array()
+	for i in range(8):
+		var c := Vector3(
+			-0.5 if (i & 1) == 0 else 0.5,
+			-0.5 if (i & 2) == 0 else 0.5,
+			-0.5 if (i & 4) == 0 else 0.5)
+		# Each corner wanders on its own: a uniform wobble would just make a smaller,
+		# rounder cube.
+		c += Vector3(rng.randf_range(-0.26, 0.26), rng.randf_range(-0.26, 0.26),
+			rng.randf_range(-0.26, 0.26))
+		corner.append(centre + basis * (c * size))
+
+	# Six quads, wound outward. No shared normals: flat shading IS the facet.
+	const FACES: Array = [[0,2,3,1],[4,5,7,6],[0,1,5,4],[2,6,7,3],[0,4,6,2],[1,3,7,5]]
+	for f in FACES:
+		var a: Vector3 = corner[f[0]]
+		var b: Vector3 = corner[f[1]]
+		var c2: Vector3 = corner[f[2]]
+		var d: Vector3 = corner[f[3]]
+		var n: Vector3 = (b - a).cross(c2 - a).normalized()
+		if n.dot(a - centre) < 0.0:
+			n = -n
+		for v in [a, b, c2, a, c2, d]:
+			st.set_normal(n)
+			st.set_uv(Vector2(v.x * 0.5, v.z * 0.5))
+			st.add_vertex(v)
+
+
+## Height of the rubble floor at (x, z). The mesh and the spoil scattered on it BOTH
+## ask this, because the first version computed the surface in one place and dropped
+## chunks at the old flat height in another — so raising the floor swallowed every
+## chunk whole. One surface, one function.
+func _floor_relief_y(x: float, z: float, pos: Vector3, floor_y: float,
+		half_l: float, half_w: float, swell_n: FastNoiseLite, fine_n: FastNoiseLite,
+		amp: float, lift: float) -> float:
+	var across: float = (z - (pos.z - half_w)) / (2.0 * half_w)
+	var tx: float = (x - (pos.x - half_l)) / (2.0 * half_l)
+	var fall: float = -0.14 * (1.0 - across)
+	var ditch: float = -0.22 * smoothstep(0.13, 0.0, across)
+	# Heaped, not oscillating. A symmetric swell dips below the slab, and clamping
+	# those dips is what produced the owner's "colocar un segmento y bajarlo": flat
+	# polygonal bottoms with a hard rim, which read as pushed-down panels rather than
+	# as holes. Mapped to [0, amp] the ground only ever RISES off the slab, which is
+	# also the truer thing — spoil is material heaped ON a floor, and real hollows are
+	# rare and cut by water, not by the same noise that makes the mounds.
+	var swell: float = (swell_n.get_noise_2d(x, z) * 0.5 + 0.5) * amp
+	var lump: float = fine_n.get_noise_2d(x, z) * amp * 0.45
+	var rim: float = smoothstep(0.0, 0.14, minf(across, 1.0 - across))
+	# Fades over the last ~7 m rather than the last 3, leaving a flat apron inside the
+	# mouth. Not a concession to the test: an adit HAS a trodden flat near its portal,
+	# because that is the stretch everything gets dragged over. It also happens to be
+	# where a player-sized body was still catching on rising ground.
+	# Fades over the last ~5.5 m. At 0.22 the ground was still 0.27 m proud 1.7 m
+	# inside the mouth and a player-sized body caught on it, which the doorway test
+	# reported with the exact offsets. An adit HAS a trodden flat by its portal, so
+	# this is the shape as much as it is the fix.
+	rim *= smoothstep(0.0, 0.35, 1.0 - tx)
+	# LIFT rides the taper too. Left outside it, the floor stayed 0.45 m proud right at
+	# the threshold and then fell away — a 79.5-degree face, which Godot reads as WALL,
+	# i.e. the invisible barrier this entrance already lost a night to. Caught by
+	# test_entrance_walkable.gd, which exists for precisely this.
+	# The 2 cm base rides the taper as well. Left constant it was a 2 cm LIP at the
+	# threshold, and the doorway test caught a player-sized body catching on exactly
+	# that. At rim 0 the relief is now flush with the slab: nothing to trip on, and
+	# nothing for the physics to call a wall.
+	return maxf(floor_y + (0.02 + lift + fall + ditch + swell + lump) * rim, floor_y)
+
+
+## Rubble-and-mud relief laid over the flat floor box. Visual only: the box keeps the
+## collision, because a walking surface with bumps in it is how a player trips on
+## nothing they can see.
+##
+## The dish toward one side is not decoration either — an adit drains, water being the
+## first problem a real mine has, so the floor falls to a ditch along one wall.
+func _build_floor_relief(pos: Vector3, floor_y: float, half_l: float, half_w: float) -> void:
+	const NX := 30
+	const NZ := 26
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.42        # ~2.4 m lumps: heaped spoil, not a pebbled surface
+	noise.fractal_octaves = 3
+	noise.seed = 5150
+	# Broad swell, several metres per wave. This is the layer the floor was missing:
+	# `noise` alone gives surface break-up, and break-up on a plane is still a plane.
+	var swell_n: FastNoiseLite = FastNoiseLite.new()
+	swell_n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	swell_n.frequency = 0.16       # ~6 m per wave: you walk UP one and DOWN the next
+	swell_n.fractal_octaves = 2
+	swell_n.seed = 5151
+	# Amplitude was 0.075 m on the first pass and simply did not read: at eye height a
+	# grazing light over 7 cm of relief shades almost identically to a plane, and the
+	# owner still called the floor smooth. 0.18 m is the smallest that casts visible
+	# shadow from a lantern at this height, and it stays well under the 0.35 m step a
+	# player can no longer walk up — the relief is decoration, the box is the floor.
+	# 0.42 m, up from 0.18. The old figure was chosen to be visible in a still; the
+	# owner walked it and it still read flat, because a still shows shading and a walk
+	# shows the CAMERA rising and falling. Bounded on purpose: over the 0.55 m between
+	# grid samples this is a 37-degree slope at worst, under Godot's 45-degree wall
+	# threshold, and no single step exceeds the 0.35 m a player can climb.
+	var amp: float = 0.42
+
+	# Covers the whole SLAB footprint, not just the room. The slab is dropped 0.9 m at
+	# this level so it stops burying the relief, and anything the relief fails to cover
+	# becomes a hole straight through to the prairie — which is what the first attempt
+	# did, in green.
+	const LIFT := 0.45
+	var hw: float = half_w + 1.0
+	# West of the room it overhangs to cover the slab. East it STOPS 1.6 m short of the
+	# mouth: this mesh carries collision, and collision anywhere near the threshold is
+	# the invisible barrier this entrance has already lost a night to. The doorway is
+	# pure slab, dead level, and the relief fades into it well before the player gets
+	# there. Verified by test_entrance_walkable.gd, which failed twice on the way here.
+	var hl_w: float = half_l + 1.0
+	var hl_e: float = half_l
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rows: Array[PackedVector3Array] = []
+	for j in range(NZ + 1):
+		var tz: float = float(j) / float(NZ)
+		var z: float = pos.z - hw - (2.0 * hw) * 0.0 + (2.0 * hw) * tz
+		var row := PackedVector3Array()
+		for i in range(NX + 1):
+			var x: float = pos.x - hl_w + (hl_w + hl_e) * float(i) / float(NX)
+			row.append(Vector3(x, _floor_relief_y(x, z, pos, floor_y, half_l, half_w,
+				swell_n, noise, amp, LIFT), z))
+		rows.append(row)
+
+	for j in range(NZ):
+		for i in range(NX):
+			var a: Vector3 = rows[j][i]
+			var b: Vector3 = rows[j][i + 1]
+			var c: Vector3 = rows[j + 1][i + 1]
+			var d: Vector3 = rows[j + 1][i]
+			st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
+			st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
+	st.generate_normals()
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceFloorRelief"
+	mi.mesh = st.commit()
+	mi.material_override = _make_ballast_material()
+	add_child(mi)
+	# This one DOES take collision, unlike the wall shell. A floor you can see rolling
+	# under you while you walk a flat plane is worse than a flat floor — the feet have
+	# to agree with the eyes. It is safe here and not on the walls because the slope is
+	# bounded by construction above, and because the mouth end is tapered to level.
+	mi.create_trimesh_collision()
+
+	# Spoil on top of the swell. The graded surface alone reads as ground; the chunks
+	# are what say the ground is BROKEN ROCK. Weighted toward the walls, because that
+	# is where muck ends up once a floor gets walked: the middle wears to a path.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8402
+	var cst := SurfaceTool.new()
+	cst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in range(120):
+		var x: float = pos.x + rng.randf_range(-half_l, half_l)
+		# Push toward a wall: squaring a signed unit keeps the sign and thins the middle.
+		var u: float = rng.randf_range(-1.0, 1.0)
+		var z: float = pos.z + signf(u) * (u * u) * half_w * 0.96
+		var s: float = rng.randf_range(0.10, 0.34)
+		# Bedded, not set down and not buried. Resting exactly on the plane reads as an
+		# object placed on a floor; sunk to -0.16 of its size it flattened into brown
+		# patches, which is where the first correction landed. Just under a tenth proud
+		# keeps the facets catching light while the base disappears into the muck.
+		var gy: float = _floor_relief_y(x, z, pos, floor_y, half_l, half_w,
+			swell_n, noise, 0.42, 0.45)
+		_rock_chunk_into(cst, Vector3(x, gy + s * 0.06, z),
+			Vector3(s, s * rng.randf_range(0.45, 0.8), s * rng.randf_range(0.7, 1.3)), k)
+	var chunks := MeshInstance3D.new()
+	chunks.name = "EntranceFloorSpoil"
+	chunks.mesh = cst.commit()
+	chunks.material_override = _make_cave_material(COLOR_BORDER)
+	add_child(chunks)
+
+
+## A mine prop: a tree cut to length, not a piece of lumber.
+##
+## The boxes this replaces read as milled timber — "material muy caro para lo que
+## son" (owner, 2026-08-19), and he is right about the economics. A mine takes the
+## trunk that HOLDS; nobody planes it, and the bark often stays on. village_palisade
+## says the same thing about real stockades: thick, ROUND, axe-cut tops whose height
+## staggers log to log.
+##
+## Two properties do the work here, and both are structural rather than decorative:
+##
+##   * UVs run V ALONG THE AXIS, so the grain follows the piece. Under the triplanar
+##     mapping used everywhere else the grain comes from world space, which gave the
+##     collar beam the same grain as the posts holding it up. That is not merely
+##     repetitive, it is impossible: timber is far stronger along the grain than
+##     across it, and a beam grained crosswise splits under its own load. Grain
+##     direction is a claim about how the piece carries weight.
+##   * Every log is DIFFERENT. Radius, taper, lean and grain offset all come off the
+##     seed, because a stand of identical props is the "puestos ahí nomás" the owner
+##     named — pieces imported into a place rather than cut for it.
+func _add_log(node_name: String, base_pos: Vector3, axis: Vector3, length: float,
+		radius: float, seed_i: int) -> MeshInstance3D:
+	const SIDES := 9          # enough to lose the box silhouette, few enough to stay M3
+	const RINGS := 4
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77000 + seed_i
+
+	var taper: float = rng.randf_range(0.80, 0.93)     # trees narrow toward the top
+	var lean: float = rng.randf_range(-0.035, 0.035)   # nothing stands perfectly plumb
+	var v_off: float = rng.randf()                     # grain does not start at the same knot
+
+	var up: Vector3 = axis.normalized()
+	var side: Vector3 = up.cross(Vector3(0, 1, 0))
+	if side.length_squared() < 0.001:
+		side = up.cross(Vector3(1, 0, 0))
+	side = side.normalized()
+	var fwd: Vector3 = up.cross(side).normalized()
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts: Array[PackedVector3Array] = []
+	for r in range(RINGS + 1):
+		var t: float = float(r) / float(RINGS)
+		var rad: float = radius * lerpf(1.0, taper, t) * rng.randf_range(0.94, 1.06)
+		var centre: Vector3 = base_pos + up * (length * t) + side * (lean * length * t)
+		var row := PackedVector3Array()
+		for i in range(SIDES):
+			var a: float = TAU * float(i) / float(SIDES)
+			var knot: float = 1.0 + sin(a * 3.0 + t * 5.0) * 0.05   # shallow flutes, like bark
+			row.append(centre + (side * cos(a) + fwd * sin(a)) * rad * knot)
+		pts.append(row)
+
+	for r in range(RINGS):
+		for i in range(SIDES):
+			var i2: int = (i + 1) % SIDES
+			var a: Vector3 = pts[r][i]
+			var b: Vector3 = pts[r][i2]
+			var c: Vector3 = pts[r + 1][i2]
+			var d: Vector3 = pts[r + 1][i]
+			# U wraps the girth, V climbs the length: the grain runs with the trunk.
+			var u1: float = float(i) / float(SIDES)
+			var u2: float = float(i + 1) / float(SIDES)
+			var v1: float = v_off + (length * float(r) / float(RINGS)) * 0.55
+			var v2: float = v_off + (length * float(r + 1) / float(RINGS)) * 0.55
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(a)
+			st.set_uv(Vector2(u2, v1)); st.add_vertex(b)
+			st.set_uv(Vector2(u2, v2)); st.add_vertex(c)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(a)
+			st.set_uv(Vector2(u2, v2)); st.add_vertex(c)
+			st.set_uv(Vector2(u1, v2)); st.add_vertex(d)
+
+	# Axe-cut ends, capped flat. Not cones: village_palisade is explicit that a real
+	# cut is a shallow rough facet and that a row of tidy cones was the tell of an
+	# invented shape.
+	for r in [0, RINGS]:
+		var centre2: Vector3 = base_pos + up * (length * float(r) / float(RINGS)) \
+			+ side * (lean * length * float(r) / float(RINGS))
+		for i in range(SIDES):
+			var i2: int = (i + 1) % SIDES
+			# Cap UVs by PLANAR projection onto the log's own cross-section, not the
+			# (0.5, 0/1) line the first version used. That line fanned one column of
+			# the bark map around the disc and came out as a radial starburst — the
+			# owner saw it in game and read it exactly right: "es como estar viendo los
+			# troncos desde dentro hacia afuera". A planar patch samples the map like
+			# any other surface, so a cut end reads as rough sawn wood.
+			var cu := func(v: Vector3) -> Vector2:
+				var d: Vector3 = v - centre2
+				return Vector2(0.5 + d.dot(side) * 0.7, 0.5 + d.dot(fwd) * 0.7)
+			st.set_uv(cu.call(centre2)); st.add_vertex(centre2)
+			if r == RINGS:
+				st.set_uv(cu.call(pts[r][i])); st.add_vertex(pts[r][i])
+				st.set_uv(cu.call(pts[r][i2])); st.add_vertex(pts[r][i2])
+			else:
+				st.set_uv(cu.call(pts[r][i2])); st.add_vertex(pts[r][i2])
+				st.set_uv(cu.call(pts[r][i])); st.add_vertex(pts[r][i])
+
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = st.commit()
+	mi.material_override = _make_log_material(seed_i)
+	add_child(mi)
+	return mi
+
+
+## Bark, not sawn boards, and NOT triplanar: the log carries its own UVs so the grain
+## goes where the mesh says. A small per-log tint keeps two neighbours from reading as
+## the same tree twice.
+func _make_log_material(seed_i: int) -> StandardMaterial3D:
+	var key: int = seed_i % 4
+	if _log_mats.has(key):
+		return _log_mats[key]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 91000 + key
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color.from_hsv(0.075 + rng.randf_range(-0.012, 0.012),
+		0.30 * 0.35, rng.randf_range(0.86, 1.0))
+	mat.metallic = 0.0
+	mat.albedo_texture = _finish_tex("bark_brown_01", "diff")
+	mat.normal_enabled = true
+	mat.normal_texture = _finish_tex("bark_brown_01", "nor")
+	mat.roughness_texture = _finish_tex("bark_brown_01", "rough")
+	_log_mats[key] = mat
+	return mat
+
+
+var _log_mats: Dictionary = {}
+
+
+## Height of the vault directly above `z`, in metres over the floor. The single place
+## the arch is solved, so anything that has to LAND on the rock — a prop, a lamp
+## bracket, a hanging root — asks instead of assuming. Assuming is what buried one set
+## of posts and left their collar in mid-air.
+func _vault_y(z: float, half_w: float, h: float) -> float:
+	var c: float = clampf(absf(z) / maxf(half_w, 0.001), 0.0, 1.0)
+	# Inverse of the ring: z = -half_w * cos(a), so sin(a) = sqrt(1 - (z/half_w)^2).
+	return GALLERY_H_SPRING + (h - GALLERY_H_SPRING) * sqrt(maxf(0.0, 1.0 - c * c))
+
+
+func _gallery_ring(half_w: float, h: float, h_spring: float, arch_steps: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	const WALL_STEPS := 3
+	for i in range(WALL_STEPS):
+		pts.append(Vector2(-half_w, h_spring * float(i) / float(WALL_STEPS)))
+	# Half ellipse: a=0 sits on the left springing, a=PI/2 is the crown, a=PI the right.
+	for i in range(arch_steps + 1):
+		var a: float = PI * float(i) / float(arch_steps)
+		pts.append(Vector2(-half_w * cos(a), h_spring + (h - h_spring) * sin(a)))
+	for i in range(WALL_STEPS, 0, -1):
+		pts.append(Vector2(half_w, h_spring * float(i - 1) / float(WALL_STEPS)))
+	return pts
+
+
+## Inward normal at ring point `i`, in the ZY plane. Derived from the tangent and then
+## flipped toward the interior, rather than left to generate_normals(): the shell is
+## seen only from inside, and a normal set that points outward lights the room as if
+## every surface faced away from it.
+func _ring_normal(ring: PackedVector2Array, i: int, h_spring: float) -> Vector2:
+	var prev: Vector2 = ring[maxi(i - 1, 0)]
+	var next: Vector2 = ring[mini(i + 1, ring.size() - 1)]
+	var tangent: Vector2 = next - prev
+	if tangent.length_squared() < 0.000001:
+		return Vector2(0.0, 1.0)
+	var n := Vector2(tangent.y, -tangent.x).normalized()
+	if n.dot(Vector2(0.0, h_spring * 0.5) - ring[i]) < 0.0:
+		n = -n
+	return n
+
+
+## The excavated shell: walls and vault as one swept mesh, replacing the roof box, the
+## two side walls and the west wall. `displace` is the amplitude in metres of the
+## surface break-up; 0 gives a clean gallery (finish 2), above 0 gives hand-picked rock
+## (finish 3). The floor stays a separate box — it carries ballast, not wall rock.
+func _build_gallery_shell(pos: Vector3, floor_y: float, half_l: float, half_w: float,
+		h: float, displace: float) -> void:
+	const ARCH_STEPS := 18
+	const LEN_STEPS := 26
+
+	var ring: PackedVector2Array = _gallery_ring(half_w, h, GALLERY_H_SPRING, ARCH_STEPS)
+	var rings: int = ring.size()
+
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.28          # ~3.5 m per lobe: the decimetre-to-metre swells the
+	noise.fractal_octaves = 3       # references show, not a pebbled surface
+	noise.seed = 20260819
+
+	# Every vertex up front, so the triangle pass can just index them and both the
+	# position and its displaced normal stay consistent across shared edges.
+	var pts: Array[PackedVector3Array] = []
+	var nrm: Array[PackedVector3Array] = []
+	for j in range(LEN_STEPS + 1):
+		var x: float = pos.x - half_l + (2.0 * half_l) * float(j) / float(LEN_STEPS)
+		var row := PackedVector3Array()
+		var nrow := PackedVector3Array()
+		for i in range(rings):
+			var n2: Vector2 = _ring_normal(ring, i, GALLERY_H_SPRING)
+			var n3 := Vector3(0.0, n2.y, n2.x)
+			var p := Vector3(x, floor_y + ring[i].y, pos.z + ring[i].x)
+			if displace > 0.0:
+				# Taper to zero at both ends of the sweep so the shell still meets the
+				# facade and the west cap on a clean seam. A displaced rim would open
+				# gaps exactly where the player walks through.
+				var t: float = float(j) / float(LEN_STEPS)
+				var taper: float = smoothstep(0.0, 0.12, t) * smoothstep(0.0, 0.12, 1.0 - t)
+				# ...and to zero at the wall feet, so the shell keeps meeting the floor.
+				var foot: float = smoothstep(0.0, 0.5, ring[i].y)
+				p += n3 * noise.get_noise_3d(p.x, p.y, p.z) * displace * taper * foot
+			row.append(p)
+			nrow.append(n3)
+		pts.append(row)
+		nrm.append(nrow)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in range(LEN_STEPS):
+		for i in range(rings - 1):
+			var a: Vector3 = pts[j][i]
+			var b: Vector3 = pts[j][i + 1]
+			var c: Vector3 = pts[j + 1][i + 1]
+			var d: Vector3 = pts[j + 1][i]
+			var na: Vector3 = nrm[j][i]
+			var nb: Vector3 = nrm[j][i + 1]
+			var nc: Vector3 = nrm[j + 1][i + 1]
+			var nd: Vector3 = nrm[j + 1][i]
+			st.set_normal(na); st.add_vertex(a)
+			st.set_normal(nb); st.add_vertex(b)
+			st.set_normal(nc); st.add_vertex(c)
+			st.set_normal(na); st.add_vertex(a)
+			st.set_normal(nc); st.add_vertex(c)
+			st.set_normal(nd); st.add_vertex(d)
+
+	# West cap — the dead end of the adit, a fan from the last ring to its centre.
+	var cap_c := Vector3(pos.x - half_l, floor_y + GALLERY_H_SPRING * 0.9, pos.z)
+	var cap_n := Vector3(1.0, 0.0, 0.0)   # faces back down the gallery, into the room
+	for i in range(rings - 1):
+		st.set_normal(cap_n); st.add_vertex(cap_c)
+		st.set_normal(cap_n); st.add_vertex(pts[0][i + 1])
+		st.set_normal(cap_n); st.add_vertex(pts[0][i])
+
+	var mesh: ArrayMesh = st.commit()
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceGalleryShell"
+	mi.mesh = mesh
+	var mat: StandardMaterial3D = _make_cave_material(COLOR_BORDER).duplicate()
+	# Seen only from inside, and a winding mistake here would make the whole room
+	# vanish rather than look wrong. At ~1.7k triangles the doubled overdraw is free,
+	# and the explicit normals above mean lighting does not depend on the winding.
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	add_child(mi)
+	# No collision on purpose. The backing boxes already carry it, and a trimesh of
+	# DISPLACED rock is precisely the shape a player snags on — the doorway saga of
+	# 2026-08-08 was three chained bugs of exactly that kind. Rock you can see and
+	# cannot catch on beats rock that is honest and traps you.
+
+
 func _build_entrance(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
-	var sz: Vector2 = poi.size
+	# Misma cota que usó el tallado del terreno. Recalcularla acá a partir de pos.y
+	# sería una segunda fuente de verdad, y bastaría un metro de diferencia para que
+	# el piso de piedra quedara flotando sobre el fondo de la trinchera.
+	var floor_y: float = _entrance_floor_y
+	var half_l: float = ENTRANCE_HALL_LEN * 0.5
+	var half_w: float = ENTRANCE_HALL_HALF_W
+	var h: float = ENTRANCE_HALL_H
+	var t: float = 1.0                    # espesor de muro/losa
+	var door_w: float = 6.0
+	var door_h: float = 3.5
 
-	_add_csg_box("EntranceGround", pos + Vector3(0, 0.02, 0),
-		Vector3(sz.x, 0.04, sz.y), COLOR_PATH, false)
+	# ── Caja de la sala ────────────────────────────────────────────────────────
+	# COLOR_BORDER, no COLOR_ROCK: el gris neutro 0.502 es exactamente lo que se leía
+	# como hormigón (reportado 2026-08-01). La piedra de caverna ya existe en la
+	# paleta, es más cálida y más oscura, y hace juego con el borde del mapa.
+	# The slab stays put. Dropping it to make room for the relief exposed the PRAIRIE
+	# TERRAIN underneath — the carve leaves ground at that level, so the room filled
+	# with green. The relief rises above the slab instead; see _build_floor_relief.
+	var slab_drop: float = 0.0
+	var floor_box: CSGBox3D = _add_cave_csg_box("EntranceFloor",
+		Vector3(pos.x, floor_y - t * 0.5 - slab_drop, pos.z),
+		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
+	# Gravel underfoot, not the wall rock. Below finish level 1 this returns the wall
+	# material, so the baseline is byte-identical to what shipped.
+	floor_box.material_override = _make_ballast_material()
+
+	if ENTRANCE_FINISH >= 3:
+		# A mine floor is rubble and mud, never a plane. The box keeps the collision —
+		# a displaced walking surface is how a player trips on nothing — and this rides
+		# 2 cm above it purely as relief, dished toward one side because a real adit
+		# drains: water is a mine's first problem, and the floor slopes to the ditch.
+		_build_floor_relief(pos, floor_y, half_l, half_w)
+
+	# The boxes stay at every finish level, and above level 1 they stop being the
+	# visible surface and become BACKING. They are 1 m thick and solid, and that
+	# thickness is load-bearing in a way the first shell attempt missed: it plugs the
+	# space between the room and the carved trench. A zero-thickness shell on its own
+	# let the prairie show through around the portal — measured, not guessed, by
+	# shooting 01_inside_to_portal at level 1 and level 3 side by side.
+	#
+	# They also keep the collision. The vault dips to the springing line at the walls
+	# while the box ceiling stays flat at h, so a player cannot bump the rock they can
+	# see up there — an acceptable trade at a ceiling nobody touches, and far cheaper
+	# than a trimesh of the displaced shell.
+	_add_cave_csg_box("EntranceRoof",
+		Vector3(pos.x, floor_y + h + t * 0.5, pos.z),
+		Vector3(ENTRANCE_HALL_LEN + t * 2.0, t, half_w * 2.0 + t * 2.0), COLOR_BORDER, true)
 
 	for side in [-1.0, 1.0]:
-		# Round-A #1: entrance stones use cave material (worked stone blocks)
-		_add_cave_csg_box("EntranceStone%s" % ("N" if side < 0 else "S"),
-			pos + Vector3(0, 0.6, side * sz.y * 0.5),
-			Vector3(sz.x * 0.8, 1.2, 0.8), COLOR_ROCK, true)
+		_add_cave_csg_box("EntranceWall%s" % ("N" if side < 0 else "S"),
+			Vector3(pos.x, floor_y + h * 0.5, pos.z + side * (half_w + t * 0.5)),
+			Vector3(ENTRANCE_HALL_LEN + t * 2.0, h, t), COLOR_BORDER, true)
 
+	_add_cave_csg_box("EntranceWallW",
+		Vector3(pos.x - half_l - t * 0.5, floor_y + h * 0.5, pos.z),
+		Vector3(t, h, half_w * 2.0), COLOR_BORDER, true)
+
+	if ENTRANCE_FINISH >= 2:
+		# The excavated surface, built just inside the boxes. The boxes are what
+		# produced the 90-degree corners the owner kept naming, and no amount of
+		# texture reaches a silhouette, so the SECTION changes. Level 3 adds the
+		# displacement that makes it read hand-picked rather than bored — construction
+		# stage A of _entrance_antechamber.md.
+		var displace: float = 0.32 if ENTRANCE_FINISH >= 3 else 0.0
+		_build_gallery_shell(pos, floor_y, half_l, half_w, h, displace)
+
+	# ── Marcos de mina adentro ────────────────────────────────────────────────
+	# Sin esto la sala vuelve a ser una caja lisa: la roca sola no tiene escala, y
+	# 16 m de pared plana se leen igual de largos que 5. Los marcos repetidos son
+	# lo que da el ritmo y dice de una que esto es una galería apuntalada.
+	var set_post: float = 0.55
+	# Where the posts stand, and how tall, both follow the SECTION.
+	#
+	# Two wrong versions preceded this one, and both are worth naming. Posts sized for
+	# a flat ceiling stand BURIED once the ceiling curves, with their collar hanging in
+	# the open — the floating-pillar defect from the playtest, reintroduced by me the
+	# moment the vault landed. Then posts cut to the springing line put a 14 m collar
+	# beam at 1.55 m, dead level with the eye: three of those read as a plank wall
+	# across the room.
+	#
+	# The mistake behind both was borrowing the shape of a narrow gallery. A three-piece
+	# set spanning wall to wall is right for a 3 m drift; this is a 14 m CHAMBER, and
+	# what holds a chamber up is free-standing props inland of the walls, each cut to
+	# the rock directly above it. So the prop stands where the vault is still high, its
+	# height is SOLVED from the vault equation rather than typed, and the collar clears
+	# a head by metres instead of blocking the room.
+	var prop_z: float = half_w * 0.72
+	var set_h: float = h - 0.45
+	if ENTRANCE_FINISH >= 2:
+		set_h = _vault_y(prop_z, half_w, h) - 0.12   # 12 cm of bite into the rock
+	for i in range(3):
+		var sx: float = pos.x + (float(i) - 1.0) * 5.0
+		var post_z: float = (prop_z if ENTRANCE_FINISH >= 2 else half_w - set_post * 0.5 - 0.05)
+		if ENTRANCE_FINISH >= 2:
+			# Round logs. Each post is cut to the rock ABOVE IT, so a set standing where
+			# the vault is lower is a shorter set — the frame answers to the excavation
+			# instead of being dropped into it.
+			for k in range(2):
+				var sgn: float = -1.0 if k == 0 else 1.0
+				var pz: float = pos.z + sgn * post_z
+				var post_h: float = _vault_y(post_z, half_w, h) - 0.12
+				_add_log("EntranceProp%d%d" % [i, k],
+					Vector3(sx, floor_y, pz), Vector3(0, 1, 0), post_h, 0.26, i * 2 + k)
+			# The collar is a log laid ACROSS, so its grain runs along the span it
+			# carries — the posts' grain runs vertically. Two pieces of the same tree
+			# used two different ways, which is the whole point.
+			var collar_y: float = floor_y + _vault_y(post_z, half_w, h) - 0.12
+			_add_log("EntranceCollar%d" % i,
+				Vector3(sx, collar_y, pos.z - post_z - 0.26), Vector3(0, 0, 1),
+				post_z * 2.0 + 0.52, 0.22, 60 + i)
+		else:
+			for side in [-1.0, 1.0]:
+				_add_timber_box("EntranceSetPost%d%s" % [i, "N" if side < 0 else "S"],
+					Vector3(sx, floor_y + set_h * 0.5, pos.z + side * post_z),
+					Vector3(set_post, set_h, set_post), COLOR_TIMBER, true)
+			_add_timber_box("EntranceSetCap%d" % i,
+				Vector3(sx, floor_y + set_h + 0.22, pos.z),
+				Vector3(set_post, 0.45, half_w * 2.0), COLOR_TIMBER, false)
+
+	# ── Fachada este: dos jambas dejando el vano, más el dintel ────────────────
+	# La estructura que tapa (jambas + dintel) es tablonería, no piedra: esto es un
+	# socavón de mina, y lo que sostiene la tierra a los costados del vano son tablas
+	# horizontales trabadas contra los postes, no un muro labrado.
+	var x_face: float = pos.x + half_l + t * 0.5
+	var jamb_w: float = half_w - door_w * 0.5
+	if ENTRANCE_FINISH >= 3:
+		# Lagging as individual BOARDS, not one box with a plank photograph on it.
+		# That box was the last perfectly-made thing in the room, and the owner named
+		# the whole class: "todo lo que me hace es como muro, piedra, muralla, vigas,
+		# todo eso lo hace perfecto, y eso no es así en la vida real". A texture of
+		# planks on a flat slab is a picture of carpentry; boards of unequal width,
+		# each proud or shy of its neighbour by a centimetre and none quite plumb, is
+		# carpentry. The irregularity has to live in the GEOMETRY or it reads as
+		# wallpaper.
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 4711
+		for side in [-1.0, 1.0]:
+			var z0: float = pos.z + side * (door_w * 0.5)
+			var laid: float = 0.0
+			var n: int = 0
+			while laid < jamb_w - 0.02 and n < 24:
+				var bw: float = minf(rng.randf_range(0.18, 0.38), jamb_w - laid)
+				_add_timber_box("EntranceLag%s%d" % ["N" if side < 0 else "S", n],
+					Vector3(x_face + rng.randf_range(-0.05, 0.05),
+						floor_y + h * 0.5 + rng.randf_range(-0.04, 0.04),
+						z0 + side * (laid + bw * 0.5)),
+					Vector3(t * rng.randf_range(0.75, 1.0), h + rng.randf_range(-0.12, 0.0),
+						bw * 0.94), COLOR_TIMBER_DARK, true)
+				laid += bw
+				n += 1
+		# The panel over the door, boarded the same way but laid flat.
+		var over_h: float = h - door_h
+		var stacked: float = 0.0
+		var m: int = 0
+		while stacked < over_h - 0.02 and m < 16:
+			var bh: float = minf(rng.randf_range(0.16, 0.34), over_h - stacked)
+			_add_timber_box("EntranceLagOver%d" % m,
+				Vector3(x_face + rng.randf_range(-0.05, 0.05),
+					floor_y + door_h + stacked + bh * 0.5, pos.z + rng.randf_range(-0.05, 0.05)),
+				Vector3(t * rng.randf_range(0.75, 1.0), bh * 0.94,
+					door_w + rng.randf_range(-0.2, 0.1)), COLOR_TIMBER_DARK, true)
+			stacked += bh
+			m += 1
+	else:
+		for side in [-1.0, 1.0]:
+			_add_timber_box("EntranceJamb%s" % ("N" if side < 0 else "S"),
+				Vector3(x_face, floor_y + h * 0.5,
+					pos.z + side * (door_w * 0.5 + jamb_w * 0.5)),
+				Vector3(t, h, jamb_w), COLOR_TIMBER_DARK, true)
+		_add_timber_box("EntranceLintelFill",
+			Vector3(x_face, floor_y + door_h + (h - door_h) * 0.5, pos.z),
+			Vector3(t, h - door_h, door_w), COLOR_TIMBER_DARK, true)
+
+	# ── Entibado: el marco de mina que se lee en silueta ──────────────────────
+	# El marco NO va pegado a la fachada. La costura de la loma cae en mouth.x + 1.0
+	# y al oeste de ahí hay tierra maciza hasta la superficie: un poste plantado en
+	# la cara de piedra queda literalmente ENTERRADO, y desde el camino la entrada
+	# vuelve a leerse como una ranura negra bajo una tapa de madera (medido con el
+	# harness, 2026-08-07). Va parado en la trinchera abierta, al este de la costura,
+	# como el castillete de una bocamina: el marco adelante, el socavón detrás.
+	var x_frame: float = x_face + 1.6
+	var post_side: float = 0.75
+	# Más alto que el vano a propósito. Si el marco termina a la altura de la puerta
+	# queda debajo del alero de tierra y no se recorta contra nada; sobresaliendo,
+	# se ve el travesaño contra el cielo desde el otro lado de la pradera.
+	var post_h: float = door_h + 1.8
+	var post_z: float = door_w * 0.5 + post_side * 0.5 + 0.1
+	if ENTRANCE_FINISH >= 3:
+		# The headframe in logs. It was the most conspicuously milled thing left
+		# outside — square posts, a square beam, square braces, all plumb — and it is
+		# the FIRST structure a player ever sees, at the mouth, against the sky. A
+		# bocamina is trunks stood up and lashed: nothing is square, nothing is plumb,
+		# and the two posts are not the same tree.
+		for k in range(2):
+			var sgn: float = -1.0 if k == 0 else 1.0
+			_add_log("EntrancePost%d" % k,
+				Vector3(x_frame, floor_y, pos.z + sgn * post_z),
+				Vector3(0, 1, 0), post_h, 0.36, 200 + k)
+			# Brace: the angle is what says this is CARRYING something. Without it the
+			# frame is a U and reads as a prop from a set.
+			var ang: float = deg_to_rad(38.0)
+			_add_log("EntranceBrace%d" % k,
+				Vector3(x_frame, floor_y + post_h - 2.1, pos.z + sgn * (post_z - 0.15)),
+				Vector3(0.0, cos(ang), -sgn * sin(ang)), 2.3, 0.17, 210 + k)
+		# Head beam laid across, grain along its span, overhanging both posts the way
+		# a log cut long does — nobody trims the ends flush on a mine portal.
+		_add_log("EntranceHeadBeam",
+			Vector3(x_frame, floor_y + post_h + 0.32, pos.z - post_z - 1.45),
+			Vector3(0, 0, 1), post_z * 2.0 + 2.9, 0.30, 220)
+	else:
+		for side in [-1.0, 1.0]:
+			_add_timber_box("EntrancePost%s" % ("N" if side < 0 else "S"),
+				Vector3(x_frame, floor_y + post_h * 0.5, pos.z + side * post_z),
+				Vector3(post_side, post_h, post_side), COLOR_TIMBER, true)
+
+			# Tornapunta: sin ella el marco es una U y se lee como utilería. El ángulo
+			# es lo que dice "esto está aguantando peso".
+			var brace: CSGBox3D = _add_timber_box("EntranceBrace%s" % ("N" if side < 0 else "S"),
+				Vector3(x_frame, floor_y + post_h - 1.25, pos.z + side * (post_z - 0.62)),
+				Vector3(0.42, 1.9, 0.36), COLOR_TIMBER, false)
+			brace.rotation.x = -side * deg_to_rad(38.0)
+
+		# Viga cabecera, apoyada sobre los postes y volando un poco a cada lado.
+		_add_timber_box("EntranceHeadBeam",
+			Vector3(x_frame, floor_y + post_h + 0.4, pos.z),
+			Vector3(0.95, 0.8, door_w + 2.9), COLOR_TIMBER, true)
+
+	# _build_mouth_rag() is DISABLED, not deleted. Seen in the running game it read as
+	# flat angular shards stuck around the opening — the owner's "piedras flotando... se
+	# ve medio rarito" — because the chunks are flattened boxes hung in open air at the
+	# facade plane, and edge-on a flattened box is a shard. Three rounds of tuning
+	# their size and bite did not change what they fundamentally are.
+	#
+	# The lesson is about the approach, not the numbers: an opening is made irregular by
+	# SHAPING THE OPENING, not by parking decoration around a rectangle. That needs the
+	# facade hole itself to be cut from a mesh, which is real work rather than a patch,
+	# so it waits instead of shipping as debris.
+	if false:
+		_build_mouth_rag(pos, floor_y, x_face, door_w, door_h)
+
+	# Umbral: marca dónde termina la trinchera y empieza el piso construido.
+	_add_timber_box("EntranceSill",
+		Vector3(x_face + 0.5, floor_y + 0.12, pos.z),
+		Vector3(1.1, 0.24, door_w + 1.4), COLOR_TIMBER_DARK, false)
+
+	# ── Faroles del vano ──────────────────────────────────────────────────────
+	# Sin luz acá afuera la entrada entera se lee como una mancha negra bajo la
+	# loma: la madera está construida pero no se ve, y desde el camino sigue sin
+	# leerse por dónde entrar. Dos faroles colgados de los postes hacen las dos
+	# cosas a la vez — recortan el entibado y dicen "acá hay alguien" desde lejos.
 	for side in [-1.0, 1.0]:
-		var pillar: CSGCylinder3D = CSGCylinder3D.new()
-		pillar.name = "EntrancePillar%s" % ("L" if side < 0 else "R")
-		pillar.radius = 0.5
-		pillar.height = 4.0
-		pillar.sides = 8
-		pillar.use_collision = true
-		# Round-A #1: entrance pillars use cave material (worked stone)
-		pillar.material_override = _make_cave_material(COLOR_ROCK)
-		pillar.position = pos + Vector3(sz.x * 0.4 * side, 2.0, -sz.y * 0.5)
-		add_child(pillar)
+		var lantern_pos: Vector3 = Vector3(
+			x_frame + 0.6, floor_y + post_h - 1.0, pos.z + side * (post_z + 0.15))
+
+		var lamp_body: CSGBox3D = _add_timber_box("EntranceLantern%s" % ("N" if side < 0 else "S"),
+			lantern_pos, Vector3(0.34, 0.42, 0.34), COLOR_TIMBER_DARK, false)
+		var glow: StandardMaterial3D = StandardMaterial3D.new()
+		glow.albedo_color = Color(0.85, 0.62, 0.30)
+		glow.emission_enabled = true
+		glow.emission = Color(1.0, 0.72, 0.36)
+		glow.emission_energy_multiplier = 1.6
+		lamp_body.material_override = glow
+
+		var lantern: OmniLight3D = OmniLight3D.new()
+		lantern.name = "EntranceLanternLight%s" % ("N" if side < 0 else "S")
+		lantern.light_color = Color(1.0, 0.80, 0.55)
+		# 16 m of range in a 16 m room lit every corner evenly, which is the opposite
+		# of what a lamp does and what the reference photographs show: pools with black
+		# between them. Pulled back so the light falls off inside the room and the
+		# darkness has somewhere to live. Energy up to keep the pool itself bright —
+		# a dimmer even light would just be a duller even light.
+		lantern.light_energy = 6.5
+		lantern.omni_range = 9.0
+		lantern.position = lantern_pos
+		add_child(lantern)
+
+	# ── Portal al fondo: la conexión con la Ciudad de la Torre ────────────────
+	var portal: CSGBox3D = CSGBox3D.new()
+	portal.name = "EntrancePortal"
+	portal.size = Vector3(0.3, 3.4, 4.6)
+	portal.position = Vector3(pos.x - half_l + 0.2, floor_y + 1.7, pos.z)
+	var pmat: StandardMaterial3D = StandardMaterial3D.new()
+	# Energía baja a propósito: a 2.2 el portal se quemaba a blanco puro y perdía la
+	# forma — leías un fogonazo, no una puerta. La sensación de "está encendido" la
+	# da la luz que tira sobre la piedra, no el brillo del panel.
+	pmat.albedo_color = Color(0.16, 0.34, 0.58)
+	pmat.emission_enabled = true
+	pmat.emission = Color(0.30, 0.56, 0.85)
+	pmat.emission_energy_multiplier = 0.85
+	portal.material_override = pmat
+	add_child(portal)
+
+	var plight: OmniLight3D = OmniLight3D.new()
+	plight.name = "EntrancePortalLight"
+	plight.light_color = Color(0.55, 0.78, 1.0)
+	plight.light_energy = 3.2
+	plight.omni_range = 20.0
+	plight.position = Vector3(pos.x - half_l + 1.6, floor_y + 2.2, pos.z)
+	add_child(plight)
+
+	# Sin esto la sala es una caja negra: el jugador aparece adentro y no ve nada.
+	for side in [-1.0, 1.0]:
+		var lamp: OmniLight3D = OmniLight3D.new()
+		lamp.name = "EntranceLamp%s" % ("N" if side < 0 else "S")
+		lamp.light_color = Color(1.0, 0.86, 0.62)
+		lamp.light_energy = 1.5
+		lamp.omni_range = 13.0
+		lamp.position = Vector3(pos.x + half_l * 0.35, floor_y + h - 1.0, pos.z + side * (half_w - 1.5))
+		add_child(lamp)
+
+	# ── Pavimento de la trinchera ─────────────────────────────────────────────
+	# El terreno excavado YA es la rampa por la que se camina (la pendiente media
+	# ronda los 15 grados, muy por debajo del floor_max_angle de 45). Estas losas
+	# son revestimiento, sin colisión: cada una lee la altura real del terreno en su
+	# centro, así que siguen la curva smoothstep en vez de cortarla como haría una
+	# rampa recta.
+	_build_entrance_mound()
+
+	var mouth: Vector3 = _entrance_mouth()
+	_build_entrance_paving(mouth, door_w)
+
+
+## Pavimento de la trinchera, como TIRA DE MALLA continua.
+##
+## Antes eran 14 cajas apoyadas, cada una leyendo la altura del terreno en su centro.
+## Eso se escalonaba, y las dos vueltas de parche —losas más gruesas, después losas
+## solapadas— sólo escondían el escalón mientras el terreno fuera suave. Al subir
+## TERRAIN_RESOLUTION a 128 el terreno gana definición, baja más rápido entre centros,
+## y el escalón volvió: desde adentro de la sala el camino se leía como una ESCALERA
+## (reportado con captura por Joan, 2026-08-07).
+##
+## Una caja no puede seguir una curva. La tira sí: samplea el terreno en cada vértice,
+## así que se apoya sobre la pendiente real en vez de aproximarla por tramos planos.
+## Sin colisión — el terreno de abajo ya la da, y un segundo cuerpo sobre el mismo
+## suelo es justamente lo que traba al jugador.
+func _build_entrance_paving(mouth: Vector3, door_w: float) -> void:
+	const PAVE_STEP: float = 1.2          # muestreo a lo largo; más fino que el terreno
+	## 0.06 -> 0.28. No es margen anti z-fighting, es margen contra un DESACUERDO de
+	## superficies: get_terrain_height interpola bilineal dentro de la celda, pero la
+	## malla del terreno está triangulada, y el triángulo corta la celda por la diagonal.
+	## Entre vértices las dos superficies difieren, y con celdas de 6.09 m en pendiente
+	## esa diferencia pasa los 20 cm: el pavimento se hundía y reaparecía a pedazos
+	## (visto en la captura oblicua del harness).
+	const PAVE_LIFT: float = 0.28
+	var half_w: float = (door_w + 1.0) * 0.5
+	var nx: int = maxi(1, int(ceilf(ENTRANCE_TRENCH_RUN / PAVE_STEP)))
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(nx):
+		var xa: float = mouth.x + ENTRANCE_TRENCH_RUN * (float(i) / float(nx))
+		var xb: float = mouth.x + ENTRANCE_TRENCH_RUN * (float(i + 1) / float(nx))
+		var za: float = mouth.z - half_w
+		var zb: float = mouth.z + half_w
+		var v00 := Vector3(xa, get_terrain_height(xa, za) + PAVE_LIFT, za)
+		var v10 := Vector3(xb, get_terrain_height(xb, za) + PAVE_LIFT, za)
+		var v01 := Vector3(xa, get_terrain_height(xa, zb) + PAVE_LIFT, zb)
+		var v11 := Vector3(xb, get_terrain_height(xb, zb) + PAVE_LIFT, zb)
+		for v in [v00, v10, v11, v00, v11, v01]:
+			st.set_uv(Vector2(v.x, v.z) * 0.35)
+			st.add_vertex(v)
+
+		# Skirts down both edges, to the terrain. PAVE_LIFT holds the strip 0.28 m
+		# clear of the ground so it does not fight the terrain's triangulation, and
+		# that gap is invisible from eye height — but the owner climbed the mound and
+		# saw the whole thing as a slab hovering over grass, because from above you
+		# look straight into the gap. A ribbon with sides is solid from every angle; a
+		# floating plane is only solid from the angles you happened to shoot.
+		for zz in [za, zb]:
+			var top_a := Vector3(xa, get_terrain_height(xa, zz) + PAVE_LIFT, zz)
+			var top_b := Vector3(xb, get_terrain_height(xb, zz) + PAVE_LIFT, zz)
+			# A little BELOW the terrain, not exactly on it: the same triangulation
+			# disagreement that forced the lift would otherwise open pinholes here.
+			var bot_a := Vector3(xa, get_terrain_height(xa, zz) - 0.15, zz)
+			var bot_b := Vector3(xb, get_terrain_height(xb, zz) - 0.15, zz)
+			for v in [top_a, bot_a, bot_b, top_a, bot_b, top_b]:
+				st.set_uv(Vector2(v.x + v.z, v.y) * 0.35)
+				st.add_vertex(v)
+	st.generate_normals()
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntrancePaving"
+	mi.mesh = st.commit()
+	# Duplicated so cull_disabled stays on the paving alone. The two skirts face
+	# opposite ways, so one of them is wound inward whatever order I emit; culling off
+	# costs nothing on a couple of hundred triangles and removes a whole class of
+	# "solid from one side only" bug.
+	var pave_mat: StandardMaterial3D = _make_cave_material(COLOR_BORDER).duplicate()
+	pave_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = pave_mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
 
 func _build_ruins(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
@@ -1492,7 +3031,12 @@ func _build_boss_arena(poi: POISystem.POI) -> void:
 	var trigger := Area3D.new()
 	trigger.name = "BossSpawnTrigger"
 	trigger.monitoring = true
-	trigger.collision_mask = 1  # Player está en layer 1 por default (inconsistencia vs CLAUDE.md, doc dice layer 2 pero tscn no la setea)
+	# El player está en collision_layer = 2 (las 7 escenas de clase la setean explícitamente).
+	# Esto escaneaba la layer 1, así que el trigger NUNCA veía al jugador y el King Slime
+	# NUNCA spawneaba: el boss del canon —"pelea OBLIGATORIA, el boss ES el paso"— era
+	# inalcanzable salvo por _debug_spawn_king_slime(). El comentario viejo decía que el
+	# player estaba en layer 1 "por default"; los .tscn dicen lo contrario.
+	trigger.collision_mask = 2
 	var trigger_shape := CollisionShape3D.new()
 	var trigger_box := BoxShape3D.new()
 	trigger_box.size = Vector3(wall_t * 3.0, wall_h, gate_w)
@@ -1525,55 +3069,79 @@ func _spawn_king_deferred(king: Node3D, pos: Vector3) -> void:
 		return
 	add_child(king)
 	king.global_position = pos
+	# Killing the boss opens the way down — that descent is where the run ends.
+	# Bound to the boss instance rather than polling: die() emits this exactly once.
+	if king is BaseEnemy:
+		(king as BaseEnemy).died.connect(_on_boss_died)
 
+
+## Reveals the descent in the arena the boss died in.
+func _on_boss_died(boss: BaseEnemy) -> void:
+	var descent := FloorDescent.new()
+	descent.name = "FloorDescent"
+	descent.from_floor = boss.enemy_tier
+	# Offset from the corpse so the descent never spawns under the loot it just dropped.
+	# Reuses the boss's own Y: it is standing on the arena's CSG slab, which is flat and
+	# sits above the terrain heightmap — get_terrain_height() would sink the pit into it.
+	var spot: Vector3 = boss.global_position + Vector3(0.0, 0.0, 6.0)
+	add_child(descent)
+	descent.global_position = spot
+
+
+## Bandit camp dressing — delegates to VillageBuilder (2026-07-18), a terrain/
+## biome-aware village generator that replaced the old ad-hoc fence-ring +
+## flat-box layout. Structure (palisade ring, double-gate airlock, watchtower,
+## central hut, inner ring, patches, scatter) lives in
+## `game/scripts/village_builder.gd`; the "bandit_prairie" style Dictionary
+## there carries all asset paths for this pack. See
+## `game/docs/village_builder.md` and `game/docs/art/_references/bandit_camp/_synthesis.md`.
+##
+## Instances a real-prop PackedScene as pure set dressing — visual only, no
+## collision (fence/banner/lantern are thin geometry; a solid StaticBody here
+## risks snagging bandit AI pathing around the camp, which this dressing pass
+## must not touch). `lean_rad` is an optional extra tilt around the prop's own
+## yaw-relative forward axis — used by VillageBuilder's palisade jitter for the
+## "desparejo" (uneven) look; 0.0 keeps the old straight-up behavior.
+func _add_camp_prop(scene: PackedScene, node_name: String, world_pos: Vector3, rot_y: float, scale: float = 1.0, lean_rad: float = 0.0) -> void:
+	if scene == null:
+		return
+	var inst: Node3D = scene.instantiate() as Node3D
+	if inst == null:
+		return
+	inst.name = node_name
+	var yaw_basis: Basis = Basis(Vector3.UP, rot_y)
+	var prop_basis: Basis = yaw_basis.scaled(Vector3(scale, scale, scale))
+	if lean_rad != 0.0:
+		prop_basis = prop_basis.rotated(yaw_basis * Vector3.FORWARD, lean_rad)
+	inst.transform = Transform3D(prop_basis, world_pos)
+	inst.add_to_group("grounded")
+	_scatter_apply_geo_flags(inst, 80.0)
+	add_child(inst)
 
 func _build_camp(poi: POISystem.POI) -> void:
-	var pos: Vector3 = poi.position
-	var sz: Vector2 = poi.size
-
-	_add_csg_box("CampGround", pos + Vector3(0, 0.02, 0),
-		Vector3(sz.x, 0.04, sz.y), COLOR_PATH, false)
-
-	var tent_count: int = _rng.randi_range(2, 3)
-	for i in range(tent_count):
-		var tx: float = _rng.randf_range(-sz.x * 0.25, sz.x * 0.25)
-		var tz: float = _rng.randf_range(-sz.y * 0.25, sz.y * 0.25)
-		_add_csg_box("CampTent%d" % i,
-			pos + Vector3(tx, 1.2, tz),
-			Vector3(4.0, 2.4, 3.0), COLOR_CAMP_TENT, true)
-
-	var fire: CSGCylinder3D = CSGCylinder3D.new()
-	fire.name = "CampFire"
-	fire.radius = 0.6
-	fire.height = 0.3
-	fire.use_collision = false
-	fire.material_override = _make_material(Color(0.2, 0.1, 0.05))
-	fire.position = pos + Vector3(0, 0.15, 0)
-	add_child(fire)
-
-	var fire_light: OmniLight3D = OmniLight3D.new()
-	fire_light.name = "CampFireLight"
-	fire_light.light_color = Color(1.0, 0.6, 0.2)
-	fire_light.light_energy = 0.6
-	fire_light.omni_range = 15.0
-	fire_light.position = pos + Vector3(0, 1.0, 0)
-	add_child(fire_light)
-
-	for i in range(3):
-		var angle: float = float(i) * TAU / 3.0
-		_add_csg_box("CampLog%d" % i,
-			pos + Vector3(cos(angle) * 2.0, 0.2, sin(angle) * 2.0),
-			Vector3(2.0, 0.4, 0.5), COLOR_TRUNK, true)
+	VillageBuilder.build(self, poi, get_terrain_height, _rng, _add_camp_prop, VillageBuilder.STYLE_BANDIT_PRAIRIE)
 
 ## Landmark tree uses a REAL scaled gltf, not the old green-box-on-a-stick.
-const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf")
+## PURGA M3 (2026-08-07): era env_tree_common_01.gltf (CC0). Pasa a tree_prairie_wide,
+## que el tree_pack construyó justamente como "shade tree in clearings, deliberately
+## rare/standout" — el mismo rol de árbol-hito que cumplía el gigante.
+## The landmark tree, BUILT at 22 m rather than scaled up to it (2026-08-08).
+## It used to be env_tree_prairie_wide_01 — an 8.57 m tree — blown up x4.5 to
+## 38.6 m. Under elastic self-similarity a trunk's buckling height goes with
+## diameter^(2/3), so diameter has to grow as height^1.5: a uniform x4.5 leaves
+## the giant with the trunk proportions of a tree a quarter its size, which is
+## why it read as a blown-up toy instead of a colossus. The `ancient` stage in
+## build_tree_pack.py builds it at height with the girth that height requires.
+const SCENE_GIANT_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_ancient_01.glb")
 
 func _build_giant_tree(poi: POISystem.POI) -> void:
 	var pos: Vector3 = poi.position
 
-	# Landmark-sized REAL tree (model native ~7m → ~31m at 4.5x) — replaces the old
-	# CSGCylinder trunk + flat green CSGBox canopy that read as a box floating on a stick.
-	var giant_scale: float = 4.5
+	# Landmark tree at its NATIVE 22 m — no scale factor. The old 4.5x blow-up is
+	# gone: see SCENE_GIANT_TREE above for why scaling a tree is not the same as
+	# growing one. A small per-instance jitter stays, because two colossi should
+	# not be identical, but it is jitter now and not a size multiplier.
+	var giant_scale: float = _rng.randf_range(0.94, 1.06)
 	var tree: Node3D = SCENE_GIANT_TREE.instantiate() as Node3D
 	if tree != null:
 		var rot_y: float = _rng.randf() * TAU
@@ -1679,6 +3247,34 @@ func _build_pond(poi: POISystem.POI) -> void:
 			Vector3(_rng.randf_range(0.6, 1.2), 0.5, _rng.randf_range(0.6, 1.2)),
 			COLOR_ROCK, true)
 
+	# river_pack wiring (2026-07-27) — sparse reed_clump_small at the pond edge, same
+	# waterline-rooting idea as _scatter_stream_reeds() but scaled down + rarer: a
+	# pond POI is a small water feature, reeds should read as an occasional accent,
+	# not a full ring around it. RNG save/restore — invisible to enemy placement.
+	const REED_SMALL_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_small_01.glb"
+	var reed_small_scene: PackedScene = load(REED_SMALL_PATH) if ResourceLoader.exists(REED_SMALL_PATH) else null
+	if reed_small_scene != null:
+		var rng_state_pond_reeds: int = _rng.state
+		for i in range(8):
+			# Sparse: only ~35% of the 8 angle slots get a reed.
+			if _rng.randf() > 0.35:
+				continue
+			var angle: float = float(i) * TAU / 8.0 + _rng.randf_range(-0.2, 0.2)
+			var br: float = sz.x * 0.4 + _rng.randf_range(-0.2, 0.3)
+			var rx: float = pos.x + cos(angle) * br
+			var rz: float = pos.z + sin(angle) * br
+			var s: float = _rng.randf_range(0.5, 0.9)
+			var rot_y: float = _rng.randf_range(0.0, TAU)
+			var reed_inst: Node3D = reed_small_scene.instantiate() as Node3D
+			if reed_inst != null:
+				reed_inst.transform = Transform3D(
+					Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+					Vector3(rx, get_terrain_height(rx, rz), rz)
+				)
+				_detail_apply_geo_flags(reed_inst, 45.0)
+				add_child(reed_inst)
+		_rng.state = rng_state_pond_reeds
+
 ## Fix 2 — Riparian bank scatter.
 ## Along every stream polyline, in the band [STREAM_HALF_WIDTH .. STREAM_HALF_WIDTH+4m]
 ## from the centreline, scatter a wet-edge environment:
@@ -1695,12 +3291,17 @@ func _scatter_stream_banks() -> void:
 		return
 
 	# Load assets — graceful degradation if a file isn't imported yet.
-	const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"
-	const SMALL_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"
-	const REED_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf"
+	# PURGA M3 (2026-08-07). Toda la ribera pasa al motor. Y acá el cambio no es sólo
+	# de tier: el river_pack fue construido PARA la orilla —piedra seca contra piedra
+	# mojada partida por cara, junco propio— así que reemplaza a los proxies genéricos
+	# que había (un guijarro CC0, una roca chica CC0 y pasto escalado alto haciendo de
+	# junco) con las piezas que el rol pedía desde el principio.
+	const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
+	const SMALL_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_01.glb"
+	const REED_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_01.glb"
 	const BUSH_PATHS: Array[String] = [
-		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_small_flowers_01.gltf",
-		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf",
+		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb",
+		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb",
 	]
 
 	var pebble_scene: PackedScene = load(PEBBLE_PATH) if ResourceLoader.exists(PEBBLE_PATH) else null
@@ -1964,7 +3565,9 @@ func _build_stream_ribbons() -> void:
 			# ── Dry watercourse — pebble line along the channel centreline ─────────
 			# RNG save/restore so this scatter pass is INVISIBLE to enemy placement.
 			var pebble_scene: PackedScene = null
-			const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"
+			# PURGA M3 (2026-08-07): era env_pebble_round_01.gltf (CC0). El river_pack
+			# tiene la piedra de cauce SECO, que es literalmente este caso.
+			const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
 			if ResourceLoader.exists(PEBBLE_PATH):
 				pebble_scene = load(PEBBLE_PATH)
 			if pebble_scene == null:
@@ -2016,6 +3619,225 @@ func _build_stream_ribbons() -> void:
 	print("[StreamRibbons] %d streams built (%d wet, 1 dry)" % [_stream_polylines.size(), _stream_polylines.size() - 1])
 
 
+## river_pack wiring (2026-07-27) — In-channel rocks.
+## _scatter_stream_banks() (Fix 2, above) only populates the BANK — the band OUTSIDE
+## the channel rim (STREAM_HALF_WIDTH..+4m). The _synthesis.md gap (game/docs/art/
+## _references/prairie_rivers/_synthesis.md) is that the channel itself has no rocks
+## for the two wet streams; only the dry watercourse gets a pebble line
+## (_build_stream_ribbons' dry branch). This pass adds rocks INSIDE the channel,
+## following the centreline with irregular per-segment spacing (not a grid), slightly
+## sunk into the terrain so they read as settled in the streambed rather than
+## floating on the water ribbon (ribbon sits at terrain_height + STREAM_DEPTH*0.40;
+## sinking the rock base below terrain_height lets its geometry poke back up through
+## that surface).
+## Wet streams (si 0, 1): env_river_rock_river_wet_01 (common) + _wet_cluster_01
+## (rarer accent — CLUSTER_CHANCE). Dry stream (si 2): env_river_rock_river_dry_01.
+## Target density ~2-4 rocks per ~15m of stream length (moderate accent, not fill) —
+## ROCK_SPACING_TARGET=6m averages ~2.5 candidates per 15m.
+## RNG save/restore — invisible to enemy placement, same convention as Fix 2.
+func _scatter_stream_channel_rocks() -> void:
+	if _stream_polylines.is_empty():
+		return
+
+	const ROCK_WET_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_01.glb"
+	const ROCK_WET_CLUSTER_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_cluster_01.glb"
+	const ROCK_DRY_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
+
+	var rock_wet_scene: PackedScene = load(ROCK_WET_PATH) if ResourceLoader.exists(ROCK_WET_PATH) else null
+	var rock_wet_cluster_scene: PackedScene = load(ROCK_WET_CLUSTER_PATH) if ResourceLoader.exists(ROCK_WET_CLUSTER_PATH) else null
+	var rock_dry_scene: PackedScene = load(ROCK_DRY_PATH) if ResourceLoader.exists(ROCK_DRY_PATH) else null
+
+	if rock_wet_scene == null and rock_dry_scene == null:
+		return
+
+	var container := Node3D.new()
+	container.name = "StreamChannelRocks"
+	add_child(container)
+
+	const ROCK_SPACING_TARGET: float = 6.0   # ~2.5 candidates per 15m of stream
+	const CLUSTER_CHANCE: float = 0.22       # "menos frecuente" — roughly 1 in 4-5
+
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH
+
+	var rng_state_channel: int = _rng.state
+
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+		var is_dry: bool = (si == 2)
+		if is_dry and rock_dry_scene == null:
+			continue
+		if not is_dry and rock_wet_scene == null:
+			continue
+
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+			var seg_dx: float = b2.x - a2.x
+			var seg_dz: float = b2.y - a2.y
+			var seg_len: float = sqrt(seg_dx * seg_dx + seg_dz * seg_dz)
+			if seg_len < 0.001:
+				continue
+			var inv_len: float = 1.0 / seg_len
+			var perp_x: float = -seg_dz * inv_len   # left perpendicular
+			var perp_z: float =  seg_dx * inv_len
+
+			var candidate_count: int = maxi(1, int(round(seg_len / ROCK_SPACING_TARGET)))
+			for _c in range(candidate_count):
+				# Irregular spacing: random t along the segment, not evenly gridded.
+				var t_seg: float = _rng.randf()
+				var cx_s: float = lerpf(a2.x, b2.x, t_seg)
+				var cz_s: float = lerpf(a2.y, b2.y, t_seg)
+
+				var dc: float = sqrt(cx_s * cx_s + cz_s * cz_s)
+				if dc < spawn_safe_r:
+					continue
+
+				# Lateral jitter INSIDE the channel (stays within STREAM_HALF_WIDTH so
+				# rocks sit in the bed, never out on the bank — that's Fix 2's job).
+				var lat: float = _rng.randf_range(-STREAM_HALF_WIDTH * 0.75, STREAM_HALF_WIDTH * 0.75)
+				var px: float = cx_s + perp_x * lat
+				var pz: float = cz_s + perp_z * lat
+
+				if not _is_inside_border(Vector3(px, 0.0, pz)):
+					continue
+
+				# Settle into the streambed — small sink so the rock reads as sitting IN
+				# the channel floor (poking through the water ribbon), not resting on top.
+				var sink: float = _rng.randf_range(0.04, 0.14)
+				var terrain_y: float = get_terrain_height(px, pz) - sink
+				var rot_y: float = _rng.randf_range(0.0, TAU)
+
+				var scene: PackedScene = null
+				var s: float = 1.0
+				if is_dry:
+					scene = rock_dry_scene
+					s = _rng.randf_range(0.45, 0.95)
+				else:
+					var cluster_roll: float = _rng.randf()
+					if cluster_roll < CLUSTER_CHANCE and rock_wet_cluster_scene != null:
+						scene = rock_wet_cluster_scene
+						s = _rng.randf_range(0.7, 1.3)
+					else:
+						scene = rock_wet_scene
+						s = _rng.randf_range(0.5, 1.1)
+
+				if scene == null:
+					continue
+				var inst: Node3D = scene.instantiate() as Node3D
+				if inst == null:
+					continue
+				inst.transform = Transform3D(
+					Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+					Vector3(px, terrain_y, pz)
+				)
+				_detail_apply_geo_flags(inst, 55.0)
+				container.add_child(inst)
+
+	_rng.state = rng_state_channel
+	print("[StreamChannelRocks] %d channel rocks placed" % container.get_child_count())
+
+
+## river_pack wiring (2026-07-27) — Waterline reeds.
+## _synthesis.md (heron_riverbank_reeds.jpg) confirms reeds root IN the water at the
+## bank's edge, not set back on dry ground. This pass places env_river_reed_clump_01
+## in occasional clumps straddling the channel rim — from inside the visible water
+## ribbon out to the rim itself — so they read as "in shallow water or touching it",
+## never out on the dry bank (that band belongs to Fix 2's bank scatter).
+## Wet streams only (si 0, 1) — the dry channel has no waterline to root reeds in.
+## Target density ~1-2 clump groups per ~15m — REED_SPACING_TARGET=10m averages ~1.5
+## candidates per 15m, each candidate additionally gated by a 55% spawn roll so
+## clumps read as occasional accents, not a continuous fringe.
+## RNG save/restore — invisible to enemy placement, same convention as Fix 2.
+func _scatter_stream_reeds() -> void:
+	if _stream_polylines.is_empty():
+		return
+
+	const REED_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_01.glb"
+	var reed_scene: PackedScene = load(REED_PATH) if ResourceLoader.exists(REED_PATH) else null
+	if reed_scene == null:
+		return
+
+	var container := Node3D.new()
+	container.name = "StreamReeds"
+	add_child(container)
+
+	const REED_SPACING_TARGET: float = 10.0   # ~1.5 candidates per 15m of stream
+	const CLUMP_SPAWN_CHANCE: float = 0.55    # occasional, not continuous fringe
+
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH
+
+	var rng_state_reeds: int = _rng.state
+
+	for si in range(_stream_polylines.size()):
+		if si == 2:   # dry channel — no waterline to root reeds in
+			continue
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+			var seg_dx: float = b2.x - a2.x
+			var seg_dz: float = b2.y - a2.y
+			var seg_len: float = sqrt(seg_dx * seg_dx + seg_dz * seg_dz)
+			if seg_len < 0.001:
+				continue
+			var inv_len: float = 1.0 / seg_len
+			var perp_x: float = -seg_dz * inv_len   # left perpendicular
+			var perp_z: float =  seg_dx * inv_len
+			var dir_x: float = seg_dx * inv_len
+			var dir_z: float = seg_dz * inv_len
+
+			var candidate_count: int = maxi(1, int(round(seg_len / REED_SPACING_TARGET)))
+			for _c in range(candidate_count):
+				var t_seg: float = _rng.randf()
+				var cx_s: float = lerpf(a2.x, b2.x, t_seg)
+				var cz_s: float = lerpf(a2.y, b2.y, t_seg)
+
+				var dc: float = sqrt(cx_s * cx_s + cz_s * cz_s)
+				if dc < spawn_safe_r:
+					continue
+
+				# Occasional clump, not every candidate — keeps reeds a natural accent.
+				if _rng.randf() > CLUMP_SPAWN_CHANCE:
+					continue
+
+				var side: float = 1.0 if _rng.randf() > 0.5 else -1.0
+				var clump_count: int = _rng.randi_range(1, 3)
+				for _cp in range(clump_count):
+					# Waterline band: from inside the visible water ribbon (ribbon_hw is
+					# STREAM_HALF_WIDTH*0.65 in _build_stream_ribbons) out to the channel
+					# rim — "in shallow water or touching it", never out on the dry bank.
+					var dist_from_center: float = _rng.randf_range(STREAM_HALF_WIDTH * 0.5, STREAM_HALF_WIDTH * 0.98)
+					var jitter_along: float = _rng.randf_range(-0.6, 0.6)
+					var px: float = cx_s + perp_x * dist_from_center * side + dir_x * jitter_along
+					var pz: float = cz_s + perp_z * dist_from_center * side + dir_z * jitter_along
+
+					if not _is_inside_border(Vector3(px, 0.0, pz)):
+						continue
+
+					var terrain_y: float = get_terrain_height(px, pz)
+					var s: float = _rng.randf_range(0.7, 1.25)
+					var rot_y: float = _rng.randf_range(0.0, TAU)
+					var inst: Node3D = reed_scene.instantiate() as Node3D
+					if inst == null:
+						continue
+					inst.transform = Transform3D(
+						Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+						Vector3(px, terrain_y, pz)
+					)
+					_detail_apply_geo_flags(inst, 50.0)
+					container.add_child(inst)
+
+	_rng.state = rng_state_reeds
+	print("[StreamReeds] %d reed clumps placed" % container.get_child_count())
+
+
 # ── Vegetation (gltf scatter — assets reales CC0) ────────────────────────────
 # Pools de assets reales para scatter procedural. Reemplaza el viejo BoxMesh
 # placeholder: el mapa entero se puebla con los gltf integrados, no cajas planas.
@@ -2026,41 +3848,116 @@ func _build_stream_ribbons() -> void:
 ##   Before: 5 birch / 3 maple / 3 common / 1 dead = 12
 ##   After:  2 birch / 7 maple / 3 common / 0 dead = 12
 ## See _coherence_target_sheet.md §BREAK #4.
+## 2026-07-27 (bespoke tree_pack wiring, pradera canon): +12 slots for the 5 new
+## tree_pack variants (game/assets/art/piso1_pradera/vegetation/tree_pack/), kept
+## roughly comparable to the 12 legacy slots below (Joan: legacy stays, new ones
+## convive con pesos comparables — total replacement is a future decision). The
+## combined tree_pack.glb is intentionally NOT wired — only the 5 individual
+## variants. See FLORA_NICHES below for the humidity/shade niche of each.
 const POOL_TREES: Array[PackedScene] = [
-	# 2 birch (down from 5) — sparse, near crystal-spotlight zones by chance
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/birch/env_tree_birch_02.gltf"),
-	# 7 maple (up from 3) — best-fit understory tree for dim cavern
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_03.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/maple/env_tree_maple_01.gltf"),
-	# 3 common broadleaf (unchanged)
-	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_02.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/common/env_tree_common_03.gltf"),
+	# TAXONOMY 2026-08-08 (Joan: "son especies o fases de una especie?"). Four
+	# SPECIES, each with its own bark, leaf atlas and foliage value range, times
+	# the STAGES it is worth showing, times height instances sampled across a
+	# range. The old flat list mixed the two axes: prairie/tall/wide/young shared
+	# every material, so they were one species in four shapes, and `young` was a
+	# stage filed as a species.
+	# Slot count = relative frequency; heights are BUILT metres, solved by the
+	# builder rather than predicted, and capped under TERRAIN_MAX_HEIGHT so the
+	# hills keep deciding what the player can see.
+	# prairie_young_01 x2 — regeneration under the canopy
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_01.glb"),
+	# prairie_young_02 x2 — regeneration, taller sapling
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_02.glb"),
+	# prairie_mature_01 x3 — the dominant filler
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb"),
+	# prairie_mature_02 x4 — the dominant filler, mid height
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb"),
+	# prairie_mature_03 x2 — tall mature, starts to shade others
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb"),
+	# prairie_old_01 x2 — old: owns the canopy, sits in sun
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01.glb"),
+	# prairie_old_02 x1 — the biggest common tree, deliberately rare
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_02.glb"),
+	# dry_young_01 x1 — dry-zone sapling, needs some shelter
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_young_01.glb"),
+	# dry_mature_01 x2 — dry zone, paired with bush_dry
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_01.glb"),
+	# dry_mature_02 x2 — dry zone, larger
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_02.glb"),
+	# shade_young_01 x1 — deepest shade tolerance in the pack
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_young_01.glb"),
+	# shade_mature_01 x2 — understory, under a canopy
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_01.glb"),
+	# shade_mature_02 x2 — understory, larger
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_02.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_02.glb"),
+	# autumn_mature_01 x1 — the red the purge took away
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_01.glb"),
+	# autumn_mature_02 x1 — autumn broadleaf, larger
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_02.glb"),
+	# autumn_old_01 x1 — old autumn: a landmark you walk toward
+	preload("res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_old_01.glb"),
 ]
 
 ## Dead tree scene — managed separately so laetiporus can attach at spawn time.
 ## FIX #2: placed via _scatter_dead_trees(), not in POOL_TREES.
-const SCENE_DEAD_TREE: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/dead/env_tree_dead_01.gltf")
+## PURGA M3 (2026-08-07): era env_tree_dead_01.gltf (CC0). En null hasta que el motor
+## dé un árbol muerto M3 — _scatter_dead_trees() se saltea solo mientras tanto.
+## No se reemplaza por un cubo: son decenas de instancias de scatter y un bosque de
+## cubos contradice el objetivo de Joan ("que se vea bien, que sea bonita"). La deuda
+## vive en _asset_inventory_p1.md, que es donde se puede actuar sobre ella.
+const SCENE_DEAD_TREE: PackedScene = null
 
 ## C7: flowering bushes removed — full-sun wildflower bushes are incoherent in a
 ## dim cavern (same rationale as flower_clump removal in POOL_GROUND).
 ## env_bush_flowers_01 + env_bush_small_flowers_01 dropped; pool reduced to 2
 ## base shrub types that read as shade-tolerant understory brush.
+## 2026-07-27 (bespoke bush_pack wiring, pradera canon): +5 slots for the 5 new
+## bush_pack variants (game/assets/art/piso1_pradera/vegetation/bush/, filenames
+## env_bush_{round,large,flowering,low,dry}_01.glb — note env_bush_large_01.glb is
+## a DIFFERENT file from the legacy env_bush_large_01.gltf below, coexisting by
+## extension). 1 slot per species (old and new alike) keeps every species'
+## per-species weight comparable — visible but none monopolizes. The combined
+## bush_pack.glb is intentionally NOT wired. See FLORA_NICHES for niches.
 const POOL_BUSHES: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_01.gltf"),
-	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.gltf"),
+	# PURGA M3 (2026-08-07): fuera env_bush_01.gltf y env_bush_large_01.gltf (CC0).
+	# Son los arbustos que Joan marcó tres veces en playtests. Quedan los 5 del
+	# bush_pack, todos M3.
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_round_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/bush/env_bush_dry_01.glb"),
 ]
+## 2026-07-25: +6 rock_pack variants (game/tools/blender/rock_pack/build_rock_pack.py,
+## ref game/docs/art/_references/rocks/_synthesis.md). Coherence sheet §L72-74 rates
+## every rock/pebble entry "Y" — mineral scatter has no light/water/shade niche, so no
+## FLORA_NICHES registration needed (same treatment as the pre-existing 3 rocks below).
+## §17.2.4 per-instance variation (non-uniform scale + noise fracture) is already baked
+## into each variant's own generator, on top of _place_instance's existing scale/rot jitter.
 const POOL_ROCKS: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"),
-	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb"),
-	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_wide_01.glb"),
-	preload("res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf"),
+	# PURGA M3 (2026-08-07): fuera prop_rock_{large,small,wide}_01.glb y
+	# env_pebble_round_01.gltf. Los tres prop_rock_* son CC0 pese a la extensión
+	# .glb — son "el huevo" que Joan marcó en el playtest. Quedan los 6 del
+	# rock_pack (M3: Perlin doble capa ridge+detail, taper/flatten/carve).
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_scatter_pebbles_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_mossy_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_slab_flat_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_cluster_broken_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_large_01.glb"),
+	preload("res://assets/art/piso1_pradera/props/rocks/prop_rock_outcrop_hollow_01.glb"),
 ]
 ## FIX #1 (CRITICAL) — flower_clump_01/02/03 removed from general scatter.
 ## Full-sun wildflowers are incoherent in a dim cavern. Their weight replaced with
@@ -2074,16 +3971,326 @@ const POOL_ROCKS: Array[PackedScene] = [
 ## SHADE FIX — mushrooms removed from this open-field pool. Fungi need shade, not
 ## full open ground, so they are now placed at tree bases by _scatter_understory_
 ## mushrooms() instead of scattered uniformly. POOL_GROUND is low ground cover only.
+##
+## 2026-07-25: grass_pack (game/tools/blender/grass_pack/build_grass_pack.py, ref
+## foliage_painterly/_synthesis.md — painterly dark-base/lime-tip vertex-color clumps)
+## wired in as 6 accent-clump variants. Same "fantasy biome compromise" already accepted
+## for the GRASS_MESH_PATHS carpet (coherence sheet §L59: "keep carpet but acknowledge
+## it is a compromise") — no FLORA_NICHES entry needed, same neutral-weight treatment as
+## POOL_ROCKS. wildflower_mix carries 2 tiny yellow accent buds INSIDE the grass mass
+## (not a standalone bloom field) — same compromise tier, not the BREAK #1 offense.
+##
+## 2026-07-27 CANON UPDATE (Joan decision, engram topic bioma/pradera-canon):
+## floor 1 is now a REAL, large prairie inside the tower (DanMachi 18F style), not a
+## dim cavern. Full-sun flora is valid canon. This REVERSES the 2026-07-25 call kept
+## below for history — the other 5 flower_pack variants (violet_cluster, yellow_clover,
+## white_star, bicolor_mix, tall_stalk) are wired in below with their own FLORA_NICHES
+## entries (full-sun open ground / tree semi-shade / water's edge per species — see
+## FLORA_NICHES comments). The 3 env_flower_clump_* legacy texture-card variants
+## (BREAK #1, still cavern-era photoreal cards) stay excluded — this is a different,
+## purpose-built low-poly pack, not a reintroduction of that break.
+##
+## 2026-07-25 (superseded by the above): flower_pack
+## (game/tools/blender/flower_pack/build_flower_pack.py) built 6 variants total; only
+## flower_pale_glow is wired in here. The other 5 (violet_cluster, yellow_clover,
+## white_star, bicolor_mix, tall_stalk) are saturated full-sun wildflower colors — the
+## EXACT species profile BREAK #1 removed (env_flower_clump_*). They stay unwired in
+## game/tools/blender/flower_pack/ (assets exist, just not promoted to assets/) rather
+## than reintroducing that break. pale_glow was purpose-built as the "cave-coherent
+## variant" (see its build_flower_pack.py docstring) — pale blue-white + subtle emission
+## reads as damp-cave/bioluminescent-adjacent flora, not a sunlit bloom, so it gets a
+## FLORA_NICHES entry biased to high humidity + high shade (same "damp shaded ground"
+## niche already used for env_mushroom_laetiporus_01/common below) instead of the
+## "no niche" treatment given to grass/rocks.
 const POOL_GROUND: Array[PackedScene] = [
-	preload("res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"),
+	# PURGA M3 (2026-08-07): fuera env_clover_01.gltf (CC0). Quedan los 6 del
+	# grass_pack y las 6 del flower_pack (M2+, vertex color FLOAT correcto).
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_broad_clump_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_sparse_dry_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_windswept_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/grass/env_grass_wildflower_mix_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_yellow_clover_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_bicolor_mix_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_violet_cluster_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_white_star_01.glb"),
+	preload("res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb"),
 ]
 
 ## The laetiporus scene — spawned at base of dead trees only (see _generate_vegetation).
-const SCENE_LAETIPORUS: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_laetiporus_01.gltf")
+## PURGA M3 (2026-08-07): era env_mushroom_laetiporus_01.gltf (CC0). Null hasta que
+## el motor dé un hongo de repisa M3.
+const SCENE_LAETIPORUS: PackedScene = null
 
 ## Common mushroom — spawned in the SHADE at the base of trees (see
 ## _scatter_understory_mushrooms), never in open field.
-const SCENE_MUSHROOM_COMMON: PackedScene = preload("res://assets/art/piso1_pradera/vegetation/mushroom/env_mushroom_common_01.gltf")
+## PURGA M3 (2026-08-07): era env_mushroom_common_01.gltf (CC0). Null hasta que el
+## motor dé un hongo de sotobosque M3.
+const SCENE_MUSHROOM_COMMON: PackedScene = null
+
+# ── Task 2 (2026-07-20): humidity + shade niche system ───────────────────────
+# Lightweight proxy system (spec §3) — NOT the full per-cell procedural_ecology.md
+# grid (that design is generic multi-floor and never got implemented; too big for
+# what floor 1 needs). Reuses data that already exists: _stream_polylines + pond
+# POIs for humidity, _tree_positions for shade. Only wired into the CONNECTIVE-
+# TISSUE scatter (_scatter_pool, the flat-percentage part) — the hand-authored
+# POI-anchored clusters (pond/boss/giant_tree/entrance/camp/ruins/altar/well) stay
+# exactly as curated, per the spec's "keep them as an authored override layer".
+
+## Humidity/shade range [min, max] on a 0..1 scale, per POOL entry (keyed by
+## resource_path — stable across POOL_TREES' duplicate preload() slots, unlike
+## PackedScene object identity). Populated directly from the ecological reasoning
+## already recorded in _coherence_target_sheet.md's shade-tolerance column and the
+## FIX #1-#5 comments already baked into this file (see POOL_TREES/POOL_BUSHES/
+## POOL_GROUND above). humidity 1 = at the water's edge; shade 1 = directly under a
+## tree canopy. Entries with no key here (POOL_ROCKS — minerals have no ecological
+## niche) fall back to a neutral weight in _pick_flora_for_point, i.e. uniform
+## random selection exactly like before this system existed.
+const FLORA_NICHES: Dictionary = {
+	# PURGA M3 (2026-08-07): se fueron las 10 entradas de birch / maple / common /
+	# env_bush_*.gltf junto con sus assets. Los nichos que describían —pionero de
+	# pleno sol, sotobosque tolerante a la sombra, latifolia intermedia— NO están
+	# cubiertos hoy: el tree_pack tiene 5 especies y ninguna ocupa el extremo de
+	# sombra. Cuando el motor dé esas especies, hay que devolverles su rango acá o
+	# el scatter las reparte a ciegas. Anotado en _asset_inventory_p1.md.
+	# PURGA M3 (2026-08-07): fuera el trébol CC0 y su nicho.
+	# flower_pale_glow (2026-07-25) — pale blue-white + subtle emission reads as
+	# damp-cave/bioluminescent-adjacent flora, not a sunlit bloom — biased to the
+	# same high-humidity, high-shade "damp shaded ground" niche as the mushroom
+	# entries below, i.e. near water AND under canopy. Kept as-is post the
+	# 2026-07-27 pradera canon update — it is still the "damp corner" variant even
+	# in an open-air prairie (pond edges, deep tree shade pockets).
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb":
+		{"humidity": [0.4, 1.0], "shade": [0.5, 1.0]},
+	# yellow_clover + bicolor_mix (2026-07-27, pradera canon) — saturated full-sun
+	# wildflowers, the species profile the old cavern canon rejected (BREAK #1).
+	# Now correct: open, dry, sun-exposed prairie ground, away from tree canopy.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_yellow_clover_01.glb":
+		{"humidity": [0.0, 0.55], "shade": [0.0, 0.25]},
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_bicolor_mix_01.glb":
+		{"humidity": [0.0, 0.55], "shade": [0.0, 0.25]},
+	# violet_cluster + white_star (2026-07-27, pradera canon) — woodland-margin
+	# bloomers, biased to the semi-shade band under tree canopy (same range family
+	# as env_bush_01/large_01) rather than full open sun or deep shade.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_violet_cluster_01.glb":
+		{"humidity": [0.1, 0.85], "shade": [0.35, 0.85]},
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_white_star_01.glb":
+		{"humidity": [0.1, 0.85], "shade": [0.35, 0.85]},
+	# tall_stalk (2026-07-27, pradera canon) — reads as a marginal/wetland spike
+	# (tall, upright silhouette), biased to high humidity near stream/pond edges,
+	# tolerant of open sun since banks are rarely deep-canopy.
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb":
+		{"humidity": [0.55, 1.0], "shade": [0.0, 0.5]},
+	# bush_round + bush_large (new) — clearing-edge shrubs, semi-shade, same
+	# family as the legacy env_bush_01/large_01 generic-understory niche above.
+	# ── tree_pack taxonomy (2026-08-08) ─────────────────────────────────────
+	# Humidity is a SPECIES trait; the shade band is a SPECIES trait shifted by
+	# STAGE. Saplings tolerate more shade than their own adults — seedlings grow
+	# up under their parents — so the scatter puts regeneration beneath the big
+	# trees on its own, without a dedicated pass.
+	# prairie_young_01: regeneration under the canopy
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_01.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.25, 0.85]},
+	# prairie_young_02: regeneration, taller sapling
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_young_02.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.25, 0.85]},
+	# prairie_mature_01: the dominant filler
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_01.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.6]},
+	# prairie_mature_02: the dominant filler, mid height
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_02.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.6]},
+	# prairie_mature_03: tall mature, starts to shade others
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_mature_03.glb":
+		{"humidity": [0.0, 0.9], "shade": [0.0, 0.55]},
+	# prairie_old_01: old: owns the canopy, sits in sun
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01.glb":
+		{"humidity": [0.0, 0.85], "shade": [0.0, 0.45]},
+	# prairie_old_02: the biggest common tree, deliberately rare
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_02.glb":
+		{"humidity": [0.0, 0.85], "shade": [0.0, 0.4]},
+	# dry_young_01: dry-zone sapling, needs some shelter
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_young_01.glb":
+		{"humidity": [0.0, 0.35], "shade": [0.15, 0.55]},
+	# dry_mature_01: dry zone, paired with bush_dry
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_01.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.35]},
+	# dry_mature_02: dry zone, larger
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_dry_mature_02.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.35]},
+	# shade_young_01: deepest shade tolerance in the pack
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_young_01.glb":
+		{"humidity": [0.1, 0.9], "shade": [0.45, 1.0]},
+	# shade_mature_01: understory, under a canopy
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_01.glb":
+		{"humidity": [0.1, 0.9], "shade": [0.3, 1.0]},
+	# shade_mature_02: understory, larger
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_shade_mature_02.glb":
+		{"humidity": [0.1, 0.9], "shade": [0.3, 1.0]},
+	# autumn_mature_01: the red the purge took away
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.0, 0.45]},
+	# autumn_mature_02: autumn broadleaf, larger
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_mature_02.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.0, 0.45]},
+	# autumn_old_01: old autumn: a landmark you walk toward
+	"res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_autumn_old_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.0, 0.4]},
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_round_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.3, 0.8]},
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_large_01.glb":
+		{"humidity": [0.1, 0.8], "shade": [0.35, 0.9]},
+	# bush_flowering — full-sun shrub paired with the open-ground wildflowers
+	# (same band as yellow_clover/bicolor_mix).
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb":
+		{"humidity": [0.0, 0.55], "shade": [0.0, 0.25]},
+	# bush_low — ground-hugging open-prairie shrub, broad humidity tolerance,
+	# needs full sun (low shade).
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb":
+		{"humidity": [0.0, 0.7], "shade": [0.0, 0.2]},
+	# bush_dry — dry-zone shrub, low humidity band shared with tree_dry above.
+	"res://assets/art/piso1_pradera/vegetation/bush/env_bush_dry_01.glb":
+		{"humidity": [0.0, 0.3], "shade": [0.0, 0.4]},
+}
+
+## Read height in metres for ground flora, keyed by resource_path.
+##
+## Measured 2026-08-08 with tools/blender/_glb_stats.py — every POOL_GROUND mesh is
+## authored at true single-plant botanical scale, and they all land in one narrow
+## band (native heights in the comments below, 0.107 m to 0.491 m). At the pool's
+## own 0.7-1.6 scatter range that puts the ENTIRE ground layer at ankle height
+## against a 1.80 m player, which is why the prairie reads as one flat stratum and
+## why Joan photographed a flower and called it "el porte de un ratón" — clover
+## renders 7.5-17 cm and a mouse is about 10 cm. He was right to the centimetre.
+##
+## The three bands below are the three strata prairie_ecology/_synthesis.md asks
+## for ("pasto bajo pisado, mata media, espiga alta"), and the tall band matches
+## the biome doc's own canon: "Hierba alta (0.5-1m) en parches — puede ocultar
+## agujeros y slimes".
+##
+## These are TARGETS, not multipliers: _place_instance divides by the mesh's real
+## measured AABB, so re-exporting an asset at a different size cannot silently
+## change how big it reads in game. That decoupling is the point.
+const FLORA_TARGET_HEIGHT: Dictionary = {
+	# ── Band 1: trodden ground cover, below the knee ──────────────────────────
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb": 0.20,        # native 0.156
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wildflower_mix_01.glb": 0.26,    # native 0.211
+	# ── Band 2: mid clumps and blooms, knee height ────────────────────────────
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_broad_clump_01.glb": 0.45,       # native 0.239
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_windswept_01.glb": 0.42,         # native 0.252
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_sparse_dry_01.glb": 0.48,        # native 0.352
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_yellow_clover_01.glb": 0.34,  # native 0.107
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_bicolor_mix_01.glb": 0.36,    # native 0.210
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_violet_cluster_01.glb": 0.40, # native 0.242
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_white_star_01.glb": 0.38,     # native 0.352
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_pale_glow_01.glb": 0.32,      # native 0.228
+	# ── Band 3: tall grass and spikes, waist height — the stratum that hides ──
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb": 0.85,    # native 0.474
+	"res://assets/art/piso1_pradera/vegetation/flowers/env_flower_tall_stalk_01.glb": 0.95,     # native 0.491
+}
+
+
+## Tallest mesh in a freshly instantiated (not yet in-tree) scene, in local metres.
+## Walks MeshInstance3D children and applies each one's own local scale; these
+## assets are flat hierarchies so a single level of scale is enough.
+func _node_height(node: Node3D) -> float:
+	var tallest: float = 0.0
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = child as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		tallest = maxf(tallest, mi.mesh.get_aabb().size.y * mi.transform.basis.get_scale().y)
+	return tallest
+
+
+## Distance-based humidity proxy (0..1): 1 at a stream centerline or pond POI,
+## falling off to 0 across a halo radius. Reuses the "humidity halo = 1.5-3x water
+## body radius" rule already established in game/docs/art/_world_coherence.md §2
+## instead of building a new per-cell grid.
+func _humidity_at(x: float, z: float, pois: Array) -> float:
+	var best: float = 0.0
+	if not _stream_polylines.is_empty():
+		var sr: Array = _dist_sq_to_streams(x, z)
+		var d: float = sqrt(sr[0])
+		var halo: float = STREAM_HALF_WIDTH * 3.0
+		best = maxf(best, clampf(1.0 - d / halo, 0.0, 1.0))
+	for poi in pois:
+		var p: POISystem.POI = poi as POISystem.POI
+		if p.type != "pond":
+			continue
+		var pond_r: float = p.size.x * 0.5
+		var halo_p: float = maxf(pond_r * 2.5, 1.0)   # midpoint of the 1.5-3x range
+		var d2: float = Vector2(x - p.position.x, z - p.position.z).length()
+		best = maxf(best, clampf(1.0 - d2 / halo_p, 0.0, 1.0))
+	return best
+
+## Distance-based shade proxy (0..1): 1 directly under a recorded tree, falling off
+## across a canopy-sized radius. Generalizes the ad-hoc proximity check
+## _scatter_understory_mushrooms() already did (grow fungi near a tree base) into a
+## reusable query any candidate point can use, not just mushroom clumps.
+func _shade_at(x: float, z: float) -> float:
+	if _tree_positions.is_empty():
+		return 0.0
+	const SHADE_RADIUS: float = 12.0
+	var best_d2: float = SHADE_RADIUS * SHADE_RADIUS
+	for tp in _tree_positions:
+		var d2: float = Vector2(x - tp.x, z - tp.z).length_squared()
+		if d2 < best_d2:
+			best_d2 = d2
+	return clampf(1.0 - sqrt(best_d2) / SHADE_RADIUS, 0.0, 1.0)
+
+## 1.0 inside [bounds[0], bounds[1]], decaying linearly to 0 across a margin equal
+## to the range's own span outside it — a point just past the edge still gets a
+## meaningful chance, a point far outside effectively never does.
+func _niche_fit(bounds: Array, value: float) -> float:
+	var lo: float = bounds[0]
+	var hi: float = bounds[1]
+	if value >= lo and value <= hi:
+		return 1.0
+	var span: float = maxf(hi - lo, 0.1)
+	var dist: float = (lo - value) if value < lo else (value - hi)
+	return clampf(1.0 - dist / span, 0.0, 1.0)
+
+## Picks one scene from `pool` weighted by how well its FLORA_NICHES humidity/shade
+## range matches (x, z). Un-registered entries (e.g. POOL_ROCKS) get a neutral
+## weight, so calling this on a pool with no niche data is equivalent to the old
+## uniform `_rng.randi() % pool.size()`. Soft-matches outside the registered range
+## (see _niche_fit) instead of a hard cutoff, so a point with no perfect-fit species
+## still gets something — avoids empty scatter holes.
+func _pick_flora_for_point(pool: Array, x: float, z: float, pois: Array) -> PackedScene:
+	# Judgment Day fix (2026-07-21): guard size()==0 SEPARATELY, before the
+	# size<=1 fast path — `pool[0]` on an empty pool throws out-of-range. No
+	# POOL_* is empty today, but this file's own history shows pools being
+	# trimmed toward zero/one entries. Caller (_scatter_pool) checks for null
+	# and skips placement for that point instead of crashing.
+	if pool.size() == 0:
+		push_error("_pick_flora_for_point called with an empty pool")
+		return null
+	if pool.size() <= 1:
+		return pool[0]
+	var humidity: float = _humidity_at(x, z, pois)
+	var shade: float = _shade_at(x, z)
+	var weights: Array[float] = []
+	var total: float = 0.0
+	for scene in pool:
+		var w: float = 0.5   # neutral fallback for un-registered entries
+		var niche: Variant = FLORA_NICHES.get((scene as PackedScene).resource_path, null)
+		if niche != null:
+			w = _niche_fit(niche["humidity"], humidity) * _niche_fit(niche["shade"], shade)
+			w = maxf(w, 0.05)   # never fully zero out a species — keeps variety
+		weights.append(w)
+		total += w
+	if total <= 0.0:
+		return pool[_rng.randi() % pool.size()]
+	var roll: float = _rng.randf() * total
+	var acc: float = 0.0
+	for i in range(pool.size()):
+		acc += weights[i]
+		if roll <= acc:
+			return pool[i]
+	return pool[pool.size() - 1]
 
 ## ── Ground detail scatter (S4) ───────────────────────────────────────────────
 ## Sparse pebble + small-rock + clover-clump pass. No colliders. Low count.
@@ -2097,25 +4304,31 @@ func _scatter_ground_detail(pois: Array) -> void:
 	# Save RNG state so this pass is invisible to subsequent passes (enemies, etc.)
 	var rng_state: int = _rng.state
 
-	# Pool: pebble_round + rock_small alternating. Clover separately below.
+	# PURGA M3 (2026-08-07): eran env_pebble_round_01.gltf y prop_rock_small_01.glb
+	# (los dos CC0 — el segundo pese a la extensión .glb). El rock_pack tiene los dos
+	# roles cubiertos en M3: scatter_pebbles para el guijarro suelto, cluster_broken
+	# para la piedra chica quebrada.
 	const DETAIL_POOL: Array[String] = [
-		"res://assets/art/piso1_pradera/terrain/pebbles/env_pebble_round_01.gltf",
-		"res://assets/art/piso1_pradera/props/rocks/prop_rock_small_01.glb",
+		"res://assets/art/piso1_pradera/props/rocks/prop_rock_scatter_pebbles_01.glb",
+		"res://assets/art/piso1_pradera/props/rocks/prop_rock_cluster_broken_01.glb",
 	]
 	var detail_scenes: Array[PackedScene] = []
 	for path in DETAIL_POOL:
 		if ResourceLoader.exists(path):
 			detail_scenes.append(load(path))
 
-	# Clover clump scene
+	# PURGA M3: era env_clover_01.gltf (CC0). El grass_pack trae un tapiz denso M3 que
+	# ocupa el mismo nicho de mata baja al ras del suelo.
 	var clover_scene: PackedScene = null
-	const CLOVER_PATH: String = "res://assets/art/piso1_pradera/vegetation/clover/env_clover_01.gltf"
+	const CLOVER_PATH: String = "res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb"
 	if ResourceLoader.exists(CLOVER_PATH):
 		clover_scene = load(CLOVER_PATH)
 
-	# Fix 4: rock_large scene for outcrop-zone anchors + mushroom for debris clumps
+	# PURGA M3: era prop_rock_large_01.glb (CC0) — "el huevo" del playtest de Joan.
+	# boulder_large es su equivalente M3, con Perlin doble capa en vez de una esfera
+	# achatada.
 	var rock_large_scene: PackedScene = null
-	const LARGE_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_large_01.glb"
+	const LARGE_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/rocks/prop_rock_boulder_large_01.glb"
 	if ResourceLoader.exists(LARGE_ROCK_PATH):
 		rock_large_scene = load(LARGE_ROCK_PATH)
 
@@ -2272,55 +4485,26 @@ func _build_grass_carpet() -> void:
 	# Base swings top vertices only (tip moves, base stays planted) by biasing
 	# displacement by vertex Y in model space. Amplitude ~2-3cm — perceptible but
 	# not distracting. Kimetsu canon: desaturated olive so skills still pop.
-	var grass_mat := ShaderMaterial.new()
 	var grass_shader := Shader.new()
-	grass_shader.code = """
-shader_type spatial;
-// cull_disabled is INTENTIONAL: env_grass_small_01 is a crossed-tuft mesh that
-// must be readable from both sides. cull_back would make tufts invisible from
-// behind (half the viewing angles). The ~2× fragment cost is accepted and stays
-// within the ≤13k-blade rendered red-line enforced by visibility_range_end.
-render_mode cull_disabled, shadows_disabled;
+	grass_shader.code = GRASS_SHADER_CODE
 
-uniform vec4 albedo : source_color = vec4(0.34, 0.38, 0.22, 1.0);
-uniform float sway_amplitude : hint_range(0.0, 0.1) = 0.028;
-uniform float sway_speed : hint_range(0.0, 5.0) = 1.4;
-// blade_height: real measured height of env_grass_small_01 AABB (metres).
-// Set at runtime after mesh extraction so height_bias is calibrated to actual geometry.
-uniform float blade_height : hint_range(0.01, 2.0) = 0.6;
-
-void vertex() {
-	// World-space position of this vertex (model → world)
-	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	// Phase based on world XZ so each blade sways independently
-	float phase = world_pos.x * 1.7 + world_pos.z * 2.3;
-	// Bias: top of blade (high local Y) sways fully; base (Y≈0) stays planted.
-	// blade_height driven from measured AABB so amplitude is correct for real geometry.
-	float height_bias = clamp(VERTEX.y / blade_height, 0.0, 1.0);
-	float sway = sin(TIME * sway_speed + phase) * sway_amplitude * height_bias;
-	VERTEX.x += sway;
-	VERTEX.z += sway * 0.4;
-}
-
-void fragment() {
-	ALBEDO = albedo.rgb;
-	ROUGHNESS = 0.9;
-	METALLIC = 0.0;
-}
-"""
-	grass_mat.shader = grass_shader
-
-	# Set blade_height from the first extracted mesh's AABB so the sway height_bias
-	# is calibrated to the real geometry (env_grass_small_01 is ~0.39m, not 0.6m).
-	# Falls back to 0.6 (the shader uniform default) if the mesh list is empty.
-	if not blade_meshes.is_empty():
-		var aabb_h: float = blade_meshes[0].get_aabb().size.y
-		grass_mat.set_shader_parameter("blade_height", maxf(aabb_h, 0.01))
-
-	# Billboard is not used (tufts look fine in 3D); shadows off for perf
+	# One material PER VARIANT, not one shared by all of them. Two parameters are
+	# properties of the individual mesh and were previously taken from
+	# blade_meshes[0] for every variant:
+	#   * blade_height — measured 0.156 m on lawn_dense but 0.474 m on
+	#     wispy_seedhead. Feeding the short mesh's height to the tall one clamped
+	#     height_bias to 1.0 above a third of the stalk, so its whole upper two
+	#     thirds swayed as a rigid block instead of bending.
+	#   * vcol_mean — the mesh's own mean vertex-colour luma, used by the shader to
+	#     re-centre the baked gradient on 1.0. Measured with tools/blender/
+	#     _glb_stats.py: 0.260 on lawn_dense, 0.443 on wispy_seedhead.
 	for bm in blade_meshes:
+		var mat := ShaderMaterial.new()
+		mat.shader = grass_shader
+		mat.set_shader_parameter("blade_height", maxf(bm.get_aabb().size.y, 0.01))
+		mat.set_shader_parameter("vcol_mean", _mean_vertex_luma(bm))
 		for si in range(bm.get_surface_count()):
-			bm.surface_set_material(si, grass_mat)
+			bm.surface_set_material(si, mat)
 
 	# ── 3. Budget calculation ──────────────────────────────────────────────────
 	# Max instances at full 600m map (scale=1.0). Scales quadratically with area.
@@ -2329,7 +4513,14 @@ void fragment() {
 	# At proc_lab scale=0.2 (120m cell): 120000 * 0.04 ≈ 4800 blades — dense but fast.
 	const MAX_INSTANCES_BASE: int = 120000
 	var total_budget: int = int(float(MAX_INSTANCES_BASE) * _scale * _scale * grass_density)
-	total_budget = clampi(total_budget, 0, MAX_INSTANCES_BASE)
+	# Techo proporcional al área, no fijo. Con el tope en MAX_INSTANCES_BASE, agrandar
+	# el mapa repartía las MISMAS briznas sobre más metros y la pradera salía rala —
+	# el costo escondido de crecer (encontrado al pasar a 780 m, 2026-08-07).
+	# El costo de dibujo no crece con el techo: visibility_range_end culla a ~13k
+	# briznas visibles sea cual sea el total, así que lo que sube es memoria de
+	# MultiMesh, no draw calls.
+	var budget_ceiling: int = int(float(MAX_INSTANCES_BASE) * maxf(_scale * _scale, 1.0))
+	total_budget = clampi(total_budget, 0, budget_ceiling)
 	if total_budget == 0:
 		return
 
@@ -2395,16 +4586,26 @@ void fragment() {
 					# so the RNG sequence after this blade is unchanged.
 					_rng.randf()   # rot_y
 					_rng.randf_range(-0.17, 0.17)  # tilt
-					_rng.randf_range(0.8, 1.2)     # s
+					_rng.randf_range(1.1, 1.7)     # s
 					_rng.randi()   # variant
 					continue
+			# Igual que el canal del arroyo: nada de pasto dentro de la antesala ni de
+			# su trinchera. La alfombra siembra por ruido sobre todo el mapa sin mirar
+			# los POI, así que los matojos brotaban DENTRO de la sala y clavados en los
+			# muros. Se consumen los mismos sorteos que si la hoja se hubiera colocado.
+			if _inside_entrance_footprint(x, z):
+				_rng.randf()                   # rot_y
+				_rng.randf_range(-0.17, 0.17)  # tilt
+				_rng.randf_range(1.1, 1.7)     # s
+				_rng.randi()                   # variant
+				continue
 			var y: float = get_terrain_height(x, z)
 			# Random Y rotation + slight scale variation (0.8–1.2)
 			var rot_y: float = _rng.randf() * TAU
 			# Slight forward tilt (−10°..+10°) for organic look
 			var tilt: float = _rng.randf_range(-0.17, 0.17)  # ~±10°
 			var basis: Basis = Basis.from_euler(Vector3(tilt, rot_y, 0.0))
-			var s: float = _rng.randf_range(0.8, 1.2)
+			var s: float = _rng.randf_range(1.1, 1.7)
 			basis = basis.scaled(Vector3(s, s, s))
 			var variant: int = _rng.randi() % blade_meshes.size()
 			buckets[variant].append(Transform3D(basis, Vector3(x, y, z)))
@@ -2455,8 +4656,124 @@ void fragment() {
 ## must pass the coherence intake (_coherence_target_sheet.md) before being added.
 ## NOTE: env_clover was tried here but read as aquatic lily-pads at carpet density
 ## in a dry cavern — removed as a coherence break.
+## PURGA M3 (2026-08-07): la alfombra entera —~193 000 briznas, el elemento MÁS
+## visible de la pradera— salía de env_grass_small_01.gltf, un asset CC0. Pasa a las
+## briznas del grass_pack, que son M3 (vertex color FLOAT vía motor-blender/recetas/
+## biome_vcol, ref foliage_painterly: base oscura y punta lima).
+## Dos variantes en vez de una: el MultiMesh reparte las instancias entre las mallas
+## de la lista, así que la alfombra deja de ser un solo tufo clonado.
+## OJO al cambiar esto: blade_height se recalibra solo desde el AABB de la PRIMERA
+## malla, y el shader usa cull_disabled porque son tufos cruzados.
+## Carpet shader. Two jobs beyond the wind sway it always did:
+##
+## 1. USE THE BAKED VERTEX COLOUR. Until 2026-08-08 the fragment stage was a flat
+##    `ALBEDO = albedo.rgb` with a hardcoded olive (0.34, 0.38, 0.22) left over from
+##    the dim-cavern canon that the 2026-07-27 prairie decision replaced. Every one
+##    of the ~193 000 blades rendered that single colour, and because the carpet
+##    calls surface_set_material() the grass_pack meshes' own painterly gradient
+##    (dark base -> lime tip, baked by the M3 motor) was overwritten and lost.
+##
+## 2. BREAK THE GROUND INTO PATCHES. prairie_ecology/_synthesis.md, from Joan's
+##    reference photos: "el suelo tiene manchones, no un tono... convive verde
+##    azulado húmedo con verde amarillento seco". A two-octave value noise sampled
+##    in WORLD space (so neighbouring blades agree and blotches survive chunk
+##    boundaries) blends between a lush and a dry tint. Frequencies chosen for
+##    ~83 m broad blotches with ~22 m break-up inside them.
+##
+## The noise is a proxy, not the real humidity field — _humidity_at() exists on the
+## CPU but is not reachable from a shader without per-instance custom data. Broad
+## blotches are what the reference asks for; exact stream correlation is not.
+const GRASS_SHADER_CODE: String = """
+shader_type spatial;
+// cull_disabled is INTENTIONAL: the grass_pack tufts are crossed-quad meshes that
+// must be readable from both sides. cull_back would make tufts invisible from
+// behind (half the viewing angles). The ~2x fragment cost is accepted and stays
+// within the <=13k-blade rendered red-line enforced by visibility_range_end.
+render_mode cull_disabled, shadows_disabled;
+
+uniform vec3 tint_lush : source_color = vec3(0.30, 0.45, 0.11);
+uniform vec3 tint_dry : source_color = vec3(0.52, 0.48, 0.16);
+uniform float patch_freq_broad : hint_range(0.001, 0.2) = 0.012;
+uniform float patch_freq_fine : hint_range(0.001, 0.2) = 0.045;
+// Mean vertex-colour luma of THIS mesh, set from GDScript. Dividing by it turns the
+// baked gradient into a multiplier centred on 1.0; without it the dark-based
+// gradient (mean luma 0.26) would crush the whole carpet toward black.
+uniform float vcol_mean : hint_range(0.01, 1.0) = 0.30;
+uniform float vcol_strength : hint_range(0.0, 1.0) = 0.8;
+uniform float sway_amplitude : hint_range(0.0, 0.1) = 0.028;
+uniform float sway_speed : hint_range(0.0, 5.0) = 1.4;
+// Real measured height of THIS variant's AABB (metres), set from GDScript so the
+// height bias below reaches 1.0 exactly at the tip of this mesh and not sooner.
+uniform float blade_height : hint_range(0.01, 2.0) = 0.6;
+
+varying float v_patch;
+
+float hash21(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash21(i);
+	float b = hash21(i + vec2(1.0, 0.0));
+	float c = hash21(i + vec2(0.0, 1.0));
+	float d = hash21(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+void vertex() {
+	// World-space position of this vertex (model -> world)
+	vec3 world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// Phase based on world XZ so each blade sways independently
+	float phase = world_pos.x * 1.7 + world_pos.z * 2.3;
+	// Bias: tip of the blade sways fully; base (Y~0) stays planted.
+	float height_bias = clamp(VERTEX.y / blade_height, 0.0, 1.0);
+	float sway = sin(TIME * sway_speed + phase) * sway_amplitude * height_bias;
+	VERTEX.x += sway;
+	VERTEX.z += sway * 0.4;
+	v_patch = clamp(
+		vnoise(world_pos.xz * patch_freq_broad) * 0.65
+		+ vnoise(world_pos.xz * patch_freq_fine) * 0.35, 0.0, 1.0);
+}
+
+void fragment() {
+	vec3 ground = mix(tint_lush, tint_dry, v_patch);
+	vec3 gradient = COLOR.rgb / max(vcol_mean, 0.01);
+	ALBEDO = ground * mix(vec3(1.0), gradient, vcol_strength);
+	ROUGHNESS = 0.9;
+	METALLIC = 0.0;
+}
+"""
+
+
+## Mean luma of a mesh's baked vertex colours, or a neutral 0.30 when it carries
+## none. Feeds the carpet shader's `vcol_mean` so the gradient modulates brightness
+## around 1.0 instead of darkening (or, on an unpainted white mesh, blowing out).
+func _mean_vertex_luma(mesh: Mesh) -> float:
+	var total: float = 0.0
+	var count: int = 0
+	for si in range(mesh.get_surface_count()):
+		var arrays: Array = mesh.surface_get_arrays(si)
+		if arrays.size() <= Mesh.ARRAY_COLOR:
+			continue
+		var colors: Variant = arrays[Mesh.ARRAY_COLOR]
+		if colors == null:
+			continue
+		for c in (colors as PackedColorArray):
+			total += 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+			count += 1
+	if count == 0:
+		return 0.30
+	return maxf(total / float(count), 0.01)
+
+
 const GRASS_MESH_PATHS: Array[String] = [
-	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_small_01.gltf",
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_lawn_dense_01.glb",
+	"res://assets/art/piso1_pradera/vegetation/grass/env_grass_wispy_seedhead_01.glb",
 ]
 
 
@@ -2574,10 +4891,20 @@ func _generate_vegetation(pois: Array) -> void:
 	# ── 2. Tejido conectivo entre clusters (cose los mini-biomas) ─────────────
 	# Subido respecto al ralo anterior: llena los huecos muertos entre lugares
 	# para que el mapa se lea continuo, no como islas sueltas. Escala amplia.
-	_scatter_pool(POOL_TREES, int(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container, "trunk")
-	_scatter_pool(POOL_ROCKS, int(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container, "rock")
-	_scatter_pool(POOL_BUSHES, int(ROCK_COUNT * 0.4), pois, 9.0, 0.6, 1.6, container)
-	_scatter_pool(POOL_GROUND, int(TALL_GRASS_COUNT * 0.7), pois, 7.0, 0.7, 1.6, container)
+	# Counts are per-area, not absolute. TREE_COUNT/ROCK_COUNT/TALL_GRASS_COUNT were
+	# calibrated for the 600 m map and stayed flat when proc_bounds grew to 780 m
+	# (2026-08-07), so the same instances spread over 1.69x the ground and the whole
+	# scatter came out ~41% thinner than it had been tuned to be. Exactly the cost
+	# the grass carpet had already been fixed for in that same commit; these three
+	# were missed. _area_count() ties them to the map the way the carpet is tied.
+	_scatter_pool(POOL_TREES, _area_count(TREE_COUNT * 0.7), pois, 18.0, 0.8, 1.6, container, "trunk")
+	_scatter_pool(POOL_ROCKS, _area_count(ROCK_COUNT * 0.45), pois, 12.0, 0.5, 2.0, container, "rock")
+	_scatter_pool(POOL_BUSHES, _area_count(ROCK_COUNT * 0.4), pois, 9.0, 0.6, 1.6, container)
+	# Ground flora goes down as single-species MASSES, not as independent points.
+	# See _scatter_clumps() for why the old _scatter_pool call could not produce the
+	# blotches the reference photos are made of.
+	_scatter_clumps(POOL_GROUND, _area_count(GROUND_CLUMP_COUNT), pois, 7.0,
+		GROUND_CLUMP_RADIUS, 5, 11, 0.7, 1.6, container)
 
 	# ── 3. Dead trees — separate pass so laetiporus can attach at base ────────
 	# FIX #2: ~5-8% of total tree count as dead snags. 40% chance each gets
@@ -2616,11 +4943,75 @@ func _scatter_cluster(
 		var pos: Vector3 = center + Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
 		if not _is_inside_border(pos):
 			continue
+		# La antesala es una sala con un corredor pegado; el descarte por radio del
+		# POI no la describe, así que el halo de árboles del cluster "entrance" —que
+		# cae entre r+18 y r+38 del centro, justo sobre la trinchera— plantaba troncos
+		# ADENTRO del corredor, tapando la puerta desde el camino (visto al pasar el
+		# mapa a 780 m, 2026-08-07). Mismo tratamiento que ya reciben el pasto y
+		# _random_open_pos. El `continue` no desincroniza nada: es exactamente lo que
+		# hace la guarda de borde de arriba.
+		if _inside_entrance_footprint(pos.x, pos.z):
+			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
 		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)
 
 ## Scatter uniforme por el mapa abierto, evitando POIs (tejido conectivo).
+## Task 2 (2026-07-20): candidate scene now comes from _pick_flora_for_point()
+## instead of a flat `_rng.randi() % pool.size()` — the connective tissue reacts to
+## humidity (near water) and shade (near trees) instead of picking blind. Passing a
+## single-scene "pool" of size 1 into _place_instance reuses its existing
+## trunk-position-recording / collider logic unchanged.
 ## collider_kind: "" = none, "trunk" = CapsuleShape3D for trees, "rock" = BoxShape3D for rocks.
+## Scales a count calibrated for the 600 m reference map to the current map area.
+## _scale is a LINEAR ratio (proc_bounds.x / MAP_SIZE.x), so density per square
+## metre only stays constant if it is squared — the same relation the grass carpet
+## budget already uses.
+func _area_count(base: float) -> int:
+	return int(base * _scale * _scale)
+
+
+## Places single-species MASSES instead of independent points.
+##
+## prairie_ecology/_synthesis.md, from Joan's reference photos: "la flor viene en
+## masas, no en unidades. En la referencia densa no se distingue una flor: se ven
+## manchas de color de metros de ancho. Hoy el juego pone flores sueltas separadas
+## — se leen como objetos, no como pradera."
+##
+## _scatter_pool cannot express that, and not by tuning: it draws every point
+## independently and re-rolls the species at each one, so raising its count just
+## produces finer salt-and-pepper. A mass is one species repeated over a few metres,
+## which means the species has to be chosen ONCE per clump — that is the whole
+## difference, and it is structural.
+##
+## The niche query still runs, just at the seed point: a clump lands where its
+## species fits, then fills with itself.
+func _scatter_clumps(
+	pool: Array, clump_count: int, pois: Array, min_poi_dist: float,
+	radius: float, per_clump_min: int, per_clump_max: int,
+	scale_min: float, scale_max: float, parent: Node3D
+) -> void:
+	if pool.is_empty():
+		return
+	for _c in range(clump_count):
+		var seed_pos: Vector3 = _random_open_pos(pois, min_poi_dist)
+		if seed_pos == Vector3.INF:
+			continue
+		var species: PackedScene = _pick_flora_for_point(pool, seed_pos.x, seed_pos.z, pois)
+		if species == null:
+			continue
+		var members: int = _rng.randi_range(per_clump_min, per_clump_max)
+		for _i in range(members):
+			var ang: float = _rng.randf() * TAU
+			# sqrt() keeps the sample area-uniform. Without it the draw concentrates
+			# at the centre and the clump reads as a dot with a halo, not a patch.
+			var dist: float = sqrt(_rng.randf()) * radius
+			var p: Vector3 = seed_pos + Vector3(cos(ang) * dist, 0.0, sin(ang) * dist)
+			if not _is_inside_border(p) or _inside_entrance_footprint(p.x, p.z):
+				continue
+			p.y = get_terrain_height(p.x, p.z)
+			_place_instance([species], p, scale_min, scale_max, parent)
+
+
 func _scatter_pool(
 	pool: Array, count: int, pois: Array,
 	min_poi_dist: float, scale_min: float, scale_max: float, parent: Node3D,
@@ -2633,13 +5024,28 @@ func _scatter_pool(
 		if pos == Vector3.INF:
 			continue
 		pos.y = get_terrain_height(pos.x, pos.z)
-		_place_instance(pool, pos, scale_min, scale_max, parent, collider_kind)
+		var chosen: PackedScene = _pick_flora_for_point(pool, pos.x, pos.z, pois)
+		if chosen == null:
+			continue
+		_place_instance([chosen], pos, scale_min, scale_max, parent, collider_kind)
 
 ## FIX #2 — Scatter dead trees as open-field connective tissue, then attach
 ## laetiporus bracket fungus at the trunk base with 40% probability.
 ## This keeps the fungus on its correct substrate (dead wood) without ever
 ## placing it on bare ground. RNG calls are deterministic (same seed = same result).
 func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
+	# PURGA M3 (2026-08-07): sin escena de árbol muerto M3 no se coloca nada. Se sale
+	# ANTES del loop a propósito: salir adentro consumiría draws de _random_open_pos y
+	# correría el stream de RNG para todo lo que viene después, cambiando el mapa
+	# entero por un asset ausente.
+	# Copiadas a variables locales A PROPÓSITO. Llamar .instantiate() directamente
+	# sobre una const que el analizador sabe null hace que GDScript intente resolver
+	# el método builtin en tiempo de análisis y escupa 16 x `Parameter "method" is
+	# null` — aunque la rama nunca se ejecute. Una var local corta el plegado.
+	var dead_tree_scene: PackedScene = SCENE_DEAD_TREE
+	var laetiporus_scene: PackedScene = SCENE_LAETIPORUS
+	if dead_tree_scene == null:
+		return
 	for i in range(count):
 		var pos: Vector3 = _random_open_pos(pois, 14.0)
 		if pos == Vector3.INF:
@@ -2647,7 +5053,7 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		pos.y = get_terrain_height(pos.x, pos.z)
 
 		# Instantiate dead tree
-		var tree: Node3D = SCENE_DEAD_TREE.instantiate() as Node3D
+		var tree: Node3D = dead_tree_scene.instantiate() as Node3D
 		if tree == null:
 			continue
 		var s: float = _age_scale(0.8, 1.5)
@@ -2663,8 +5069,8 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		dt_body.collision_mask  = 0
 		var dt_col := CollisionShape3D.new()
 		var dt_cap := CapsuleShape3D.new()
-		dt_cap.radius = 0.35 * s
-		dt_cap.height = 2.5 * s
+		dt_cap.radius = _trunk_radius_for(tree) * s
+		dt_cap.height = maxf(2.5 * s, dt_cap.radius * 2.0 + 0.01)
 		dt_col.shape = dt_cap
 		dt_col.position = Vector3(0.0, 1.25 * s, 0.0)
 		dt_body.add_child(dt_col)
@@ -2672,8 +5078,10 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 		dt_body.global_position = pos
 
 		# 40% chance: attach laetiporus at trunk base (local origin = base of tree)
+		# El randf() se tira IGUAL aunque no haya escena: es el mismo motivo que la
+		# guarda de arriba, no gastar el draw desincroniza todo lo que sigue.
 		if _rng.randf() < 0.4:
-			var fungus: Node3D = SCENE_LAETIPORUS.instantiate() as Node3D
+			var fungus: Node3D = laetiporus_scene.instantiate() as Node3D if laetiporus_scene != null else null
 			if fungus != null:
 				# Place at world base of tree, slight random offset to side of trunk
 				var fx: float = _rng.randf_range(-0.3, 0.3)
@@ -2691,6 +5099,8 @@ func _scatter_dead_trees(count: int, pois: Array, parent: Node3D) -> void:
 ## on shaded ground near trees — never the open field — so this replaces the old
 ## uniform mushroom scatter. ~35% of trees get a small clump of 1-3 mushrooms.
 func _scatter_understory_mushrooms(parent: Node3D) -> void:
+	# Var local, no la const: ver la nota en _scatter_dead_trees sobre el plegado.
+	var mushroom_scene: PackedScene = SCENE_MUSHROOM_COMMON
 	for tree_pos in _tree_positions:
 		if _rng.randf() > 0.35:
 			continue
@@ -2699,11 +5109,13 @@ func _scatter_understory_mushrooms(parent: Node3D) -> void:
 			var off := Vector3(_rng.randf_range(-1.2, 1.2), 0.0, _rng.randf_range(-1.2, 1.2))
 			var mpos: Vector3 = tree_pos + off
 			mpos.y = get_terrain_height(mpos.x, mpos.z)
-			var inst: Node3D = SCENE_MUSHROOM_COMMON.instantiate() as Node3D
-			if inst == null:
-				continue
+			# PURGA M3 (2026-08-07): sin hongo M3 no se coloca, pero el bucle sigue
+			# tirando sus draws (escala + rotación abajo) para no mover el stream.
+			var inst: Node3D = mushroom_scene.instantiate() as Node3D if mushroom_scene != null else null
 			var s: float = _rng.randf_range(0.5, 1.0)
 			var rot_y: float = _rng.randf() * TAU
+			if inst == null:
+				continue
 			inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), mpos)
 			inst.add_to_group("grounded")
 			parent.add_child(inst)
@@ -2777,6 +5189,17 @@ func _place_instance(
 	if inst == null:
 		return
 	var s: float = _age_scale(scale_min, scale_max)
+	# For species registered in FLORA_TARGET_HEIGHT the age roll above stops being a
+	# raw multiplier on the native mesh and becomes plant-to-plant variation around
+	# a target READ height (see that dict for why). Unregistered pools — trees,
+	# rocks, bushes — are untouched: their ranges are already calibrated against
+	# measured native sizes. No extra _rng draws either way, so the deterministic
+	# sequence that later passes (enemies) depend on is unchanged.
+	var target_h: float = FLORA_TARGET_HEIGHT.get(scene.resource_path, 0.0)
+	if target_h > 0.0:
+		var native_h: float = _node_height(inst)
+		if native_h > 0.001:
+			s *= target_h / native_h
 	var rot_y: float = _rng.randf() * TAU
 	inst.transform = Transform3D(Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)), pos)
 	# Marca de intención: toda la vegetación (árboles, rocas, arbustos, flora de suelo)
@@ -2805,8 +5228,10 @@ func _place_instance(
 				# Capsule covers the trunk only, not the canopy.
 				# radius 0.35*s, total height 2.5*s, center at 1.25*s (half-height up).
 				var cap := CapsuleShape3D.new()
-				cap.radius = 0.35 * s
-				cap.height = 2.5 * s
+				cap.radius = _trunk_radius_for(inst) * s
+				# Godot needs height >= 2*radius or the capsule degenerates into a
+				# sphere — which the widest buttressed trunks would otherwise hit.
+				cap.height = maxf(2.5 * s, cap.radius * 2.0 + 0.01)
 				col.shape = cap
 				# CapsuleShape3D center is its geometric center; offset up so base = pos.
 				col.position = Vector3(0.0, 1.25 * s, 0.0)
@@ -2840,6 +5265,205 @@ func _place_instance(
 		parent.add_child(body)
 		body.global_position = pos
 
+# ── Radio del colisionador de tronco, medido del propio mesh ──────────────────
+# El 0.35 fijo que había acá venía de los árboles CC0 de tronco fino. Medido contra
+# el pack del motor (leyendo la geometría de corteza de cada .glb), el radio real
+# entre el suelo y la rodilla va de 0.22 (joven) a 0.70 (ancho, con contrafuertes).
+# Un único número para todos o te deja entrar al tronco o te frena en el aire, y el
+# problema vuelve cada vez que el motor entrega un árbol nuevo. Se lee del mesh.
+#
+# Solo la banda tobillo-rodilla: más arriba la corteza incluye ramas bajas que salen
+# hacia UN lado, y una cápsula es simétrica — usar ese radio pondría una pared
+# invisible en los otros tres costados.
+const TRUNK_PROBE_H := 0.7
+const TRUNK_RADIUS_FALLBACK := 0.35
+
+var _trunk_radius_cache: Dictionary = {}
+
+
+## Radio de corteza a la altura del cuerpo, en unidades del mesh (sin escalar).
+## Cacheado por escena: son ~5 tipos de árbol, se mide una vez cada uno.
+func _trunk_radius_for(inst: Node3D) -> float:
+	var key: String = inst.scene_file_path
+	if key != "" and _trunk_radius_cache.has(key):
+		return float(_trunk_radius_cache[key])
+
+	var best := 0.0
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for si in range(mi.mesh.get_surface_count()):
+			var mat: Material = mi.mesh.surface_get_material(si)
+			var mat_name := "" if mat == null else mat.resource_name.to_lower()
+			# Las hojas no son algo con lo que uno choque: solo corteza.
+			if not ("bark" in mat_name or "trunk" in mat_name):
+				continue
+			var arrays: Array = mi.mesh.surface_get_arrays(si)
+			if arrays.is_empty() or arrays[Mesh.ARRAY_VERTEX] == null:
+				continue
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			for v in verts:
+				if v.y <= TRUNK_PROBE_H:
+					best = maxf(best, Vector2(v.x, v.z).length())
+
+	var measured := best > 0.0
+	if not measured:
+		best = TRUNK_RADIUS_FALLBACK
+	if key != "":
+		_trunk_radius_cache[key] = best
+		# Una línea por TIPO de árbol, no por instancia. Sin esto, un fallback
+		# silencioso al 0.35 se ve exactamente igual que antes del arreglo.
+		if OS.is_debug_build():
+			print("[trunk] %-42s r=%.3f %s" % [
+				key.get_file(), best, "(medido)" if measured else "(FALLBACK — sin material de corteza)"])
+	return best
+
+
+# ── Loma de tierra sobre la antesala ──────────────────────────────────────────
+# El mapa de alturas está excavado bajo toda la sala, y tiene que estarlo: con un
+# vértice cada 6.25 m, cualquier transición del terreno cae DENTRO de una
+# habitación de 16 m y la atraviesa en diagonal (el jugador chocaba con la ladera
+# adentro del cuarto, 2026-08-01). Pero excavar así deja el cuarto al aire y se lee
+# como un galpón apoyado en el pasto.
+#
+# La tierra sobre el techo pasa entonces a ser GEOMETRÍA. Una malla puede cortar en
+# seco contra la fachada, que es exactamente lo único que la grilla no sabe hacer:
+# reconstruye la superficie original sobre la sala y se detiene a filo en la boca,
+# dejando el vano de piedra a la vista y el corredor abierto al cielo.
+const MOUND_STEP: float = 1.5      # muestreo de la malla — 4x más fino que el terreno
+const MOUND_SKIRT: float = 6.0     # solape con el terreno real, para que no se vea la junta
+const MOUND_FLARE: float = 4.5     # ancho del talud a los costados del corredor
+const ENTRANCE_THROAT_FRAC: float = 0.18  # tramo recto pegado a la fachada, en fracción del run
+## Semiancho del hueco que se recorta en la loma para que la puerta sea puerta.
+## 4.0 = los 3 m del vano + 1 m de margen a cada lado: sin margen, la celda del borde
+## sigue tirando su esquina dentro del paso.
+const MOUND_DOOR_HALF: float = 4.0
+
+
+func _build_entrance_mound() -> void:
+	if not _entrance_anchor_valid:
+		return
+	var mouth: Vector3 = _entrance_mouth()
+	var notch_half: float = ENTRANCE_HALL_HALF_W + 1.0   # coincide con el ancho de la fachada
+	var x0: float = _entrance_anchor.x - ENTRANCE_HALL_LEN * 0.5 - ENTRANCE_TRENCH_HALF_W - MOUND_SKIRT
+	var x1: float = mouth.x + ENTRANCE_TRENCH_RUN + MOUND_SKIRT
+	var z0: float = mouth.z - ENTRANCE_TRENCH_HALF_W - MOUND_SKIRT
+	var z1: float = mouth.z + ENTRANCE_TRENCH_HALF_W + MOUND_SKIRT
+
+	# Costura en la cara EXTERIOR de la fachada. La malla se construye en dos tramos
+	# que se tocan ahí y ninguna celda la cruza: con una grilla continua, la celda a
+	# caballo del filo interpolaba de 26.6 a 19.4 en 1.5 m y dejaba una rampa de
+	# tierra SÓLIDA parada dentro del vano — no se podía salir caminando, y al saltar
+	# el jugador quedaba embutido en ella (reportado 2026-08-01).
+	var seam_x: float = mouth.x + 1.0
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_mound_strip(st, x0, seam_x, z0, z1, seam_x, mouth, notch_half)
+	_mound_strip(st, seam_x, x1, z0, z1, seam_x, mouth, notch_half)
+	st.generate_normals()
+	var mesh: ArrayMesh = st.commit()
+
+	var mi := MeshInstance3D.new()
+	mi.name = "EntranceMound"
+	mi.mesh = mesh
+	mi.material_override = _terrain_material
+	add_child(mi)
+
+	# Con colisión: sin esto se camina por debajo, sobre el piso excavado, y la loma
+	# queda como una nube de tierra flotando.
+	var body := StaticBody3D.new()
+	body.name = "EntranceMoundBody"
+	add_child(body)
+	var col := CollisionShape3D.new()
+	var shape := ConcavePolygonShape3D.new()
+	shape.data = mesh.get_faces()
+	col.shape = shape
+	body.add_child(col)
+
+
+## Un tramo de la loma. Los extremos en x caen EXACTOS, así que dos tramos vecinos
+## comparten el plano de la costura sin que ninguna celda lo cruce.
+func _mound_strip(st: SurfaceTool, xa: float, xb: float, za: float, zb: float,
+		seam_x: float, mouth: Vector3, notch_half: float) -> void:
+	var nx: int = maxi(1, int(ceilf((xb - xa) / MOUND_STEP)))
+	var nz: int = maxi(1, int(ceilf((zb - za) / MOUND_STEP)))
+	var dx: float = (xb - xa) / float(nx)
+	var dz: float = (zb - za) / float(nz)
+	for ix in range(nx):
+		for iz in range(nz):
+			var ax: float = xa + float(ix) * dx
+			var bx: float = xa + float(ix + 1) * dx
+			var az: float = za + float(iz) * dz
+			var bz: float = za + float(iz + 1) * dz
+			# EL HUECO DE LA PUERTA. Idea de Joan, 2026-08-07: *"hay que hacer un
+			# hoyo en esa malla o no?"* — y era exactamente eso.
+			#
+			# La loma se generaba como una superficie CONTINUA sobre toda la huella,
+			# el vano incluido. Al oeste de la costura vale la altura natural (tierra
+			# maciza sobre la sala) y al este cae al fondo de la trinchera, así que el
+			# primer quad pasada la costura baja ~7.4 m en 1.5 m horizontales: una
+			# pared de tierra casi vertical parada justo en la puerta, con colisión.
+			# Ninguna sonda la encontró porque los rayos hacia arriba chocaban antes
+			# contra la viga de madera del marco, y el barrido de cápsula la esquivaba
+			# por poco. Se ve a simple vista desde el juego.
+			#
+			# Saltear el quad es lo correcto y no lo tapa nada: por ese hueco se ve el
+			# vano, que es justo lo que tiene que verse.
+			if absf((ax + bx) * 0.5 - seam_x) < MOUND_STEP * 1.5 \
+					and absf((az + bz) * 0.5 - mouth.z) < MOUND_DOOR_HALF:
+				# NOTE 2026-08-19: an attempt to close this cut with a vertical earth
+				# face was reverted. It went into the mound's own SurfaceTool, which
+				# gets one trimesh body, so the face arrived with collision and stood
+				# in the doorway — test_entrance_walkable named EntranceMoundBody at
+				# eight offsets across the opening. Anything closing this hole has to
+				# be a SEPARATE, collision-free mesh. The hole is also probably not
+				# the defect the owner is seeing from above; that was three guesses in
+				# a row and none of them moved the render.
+				continue
+			var v00 := Vector3(ax, _mound_height(ax, az, seam_x, mouth, notch_half), az)
+			var v10 := Vector3(bx, _mound_height(bx, az, seam_x, mouth, notch_half), az)
+			var v01 := Vector3(ax, _mound_height(ax, bz, seam_x, mouth, notch_half), bz)
+			var v11 := Vector3(bx, _mound_height(bx, bz, seam_x, mouth, notch_half), bz)
+			for v in [v00, v10, v11, v00, v11, v01]:
+				st.set_color(_height_to_color(v.y))
+				st.set_uv(Vector2(v.x, v.z) * 0.22)   # misma escala UV que el terreno
+				st.add_vertex(v)
+
+
+## Superficie de la loma en (x,z).
+##
+## Al OESTE de la costura es la superficie original: tierra maciza sobre la sala.
+## Al ESTE sigue el terreno excavado dentro del corredor y vuelve a subir a los
+## costados, formando los taludes. La discontinuidad en la costura es deliberada —
+## es el corte de la ladera donde se apoya la fachada de piedra.
+func _mound_height(x: float, z: float, seam_x: float, mouth: Vector3, notch_half: float) -> float:
+	var natural: float = _natural_height_at(x, z)
+	if x <= seam_x:
+		return natural
+	var carved: float = _compute_height_at(x, z)
+	# El corredor arranca del ancho EXACTO del vano y se abre hacia afuera. Si el
+	# talud empezara más ancho que la fachada, el escalón de la costura asomaría al
+	# costado de la piedra en vez de quedar tapado por ella.
+	var t: float = clampf((x - seam_x) / ENTRANCE_TRENCH_RUN, 0.0, 1.0)
+	# Garganta: el primer tramo mantiene el ancho EXACTO de la fachada, no el del
+	# vano. Si arranca del vano, los taludes suben delante de las jambas y esconden
+	# la piedra — se lee un agujero en la tierra en vez de una entrada construida.
+	var open_t: float = clampf((t - ENTRANCE_THROAT_FRAC) / (1.0 - ENTRANCE_THROAT_FRAC), 0.0, 1.0)
+	# Pasada la garganta el corte se abre en DOS ejes a la vez. Abrir solo el ancho
+	# deja un cajón de paredes rectas: desde el camino se ven dos lomas convergiendo
+	# y la puerta al fondo de una ranura oscura, y no se lee por dónde entrar
+	# (reportado por Joan, 2026-08-01). Tumbando además el talud, el corte termina
+	# en un cuenco abierto y la fachada se ve desde lejos — y de paso los costados
+	# quedan por debajo del floor_max_angle, así que se puede salir caminando por
+	# ellos en vez de chocar contra una pared de tierra.
+	var inner: float = lerpf(notch_half, ENTRANCE_TRENCH_HALF_W + MOUND_SKIRT, open_t)
+	var slope: float = lerpf(MOUND_FLARE, MOUND_FLARE * 3.2, open_t)
+	var flare: float = smoothstep(inner, inner + slope, absf(z - mouth.z))
+	return lerpf(carved, natural, flare)
+
+
 ## Escala con sesgo de "edad" en vez de uniforme: ~45% jóvenes (chicas),
 ## ~35% medianas, ~20% añosas (grandes). Da los tres grupos visibles y profundidad.
 func _age_scale(smin: float, smax: float) -> float:
@@ -2856,6 +5480,13 @@ func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 		var dist: float = _rng.randf_range(20.0 * _scale, _border_radius_base - 30.0 * _scale)
 		var candidate: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 		if not _is_inside_border(candidate):
+			continue
+		# La antesala es un rectángulo largo con un corredor pegado; el descarte por
+		# POI de abajo usa la caja de 30x30 del catálogo y deja crecer árboles sobre
+		# el tramo final de la trinchera. Descartar acá y no en _place_instance
+		# preserva la secuencia del RNG: "no encontré lugar" ya es un final previsto
+		# de esta función.
+		if _inside_entrance_footprint(candidate.x, candidate.z):
 			continue
 		var valid: bool = true
 		for poi in pois:
@@ -2874,20 +5505,99 @@ func _random_open_pos(pois: Array, min_distance_from_poi: float) -> Vector3:
 func _spawn_poi_enemies(pois: Array) -> void:
 	for poi in pois:
 		var p: POISystem.POI = poi as POISystem.POI
-		if p.enemy_count <= 0:
-			continue
 
-		# Elegir tabla de spawn según tipo de POI
-		var table: Array = _get_poi_spawn_table(p.type)
-		for i in range(p.enemy_count):
-			var offset: Vector3 = Vector3(
-				_rng.randf_range(-p.size.x * 0.3, p.size.x * 0.3),
-				0.8,
-				_rng.randf_range(-p.size.y * 0.3, p.size.y * 0.3)
-			)
-			var enemy: CharacterBody3D = _pick_from_table(table).instantiate() as CharacterBody3D
-			add_child(enemy)
-			enemy.global_position = p.position + offset
+		# Whether this POI's roster ended up with a sub-B+ enemy decides if its chest may
+		# be a mimic (canon docs/balance/_mimic.md §2.1). Read off the enemies actually
+		# spawned rather than the table, so a lucky all-sub-A roll stays mimic-free.
+		var has_sub_b := false
+
+		if p.enemy_count > 0:
+			# Elegir tabla de spawn según tipo de POI
+			var table: Array = _get_poi_spawn_table(p.type)
+			for i in range(p.enemy_count):
+				var offset: Vector3 = Vector3(
+					_rng.randf_range(-p.size.x * 0.3, p.size.x * 0.3),
+					0.8,
+					_rng.randf_range(-p.size.y * 0.3, p.size.y * 0.3)
+				)
+				var enemy: CharacterBody3D = _pick_from_table(table).instantiate() as CharacterBody3D
+				add_child(enemy)
+				enemy.global_position = p.position + offset
+				if enemy is BaseEnemy and (enemy as BaseEnemy).sub_tier >= BaseEnemy.SubTier.B:
+					has_sub_b = true
+
+		# Every camp answers to somebody. Exactly one leader — an alpha is singular by
+		# definition, and two of them would just be two bandits with better stats.
+		if p.type == "camp":
+			var leader: CharacterBody3D = SCENE_BANDIT_LEADER.instantiate()
+			add_child(leader)
+			leader.global_position = p.position + Vector3(0.0, 0.8, 0.0)
+			has_sub_b = true  # sub-tier C — his chest is worth guarding
+
+		_spawn_poi_chest(p, has_sub_b)
+
+
+## POI types that hold a chest. The entrance always gets one and never a mimic: it is
+## where the player learns "chest = loot", and canon (_mimic.md §2.1) refuses to break
+## that lesson with a 0% gate on the intro arena.
+const CHEST_POI_TYPES: Array[String] = ["entrance", "ruins", "camp", "giant_tree", "altar", "well"]
+
+## Canon _mimic.md §2.1: Floor 1, arena with >=1 sub-B enemy -> 5%. Intro arena -> 0%.
+const MIMIC_CHANCE_SUB_B: float = 0.05
+
+## Canon _mimic.md §2.2: at most ONE mimic alive per scene. A roll that loses to the
+## cooldown does NOT re-roll — a normal chest spawns in its place.
+var _mimic_spawned := false
+
+
+## The mimic gate, canon _mimic.md §2.1-2.2. Static and pure so the rule can be checked
+## without generating a 600x600m level: `roll` is the caller's RNG draw in [0, 1).
+static func should_chest_be_mimic(
+	poi_type: String, has_sub_b: bool, mimic_already_spawned: bool, roll: float
+) -> bool:
+	# §2.1 — the intro arena is where the player learns "chest = loot". Never betray it.
+	if poi_type == "entrance":
+		return false
+	# §2.1 — a mimic only hides among chests an arena's sub-B+ enemies are guarding.
+	if not has_sub_b:
+		return false
+	# §2.2 — one mimic per scene, and losing to the cooldown does NOT re-roll:
+	# a normal chest takes its place.
+	if mimic_already_spawned:
+		return false
+	return roll < MIMIC_CHANCE_SUB_B
+
+
+func _spawn_poi_chest(p: POISystem.POI, has_sub_b: bool) -> void:
+	if not CHEST_POI_TYPES.has(p.type):
+		return
+
+	var spot: Vector3 = p.position + Vector3(
+		_rng.randf_range(-p.size.x * 0.2, p.size.x * 0.2),
+		0.0,
+		_rng.randf_range(-p.size.y * 0.2, p.size.y * 0.2)
+	)
+	spot.y = get_terrain_height(spot.x, spot.z) + 0.4
+
+	var is_mimic: bool = should_chest_be_mimic(p.type, has_sub_b, _mimic_spawned, _rng.randf())
+
+	var scene_path := "res://scenes/enemy/mimic_chest.tscn" if is_mimic else "res://scenes/loot/loot_chest.tscn"
+	var packed: PackedScene = load(scene_path)
+	if packed == null:
+		push_error("floor1_prairie: no se pudo cargar %s" % scene_path)
+		return
+
+	var chest: Node3D = packed.instantiate()
+	if is_mimic:
+		_mimic_spawned = true
+	else:
+		# A guarded POI is worth more than an unguarded one — the risk IS the price.
+		(chest as LootChest).chest_tier = (
+			LootChest.ChestTier.RARE if has_sub_b else LootChest.ChestTier.COMMON
+		)
+
+	add_child(chest)
+	chest.global_position = spot
 
 ## Devuelve una posición en el anillo alrededor de un POI del tipo dado (si existe),
 ## o Vector3.INF si no hay ninguno. Para spawn ecológico: criaturas que PERTENECEN
@@ -3085,10 +5795,13 @@ func _spawn_field_enemies(_pois: Array, _player_pos: Vector3 = Vector3.ZERO) -> 
 func _get_poi_spawn_table(poi_type: String) -> Array:
 	match poi_type:
 		"ruins":
+			# Spiders live in the dark the ruins make — the one place on an open prairie
+			# where an ambush predator has anywhere to wait.
 			return [
-				[0.30, SCENE_RAT],
-				[0.55, SCENE_BANDIT_MELEE],
-				[0.80, SCENE_BANDIT_ARCHER],
+				[0.25, SCENE_RAT],
+				[0.45, SCENE_BANDIT_MELEE],
+				[0.65, SCENE_BANDIT_ARCHER],
+				[0.85, SCENE_SPIDER],
 				[1.00, SCENE_SNAKE],
 			]
 		"camp":
@@ -3110,12 +5823,22 @@ func _get_poi_spawn_table(poi_type: String) -> Array:
 				[0.75, SCENE_BIRD],
 				[1.00, SCENE_SCORPION],
 			]
-		_:
+		"pond":
+			# The water's edge belongs to the things that live in it. Frogs sit here;
+			# slimes gather at the water. Nothing dry-land spawns on the shoreline.
 			return [
-				[0.40, SCENE_SLIME],
-				[0.65, SCENE_BIRD],
-				[0.85, SCENE_RAT],
-				[1.00, SCENE_SNAKE],
+				[0.55, SCENE_FROG],
+				[1.00, SCENE_SLIME],
+			]
+		_:
+			# Open field. The jabali is its territorial predator — rare, because a boar
+			# you meet every hundred metres is a mob, not a territory-holder.
+			return [
+				[0.35, SCENE_SLIME],
+				[0.55, SCENE_BIRD],
+				[0.75, SCENE_RAT],
+				[0.90, SCENE_SNAKE],
+				[1.00, SCENE_JABALI],
 			]
 
 func _pick_from_table(table: Array) -> PackedScene:
@@ -3146,6 +5869,18 @@ func _add_cave_csg_box(node_name: String, world_pos: Vector3, size: Vector3, col
 	box.size = size
 	box.use_collision = with_collision
 	box.material_override = _make_cave_material(color)
+	box.position = world_pos
+	add_child(box)
+	return box
+
+## Timber variant, for the entrance framing. Same shape as the two above so the
+## three read as one family at the call site.
+func _add_timber_box(node_name: String, world_pos: Vector3, size: Vector3, color: Color, with_collision: bool) -> CSGBox3D:
+	var box: CSGBox3D = CSGBox3D.new()
+	box.name = node_name
+	box.size = size
+	box.use_collision = with_collision
+	box.material_override = _make_timber_material(color)
 	box.position = world_pos
 	add_child(box)
 	return box
@@ -3191,10 +5926,139 @@ func _make_material(color: Color) -> Material:
 ##   - Normal map: a second NoiseTexture2D with as_normal_map=true provides real bump shading.
 ##   - Memo cache (_cave_mat_cache keyed by Color): repeated calls with the same color reuse
 ##     one material + one NoiseTexture2D pair instead of allocating dozens at load time.
+## Finish ramp for the floor-1 stone and timber, 0..3. Set from the command line
+## (`--finish=N`) so one build can be shot at four levels and compared; see
+## docs/art/_entrance_antechamber.md and the 2026-08-19 playtest.
+##
+##   0  procedural noise, box section       — what shipped, the baseline
+##   1  real textures, box section          — isolates what texture alone buys
+##   2  + excavated gallery section         — the box stops being a box
+##   3  + displaced rock, rubble, drainage  — the full mine reading
+##
+## Why a ramp and not one "better" version: the doubtful parameter is HOW MUCH
+## irregularity, and picking that number myself has a measured failure rate here —
+## on the warrior every one of five skin tones came back overcooked.
+static var ENTRANCE_FINISH: int = 3
+
+const FINISH_TEX_DIR := "res://assets/art/piso1_pradera/terrain/tex/"
+
+## Texture period in metres. A 512 px map over 2 m is 256 texels/m, which is the
+## target set before building; the noise it replaces ran one 128 px period every
+## 3 m, i.e. 43 texels/m — six times coarser, and the reason the walls read as
+## untextured even though a normal map was technically present.
+const FINISH_TEX_PERIOD_M: float = 2.0
+
+
+## Albedo saturation ramp, 0..3, chosen with --rocksat=N. Index into ROCK_SAT_STEPS.
+##
+## Level 1 measured the wall at saturation 0.64 against a 0.45 target taken from the
+## mine photographs — 42% over, the same overshoot that hit all five warrior skin
+## tones. The knob has to sit HERE, on the albedo, and not on the tint: the tint is
+## already almost white (0.11) because _pbr_tint() pushes value to 1.0, so the
+## saturation is arriving from the photograph itself plus the warm lanterns. A tint
+## can only multiply, and multiplying never desaturates.
+## Default 2 (x0.55): picked by the owner off the four-step ramp, 2026-08-19. Lands
+## the wall at saturation 0.53 — still warm the way the mine photographs are, without
+## the brick cast that x1.00 gave.
+static var ROCK_SAT: int = 2
+
+const ROCK_SAT_STEPS: Array[float] = [1.00, 0.75, 0.55, 0.40]
+
+## Springing line of the gallery vault: below it the wall is vertical, above it the
+## arch starts. Shared by the shell and by the timber sets that have to LAND on it —
+## two copies of this number is how a post ends up buried and its collar floating.
+const GALLERY_H_SPRING: float = 1.55
+
+
+func _finish_tex(slug: String, map: String) -> Texture2D:
+	var tex: Texture2D = load(FINISH_TEX_DIR + "%s_%s_512.jpg" % [slug, map]) as Texture2D
+	# Only the albedo carries colour. Desaturating a normal map would rotate its
+	# vectors and desaturating roughness would flatten it, so both pass through.
+	if map != "diff":
+		return tex
+	var f: float = ROCK_SAT_STEPS[clampi(ROCK_SAT, 0, ROCK_SAT_STEPS.size() - 1)]
+	if is_equal_approx(f, 1.0):
+		return tex
+	var img: Image = tex.get_image()
+	img.adjust_bcs(1.0, 1.0, f)
+	return ImageTexture.create_from_image(img)
+
+
+## Palette colour turned into a tint that MULTIPLIES a photo texture without
+## crushing it.
+##
+## Albedo tint times texture is a product, so feeding the raw palette colour in
+## darkens twice: COLOR_BORDER sits at value 0.345 and brown_mud_dry averages 0.45,
+## and 0.345 * 0.45 = 0.155 — which is exactly the 0.148 measured on the level-1
+## render, a room noticeably darker than the level-0 flat colour it replaced.
+##
+## So the value goes to 1.0 and the texture decides brightness. Saturation keeps a
+## third of the palette's, enough that COLOR_PILLAR and COLOR_ROCK still read as
+## different stone, not enough to fight the photograph. Hue is kept whole: it is
+## already right — measured against the reference set, our rock sits at 30 degrees
+## where real mine walls sit at 27 to 38 (docs/art/_references/mine_adit).
+func _pbr_tint(color: Color) -> Color:
+	return Color.from_hsv(color.h, color.s * 0.35, 1.0)
+
+
+## Photographic albedo + normal + roughness, triplanar so CSG needs no UVs.
+func _apply_pbr_set(mat: StandardMaterial3D, slug: String, period_m: float) -> void:
+	mat.albedo_texture = _finish_tex(slug, "diff")
+	mat.normal_enabled = true
+	mat.normal_texture = _finish_tex(slug, "nor")
+	mat.normal_scale = 1.0
+	mat.roughness_texture = _finish_tex(slug, "rough")
+	mat.uv1_triplanar = true
+	mat.uv1_triplanar_sharpness = 4.0
+	# Triplanar UVs are world position * uv1_scale, so the map repeats every
+	# 1/uv1_scale metres.
+	var s: float = 1.0 / maxf(period_m, 0.01)
+	mat.uv1_scale = Vector3(s, s, s)
+
+
+## Loose gravel underfoot — the ballast a mine floor is made of. Split from the wall
+## material because the reference set is emphatic about where each belongs: every
+## photograph puts undulating rock on the walls and gravel on the FLOOR, between the
+## sleepers. One material for both is what made the room read as a single moulded
+## shell. Falls back to the wall material below level 1, so the ramp's baseline is
+## untouched.
+func _make_ballast_material() -> StandardMaterial3D:
+	if ENTRANCE_FINISH < 1:
+		return _make_cave_material(COLOR_BORDER)
+	if _ballast_mat != null:
+		return _ballast_mat
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = _pbr_tint(COLOR_BORDER)
+	mat.metallic = 0.0
+	# Tighter than the walls: gravel is small, and a 2 m period would blow single
+	# stones up to the size of a boot.
+	_apply_pbr_set(mat, "rocky_trail", 1.2)
+	_ballast_mat = mat
+	return mat
+
+
+var _ballast_mat: StandardMaterial3D = null
+
+
 func _make_cave_material(color: Color) -> StandardMaterial3D:
 	# Cache check — return existing material if this color was already built.
 	if _cave_mat_cache.has(color):
 		return _cave_mat_cache[color] as StandardMaterial3D
+
+	if ENTRANCE_FINISH >= 1:
+		# brown_mud_dry, NOT rocky_trail. Measured against the reference set: a mine
+		# wall is large undulation crossed by long cracks, and gravel appears only on
+		# the FLOOR as ballast — putting gravel on the wall is the exact opposite of
+		# what every photograph shows. brown_mud_dry also lands on the measured target
+		# by itself (H 32, S 0.46, V 0.45 against a reference average of H 27-38,
+		# S 0.45, V 0.50) and carries the most contrast of the candidates, 0.111
+		# against rocky_trail's 0.066.
+		var pbr: StandardMaterial3D = StandardMaterial3D.new()
+		pbr.albedo_color = _pbr_tint(color)
+		pbr.metallic = 0.0
+		_apply_pbr_set(pbr, "brown_mud_dry", FINISH_TEX_PERIOD_M)
+		_cave_mat_cache[color] = pbr
+		return pbr
 
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = color
@@ -3250,12 +6114,261 @@ func _make_cave_material(color: Color) -> StandardMaterial3D:
 	return mat
 
 
+## Rough-sawn pit-prop timber, for the floor-1 entrance framing.
+##
+## Same triplanar-noise approach as _make_cave_material, retuned in two ways:
+## the noise is finer and stretched hard on Y, so on a standing post it smears
+## into vertical grain and on a horizontal beam it bands across the face like
+## saw marks — one material covers both without authoring UVs per piece. And it
+## carries no normal map: the planks should read flat and dry against the pitted
+## stone they hold back, otherwise the whole entrance goes back to reading as
+## one uniform rocky mass.
+func _make_timber_material(color: Color) -> StandardMaterial3D:
+	if _timber_mat_cache.has(color):
+		return _timber_mat_cache[color] as StandardMaterial3D
+
+	if ENTRANCE_FINISH >= 1:
+		var pbr: StandardMaterial3D = StandardMaterial3D.new()
+		pbr.albedo_color = _pbr_tint(color)
+		pbr.metallic = 0.0
+		# brown_planks_03 over weathered_planks: 2.5x the contrast (0.100 against
+		# 0.040) and half a stop brighter (V 0.42 against 0.31). The weathered set
+		# measured almost flat, which is why the timber went unreadable in the first
+		# level-1 render — a plank with no contrast is a coloured box.
+		#
+		# And a shorter period than the rock: a pit prop is ~0.55 m across, so a 2 m
+		# tile would show a twelfth of the map on it and read as flat colour. At
+		# 1.1 m each post carries half a plank map, which is where the sawn edge and
+		# the splitting become visible at the size the piece is actually used.
+		_apply_pbr_set(pbr, "brown_planks_03", 1.1)
+		_timber_mat_cache[color] = pbr
+		return pbr
+
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.95
+	mat.metallic = 0.0
+
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.9
+	noise.fractal_octaves = 2
+	noise.seed = 4242
+
+	var noise_tex: NoiseTexture2D = NoiseTexture2D.new()
+	noise_tex.noise = noise
+	noise_tex.width = 128
+	noise_tex.height = 128
+	noise_tex.seamless = true
+
+	mat.detail_enabled = true
+	mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	mat.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2  # ignored when triplanar is on
+	mat.detail_albedo = noise_tex
+
+	mat.uv1_triplanar = true
+	mat.uv1_triplanar_sharpness = 8.0
+	mat.uv1_scale = Vector3(1.6, 0.12, 1.6)   # squashed on Y → streaks, not blotches
+
+	_timber_mat_cache[color] = mat
+	return mat
+
+
 # ── DEBUG: tecla K spawnea King Slime frente al player ──────────────
+## ── Watchdog de caída ────────────────────────────────────────────────────────
+## El reporte con la tecla P llegó cuando el jugador YA estaba cayendo (y=-3537,
+## -8181, -9808): el instante que importa —el frame en que atraviesa el suelo— ya
+## había pasado. Pedirle a una persona que apriete una tecla en ese frame no es una
+## medición, es suerte. Esto graba los últimos 2 segundos de recorrido y los vuelca
+## solo, la primera vez que detecta que el jugador se fue por debajo del mundo.
+var _fall_trail: Array[Vector3] = []
+var _fall_reported: bool = false
+var _stuck_frames: int = 0
+var _stuck_reported: bool = false
+var _prev_pos: Vector3 = Vector3.ZERO
+var _hb_frames: int = 0
+
+func _physics_process(_delta: float) -> void:
+	if not OS.is_debug_build() or not _entrance_anchor_valid:
+		return
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		return
+	var body: CharacterBody3D = players[0] as CharacterBody3D
+	var pos: Vector3 = body.global_position
+
+	# ── Detector de ATASCO ────────────────────────────────────────────────────
+	# El watchdog de caída sólo dispara si el jugador se va del mundo, y la última
+	# vez Joan quedó trabado SIN caerse, así que no salió nada. Esto detecta la queja
+	# textual —"no puedo moverme ni saltar"— por su definición operativa: hay input de
+	# movimiento y el cuerpo no avanza. No depende de que el humano apriete una tecla
+	# en el frame correcto, ni de que yo acierte dónde mirar.
+	# Latido: deja rastro aunque el detector no dispare. Después de cuatro
+	# instrumentos rotos, el instrumento también se instrumenta — sin esto no se
+	# distingue "no hubo atasco" de "el detector está roto y no avisa".
+	_hb_frames += 1
+	if _hb_frames % 180 == 0:               # ~3 s
+		_stuck_log("[LATIDO] pos=(%.2f, %.2f, %.2f)  terreno=%.2f  dmov=%.3f"
+			% [pos.x, pos.y, pos.z, get_terrain_height(pos.x, pos.z),
+			   pos.distance_to(_prev_pos)])
+
+	if not _stuck_reported:
+		# "move_backward", no "move_back": con el nombre equivocado get_vector no
+		# tira error, devuelve 0 y el detector no dispara nunca — un instrumento
+		# roto que parece sano, que es justo el modo de falla de esta sesión.
+		var wants: bool = Input.get_vector(
+			"move_left", "move_right", "move_forward", "move_backward").length() > 0.1
+		# DESPLAZAMIENTO REAL, no `velocity`. En Godot 4 `CharacterBody3D.velocity`
+		# es la velocidad DESEADA que setea el código; empujando contra una pared,
+		# move_and_slide la deja con el valor de deslizamiento y nunca baja del
+		# umbral. La primera versión usaba eso y NO disparó con Joan trabado. Lo que
+		# el jugador llama "no me muevo" es que la posición no cambia — se mide eso.
+		var moved: float = Vector2(pos.x - _prev_pos.x, pos.z - _prev_pos.z).length()
+		if wants and moved < 0.004:         # < 0.24 m/s
+			_stuck_frames += 1
+		else:
+			_stuck_frames = 0
+		if _stuck_frames > 45:              # ~0.75 s empujando contra algo
+			_stuck_reported = true
+			_stuck_log("[ATASCO] el jugador empuja hace %.2f s y no avanza (dmov=%.4f)"
+				% [_stuck_frames / 60.0, moved])
+			_debug_report_stuck()
+	_prev_pos = pos
+
+	if _fall_reported:
+		return
+	_fall_trail.append(pos)
+	if _fall_trail.size() > 120:            # ~2 s a 60 Hz
+		_fall_trail.pop_front()
+	if pos.y > _entrance_floor_y - 15.0:
+		return
+
+	_fall_reported = true
+	_stuck_log("[FALL] ===== el jugador atraveso el mundo =====")
+	var mouth: Vector3 = _entrance_mouth()
+	# Sólo los frames hasta que empieza a hundirse: lo de después es caída libre y
+	# no dice nada. El punto que importa es el ÚLTIMO donde todavía estaba arriba.
+	var last_ok: int = -1
+	for i in range(_fall_trail.size()):
+		if _fall_trail[i].y >= get_terrain_height(_fall_trail[i].x, _fall_trail[i].z) - 0.5:
+			last_ok = i
+	for i in range(maxi(0, last_ok - 8), mini(_fall_trail.size(), last_ok + 4)):
+		var p: Vector3 = _fall_trail[i]
+		_stuck_log("[FALL]   %s f%03d  pos=(%.2f, %.2f, %.2f)  terreno=%.2f  dy=%+.2f  | vs boca dx=%+.2f dz=%+.2f"
+			% ["->" if i == last_ok else "  ", i, p.x, p.y, p.z,
+			   get_terrain_height(p.x, p.z), p.y - get_terrain_height(p.x, p.z),
+			   p.x - mouth.x, p.z - mouth.z])
+	_stuck_log("[FALL] ('->' = ultimo frame con piso bajo los pies; ahi esta el agujero)")
+	_stuck_log("[FALL] =========================================")
+
+
+## Escribe una línea del diagnóstico a consola Y a archivo.
+##
+## El stdout de Godot queda BUFFEREADO hasta que el proceso cierra, así que un
+## reporte impreso mientras el juego corre es ilegible justo cuando hace falta —
+## había que pedirle a Joan que cerrara la ventana para poder leerlo. El archivo se
+## abre y se cierra por línea: cuesta más, y a cambio el diagnóstico está en disco
+## en el instante en que ocurre.
+const STUCK_LOG_PATH: String = "user://stuck_report.log"
+
+func _stuck_log(line: String) -> void:
+	print(line)
+	var f: FileAccess = FileAccess.open(STUCK_LOG_PATH, FileAccess.READ_WRITE)
+	if f == null:
+		f = FileAccess.open(STUCK_LOG_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.seek_end()
+	f.store_line(line)
+	f.close()
+
+
+## Tecla P — informe de "estoy trabado", desde la sesión de quien juega.
+##
+## Nace de un fracaso de método: el harness `entrance_capture.tscn` midió el vano
+## limpio en CUATRO pasadas distintas (costados, techo, barrido ancho, techo de loma)
+## mientras Joan seguía sin poder salir. El harness reconstruye la escena y elige
+## dónde mirar; ese "dónde" fue mal cuatro veces. Esto reporta el lugar EXACTO donde
+## está el jugador atascado, con todo lo que su cápsula toca. El reporte va al log
+## del proceso, así que basta con que aprete P y después se lee.
+func _debug_report_stuck() -> void:
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		_stuck_log("[STUCK] no hay jugador en el grupo 'player'")
+		return
+	var p: Node3D = players[0] as Node3D
+	var pos: Vector3 = p.global_position
+	_stuck_log("[STUCK] ==========================================")
+	_stuck_log("[STUCK] jugador en (%.2f, %.2f, %.2f)" % [pos.x, pos.y, pos.z])
+	_stuck_log("[STUCK] terreno ahi = %.2f  (jugador %+.2f sobre el terreno)"
+		% [get_terrain_height(pos.x, pos.z), pos.y - get_terrain_height(pos.x, pos.z)])
+	if _entrance_anchor_valid:
+		var m: Vector3 = _entrance_mouth()
+		_stuck_log("[STUCK] vs boca de la entrada: dx=%+.2f  dz=%+.2f  | piso sala=%.2f"
+			% [pos.x - m.x, pos.z - m.z, _entrance_floor_y])
+
+	# Qué toca su cápsula AHORA. Esto es lo que el harness no podía saber.
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.35
+	shape.height = 1.8
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = shape
+	q.transform = Transform3D(Basis(), pos)
+	q.collide_with_areas = false
+	var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(q, 16)
+	if hits.is_empty():
+		_stuck_log("[STUCK] su capsula NO toca nada -> no esta chocando, esta ENCERRADO o cayendo")
+	for h in hits:
+		var n: Node = h["collider"]
+		_stuck_log("[STUCK]   toca '%s' (%s)" % [n.name, n.get_class()])
+
+	# EMPUJE hacia adelante: la cápsula avanza en pasos chicos hasta chocar.
+	#
+	# El latido mostró la X clavada en -315.52 mientras la Z variaba libre: el
+	# jugador camina de lado pero no avanza, así que hay un plano vertical. Los rayos
+	# de abajo salen del CENTRO del cuerpo y dan "libre" porque una barrera baja les
+	# pasa por debajo. Mover la cápsula entera y ver contra qué se traba no tiene ese
+	# punto ciego.
+	var cap2 := CapsuleShape3D.new()
+	cap2.radius = 0.35
+	cap2.height = 1.8
+	for step in range(1, 16):
+		var probe: Vector3 = pos + Vector3(0.1 * float(step), 0.0, 0.0)
+		var q2 := PhysicsShapeQueryParameters3D.new()
+		q2.shape = cap2
+		q2.transform = Transform3D(Basis(), probe)
+		q2.collide_with_areas = false
+		var hs: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(q2, 8)
+		var culpables: PackedStringArray = []
+		for hh in hs:
+			var nn: Node = hh["collider"]
+			if nn.name != "Mage":
+				culpables.append("%s (%s)" % [nn.name, nn.get_class()])
+		if not culpables.is_empty():
+			_stuck_log("[STUCK]   avanzando %.2f m al ESTE choca con: %s"
+				% [0.1 * float(step), ", ".join(culpables)])
+			break
+		if step == 15:
+			_stuck_log("[STUCK]   avanzando 1.5 m al ESTE no choca con NADA")
+
+	# Y en qué direcciones puede salir, que es lo que decide si está encerrado.
+	for d in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT, Vector3.UP]:
+		var rq := PhysicsRayQueryParameters3D.create(pos, pos + d * 3.0)
+		rq.collide_with_areas = false
+		var rh: Dictionary = get_world_3d().direct_space_state.intersect_ray(rq)
+		_stuck_log("[STUCK]   hacia %-18s %s" % [str(d),
+			"libre 3 m" if rh.is_empty() else "'%s' a %.2f m" % [
+				(rh["collider"] as Node).name, pos.distance_to(rh["position"])]])
+	_stuck_log("[STUCK] ==========================================")
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not OS.is_debug_build():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
+			KEY_P:
+				_debug_report_stuck()
 			KEY_K:
 				_debug_spawn_king_slime()
 			KEY_1:

@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"C:\\Users\\the_j\\.claude\\hooks\\token-guard.py\" pre-read",
+            "timeout": 10,
+            "statusMessage": "token guard"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"C:\\Users\\the_j\\.claude\\hooks\\token-guard.py\" nudge",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"C:\\Users\\the_j\\.claude\\hooks\\token-guard.py\" report",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -22,7 +22,7 @@ material = SubResource("StandardMaterial3D_shell")
 
 [node name="Turtle" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 script = ExtResource("1_turtle")
 speed = 1.5
 health = 90.0

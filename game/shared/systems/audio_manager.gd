@@ -8,7 +8,7 @@ class_name AudioManagerSingleton
 ##   AudioManager.play_sfx(&"punch_hit", global_position)
 ##   AudioManager.play_music(&"dungeon_ambient")
 ##
-## Cuando el .ogg no existe → push_warning + no crash.
+## Cuando el archivo no existe → push_warning + no crash.
 
 # ── Señales ───────────────────────────────────────────────────────────────────
 signal sfx_played(sfx_name: StringName)
@@ -21,27 +21,32 @@ signal music_changed(track_name: StringName)
 ## Distancia máxima para SFX 3D posicionales.
 @export var sfx_3d_max_distance: float = 25.0
 
-# ── Mapa interno: nombre → path del .ogg ──────────────────────────────────────
+# ── Mapa interno: nombre → path del archivo de audio ──────────────────────────
 const SFX_MAP: Dictionary = {
-	&"punch_hit":          "res://assets/sounds/sfx/punch_hit.ogg",
-	&"punch_hit_crit":     "res://assets/sounds/sfx/punch_hit_crit.ogg",
-	&"dash_whoosh":        "res://assets/sounds/sfx/dash_whoosh.ogg",
-	&"dash_impact":        "res://assets/sounds/sfx/dash_impact.ogg",
-	&"war_cry_activate":   "res://assets/sounds/sfx/war_cry_activate.ogg",
-	&"war_cry_loop":       "res://assets/sounds/sfx/war_cry_loop.ogg",
-	&"block_success":      "res://assets/sounds/sfx/block_success.ogg",
-	&"block_fail":         "res://assets/sounds/sfx/block_fail.ogg",
-	&"enemy_hit_flesh":    "res://assets/sounds/sfx/enemy_hit_flesh.ogg",
-	&"enemy_die_slime":    "res://assets/sounds/sfx/enemy_die_slime.ogg",
-	&"item_pickup_common": "res://assets/sounds/sfx/item_pickup_common.ogg",
-	&"level_up":           "res://assets/sounds/sfx/level_up.ogg",
+	&"punch_hit":          "res://assets/sounds/sfx/punch_hit.wav",
+	&"punch_hit_crit":     "res://assets/sounds/sfx/punch_hit_crit.wav",
+	&"dash_whoosh":        "res://assets/sounds/sfx/dash_whoosh.wav",
+	&"dash_impact":        "res://assets/sounds/sfx/dash_impact.wav",
+	&"war_cry_activate":   "res://assets/sounds/sfx/war_cry_activate.wav",
+	&"war_cry_loop":       "res://assets/sounds/sfx/war_cry_loop.wav",
+	&"block_success":      "res://assets/sounds/sfx/block_success.wav",
+	&"block_fail":         "res://assets/sounds/sfx/block_fail.wav",
+	&"enemy_hit_flesh":    "res://assets/sounds/sfx/enemy_hit_flesh.wav",
+	&"enemy_die_slime":    "res://assets/sounds/sfx/enemy_die_slime.wav",
+	&"item_pickup_common": "res://assets/sounds/sfx/item_pickup_common.wav",
+	&"level_up":           "res://assets/sounds/sfx/level_up.wav",
+	# Pieza completa del mismo tema (7.70 s), para momentos que pasan pocas
+	# veces por partida: hoy la muerte de un jefe. El corte de `level_up`
+	# (4.20 s) es para el uso frecuente; éste no debe dispararse seguido o se
+	# solapa consigo mismo.
+	&"level_up_fanfare":   "res://assets/sounds/sfx/level_up_fanfare.wav",
 }
 
 const MUSIC_MAP: Dictionary = {
-	&"dungeon_ambient":  "res://assets/sounds/music/dungeon_ambient.ogg",
-	&"combat_loop":      "res://assets/sounds/music/combat_loop.ogg",
-	&"boss_theme":       "res://assets/sounds/music/boss_theme.ogg",
-	&"taverna_ambient":  "res://assets/sounds/music/taverna_ambient.ogg",
+	&"dungeon_ambient":  "res://assets/sounds/music/dungeon_ambient.wav",
+	&"combat_loop":      "res://assets/sounds/music/combat_loop.wav",
+	&"boss_theme":       "res://assets/sounds/music/boss_theme.wav",
+	&"taverna_ambient":  "res://assets/sounds/music/taverna_ambient.wav",
 }
 
 # ── Estado ────────────────────────────────────────────────────────────────────
@@ -159,7 +164,6 @@ func _play_3d(stream: AudioStream, position: Vector3) -> void:
 	player.volume_db = master_sfx_volume_db
 	player.max_distance = sfx_3d_max_distance
 	player.bus = "SFX"
-	player.global_position = position
 	# Autoremover al terminar
 	player.finished.connect(player.queue_free)
 	# Agregar al root de la escena para posición world-space correcta
@@ -168,4 +172,8 @@ func _play_3d(stream: AudioStream, position: Vector3) -> void:
 		scene_root.add_child(player)
 	else:
 		add_child(player)
+	# global_position DESPUÉS de entrar al árbol. Antes, Godot no tiene transform global que
+	# asignar y emite "Condition !is_inside_tree() is true" — en CADA sonido posicional del
+	# juego: cada golpe, cada muerte. (Mismo bug que tenía DropController con los drops.)
+	player.global_position = position
 	player.play()

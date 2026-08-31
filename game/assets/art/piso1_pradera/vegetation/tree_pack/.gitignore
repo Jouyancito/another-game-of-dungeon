@@ -1,0 +1,14 @@
+# Godot extracts every texture embedded in a GLB into a sibling file on
+# import (env_tree_prairie_01_bark_brown_01_diff_512.jpg, ...). They are
+# regenerated from the .glb on any clean import, and there is one copy per
+# variant, so committing them would add ~2 MB of duplicates that drift out of
+# sync with the source GLB.
+#
+# The root .gitignore already covers *.import; it does not cover these,
+# because until tree_pack v2 (2026-07-30) no bespoke pack shipped embedded
+# textures. Scoped here rather than in the root file so it cannot collide
+# with the vegetation-migration work in flight on the other packs.
+*_bark_brown_01_diff_512.jpg
+*_bark_brown_01_nor_512.jpg
+*_leaf_green_512.png
+*_leaf_gold_512.png

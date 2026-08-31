@@ -385,10 +385,37 @@ El slime mas grande y antiguo de la pradera. Absorbe otros slimes para crecer. P
 
 ### Visual
 
-- 3m de alto, gelatina verde oscuro translucida
-- Corona oxidada visible DENTRO de la gelatina (lore: era un rey que fue absorbido)
+- **4.5m de alto — 2.5x el jugador** (`stand_height = 1.8m`). Decidido por el owner 2026-07-31.
+  Con el ratio de silueta 1.18:1 eso da ~5.31m de ancho (radio 2.65m).
+  **NO bajar a 3m.** Ese valor era del doc viejo y es solo 1.67x el jugador — no lee como boss.
+  Ya pasó una vez: el asset se construyo a 6m, alguien leyo "3m" aca y lo achico a la mitad
+  tratandolo como defecto. No era un defecto: el doc estaba corto.
+- Gelatina verde oscuro translucida. **El rey es verde**, no dorado ni rojo — la jerarquia se
+  cuenta con valor y saturacion, no cambiando de color: los subditos verde claro, el rey verde
+  profundo. Misma familia, mando obvio. Ver §4.1 para el sistema de color de la familia gel.
+- Corona oxidada visible DENTRO de la gelatina (lore: era un rey que fue absorbido — **se trago
+  al monarca entero, insignias incluidas**; no es un slime que *es* rey).
+  **La corona va grande** y debe leerse a distancia. Su problema nunca fue el tamaño absoluto
+  sino el **ratio corona/cuerpo**: con el cuerpo a 4.5m la corona entra grande sin comerse la
+  silueta. Debe leer como metal oxidado (marron-rojizo apagado), NO como gema verde brillante.
 - Cuando pierde HP, se vuelve mas transparente y se ven huesos/objetos dentro
 - En fase final, brilla y se vuelve inestable
+
+### 4.1 Sistema de color de la familia gel
+
+Cada color hace un trabajo. No son decoracion — son lenguaje que el jugador aprende a leer.
+
+| Color | Significa |
+|-------|-----------|
+| Verde claro | Comun, pradera |
+| Azul | Agua, lagos |
+| Verde profundo | El rey — jerarquia, no especie nueva |
+| Dorado | Raro, huye del jugador, XP alta (patron Metal Slime de Dragon Quest) |
+| Rojo | Fuego / lava, piso caliente |
+
+El dorado y el rojo estan **reservados**: gastarlos en el boss del piso 1 quema la carta mas
+fuerte del sistema. Un destello dorado entre el pasto que sale corriendo vale mas que un jefe
+dorado.
 
 ### Arena
 

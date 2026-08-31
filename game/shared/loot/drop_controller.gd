@@ -28,6 +28,20 @@ var _active_drops: Dictionary = {}
 static var _kill_counter: int = 0
 
 
+## Where drops get parented. get_tree().current_scene is null outside a normal scene run
+## (a GUT test, a tool script), and the old code dereferenced it blind: every drop then died
+## on "Cannot call method 'call_deferred' on a null value", which is why NOTHING that spawns
+## loot could be tested. Falling back to the tree root keeps drops working there; a freed
+## query_node is the one case with nowhere to put them, and that returns null.
+func _resolve_scene_root(query_node: Node) -> Node:
+	if not is_instance_valid(query_node) or not query_node.is_inside_tree():
+		return null
+	var tree := query_node.get_tree()
+	if tree == null:
+		return null
+	return tree.current_scene if tree.current_scene != null else tree.root
+
+
 ## Entry point — base_enemy.die() o kill por ambiente.
 ## loot: {"gold": int, "items": [{"item_id", "quantity"}]}
 ## killer_profile_id: "" → free-for-all desde spawn (kill por ambiente)
@@ -35,7 +49,9 @@ static var _kill_counter: int = 0
 ##   pero trigger_player_id != "", los bind items se asignan a trigger_player_id (canon §7).
 func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 		killer_profile_id: String = "", trigger_player_id: String = "") -> void:
-	var scene_root: Node = query_node.get_tree().current_scene
+	var scene_root: Node = _resolve_scene_root(query_node)
+	if scene_root == null:
+		return
 	var occupied_cells: Dictionary = {}
 
 	# Gold: canon v2 = sin owner, auto-pickup OFF, split al pickup entre party vivos.
@@ -44,8 +60,11 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 		var gold = GOLD_SCENE.instantiate()
 		gold.setup(gold_amount)
 		var gold_target := _pick_radial_position(enemy_position, occupied_cells, query_node)
-		gold.global_position = enemy_position + Vector3(0, 0.4, 0)
+		# global_position on a node that is not in the tree yet is an error. Deferring it
+		# AFTER add_child (call_deferred keeps call order) puts it in the world before it
+		# is placed, which is the order Godot actually requires.
 		scene_root.call_deferred("add_child", gold)
+		gold.set_deferred("global_position", enemy_position + Vector3(0, 0.4, 0))
 		gold.call_deferred("arc_to", gold_target)
 
 	var items: Array = loot.get("items", [])
@@ -101,8 +120,9 @@ func spawn_drops(enemy_position: Vector3, loot: Dictionary, query_node: Node,
 		var drop: GroundItem = GROUND_ITEM_SCENE.instantiate()
 		drop.setup(entry["item_id"], entry["quantity"], owner_node, owner_pid)
 		var target_pos := _pick_radial_position(enemy_position, occupied_cells, query_node)
-		drop.global_position = enemy_position + Vector3(0, 0.4, 0)
+		# Same ordering as the gold above: into the tree first, then positioned.
 		scene_root.call_deferred("add_child", drop)
+		drop.set_deferred("global_position", enemy_position + Vector3(0, 0.4, 0))
 		drop.call_deferred("arc_to", target_pos)
 		_register_drop(drop, owner_pid)
 		drop_spawned.emit(drop)

@@ -831,6 +831,25 @@ Ligera, relajada, desenfadada. En reposo parece desarmado. Silueta baja desequil
 | Necromancer | 0.6 | 0.25s | gaunt, slight hover |
 | Danzante | 0.4 | 0.10s | fluid, fast transitions |
 
+### §6.8 Marcas de identidad + personalidad por clase (Joan, 2026-07-20 — pendiente de integrar al pilotar cada clase)
+
+Capturado tal como lo dijo Joan durante la sesión de personajes, ancla Diablo II ("tienen esencia"). No construir todavía — se aplica clase por clase cuando le toque el pilot, siguiendo el mismo orden que Warrior.
+
+**Marcas visuales (cuerpo/rostro) por clase:**
+- **Mage/Hechicera**: marcas faciales/corporales ligadas a magia y esoterismo — runas o símbolos, no solo túnica.
+- **Warrior**: cicatrices + buena musculatura visible (ancla: Barbarian de Diablo II).
+- **Necromancer**: refuerza el DARK ya canon (§6.5) — asociación directa a artes oscuras.
+- **Archer**: armadura ligera, contextura delgada/ágil — contraste directo con el Warrior bulky.
+- Cleric / Danzante: sin marcas específicas dadas todavía — gap, preguntar cuando toque su pilot.
+
+**Personalidad ligada al diseño visual** (Joan: "colocarle personalidades a estas cosas... relacionada más a su diseño"):
+- **Warrior**: brusco, resuelve las cosas de forma directa/simple.
+- **Mage**: reflexivo ("satérico" en el audio original — sin confirmar si quiso decir sarcástico o certero, preguntar), busca significado y relaciones antes de actuar.
+- **Archer**: mejor visión de conjunto, mejor planificación — piensa antes de disparar.
+- Cleric / Necromancer / Danzante: sin personalidad asignada todavía — gap.
+
+**Referencia de estilo**: Diablo II — "se nota que una hechicera tiene [las marcas], un guerrero tiene cicatrices" — mismo principio ya sintetizado en `_references/warrior_archetype/_synthesis.md` (Diablo II Barbarian, imágenes 11-12), extender la misma lógica multi-fuente a Sorceress/Necromancer/Amazon cuando se pilotee esa clase — no existe carpeta de referencia para esas todavía.
+
 ---
 
 ## §7. Pipeline de Renderizado
@@ -1303,5 +1322,150 @@ All procedural CSG surfaces share a consistent visual language:
 - **Stop rule**: when tempted to create a 6th bespoke CSG sub-style, stop and ask "does this appear in the 10-min vertical slice video?" If not → defer.
 - **Water**: `water_toon.gdshader` stays separate (animated, translucent — not the toon ramp family).
 - **Crystals**: gem glass material (`_create_multimesh_emissive` gem_mode=true) stays separate (translucent + emissive — jewel accent family).
+
+---
+
+## §17 — Visual Bar Canon: the PoE bar (Joan, 2026-07-23)
+
+**Status**: canon vigente. Sourced from Joan's image-by-image walkthrough of 5
+PoE screenshots — full observations + images in
+`_references/poe_visual_bar/_synthesis.md` (environment/creatures/VFX) and
+`_references/village_poe_style/_synthesis.md` (architecture materials).
+This section unifies them into ONE main theme + decision rules. It EXTENDS
+the mob style contract's "estilizado rico, no low-poly barato" (2026-07-19)
+from creatures to the ENTIRE game surface.
+
+### §17.1 El tema principal — una frase
+
+> **"PoE 1 en primera persona, estilizado": mundo desgastado y con historia,
+> materiales que se leen como lo que son, luz en charcos cálidos contra
+> ambiente frío-oscuro, y saturación reservada para lo mágico.**
+
+- **Escalera de calidad (Joan, 2026-07-23)**: Dark and Darker = el PISO
+  aceptable ("bonito pero básico" — buena base, mínimo digno) → PoE 1 = la
+  VARA objetivo (Lioneye's Watch, beach, desert) → PoE 2 = el TECHO ideal
+  (ultrarealista, aspiracional). Un asset que llega a DnD ya sirve; se pule
+  hacia PoE 1 cuando el presupuesto de la pasada lo permita.
+- NO es fotorealismo: es "imagen bien definida encima del polígono" (Joan) —
+  texturas painterly/foto bien resueltas sobre geometría low-mid poly, no
+  PBR AAA wholesale.
+- **Modelo de fidelidad = Valheim** (Joan, 2026-07-25: "recrear un Valheim").
+  La fórmula Valheim es la prueba viva de esta sección: geometría low-poly
+  humilde + materiales pintados ricos + luz/atmósfera dramática (niebla,
+  volumétricos) = nadie lo lee como "low-poly barato". El presupuesto de
+  detalle va a MATERIAL y LUZ, no a polycount. "Low poly total" (texturas
+  planas) queda oficialmente enterrado.
+
+### §17.2 Reglas de decisión (aplican a TODO asset desde hoy)
+
+1. **Silueta = geometría, superficie = textura.** Si el detalle cambia el
+   contorno (borde roto, grieta pisable, columna acanalada de cerca) →
+   modelar. Si solo cambia cómo juega la luz (grabado, veta, pelo, arena
+   rizada) → albedo + normal map. Nadie modela pelo por pelo.
+2. **Textura de imagen real, no solo ruido procedural.** Nodos de ruido dan
+   "moteado", nunca tierra/madera/paja — esos materiales tienen ESTRUCTURA.
+   Fuente: PolyHaven CC0 (ya integrado en village_gen v12; falta cobertura:
+   suelo, rocas, props).
+3. **Luz en charcos.** Fuente cálida acotada (fogata, antorcha, brasero)
+   contra ambiente frío-oscuro. La luz plana de mediodía mata las sombras, y
+   las sombras coherentes son lo primero que el ojo de Joan lee (3 imágenes
+   seguidas). Compatible con §9.1 (warm key + cool fill) — esto lo RADICALIZA:
+   más contraste, ambiente más oscuro.
+4. **Variación por instancia, nunca clone stamp.** Rocas: escala no-uniforme
+   + fractura noise (receta en `_references/rocks/`). Rayos: trazado
+   procedural por strike. Techos: bandas 2 tonos. Casas: tint por casa (v13).
+5. **Saturación solo para lo mágico.** Desaturado general; el color vivo se
+   gana (fuego, cristales, VFX de skill). Ya era regla Kimetsu (§9.4) — ahora
+   también gobierna props (hongos pastel, banderas chicle = violación).
+6. **Suelo = mezcla de materiales por uso implícito**, no una textura tileada:
+   camino pisoteado donde se camina, vegetación donde no pasa nada grande,
+   escombros junto a la actividad. Godot: texture splatting / vertex-color
+   blend. Blender (aldea): material por zona.
+7. **Dressing narrativo.** El scatter cuenta la historia local (playa =
+   restos de naufragio; campamento = botín), no relleno genérico de bioma.
+8. **Materiales honestos, construcción honesta.** Piedra solo donde carga
+   (fundación, cara mojada), madera arriba, paja/teja según riqueza; nada
+   flota, todo se sostiene (knee-braces, riostras). Ya canon en village_*,
+   ratificado 3ª vez por PoE.
+
+### §17.3 Shading del mundo: PBR suave — toon ramp RETIRADO del entorno (Joan, 2026-07-25)
+
+§9.2 decía "detail in notches, not albedo complexity" y §17.3 (versión
+anterior) proponía "toon ramp + textura". Ambos quedan SUPERADOS por decisión
+explícita de Joan tras la comparación PoE/Valheim:
+
+- **Mundo (terreno, arquitectura, props, criaturas): sombreado suave PBR** —
+  respuesta de luz continua y realista, como PoE y Valheim (ninguno de los
+  dos usa cel-shading en el mundo). La textura y la atmósfera mandan.
+  DP_ToonGrounded's 3-band ramp queda RETIRADO para entorno — migración a
+  StandardMaterial3D/PBR + luz bien hecha, pase por pase, no retroactivo
+  de golpe.
+- **VFX de skills: Kimetsu sobrevive SOLO acá** (Joan: "ese tono de Kimetsu
+  podemos cubrirlo solamente en los efectos... las danzas de espada, las
+  posturas — los efectos son re bonitos. Pero esos son efectos"). Flipbooks
+  2D anime, colores por clase (§3 sigue vigente para VFX). Efectos
+  estilizados sobre mundo realista = exactamente lo que hace PoE; el
+  contraste los hace brillar más.
+
+### §17.4 Plan de prioridades (village_gen v14+ / floor1)
+
+Orden por impacto/esfuerzo — silueta/layout de la aldea ya está bien (v13):
+
+1. **Mood/luz** — bajar ambiente, contraste agresivo, charcos cálidos
+   (lookdev/mood_valheim.py). Lo más barato, lo que más cambia la foto.
+2. **Suelo** — cobblestone/tierra PolyHaven + mezcla por uso (§17.2.6).
+3. **Rocas** — aplicar receta `rocks/` (no-uniform + noise fracture) a las
+   icosferas lisas del anillo.
+4. **Repaleta de props saturados** — techos salmón → grey-straw/terracota
+   apagado (village_roofs ya lo había corregido), hongos/banderas, antorchas
+   low-poly-juguete → geometría acorde a la fidelidad de las paredes.
+5. **Casona compuesta** — plinto + escalinata + anexo (village_casona spec,
+   nunca construido). Geometría hero, la más cara.
+6. **Diferido a topic propio** (NO en el pase de aldea): VFX flipbook/skills,
+   rayos procedurales (receta en poe_visual_bar), volumétricos god-ray,
+   telas con pliegues. Cada uno se escopea aparte.
+
+**Filtro scope-reset intacto**: todo lo anterior aparece en el video de 10
+min del demo (la aldea es POI del piso 1). Los diferidos del punto 6, no
+necesariamente — por eso se difieren.
+
+### §17.5 Vegetación bespoke — el hueco de §17.4 (Joan, 2026-07-30)
+
+§17.4 se escribió el 2026-07-25 y NO lista vegetación porque los packs
+bespoke de árbol/arbusto/río todavía no existían: se construyeron el 27-28.
+No fueron ignorados por el canon, nacieron después. Los seis packs
+(`grass_pack`, `flower_pack`, `rock_pack`, `bush_pack`, `tree_pack`,
+`river_pack`) salieron todos flat-shaded, sin UV y sin textura — la familia
+`DP_ToonGrounded` — contradiciendo §17.2.1, §17.2.2 y §17.3.
+
+Este punto cierra el hueco. La vegetación entra al plan de prioridades entre
+el suelo (§17.4.2) y las rocas (§17.4.3): es lo primero que el jugador tiene
+a dos metros de la cara en primera persona, y por eso paga más que en un
+isométrico.
+
+**Orden de migración, pase por pase (§17.3 lo exige explícitamente — nunca
+retroactivo de golpe):**
+
+1. **`tree_pack` = piloto de la familia texturizada.** Es el que falla más
+   fuerte (13 de 21 patrones violados, medido 2026-07-30) y el más visible.
+   Recibe geometría corregida + UV + albedo/normal PolyHaven + sombreado
+   suave. Si el look valida contra §17.1, los demás packs lo siguen.
+2. `bush_pack` y `flower_pack` — comparten la receta de masas con el árbol,
+   heredan sus helpers.
+3. `rock_pack` y `river_pack` — ya tienen pintado por geometría resuelto;
+   ganan textura de superficie.
+4. `grass_pack` — último: es el único smooth-shaded y con más instancias en
+   pantalla, así que su costo de material es el que más pesa. Medir antes.
+
+**Regla de silueta para vegetación (deriva de §17.2.1, aplicada a plantas):**
+la silueta de un árbol NO es su volumen exterior — es su estructura de ramas
+y los huecos de cielo entre las masas de follaje. Una copa sin agujeros lee
+como piedra pintada de verde, no como follaje. Un interior de copa real está
+95-98% vacío: el follaje vive en la cáscara, porque adentro no llega luz.
+Cualquier invariante de generación del tipo "que no queden huecos" viola esta
+regla y debe eliminarse, no parametrizarse.
+
+Patrones con números, fuentes y tabla de gaps por línea de código:
+`_references/tree_poe/_synthesis.md`.
 
 ---

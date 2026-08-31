@@ -1,0 +1,71 @@
+[gd_scene load_steps=8 format=3 uid="uid://dzthousand001"]
+
+[ext_resource type="Script" path="res://scenes/fx/danzante/thousand_shadows_afterimages.gd" id="1_script"]
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_0"]
+emission_shape = 3
+emission_box_extents = Vector3(1.5, 0.9, 1.5)
+direction = Vector3(0, 0, 0)
+spread = 0.0
+initial_velocity_min = 0.0
+initial_velocity_max = 0.2
+gravity = Vector3(0, 0, 0)
+scale_min = 0.75
+scale_max = 1.05
+color = Color(0.08, 0.05, 0.12, 0.95)
+
+[sub_resource type="BoxMesh" id="Mesh_0"]
+size = Vector3(0.44, 1.1, 0.12)
+
+[sub_resource type="StandardMaterial3D" id="Mat_0"]
+albedo_color = Color(0.08, 0.05, 0.12, 0.95)
+emission_enabled = true
+emission = Color(0.08, 0.05, 0.12, 1)
+emission_energy_multiplier = 1.0
+transparency = 1
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_1"]
+emission_shape = 3
+emission_box_extents = Vector3(1.7, 1.2, 1.7)
+direction = Vector3(1, 0, 0)
+spread = 90.0
+initial_velocity_min = 2.5
+initial_velocity_max = 5.0
+gravity = Vector3(0, 0, 0)
+scale_min = 0.5
+scale_max = 1.0
+color = Color(0.72, 0.45, 0.95, 1.0)
+
+[sub_resource type="BoxMesh" id="Mesh_1"]
+size = Vector3(0.9, 0.04, 0.04)
+
+[sub_resource type="StandardMaterial3D" id="Mat_1"]
+albedo_color = Color(0.72, 0.45, 0.95, 1.0)
+emission_enabled = true
+emission = Color(0.72, 0.45, 0.95, 1)
+emission_energy_multiplier = 3.2
+transparency = 1
+
+[node name="ThousandShadowsVFX" type="Node3D"]
+script = ExtResource("1_script")
+duration_s = 4.0
+auto_free = true
+fade_out_s = 0.5
+
+[node name="Afterimages" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 22
+lifetime = 0.85
+explosiveness = 0.35
+process_material = SubResource("PPM_0")
+draw_pass_1 = SubResource("Mesh_0")
+material_override = SubResource("Mat_0")
+
+[node name="CutGrid" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 30
+lifetime = 0.35
+explosiveness = 0.55
+process_material = SubResource("PPM_1")
+draw_pass_1 = SubResource("Mesh_1")
+material_override = SubResource("Mat_1")

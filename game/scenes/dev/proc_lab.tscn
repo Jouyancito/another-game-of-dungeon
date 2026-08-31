@@ -23,6 +23,7 @@ script = ExtResource("1_floor")
 world_seed = 12345
 proc_bounds = Vector2(120, 120)
 skip_game_ui = true
+lab_poi_focus = "camp"
 active_layers = {
 "border": true,
 "ceiling": true,
@@ -31,7 +32,7 @@ active_layers = {
 "hud": true,
 "pillars": true,
 "player": true,
-"pois": false,
+"pois": true,
 "terrain": true,
 "vegetation": true
 }

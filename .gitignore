@@ -1,6 +1,11 @@
 # Godot
 .godot/
-*.import
+# .import NO se ignora: guarda los AJUSTES de importacion (mipmaps, compresion,
+# filtro) y el UID con el que las escenas referencian cada recurso. Ignorarlo hacia
+# que un clon limpio los regenerara con valores por defecto, en silencio: los
+# mipmaps volvian a apagarse y un export headless salia peor que lo probado, sin un
+# solo error. Lo que SI es cache generada es .godot/, arriba.
+# *.import
 export_presets.cfg
 
 # Godot engine binary
@@ -21,11 +26,22 @@ desktop.ini
 .dept-status/*.json
 !.dept-status/README.md
 
-# Claude Code coordination state (local per-worker)
-.claude/
+# Claude Code coordination state (local per-worker).
+#
+# `.claude/*`, NOT `.claude/` — git never descends into an excluded DIRECTORY, so
+# a `!` negation under one is dead text. The four hooks below only survived
+# because they were force-added once and tracked files ignore this file entirely;
+# every hook added afterwards was silently dropped. That is how settings.json came
+# to register domain-context-router.ps1 while the script itself, its domains.json
+# and its test suite were never versioned — a hook that exists on one machine
+# only. Excluding the ENTRIES instead of the directory makes the negations work.
+.claude/*
 !.claude/settings.json
+!.claude/domains.json
 !.claude/hooks/
 !.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
 
 # Test artifacts
 .test-hook
@@ -48,9 +64,51 @@ game/tools/godot/_golem_*.png
 game/tools/godot/_t_*.png
 game/tools/blender/_pg_*.png
 game/tools/blender/_preview_golem.png
+# ...and their .import sidecars. The rule at the top of this file keeps .import
+# because it carries the import SETTINGS of a versioned asset; a sidecar for a
+# PNG that is itself ignored carries the settings of nothing, and 97 of them had
+# accumulated for renders no clone will ever have.
+game/tools/godot/_golem_*.png.import
+game/tools/godot/_t_*.png.import
+game/tools/blender/_pg_*.png.import
+game/tools/blender/_preview_golem.png.import
+
+# Per-asset judgment renders (_review_<asset>/): the frente/perfil/nuca/cenital
+# boards the modelling preflight demands before an asset is called done. They are
+# evidence for one verdict, regenerable from the .blend, and they weigh ~3.5 MB
+# per board — 41 MB over twelve assets on the warrior alone. Same doctrine as the
+# lookdev scratch below: the decision they settled belongs in the commit message
+# and in docs/art/, not in 180 PNGs. Curated renders/ boards DO stay versioned.
+game/tools/blender/_review_*/
 
 .atl/
 
 # Golem animation frame dumps — regenerable output of the capture scenes.
 # Kept on disk, out of history: 650+ PNGs (~14MB) per pipeline run.
 game/tools/godot/anim_capture/
+*.blend1
+game/tools/blender/*/renders/anim/
+# Lookdev A/B scratch: regenerable with `--style=<x> --lookdev`, and a run of it
+# ships nothing. The decision it settled belongs in the commit message, not in
+# eight throwaway PNGs.
+game/tools/blender/*/renders/_lookdev_*
+game/tools/blender/**/*_run.log
+game/tools/blender/**/__pycache__/
+__pycache__/
+
+# GLB truth renders (regenerable diagnostic output of _glb_truth_render.py)
+game/tools/blender/_truth/
+# Same output, per-pack location (tree_pack v2 writes renders/_truth/): ~27 MB
+# of 1.6 MB PNGs per run, regenerable from the .glb by truth_showcase.py.
+game/tools/blender/*/renders/_truth/
+
+# Per-pack resized texture cache (_cache_resized() output). Derived from the
+# motor's _textures/ library, regenerated on any build, one copy per pack.
+game/tools/blender/*/_tex/
+
+# Salida del probe de shimmer (cientos de PNG por corrida, regenerables).
+# analyze.py y el .gdignore SI se versionan.
+game/tools/godot/shimmer_probe/*/
+
+# Salida del probe de entrada (regenerable con entrance_capture.tscn).
+game/tools/godot/entrance_capture/*.png

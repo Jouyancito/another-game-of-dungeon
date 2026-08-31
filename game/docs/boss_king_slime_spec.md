@@ -3,6 +3,22 @@
 Spec técnica de implementación. Diseño de gameplay fuente: `biome_prairie.md` §4.
 Target: worktree D, skill `dept-gameplay`. Scope: primera sesión Fases 1-2, segunda sesión Fases 3-4 + polish.
 
+> ⚠️ **ESCALA VIGENTE (2026-07-31) — este spec quedó viejo abajo.**
+> El boss mide **4.5m de alto (2.5x el jugador), ~5.31m de ancho (radio 2.65m)**. Ver `biome_prairie.md` §4.
+> Los radios de 1.5 / 3.0 que aparecen más abajo son de la versión chica y NO son canon.
+> Tampoco vale ya el "NO crear modelo 3D dedicado": existe `game/tools/blender/slime/build_slime.py --variant king`.
+>
+> **Al reescalar el cuerpo hay que reescalar los sensores, o los ataques quedan escondidos dentro del propio bicho.**
+> Estado medido del código (no del spec) al 2026-07-31:
+>
+> | Qué | Dónde | Valor actual | Nota a 4.5m |
+> |-----|-------|--------------|-------------|
+> | Colisión física | `king_slime.tscn:8` CapsuleShape3D | r=1.55, h=3.05 | subir a r≈2.65, h≈4.5 |
+> | ContactAura (sensor daño+slow) | `king_slime.gd:137-139` | r=3.2, h=6.4, centro y=3.0 | **BUG hoy**: dimensionado para el modelo viejo de 6m contra un mesh de 3.03m — el aura sobresale ~1.4m fuera del gel visible y el jugador recibe daño invisible. A 4.5m casi calza: r≈2.9, h≈4.5, centro y=2.25 |
+> | `ACID_POOL_RADIUS` | `king_slime.gd:51` | 5.5 | OK — ya es grande a propósito (fuerza al melee a salirse) |
+> | `BOMB_AOE_RADIUS` | `king_slime.gd:47` | 2.0 | revisar: queda más chico que el radio del cuerpo |
+> | `REABSORB_RADIUS` | `king_slime.gd:67` | 4.0 | OK (1.35m fuera del cuerpo) |
+
 ## Archivos a crear
 
 ```

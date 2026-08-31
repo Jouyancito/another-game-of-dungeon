@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3 uid="uid://bossJG"]
+
+[ext_resource type="Script" path="res://scenes/enemy/jotun_giant.gd" id="1_jotun_giant"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_001"]
+radius = 1.0
+height = 4.0
+
+[node name="Boss" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_jotun_giant")
+health = 4800.0
+damage = 34.0
+xp_reward = 520.0
+enemy_type = "jotun_giant"
+enemy_tier = 3
+sub_tier = 3
+habitat_type = "boss_arena"
+knockback_resistance = 1.0
+enemy_level = 3
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+shape = SubResource("CapsuleShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]

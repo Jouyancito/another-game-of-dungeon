@@ -169,6 +169,24 @@ func _register_items() -> void:
 		"stackable": true, "max_stack": 99, "value": 6,
 	})
 	_add({
+		"id": "material_frog_leg",
+		"name": "Pata de Rana",
+		"description": "Musculosa y sorprendentemente sabrosa. Ingrediente de cocina.",
+		"type": "material", "subtype": "monster_drop", "slot": "",
+		"grid_size": Vector2i(1, 1), "rarity": "common",
+		"stats": {}, "level_req": 1, "item_level": 1,
+		"stackable": true, "max_stack": 99, "value": 3,
+	})
+	_add({
+		"id": "material_tusk",
+		"name": "Colmillo de Jabalí",
+		"description": "Curvo, astillado en la punta. Sirve de mango o de punta de lanza.",
+		"type": "material", "subtype": "monster_drop", "slot": "",
+		"grid_size": Vector2i(1, 1), "rarity": "uncommon",
+		"stats": {}, "level_req": 1, "item_level": 1,
+		"stackable": true, "max_stack": 99, "value": 12,
+	})
+	_add({
 		"id": "material_shell",
 		"name": "Fragmento de Caparazón",
 		"description": "Trozo de caparazón resistente. Ideal para escudos y armaduras.",

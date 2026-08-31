@@ -1,0 +1,18 @@
+=== mob_capture — the mob as Godot draws it ===
+mob        = res://scenes/enemy/turtle.tscn
+rest size  = 0.227 m tall x 0.868 m wide (player post = 1.75 m)
+proportion = 3.82 : 1 (width : height)
+clips      = attack, death, hit, idle, move
+material   = MeshInstance3D albedo=(0.35, 0.45, 0.3, 1.0) vcol_albedo=false transparency=0
+material   = Shell albedo=(0.25, 0.38, 0.22, 1.0) vcol_albedo=false transparency=0
+material   = turtle albedo=(1.0, 1.0, 1.0, 1.0) vcol_albedo=true transparency=0
+surface 0  = COLOR array present: true
+material   = turtle albedo=(1.0, 1.0, 1.0, 1.0) vcol_albedo=true transparency=0
+surface 1  = COLOR array present: true
+material   = turtle albedo=(1.0, 1.0, 1.0, 1.0) vcol_albedo=true transparency=0
+surface 2  = COLOR array present: true
+material   = HPBarBG albedo=(0.2, 0.2, 0.2, 0.8) vcol_albedo=false transparency=1
+material   = HPBarFill albedo=(0.2, 0.8, 0.2, 0.9) vcol_albedo=false transparency=1
+hid HUD node 'HPBarBG'
+hid HUD node 'HPBarFill'
+clip 'move' captured 6 frames over 2.63s

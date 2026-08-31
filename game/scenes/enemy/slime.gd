@@ -17,6 +17,57 @@ var is_hopping := false
 
 var mini_slime_scene: PackedScene
 
+# ── Deformación direccional del gel ──────────────────────────────────────────
+# El slime se derrama hacia donde viaja (pedido de Joan, 2026-07-30). Vive acá y
+# no en un clip de Blender porque depende de la velocidad en runtime: la regla
+# del motor es que un loop fijo va en bpy y todo lo que dependa de una variable
+# de gameplay va en Godot.
+#
+# Los shape keys lean_x / lean_y no los anima ningún clip, así que el script es
+# su único dueño. Aceptan pesos con signo — un morph target es un delta de
+# vértices, así que -1 es exactamente la inclinación opuesta — y con eso dos
+# keys cubren las cuatro direcciones.
+
+## Velocidad a la que la inclinación llega a su máximo. El slime alcanza
+## speed * 1.5 al saltar (3.0 m/s con los valores por defecto), así que a 3.2 el
+## gel casi satura en pleno salto y se queda corto al arrastrarse.
+const LEAN_SATURATION_SPEED := 3.2
+## Cuánto se inclina como máximo. Por encima de ~0.85 el domo se ve tumbado en
+## vez de derramado.
+const LEAN_MAX := 0.8
+## El gel se maneja como una masa con resorte, NO como una interpolación suave.
+##
+## Una aproximación exponencial llega a su destino y se queda ahí: se lee como
+## sólido. Una gelatina PASA DE LARGO y vuelve — al arrancar la masa se queda
+## atrás y después rebota, al frenar sigue viajando y oscila hasta asentarse.
+## Ese rebote es literalmente la diferencia entre "verde" y "gelatinoso"
+## (Joan 2026-07-30: "ese movimiento gelatinoso le falta").
+##
+## Subamortiguado a propósito: con damping >= 2*sqrt(stiffness) no oscila.
+## A 34 / 4.6 el cociente queda en ~0.39 — rebota varias veces antes de calmarse.
+## La primera pasada usó 6.4 (ratio 0.55) y el resultado se leía inclinado pero
+## no bamboleante: se asentaba demasiado rápido para notarse.
+const LEAN_STIFFNESS := 34.0
+const LEAN_DAMPING := 4.6
+
+## Bamboleo sostenido mientras se desplaza. El resorte reacciona a los CAMBIOS
+## de velocidad; a velocidad constante se asienta y el gel volvería a leer como
+## sólido. Esto lo mantiene vivo, con amplitud proporcional a la velocidad.
+const WOBBLE_HZ := 2.7
+const WOBBLE_AMOUNT := 0.30
+
+## Techo duro de la inclinación, sobrepaso incluido. Por encima de esto el domo
+## se lee volcándose en vez de bamboleándose.
+const LEAN_OVERSHOOT_CEILING := 1.05
+
+var _lean := Vector2.ZERO
+var _lean_vel := Vector2.ZERO
+var _wobble_t := 0.0
+var _lean_mesh: MeshInstance3D = null
+var _lean_idx_x := -1
+var _lean_idx_y := -1
+var _lean_anim: AnimationPlayer = null
+
 
 ## Returns the gltf model root (embedded in .tscn as SlimeMesh).
 func _get_anim_model_root() -> Node3D:
@@ -31,13 +82,139 @@ func _on_enemy_ready() -> void:
 	personality = AggroPersonality.CURIOUS
 	aggression = AggressionType.NEUTRAL
 	default_color = Color(0.2, 0.75, 0.2) if not is_mini else Color(0.3, 0.85, 0.3)
-	var _slime_mesh: Node3D = get_node_or_null("SlimeMesh")  # Quaternius mira +Z; girar 180° (si no, de espaldas)
+	# El GLB bespoke tiene la cara en Blender -Y, que export_yup mapea a +Z;
+	# girar 180° para que mire al frente de Godot (-Z), si no queda de espaldas.
+	var _slime_mesh: Node3D = get_node_or_null("SlimeMesh")
 	if _slime_mesh != null:
 		_slime_mesh.rotation.y = PI
 	mass = 0.5 if not is_mini else 0.2
 	hop_timer = hop_interval
 	if not is_mini:
 		mini_slime_scene = load("res://scenes/enemy/mini_slime.tscn")
+	_cache_lean_shapes(_slime_mesh)
+
+
+## Finds the skinned mesh and the index of each lean shape key. Indices are
+## looked up by NAME because morph order is an export detail, not a contract.
+func _cache_lean_shapes(model_root: Node3D) -> void:
+	if model_root == null:
+		return
+	_lean_mesh = _find_mesh_with_blendshapes(model_root)
+	if _lean_mesh == null or _lean_mesh.mesh == null:
+		return
+	var mesh := _lean_mesh.mesh
+	for i in mesh.get_blend_shape_count():
+		# Compared as String on purpose: get_blend_shape_name returns a
+		# StringName and matching it against a &"literal" is easy to get subtly
+		# wrong, which would leave the indices at -1 and silently disable the
+		# whole deformation.
+		match String(mesh.get_blend_shape_name(i)):
+			"lean_x":
+				_lean_idx_x = i
+			"lean_y":
+				_lean_idx_y = i
+	if _lean_idx_x < 0 and _lean_idx_y < 0:
+		return
+	# glTF packs the WHOLE morph-weight array into a single animation channel, so
+	# a clip rewrites every weight when it evaluates — including the two shapes
+	# it was never meant to own. Measured: setting lean_y to 0.8 read back as
+	# 0.000 two frames later. Relying on process order to win that race is
+	# fragile, so take the clock instead: drive the player by hand from _process
+	# and write the lean immediately afterwards, which makes the ordering
+	# explicit rather than incidental.
+	_lean_anim = _find_animation_player(_lean_mesh)
+	if _lean_anim != null:
+		_lean_anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+
+
+func _find_animation_player(n: Node) -> AnimationPlayer:
+	if n is AnimationPlayer:
+		return n as AnimationPlayer
+	var parent := n.get_parent()
+	# The player is a sibling of the mesh inside the imported scene, so search
+	# from the imported root rather than only downward from the mesh.
+	var root: Node = parent if parent != null else n
+	return _search_animation_player(root)
+
+
+func _search_animation_player(n: Node) -> AnimationPlayer:
+	if n is AnimationPlayer:
+		return n as AnimationPlayer
+	for c in n.get_children():
+		var f := _search_animation_player(c)
+		if f != null:
+			return f
+	return null
+
+
+func _find_mesh_with_blendshapes(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		if mi.mesh != null and mi.mesh.get_blend_shape_count() > 0:
+			return mi
+	for c in n.get_children():
+		var found := _find_mesh_with_blendshapes(c)
+		if found != null:
+			return found
+	return null
+
+
+func _process(delta: float) -> void:
+	# Retry the lookup if _ready's attempt came up empty. The cache depends on the
+	# imported GLB's children being in place, which is not something to bet the
+	# whole deformation on: when it missed, the lean silently stayed at 0 and
+	# looked like a broken shape key rather than a lookup that ran too early.
+	if _lean_mesh == null:
+		_cache_lean_shapes(get_node_or_null("SlimeMesh"))
+		if _lean_mesh == null:
+			return
+	# Advance the clip FIRST (it owns squash/stretch/sway/lunge/melt), then write
+	# the lean on top. Manual mode makes this order a guarantee.
+	if _lean_anim != null and _lean_anim.is_playing():
+		_lean_anim.advance(delta)
+	if is_dead:
+		return
+	# Horizontal velocity in the body's OWN frame. The body look_at()s its
+	# target, so -Z is forward and the lean reads correctly however it is turned.
+	var local_vel := global_transform.basis.inverse() * velocity
+	local_vel.y = 0.0
+	var target := Vector2(
+		-local_vel.x / LEAN_SATURATION_SPEED,
+		-local_vel.z / LEAN_SATURATION_SPEED)
+	if target.length() > 1.0:
+		target = target.normalized()
+	target *= LEAN_MAX
+
+	# Sustained jiggle, perpendicular to travel so it reads as the body wobbling
+	# rather than steering. Scaled by speed: a slime at rest does not shimmy.
+	var speed_frac: float = clampf(
+		Vector2(local_vel.x, local_vel.z).length() / LEAN_SATURATION_SPEED, 0.0, 1.0)
+	_wobble_t += delta
+	if speed_frac > 0.02:
+		var travel := Vector2(target.x, target.y)
+		if travel.length() > 0.001:
+			var across := Vector2(-travel.y, travel.x).normalized()
+			target += across * (sin(_wobble_t * TAU * WOBBLE_HZ)
+				* WOBBLE_AMOUNT * speed_frac)
+
+	# Spring integration, substepped so a long frame cannot make it explode: an
+	# undamped-looking blow-up here would read as the mesh tearing apart.
+	var remaining := delta
+	while remaining > 0.0:
+		var step: float = minf(remaining, 1.0 / 120.0)
+		var accel := (target - _lean) * LEAN_STIFFNESS - _lean_vel * LEAN_DAMPING
+		_lean_vel += accel * step
+		_lean += _lean_vel * step
+		remaining -= step
+	# Overshoot is the point, but it still needs a ceiling: past this the dome
+	# reads as toppling over rather than wobbling.
+	if _lean.length() > LEAN_OVERSHOOT_CEILING:
+		_lean = _lean.normalized() * LEAN_OVERSHOOT_CEILING
+		_lean_vel *= 0.5
+	if _lean_idx_x >= 0:
+		_lean_mesh.set_blend_shape_value(_lean_idx_x, _lean.x)
+	if _lean_idx_y >= 0:
+		_lean_mesh.set_blend_shape_value(_lean_idx_y, _lean.y)
 
 
 func _move_toward_target(delta: float) -> void:
@@ -93,13 +270,24 @@ func _on_knockback(kb_velocity: Vector3) -> void:
 	jelly.tween_property(self, "scale", Vector3(1, 1, 1), 0.15).set_ease(Tween.EASE_OUT)
 
 
+## El clip de muerte resuelve el cuerpo solo: revienta en gotitas que caen, se
+## aplanan y se absorben en el suelo. El tween genérico de encogimiento lo
+## arruinaría — achicaría las gotas en pleno vuelo.
+func _death_clip_disposes_body() -> bool:
+	return true
+
+
+## Lo que dura el clip completo (44 frames a 24 fps), para que la absorción se
+## vea entera en vez de cortarse a mitad de camino.
+func _death_anim_hold() -> float:
+	return 1.85
+
+
 func _on_death() -> void:
 	if not is_mini:
 		_spawn_mini_slimes()
-
-	# Squash visual al morir — se aplasta antes de encogerse
-	var squash = create_tween()
-	squash.tween_property(self, "scale", Vector3(1.5, 0.3, 1.5), 0.2)
+	# Sin tween de squash: el clip 'death' ya deforma el cuerpo, y escalar el
+	# nodo por encima peleaba con él.
 
 
 func _spawn_mini_slimes() -> void:

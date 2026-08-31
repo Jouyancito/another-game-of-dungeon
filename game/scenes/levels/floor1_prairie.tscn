@@ -72,15 +72,24 @@
 
 ; ── Sky / Environment ──────────────────────────────────────────────────────────
 
+; Daylight rework (2026-07-28) — prairie is a REAL open biome (DanMachi 18F
+; canon, Joan 2026-07-27): bright sky, warm sun via CavernKeyLight (shadows on,
+; set from floor1_prairie.gd), sky-blue ambient fill, light aerial haze.
+; Caverna-DIA retune (2026-08-27, PO decision luz/piso1-caverna-dia): values
+; sampled from Joan's own prairie photos (biome_landscape/prairie_photo_*):
+; sky zenith (0.48,0.675,0.768), horizon (0.844,0.881,0.892), lit grass
+; (0.51,0.58,0.10), haze hill (0.265,0.39,0.283); histogram p5 .21 / p50 .50
+; / p95 .90. Ambient = the sky's own color at 2:1-ish vs key (soft blue
+; shadows, Ghibli read). Tonemap AgX per the realism research doc.
 [sub_resource type="Environment" id="env_resource"]
 background_mode = 1
-background_color = Color(0.1, 0.11, 0.15, 1)
+background_color = Color(0.72, 0.8, 0.86, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.35, 0.4, 0.52, 1)
-ambient_light_energy = 0.13
+ambient_light_color = Color(0.55, 0.66, 0.77, 1)
+ambient_light_energy = 0.85
 reflected_light_source = 1
-tonemap_mode = 3
-tonemap_exposure = 0.85
+tonemap_mode = 4
+tonemap_exposure = 1.15
 tonemap_white = 3.0
 glow_enabled = true
 glow_blend_mode = 1
@@ -91,14 +100,14 @@ glow_bloom = 0.0
 glow_levels/4 = 0.6
 glow_levels/5 = 0.6
 fog_enabled = true
-fog_light_color = Color(0.16, 0.20, 0.30, 1)
-fog_density = 0.0035
-fog_aerial_perspective = 0.5
-fog_sun_scatter = 0.1
+fog_light_color = Color(0.82, 0.86, 0.88, 1)
+fog_density = 0.0011
+fog_aerial_perspective = 1.0
+fog_sun_scatter = 0.35
 adjustment_enabled = true
-adjustment_brightness = 0.9
-adjustment_contrast = 1.05
-adjustment_saturation = 1.1
+adjustment_brightness = 1.0
+adjustment_contrast = 1.12
+adjustment_saturation = 1.18
 ssao_enabled = false
 ssil_enabled = false
 ssr_enabled = false
@@ -116,6 +125,11 @@ roughness = 0.6
 script = ExtResource("1_script")
 
 ; ── Lighting — crystal ceiling es la fuente principal (tint bioma)
+; Task 3 (2026-07-20): size/height are overwritten every generate() call from
+; proc_bounds/CEILING_HEIGHT (floor1_prairie.gd), so the values below are only the
+; pre-generate() defaults shown in the editor, not the actual runtime geometry.
+; build_rock_roof/build_key_light default true — this instance now also owns the
+; roof mesh + merged CavernKeyLight (see crystal_ceiling.gd Task 3 comments).
 
 [node name="CrystalCeiling" parent="." instance=ExtResource("2_ceiling")]
 bioma = "pradera"

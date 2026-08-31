@@ -2,7 +2,157 @@
 
 Dungeon crawler cooperativo en primera persona, 1-6 jugadores. Torre de 5 pisos temáticos con dificultad progresiva, loot, clases y progresión persistente.
 
-**Repo**: https://github.com/Jouyancito/another-game-of-dungeon (privado)
+**Repo**: https://github.com/Jouyancito/another-game-of-dungeon (público desde 2026-07-21, código fuente visible, ver `LICENSE.md`)
+**Discord**: https://discord.gg/Jyp5QcfNMR — comunidad, avances, feedback
+
+## ⚙️ Modos de trabajo SIEMPRE activos en este repo
+
+Ambos rigen todo el trabajo en Dungeon Party. No son opt-in.
+
+1. **Ponytail** (`AGENTS.md` en la raíz — leerlo antes de escribir código). Escalera de pereza: ¿hace falta? → ¿ya existe acá? → ¿lo hace la stdlib/Godot? → ¿una línea? → recién ahí, el mínimo que funciona. **El mejor código es el que no se escribe.** Nunca perezoso para *entender* el problema ni para validación/seguridad.
+   - Corolario duramente ganado (2026-07-14): **los docs de diseño mienten**. Varios listan como "GAP / no implementado" cosas que están hechas hace tiempo (`habitat_type` en BaseEnemy, fauna ambiental, world_select, agua+vegetación del piso 1). **Verificá contra el código antes de construir.** Reescribir lo que ya existe es la peor violación de ponytail.
+2. **Caveman** — respuestas comprimidas. Toda la sustancia técnica queda; se va el relleno. NO aplica a código, commits, UI copy ni docs (esos van en inglés y prosa normal).
+
+## 🔨 MODELAR = MODELADO FULL (regla dura — Joan, 2026-08-15)
+
+Joan, textual: *"ya ha pasado muchas veces que te digo modelar y lo haces al mínimo"*. **Es un
+patrón recurrente, no un incidente.** Vive acá, en el archivo que se carga siempre, y no sólo
+en la skill `blender-asset-smith` — porque una regla que depende de que yo me acuerde de
+invocar la skill ya falló antes de empezar.
+
+**Cualquier pedido de modelar dispara el preflight, y el preflight se ESCRIBE en la respuesta
+antes de generar.** Incluye "solo re-correr un generador que ya existe" — ese fue exactamente
+el caso del pelo del guerrero (2026-08-15): re-corrido con los defaults sobre un cráneo nuevo,
+salió agujereado, y la referencia, la lección del golem sobre solapamiento, la receta
+`bvh_glue.py` y los gates estaban TODOS disponibles sin invocar. El fallo es de activación, no
+de conocimiento.
+
+```
+PREFLIGHT modelado full — <asset>
+0. QUÉ ES ................ qué es la cosa, cómo funciona, cómo es normalmente
+                           → de ahí sale el criterio de éxito, ANTES de tocar nada
+                           REGLA DE TRADUCCIÓN: cada frase del "qué es" termina
+                           en un NÚMERO o en una ORIENTACIÓN. "Patas palmeadas"
+                           NO es un punto cumplido; "húmero horizontal,
+                           antebrazo vertical, yaw ±40° por cuadrante" SÍ.
+                           La prosa que no baja a geometría no se construye.
+0b. CON QUÉ TRUCO ........ técnica establecida de la familia (capa B).
+                           Si no se sabe cuál es, DECIRLO. Si el contrato la
+                           marca DESCARTADA, no se usa.
+1. refs cargadas ......... _references/<X>/ CITADAS + los DOCS del índice de abajo
+                           que aplican, citados por archivo y sección.
+                           Contar imágenes NO es cargar el contrato.
+2. lecciones aplicables .. <asset previo con el mismo fallo de forma> → <regla>
+3. recetas del motor ..... <cuáles> (o: ninguna aplica, porque <razón>)
+4. métrica de éxito ...... <el número que decide, definido ANTES de construir>
+                           ¿puede esta métrica VER el defecto que busco?
+4d. PARÁMETROS ........... DOS mitades, las dos obligatorias:
+    · MEDIDA ....... cuánto mide, cuántos hay, a qué velocidad
+    · ESTRUCTURA ... por cada parte móvil: qué PLANO ocupa, qué ÁNGULO
+                     tiene respecto del cuerpo, y qué la LIMITA
+                     Parte sin renglón estructural = NO se modela, se
+                     investiga primero.
+4b. COMPOSICIÓN .......... qué zonas del cuerpo respeta y qué oculta
+4c. PRESUPUESTO .......... qué NO se modela porque no se ve
+5. rampa .................. <N variantes del parámetro dudoso> — elige Joan
+6. vistas de juicio ....... frente/perfil/3-4 + ingratas (nuca, cenital) + tamaño de uso
+7. LECTURA DEL RESULTADO . ¿encaja? ¿se fusiona con la malla? — no "¿está puesto?"
+```
+
+**Los puntos 0b, 4b y 4c estaban SÓLO en `_asset_creation_contract.md` §4, que es un doc que
+hay que ir a buscar.** El 2026-08-22 se construyeron dos técnicas de pelo seguidas que el
+contrato marcaba como descartadas: el preflight de 8 se escribió completo y no preguntaba por
+la técnica. Por eso ahora los 10 viven acá, donde se cargan solos.
+
+**El punto 0 es el que más rinde y el que más se saltea.** Joan: *"sin el pensar qué es, cómo
+funciona, cómo es normalmente"*. El pelo del guerrero se generó como "placas apoyadas sobre un
+cráneo" sin preguntarse qué es el pelo: crece de folículos, cae por gravedad, se peina en una
+dirección, y **los mechones SE SOLAPAN** — en una cabeza con pelo no se ve el cuero cabelludo
+salvo en la raya. Razonado eso primero, el criterio de éxito era obvio sin renderizar nada.
+
+**El punto 7 es el que convierte "terminado" en "hecho".** La pregunta no es si la pieza está
+puesta sino si **encaja y se fusiona**: las 38 placas estaban todas ahí y no formaban pelo.
+Mismo error que el golem ("¿están juntos los chunks?" en vez de "¿lee como una masa?") y que
+el corpóreo ("está todo" en vez de "se ve natural"). Cohesión NUNCA es aprobación.
+
+Un punto sin evidencia concreta al lado cuenta como NO hecho. Si el preflight no aparece
+escrito, el trabajo se hizo al mínimo — y Joan lo detecta de un vistazo, que es el punto.
+
+**La métrica (4) se define ANTES de construir.** Definida después de ver el render, se elige la
+que aprueba lo que ya se hizo.
+
+**El valor lo elige Joan sobre una rampa (5), no yo.** Medido en la sesión del guerrero: cuello
+0.70, nubian 0.70, frente 1.00, ceja 0.85 y los cinco de piel entraron todos pasados de rosca.
+Cinco de cinco.
+
+## 📇 ÍNDICE DE CANON — qué documento manda sobre qué (regla dura, 2026-08-23)
+
+**Por qué existe este índice.** Medido el 2026-08-23: de todo el conocimiento del motor, sólo
+el **2,5%** se carga solo; el otro 97,5% depende de que yo decida ir a buscarlo. En 48 horas,
+las 4 piezas que se cargaban solas funcionaron y **las 5 que había que ir a buscar fallaron**
+— dos técnicas de pelo equivocadas, cuatro mobs blancos durante un mes, y un criterio de
+inventario inventado teniendo el doc a mano hacía nueve días.
+
+No se puede mover 37.000 líneas acá. **Se mueve el índice**, que es lo que faltaba: los dos
+modos de fallo más comunes son *"no sabía que existía"* y *"no se me ocurrió que aplicaba"*, y
+los dos los cierra una tabla.
+
+**Cómo se usa**: el punto 1 del preflight exige citar de acá el doc que aplica, **por archivo y
+sección**. Un punto sin cita cuenta como no hecho.
+
+| Documento | Manda sobre | Abrir SIEMPRE que… |
+|---|---|---|
+| **`~/motor-blender/LECCIONES.md`** | **las 11 formas de equivocarse que este motor YA demostró tener**, cada una con el caso que la pagó: valores correctos e invisibles · métricas ciegas · prosa que no baja a geometría · pintar estructura sobre superficie continua · arreglos a medias · constantes obsoletas en gates | **antes de cualquier sesión de modelado.** Es corto a propósito |
+| `art/_asset_creation_contract.md` | capa A (mecanismo real) / capa B (técnica) · composición contra el cuerpo · presupuesto · **techo de fidelidad = Skyrim** · sistema de equipo · **técnicas DESCARTADAS** | modeles cualquier cosa que se lleve puesta o se vea de cerca. **Y siempre antes de elegir una técnica** |
+| `art/_modeling_knowledge_base.md` | el *por qué* universal · contrato Blender→glTF→Godot · cheat-sheets por categoría · **pelo en 3 capas** · gate de validación pre-export | escribas o edites cualquier generador |
+| `~/motor-blender/CREATION_PROTOCOL.md` | el diseño ANTES de construir: categoría real · investigación visual+funcional · dimensiones contra el maniquí 1,80 m · función compartida · autocrítica | arranques un asset o un módulo nuevo |
+| `~/motor-blender/recetas/RECETAS.md` | técnicas verificadas + **anti-recetas** (callejones ya probados) | vayas a escribir bpy nuevo |
+| `~/motor-blender/TECNICAS.md` | trucos de referencias traducidos a capacidades del motor · showcase_ficha | montes una escena o presentes un modelo |
+| **`art/_mob_pipeline.md`** | **EL PIPELINE POR MOB** destilado de tortuga+halcon (8/10 ambos): fases con gate y herramienta, catalogo de gotchas por familia, roadmap del mobpack piso 1 con orden de ataque | **antes de tocar CUALQUIER mob** — es el primer doc que se abre, manda sobre el orden del trabajo |
+| `art/_bestiary_visual_bible.md` | identidad visual de criaturas · familias de silueta · **build-method por bicho** · color por bioma y tier | toques cualquier mob |
+| `art/_mob_style_contract.md` | contrato de estilo de mobs | toques cualquier mob |
+| `art/_art_canon.md` | canon visual v2.0 · **modelo Valheim** · paletas por piso | tomes cualquier decisión de estilo |
+| `art/_motor_tiers.md` | **M1/M2/M3 mandan sobre la extensión del archivo** | inventaríes o clasifiques assets |
+| `art/_char_build_brief.md` | construcción de personajes | trabajes el cuerpo o el equipo de una clase |
+| `art/_2d_texturing_pipeline.md` | texturizado 2D | pintes texturas o atlas |
+| `art/_asset_modeling_best_practices.md` | prácticas de modelado de assets | modeles props o estructuras |
+| `art/_visual_pipeline.md` | pipeline visual · shaders · lightmap | toques materiales o iluminación |
+| **`art/_research_realismo_performance_2026-08.md`** | **el plan realismo-con-rendimiento** (encargo Joan 2026-08-27): 6 palancas priorizadas · presupuesto de frame GTX 1080 · método fotograma→Environment (8 pasos) · arquitectura del bestiario (Valheim/MH/SotC/Skyrim) · las 8 mejoras de proceso | toques luz/atmósfera, materiales, LOD, rendimiento, o diseñes la estructura de un jefe/mob nuevo |
+| `art/_sketch_intake_protocol.md` | el pipeline Joan-dibuja → Claude-implementa: carpeta, anotaciones, niveles N0-N3, los 5 pasos, gate silueta-vs-boceto | Joan entregue un boceto/dibujo, o aparezca un archivo en `_references/bocetos/` |
+| `art/_references/<X>/_synthesis.md` | **el sujeto concreto**: medidas reales, silueta, y **tabla de parámetros** | construyas ESE sujeto. Si no existe la ficha, se escribe antes |
+| `art/_references/<X>/motion/_motion_spec.md` | poses clave, tiempos, peso, errores comunes | animes ESE sujeto |
+| `art/_mob_audit_2026-08-22.md` | estado real medido de cada mob (quién está roto, quién no llegó al juego) | vayas a "modelar un mob que falta" |
+| `docs/balance_v2.md` | curvas y fórmulas de balance | toques daño, HP, XP o escalado |
+| `docs/skills/_system.md` | canon del sistema de skills v1.0 | toques skills, ascendencia o recursos de clase |
+| `~/motor-blender/AUDIT_ACTIVACION_2026-08-23.md` | por qué las reglas no se activan · push vs pull | propongas "escribamos esto en un doc" como solución |
+
+**Regla que sale de la auditoría**: *si una regla necesita que yo me acuerde de ir a buscarla,
+ya falló.* Cuando aparezca conocimiento nuevo que valga, la pregunta no es dónde documentarlo
+sino **por qué mecanismo se va a activar**: capa 0, hook que bloquee, o nada.
+
+## 🧠 Calyx — canon consultable (grounding)
+
+El canon de diseño (`game/docs/**/*.md`, 1975 chunks) vive ingestado en un vault Calyx con
+embeddings GPU. Consultalo antes de construir, en vez de leer 20 docs a mano:
+
+```bash
+E:\llamacpp\calyx_embed_stack.cmd          # levanta llama-server :8085 + shim TEI :18190
+python E:\Calyx\home\ingest\ask.py kernel "¿qué dice el canon sobre X?"
+python E:\Calyx\home\ingest\ask.py search "tema" 5
+```
+
+Re-ingestar tras editar docs: regenerar el JSONL con `calyx_ingest_dpdocs.py` + `calyx ingest dp_canon --batch ... --idempotent`.
+Calyx responde **qué construir**; no valida que funcione — eso es de los tests + el juego corriendo.
+
+## 🤖 Synapse — playtester (NO grounding, NO review de assets)
+
+MCP registrado (`E:\Synapse\target\release\synapse-mcp.exe --mode stdio`). 40 tools de escritorio Windows.
+
+- **Licencia**: PolyForm **Noncommercial**. Permitido acá porque Dungeon Party es **hobby project, no se vende** (LICENSE.md §Personal Uses nombra "hobby projects" explícitamente). **Si el juego se comercializa, hace falta licencia paga** — revisar antes.
+- **Para qué SÍ**: `act` + `screenshot` + `shell` → un agente agarra el mouse, JUEGA el juego y mira la pantalla. Tester de noche.
+- **Para qué NO**: percepción estructurada. Godot expone **0 elementos UIA** (medido 2026-06-14) — `find`/`observe` son ciegos adentro del juego. Y NO reemplaza `tools/visual_gate/` + `tools/imgdiff/` para juzgar renders: el gate propio mide (SSIM, IoU, ΔE) y su regla madre es *"nunca un veredicto sin un número al lado"*. Synapse juega; el gate juzga.
+
+**División**: Calyx = qué construir · tests + Synapse = que corra · visual_gate = cómo se ve.
 
 ## ⚠️ Scope Reset 2026-05-18
 
@@ -230,7 +380,7 @@ Setup multi-worktree A/B/C/D archivado en `docs/_archive/dept-workflow/`. Reacti
 
 - GDD en `GDD_DungeonParty.md` — consultar antes de decisiones de diseño
 - Godot standalone en la raíz del proyecto
-- Estilo visual: low-poly, modelos simples, texturas planas
+- Estilo visual: **modelo Valheim** (Joan, 2026-07-25) — geometría low-poly simple PERO materiales/texturas ricos + luz y atmósfera dramática. Ya NO es "low-poly texturas planas". Canon completo: `_art_canon.md` §17 (escalera DnD→PoE1→PoE2)
 - Herencia BasePlayer para todas las clases
 - Señales para comunicar estado entre sistemas
 - @export para todo valor de balance
@@ -247,6 +397,7 @@ Convenciones de proceso acordadas con Joan (2026-06-05):
 - **Investigar con datos antes de afirmar**: medir en código (alturas de gltf, bones, parámetros reales) en vez de adivinar o usar cifras del brief sin verificar.
 - **Ultracode / effort selectivo**: usar ultracode (orquestación multi-agente) SOLO para saltos grandes (retrospectivas, visión integral, auditorías, mapeos masivos de codebase). Para iteración fina o fixes puntuales, volver a `/effort high`. Ultracode consume muchos tokens — no dejarlo ON por default.
 - **Engram proactivo**: guardar decisiones, preferencias y descubrimientos en engram sin esperar que se pida. Cualquier decisión de diseño, bug raiz encontrado, o convención nueva se guarda inmediatamente.
+- **Devlog de Discord = acumular + verificar (convención 2026-08-07, OBLIGATORIA)**: NUNCA postear al Discord un mensaje por cambio. Llegar a un resultado toma varios commits; un post por commit convierte el canal en un git log que nadie lee. Las entradas se acumulan en `tools/discord/devlog_pending.md` durante la sesión y salen **en tanda al cerrar sesión**. Y la mitad crítica: **ninguna entrada se postea sin que Joan la verifique en el juego corriendo**. Cada entrada lleva una línea `@ ` con dónde verlo, y un checkbox que arranca `[ ]`; solo las `[x]` se postean, y **la tilde la pone Joan, nunca el agente**. Razón textual de Joan: *"si colocás que se mejoró el pasto, pero cuando entro no veo eso, es una falacia o pensamiento netamente tuyo"*. Escribir la entrada es del agente; afirmar que el cambio se ve, es de quien miró.
 - **Referencias = GUARDAR + USAR (convención 2026-06-14, OBLIGATORIA)**: cuando Joan pasa una referencia visual (imagen/video/link) para un tema X: (1) **commitear la imagen al repo** en `game/docs/art/_references/<X>/` (engram guarda solo texto — la imagen DEBE vivir en el repo o se pierde entre sesiones), (2) **sintetizar** estructurado (Idea/Colores/Forma/Movimiento-Feel/Qué capturar/Fuente) en `_references/<X>/_synthesis.md`, (3) **puntero engram** `reference/<X>`. Y la mitad crítica: **ANTES de construir/renderizar/iterar cualquier asset, CARGAR sus referencias primero** (`_references/<X>/`) y construir DESDE ellas — nunca desde el recuerdo de una descripción. Guardar memoria que no se usa = peso muerto (Joan). Enforcement detallado en la skill `blender-asset-smith` → "Reference-driven workflow (MANDATORY)". Esta regla vive acá (CLAUDE.md, siempre cargado) para que NO se caiga entre sesiones.
 
 ## Notas de Sesión

@@ -69,6 +69,29 @@ const REABSORB_DELAY: float = 10.0
 const REABSORB_HEAL: float = 30.0
 
 
+## Devuelve el nodo del modelo. El GLB bespoke se llama "KingMesh"; el nombre
+## viejo "MeshInstance3D" era el de la esfera procedural que reemplazó. Un
+## get_node por nombre literal habría dejado TODOS los telegraphs en no-op sin
+## error alguno — la clase de fallo que solo se nota jugando.
+func _get_anim_model_root() -> Node3D:
+	var n: Node3D = get_node_or_null("KingMesh")
+	if n != null:
+		return n
+	return get_node_or_null("MeshInstance3D")
+
+
+## El mesh con blend shapes dentro del modelo, para tocar material o escala.
+func _model_mesh() -> MeshInstance3D:
+	var root: Node3D = _get_anim_model_root()
+	if root == null:
+		return null
+	if root is MeshInstance3D:
+		return root as MeshInstance3D
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		return n as MeshInstance3D
+	return null
+
+
 func _on_enemy_ready() -> void:
 	print("[KingSlime] >>> READY <<< script v=S2 | hp=", health, " damage=", damage)
 	# enemy_type se setea en .tscn — si quedó vacío, fallback
@@ -106,7 +129,9 @@ func _setup_contact_aura() -> void:
 	aura.name = "ContactAura"
 	aura.monitoring = true
 	aura.monitorable = false
-	aura.collision_mask = 1  # player está en layer 1 por default (ver CLAUDE.md vs tscn inconsistencia)
+	# El player está en collision_layer = 2 (las 7 escenas de clase la setean).
+	# Esto escaneaba la layer 1 → el aura de contacto NUNCA tocaba al jugador.
+	aura.collision_mask = 2
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 3.2
@@ -170,7 +195,7 @@ func _enter_shield() -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
 	# Animación "caída de resguardo" — single tween, sin loops.
-	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	var mi: Node3D = _get_anim_model_root()
 	if mi:
 		var tw: Tween = create_tween()
 		tw.tween_property(mi, "scale", Vector3(1.35, 0.55, 1.35), 0.18)\
@@ -182,7 +207,7 @@ func _exit_shield() -> void:
 	_shielding = false
 	if action_state == ActionState.SHIELDING:
 		action_state = ActionState.PURSUE
-	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
+	var mi: Node3D = _get_anim_model_root()
 	if mi:
 		var tw: Tween = create_tween()
 		tw.tween_property(mi, "scale", Vector3.ONE, 0.2)
@@ -257,7 +282,7 @@ func _spawn_bomb_baba(impact_pos: Vector3, delay: float, is_splatter: bool = fal
 	baba.name = "BabaBomba"
 	baba.monitoring = true
 	baba.monitorable = false
-	baba.collision_mask = 1
+	baba.collision_mask = 2  # player layer — con 1 la baba lo atravesaba
 	baba.set_meta("is_splatter", is_splatter)
 
 	var r: float = 0.35 if is_splatter else 0.5
@@ -591,14 +616,19 @@ func _enter_fury() -> void:
 	speed *= FURY_SPEED_MULT
 	damage *= FURY_DAMAGE_MULT
 	# Emisión roja pulsante en el mesh del slime.
-	var mi: MeshInstance3D = get_node_or_null("MeshInstance3D")
-	if mi and mi.mesh is SphereMesh:
-		var sphere_mesh: SphereMesh = mi.mesh
-		if sphere_mesh.material is StandardMaterial3D:
-			var m: StandardMaterial3D = (sphere_mesh.material as StandardMaterial3D).duplicate()
-			m.emission = Color(0.95, 0.15, 0.1)
-			m.emission_energy_multiplier = 1.4
-			sphere_mesh.material = m
+	# Overlay rojo por material_override: el mesh bespoke trae su color en los
+	# vértices, así que tocar el material de la malla lo perdería. El override
+	# multiplica por encima y respeta el vertex colour.
+	var mi: MeshInstance3D = _model_mesh()
+	if mi != null:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(1.0, 0.55, 0.5, 0.82)
+		m.vertex_color_use_as_albedo = true
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		m.emission_enabled = true
+		m.emission = Color(0.95, 0.15, 0.1)
+		m.emission_energy_multiplier = 1.4
+		mi.material_override = m
 		# NO loop tween acá — provocaba stacking con otros tweens de scale
 		# (shield squash, onda_choque inflate) y hang del motor.
 		# Feedback visual de furia es solo la emisión roja.
@@ -884,7 +914,7 @@ func _spawn_drool_puddle(pos: Vector3) -> void:
 	pool.name = "DroolPuddle"
 	pool.monitoring = true
 	pool.monitorable = false
-	pool.collision_mask = 1
+	pool.collision_mask = 2  # player layer — con 1 el charco no mojaba a nadie
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = 2.5
@@ -933,7 +963,7 @@ func _spawn_acid_pool(pos: Vector3) -> void:
 	pool.name = "AcidPool"
 	pool.monitoring = true
 	pool.monitorable = false
-	pool.collision_mask = 1
+	pool.collision_mask = 2  # player layer — con 1 el charco no mojaba a nadie
 
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
