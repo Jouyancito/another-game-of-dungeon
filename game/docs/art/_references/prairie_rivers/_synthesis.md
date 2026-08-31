@@ -227,3 +227,20 @@ v2 hizo con eso: un canal recto con dos muros y una alfombra. Las reglas nuevas,
 ≥ 2 tipos por lado, 3 en total; (f) a 1 m de la línea de agua, ≥ 60 % del área de lecho
 visible es geometría (cantos con silueta), no textura; (g) desde el ojo del jugador, ningún
 tramo de orilla muestra una arista recta > 2 m.
+
+### Corrección de Joan sobre v4 (2026-08-30) — la piedra no es ni dado ni huevo
+
+**Joan dijo** (tras ver la rampa v4, textual): *"pasaste de un extremo a otro: las piedras y
+rocas de ríos son sin forma geométrica, irregulares, tienen grietas, cantos, partes
+redondeadas, otras lisas, otras ásperas rugosas — no son una esfera chata."*
+
+Mecanismo (capa A): la piedra de río nace como **bloque anguloso de fractura** y el agua la
+lija selectivamente — vértices y aristas expuestas se comen, las caras planas sobreviven como
+planos, las grietas de junta persisten, y la cara aguas arriba queda pulida mientras la de
+sotavento sigue áspera. Resultado: **dado gastado, único por piedra** — mezcla de plano,
+redondo, grieta y rugoso en la MISMA piedra.
+
+Lección de gates: el gate v4 "≤ 10 % aristas vivas" **premiaba la esfera** — un umbral de un
+solo lado empuja al extremo opuesto del defecto que corrige. Redondez se gatea con ventana y
+con doble control (el facetado v3 falla por duro, el huevo v4 falla por liso): aristas vivas
+8-25 % + parches planos 15-40 % de la superficie + CV de radios ≥ 0,12 por piedra.
