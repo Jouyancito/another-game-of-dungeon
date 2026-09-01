@@ -221,8 +221,38 @@ const TERRAIN_COLOR_MAX_HEIGHT: float = (
 # SPAWN BOWL SACRED: carve is clamped to dist_center > FLAT_RADIUS_BASE * _scale + STREAM_HALF_WIDTH.
 const STREAM_COUNT: int = 3
 const STREAM_HALF_WIDTH: float = 4.0    # metres either side of centreline (8m channel > 6.25m grid step → carve reliably lands on vertices)
-const STREAM_DEPTH: float = 0.8         # max depth at channel floor (shallow → walkable)
+# 1.3 m + flat inner floor: 0.8 m spread over a full-width smoothstep dish was
+# invisible at eye level — the channel read as a grass hollow, not a cut
+# (Joan, 2026-08-31: "quiero que se vea el hueco en la malla de la pradera").
+# The flat inner STREAM_FLOOR_FRAC keeps the bed walkable; the interpolated
+# wall slope on the 6.25 m grid stays well under the CharacterBody3D limit.
+const STREAM_DEPTH: float = 1.3         # trench floor below rim on level ground
+# Cross-section shape. A channel must be CONCAVE — a flat floor has no lowest
+# line, so nothing makes the water pick one path and it would wander off the
+# bed (Joan, 2026-08-31: "una U debería ser, no plano, si no el agua se iría a
+# otro lado"). Round 8 flattened the floor to widen the sheet and broke exactly
+# that. A parabola gives both: it holds a wide sheet AND every point of it
+# drains toward the centre.
+#   depth factor = (1 - t^BOWL_POWER) + a central thalweg notch
+const STREAM_BOWL_POWER: float = 2.2
+# The low-flow groove inside the broad U — the line the water keeps to when it
+# runs thin. Fraction of the trench depth, tapering out by NOTCH_WIDTH.
+const STREAM_THALWEG_NOTCH: float = 0.16
+const STREAM_THALWEG_NOTCH_WIDTH: float = 0.30
 const STREAM_SEGMENTS: int = 5          # control points per stream (interpolated)
+# Minimum fall of the graded bed, metres per metre. Real lowland streams run
+# 0.5-2%; 0.8% is a visible flow without cutting a canyon on flat ground.
+const STREAM_MIN_GRADE: float = 0.008
+# Water depth over the GRADED bed. Pools are scour below the grade, so this is
+# the shallow-riffle depth, not the average.
+# 0.78: with the U in place, 0.45 filled only the bottom half of the trough and
+# the exposed gravel bar dominated the channel from the air. Channel width is
+# set by discharge — ours was a bankfull trough carrying a trickle. Freeboard to
+# the rim stays ~0.8 m, so it never spills onto the grass.
+const STREAM_WATER_FILL: float = 0.78
+# Extra scour below the grade at pool centres — where the bed dips, the level
+# surface stays put and the water simply gets deeper.
+const STREAM_POOL_SCOUR: float = 0.62
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 # D2-ACT-1 HYBRID palette: dominant dark-grounded, cool cavern fill, warm key.
@@ -301,6 +331,30 @@ var _swell_noise: FastNoiseLite
 ## Round-B: micro-jitter for stream centrelines. Low frequency so curves are gentle,
 ## not jagged. Seeded from world_seed+71 to stay independent of all other noise layers.
 var _stream_jitter_noise: FastNoiseLite
+
+## Width/depth modulation along the run (Joan 2026-08-31: "los anchos varían
+## mucho, varios niveles de profundidad randoms" — a constant half-width and
+## depth read as a PERFECT CORRIDOR, not a river). Sampled at the query point
+## so every consumer (carve, color, beds, ribbons, banks, rocks) agrees.
+var _stream_width_noise: FastNoiseLite
+var _stream_depth_noise: FastNoiseLite
+
+## Convex shapes for climbable kit rocks, cached per kit-mesh index.
+var _kit_convex_cache: Dictionary = {}
+
+## GRADED BED PROFILE — the thalweg (2026-08-31). One PackedFloat32Array per
+## stream, parallel to its polyline: the elevation the channel FLOOR is cut to
+## at each control point. Hydrology, not decoration:
+##   · a water surface is LEVEL across the channel and MONOTONICALLY DESCENDING
+##     downstream — it never climbs, and it does not copy the terrain's bumps;
+##   · a river GRADES its own bed: where the ground resists it cuts deeper,
+##     it does not drape over the relief.
+## The old code did `water = terrain(x,z) + k·depth` per vertex, so the surface
+## rippled with every bump and dived under the gravel — the disconnected teal
+## patches Joan photographed. Now the profile is built once (smoothed, forced
+## to fall at MIN_GRADE) and everything reads FROM it: the carve cuts down to
+## it, the water sits a fixed fill above it, pools are scour BELOW it.
+var _stream_bed_profile: Array = []
 ## Task 1 (2026-07-20): high-frequency noise that breaks the border-ring mountain
 ## rise into broken rock-face masses instead of a perfectly smooth radial ramp.
 ## Sampled in raw world coords (scale-independent), only applied outside
@@ -462,6 +516,10 @@ func generate() -> void:
 	# Placed after terrain so get_terrain_height is valid; before POIs so the
 	# channels read as existing waterways the POIs are situated around.
 	if active_layers.get("terrain", true):
+		_build_stream_beds()
+		# Bank profiles (tanda 3): the 6.25 m terrain grid cannot express a
+		# bank cross-section, so banks are dedicated geometry over the carve.
+		_build_stream_bank_profiles()
 		_build_stream_ribbons()
 		# Fix 2: Riparian bank scatter — wet-edge environment just outside stream channel.
 		# Gated on vegetation layer so it toggles with the rest of scatter.
@@ -473,6 +531,10 @@ func generate() -> void:
 			# wet/dry channel bed, and reeds rooted right at the waterline.
 			_scatter_stream_channel_rocks()
 			_scatter_stream_reeds()
+			# 2026-08-31 (Joan: no trees near the river) — riparian trees: real
+			# rivers concentrate the biome's trees at the water line, tanda-3
+			# refs (_references/prairie_rivers) call it "life at the bank".
+			_scatter_stream_trees()
 
 	# 3. POIs — ajustar al terreno antes de construir
 	var pois: Array = []
@@ -600,7 +662,10 @@ func regenerate(new_seed: int = -1) -> void:
 	_cave_mat_cache.clear()
 	_timber_mat_cache.clear()
 	# Reset stream polylines — rebuilt by _setup_terrain_noise() → _build_stream_polylines().
+	# The graded profile MUST clear with them, or a regenerate carves the new
+	# channels down to the old world's bed elevations.
 	_stream_polylines.clear()
+	_stream_bed_profile.clear()
 	# queue_free es diferido: esperar un frame para que el árbol quede limpio
 	# antes de re-poblar (evita nombres duplicados y dobles colisiones).
 	await get_tree().process_frame
@@ -708,6 +773,17 @@ func _setup_terrain_noise() -> void:
 	_stream_jitter_noise.fractal_lacunarity = 2.0
 	_stream_jitter_noise.fractal_gain = 0.5
 
+	# Channel width/depth wander — low frequency so a reach stays coherent for
+	# 20-40 m before narrowing into a fast stretch or opening into a pool.
+	_stream_width_noise = FastNoiseLite.new()
+	_stream_width_noise.seed = world_seed + 72
+	_stream_width_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_stream_width_noise.frequency = 0.022
+	_stream_depth_noise = FastNoiseLite.new()
+	_stream_depth_noise.seed = world_seed + 73
+	_stream_depth_noise.noise_type = FastNoiseLite.TYPE_PERLIN
+	_stream_depth_noise.frequency = 0.016
+
 	# Task 1 (2026-07-20): ridge detail noise — big broken-rock masses (~80m
 	# features) layered onto the border-ring rise, on top of the existing
 	# 20m-scale _outcrop_noise texture. Two different feature sizes read as real
@@ -726,20 +802,32 @@ func _setup_terrain_noise() -> void:
 	# Build stream polylines ONCE here, so _compute_height_at can use them without
 	# any _rng calls. polylines reference only _stream_jitter_noise + world_seed hashes.
 	_build_stream_polylines()
+	# Then grade their beds. Order matters: the router walks the un-carved
+	# ground, and the grader samples it too — the carve only switches on once
+	# _stream_bed_profile is populated.
+	_build_stream_bed_profiles()
 
 
-## Round-B: Build STREAM_COUNT stream polylines deterministically from world_seed.
-## NO _rng calls — everything is derived from integer hashes of world_seed and stream index.
-## Each stream:
-##   - Starts at a point on the HIGH border ring (~180-210m from center, scaled).
-##   - Ends at a point near the LOW center region (~60-80m from center, scaled).
-##   - Has STREAM_SEGMENTS-2 interior control points curved by _stream_jitter_noise.
-## The jitter displaces control points LATERALLY (perpendicular to the main axis) so
-## the channel curves naturally without needing _rng.
+## Round-B rework (2026-08-31): Build STREAM_COUNT stream polylines by WALKING
+## DOWNHILL on the pre-carve terrain. The old version drew a straight XZ line
+## + lateral jitter and the carve subtracted depth wherever it passed — so a
+## channel would climb straight OVER a swell hill, which Joan flagged as
+## broken physics ("el agua se iría hacia los lados o rodearía esa colina
+## buscando la caída por gravedad"). Water obeys gravity: each step probes a
+## fan of directions and follows the lowest terrain, with momentum so it
+## still reads as one river and a mild inward bias so it always progresses
+## toward the low center instead of orbiting a local basin.
+## NO _rng calls — deterministic from world_seed hashes; _stream_polylines is
+## EMPTY while this runs, so _compute_height_at has no stream carve term yet.
 func _build_stream_polylines() -> void:
 	_stream_polylines.clear()
 	var r_outer: float = 185.0 * _scale   # start ring radius (high terrain)
 	var r_inner: float = 70.0 * _scale    # end ring radius (low center region)
+
+	const STEP: float = 5.0               # metres walked per probe step
+	const PROBES: int = 9                 # directions tested per step (fan ±72°)
+	const FAN_HALF_ANGLE: float = 1.2566  # 72° in radians
+	const CENTER_BIAS: float = 0.012      # m of score per m of radius — inward pull
 
 	for si in range(STREAM_COUNT):
 		# Deterministic base angle for this stream — spread evenly + hash offset.
@@ -747,46 +835,163 @@ func _build_stream_polylines() -> void:
 		var hash_offset: float = float(hash(world_seed ^ (si * 2654435761)) % 1000) / 1000.0
 		var base_angle: float = (float(si) / float(STREAM_COUNT)) * TAU + hash_offset * 0.8
 
-		# Start point on the outer ring (high terrain)
-		var sx: float = cos(base_angle) * r_outer
-		var sz: float = sin(base_angle) * r_outer
+		var p := Vector2(cos(base_angle) * r_outer, sin(base_angle) * r_outer)
+		var dir: Vector2 = (-p).normalized()   # initial heading: toward the low center
 
-		# End point near center (low terrain) — slightly offset so streams converge but
-		# don't all hit the exact same point; end is always outside the spawn bowl.
-		var end_hash: float = float(hash(world_seed ^ (si * 3141592653 + 7)) % 1000) / 1000.0
-		var end_angle: float = base_angle + (end_hash - 0.5) * 0.7
-		var ex: float = cos(end_angle) * r_inner
-		var ez: float = sin(end_angle) * r_inner
+		var walked: Array[Vector2] = [p]
+		var max_steps: int = int((r_outer - r_inner) / STEP * 3.0)
+		for _s in range(max_steps):
+			if p.length() <= r_inner:
+				break
+			var best_dir := dir
+			var best_score: float = INF
+			for pi in range(PROBES):
+				var ang: float = (float(pi) / float(PROBES - 1) - 0.5) * 2.0 * FAN_HALF_ANGLE
+				var cand_dir: Vector2 = dir.rotated(ang)
+				var cand: Vector2 = p + cand_dir * STEP
+				# Lowest terrain wins; the radius term keeps the walk moving
+				# inward when the local relief is flat or slightly adverse.
+				var score: float = _compute_height_at(cand.x, cand.y) + cand.length() * CENTER_BIAS
+				if score < best_score:
+					best_score = score
+					best_dir = cand_dir
+			dir = dir.lerp(best_dir, 0.65).normalized()
+			p += dir * STEP
+			walked.append(p)
 
+		# Keep every 3rd walked point as a control point — _dist_sq_to_streams
+		# runs per terrain vertex, so the polyline must stay short. ~5 m steps
+		# × 3 = 15 m control spacing, same order as the old hand-placed points.
 		var polyline: Array[Vector2] = []
-		polyline.append(Vector2(sx, sz))
-
-		# Interior control points — spaced evenly along the line, jittered laterally.
-		for seg in range(1, STREAM_SEGMENTS - 1):
-			var t: float = float(seg) / float(STREAM_SEGMENTS - 1)
-			var lx: float = lerpf(sx, ex, t)
-			var lz: float = lerpf(sz, ez, t)
-			# Lateral direction (perpendicular to stream axis in xz plane)
-			var dx: float = ex - sx
-			var dz: float = ez - sz
-			var inv_len: float = 1.0 / maxf(sqrt(dx * dx + dz * dz), 0.0001)
-			var perp_x: float = -dz * inv_len
-			var perp_z: float =  dx * inv_len
-			# Jitter amplitude scales down near start/end so the stream hugs its anchors.
-			var env: float = smoothstep(0.0, 0.5, t) * smoothstep(1.0, 0.5, t)
-			var jitter: float = _stream_jitter_noise.get_noise_2d(lx, lz) * 28.0 * _scale * env
-			polyline.append(Vector2(lx + perp_x * jitter, lz + perp_z * jitter))
-
-		polyline.append(Vector2(ex, ez))
+		for i in range(0, walked.size(), 3):
+			polyline.append(walked[i])
+		if polyline[polyline.size() - 1] != walked[walked.size() - 1]:
+			polyline.append(walked[walked.size() - 1])
 		_stream_polylines.append(polyline)
 
 
+## Grade the bed of every stream — the hydrology step (2026-08-31).
+## MUST run after _build_stream_polylines() and before any carve: it samples
+## _compute_height_at, whose carve branch is gated on _stream_bed_profile
+## being non-empty, so the terrain it reads is still un-carved.
+##
+## Three passes, in the order water actually shapes a channel:
+##   1. sample the raw ground along the centreline;
+##   2. SMOOTH it — a streambed is graded, not a copy of the hillside noise;
+##   3. force it to FALL: walking downstream, each point sits at least
+##      MIN_GRADE × distance below the previous one. Where the ground refuses
+##      to drop, the bed cuts into it (a gorge); where it falls away faster,
+##      the bed just follows it and the trench stays shallow.
+## The result descends monotonically by construction, so the water surface
+## resting on it cannot climb — which is the whole point.
+func _build_stream_bed_profiles() -> void:
+	# Accumulate in a LOCAL array and publish once at the end. Appending to the
+	# member as we go left it half-populated, which flipped the carve on for
+	# already-graded streams and then indexed the missing ones — the grader must
+	# see a fully un-carved world for every stream, not just the first.
+	_stream_bed_profile.clear()
+	var built: Array = []
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		var n: int = poly.size()
+		var raw := PackedFloat32Array()
+		raw.resize(n)
+		for i in range(n):
+			var p: Vector2 = poly[i] as Vector2
+			raw[i] = _compute_height_at(p.x, p.y)
+
+		# Smoothing: 3 passes of a 3-tap average, endpoints pinned.
+		for _pass in range(3):
+			var prev: float = raw[0]
+			for i in range(1, n - 1):
+				var cur: float = raw[i]
+				raw[i] = (prev + cur * 2.0 + raw[i + 1]) * 0.25
+				prev = cur
+
+		var bed := PackedFloat32Array()
+		bed.resize(n)
+		bed[0] = raw[0] - STREAM_DEPTH
+		for i in range(1, n):
+			var a: Vector2 = poly[i - 1] as Vector2
+			var b: Vector2 = poly[i] as Vector2
+			var ceiling: float = bed[i - 1] - STREAM_MIN_GRADE * a.distance_to(b)
+			bed[i] = minf(raw[i] - STREAM_DEPTH, ceiling)
+		built.append(bed)
+	_stream_bed_profile = built
+
+
+## Channel cross-section as a depth factor: 1 at the thalweg, 0 at the rim.
+## t = 0 on the centreline, 1 at the local half-width. Concave everywhere, so
+## the surface always drains toward the middle — that is what keeps the water
+## IN the channel instead of letting it find another way down. Slightly over 1
+## in the notch, which deepens the low-flow groove below the graded bed.
+## Shared by the carve and the ground colour so the two can never disagree.
+func _stream_cross_profile(t: float) -> float:
+	var bowl: float = 1.0 - pow(clampf(t, 0.0, 1.0), STREAM_BOWL_POWER)
+	var notch: float = STREAM_THALWEG_NOTCH * (1.0 - smoothstep(0.0, STREAM_THALWEG_NOTCH_WIDTH, t))
+	return bowl + notch
+
+
+## Local half-width: 2.2-5.2 m (0.55-1.30 × base). Narrow fast stretches,
+## wide beach-like reaches. Pure noise math — no _rng, seed-stable.
+func _stream_hw_at(x: float, z: float) -> float:
+	if _stream_width_noise == null:
+		return STREAM_HALF_WIDTH
+	var n01: float = (_stream_width_noise.get_noise_2d(x, z) + 1.0) * 0.5
+	return STREAM_HALF_WIDTH * (0.55 + 0.75 * n01)
+
+
+## Pool scour: how far the bed dips BELOW the graded line here, 0..POOL_SCOUR.
+## This is what makes deep pools and shallow riffles WITHOUT tilting the water
+## surface — the level stays where the grade says, the floor drops away.
+func _stream_scour_at(x: float, z: float) -> float:
+	if _stream_depth_noise == null:
+		return 0.0
+	var n01: float = (_stream_depth_noise.get_noise_2d(x, z) + 1.0) * 0.5
+	return STREAM_POOL_SCOUR * smoothstep(0.35, 1.0, n01)
+
+
+## Where the water plane meets the bank — the waterline, solved instead of
+## guessed. Walks outward from the centreline and returns the half-width at
+## which the ground rises to the water level. A fixed fraction of the channel
+## width could not know that a scoured pool holds a wider sheet than a riffle;
+## this does, because it asks the geometry.
+func _stream_waterline_hw(cx: float, cz: float, perp: Vector2, water_y: float, hw: float) -> float:
+	const STEPS: int = 14
+	var last_wet: float = 0.0
+	for i in range(1, STEPS + 1):
+		var d: float = hw * float(i) / float(STEPS)
+		# Both banks: the sheet ends at the nearer one.
+		var hl: float = _compute_height_at(cx + perp.x * d, cz + perp.y * d)
+		var hr: float = _compute_height_at(cx - perp.x * d, cz - perp.y * d)
+		if maxf(hl, hr) >= water_y:
+			break
+		last_wet = d
+	# Never a hairline, never over the rim.
+	return clampf(last_wet, hw * 0.30, hw * 0.95)
+
+
+## Water-surface elevation at a point, or -INF if it is not over a stream.
+## Reads the graded profile — never the local ground.
+func _stream_water_y_at(x: float, z: float) -> float:
+	if _stream_bed_profile.is_empty():
+		return -INF
+	var q: Array = _dist_sq_to_streams(x, z)
+	if q[1] < 0:
+		return -INF
+	return float(q[2]) + STREAM_WATER_FILL
+
+
 ## Round-B: Returns the squared distance from world-xz point (px, pz) to the nearest
-## stream segment across all polylines, plus which stream index it belongs to.
-## Returns [dist_sq, stream_index].  Pure math, no _rng.
+## stream segment across all polylines, the stream index, and the GRADED BED
+## elevation at that closest point (interpolated along the segment; -INF while
+## the profile has not been built yet).
+## Returns [dist_sq, stream_index, bed_y].  Pure math, no _rng.
 func _dist_sq_to_streams(px: float, pz: float) -> Array:
 	var best_dist_sq: float = 1e18
 	var best_si: int = -1
+	var best_bed: float = -INF
+	var have_profile: bool = not _stream_bed_profile.is_empty()
 	for si in range(_stream_polylines.size()):
 		var poly: Array = _stream_polylines[si]
 		for pi in range(poly.size() - 1):
@@ -809,7 +1014,10 @@ func _dist_sq_to_streams(px: float, pz: float) -> Array:
 			if d2 < best_dist_sq:
 				best_dist_sq = d2
 				best_si = si
-	return [best_dist_sq, best_si]
+				if have_profile:
+					var prof: PackedFloat32Array = _stream_bed_profile[si]
+					best_bed = lerpf(prof[pi], prof[pi + 1], t_seg)
+	return [best_dist_sq, best_si, best_bed]
 
 
 ## Task 1 (2026-07-20): deterministic azimuthal ruggedness index for the border-ring
@@ -957,15 +1165,23 @@ func _compute_height_at(x: float, z: float) -> float:
 	# flat_radius + STREAM_HALF_WIDTH (a channel can't eat into the landing pad).
 	# No _rng — _stream_polylines was built deterministically in _build_stream_polylines().
 	var spawn_safe_radius: float = flat_radius + STREAM_HALF_WIDTH
-	if not _stream_polylines.is_empty() and dist_center > spawn_safe_radius:
+	# Gated on the PROFILE, not the polylines: _build_stream_bed_profiles()
+	# samples this function to read the un-carved ground.
+	if not _stream_bed_profile.is_empty() and dist_center > spawn_safe_radius:
 		var stream_result: Array = _dist_sq_to_streams(x, z)
 		var sd2: float = stream_result[0]
-		var hw2: float = STREAM_HALF_WIDTH * STREAM_HALF_WIDTH
-		if sd2 < hw2:
-			# t = 0 at centreline, 1 at edge — smoothstep gives a rounded trough profile.
-			var t_ch: float = sqrt(sd2) / STREAM_HALF_WIDTH   # 0..1
-			var profile: float = 1.0 - smoothstep(0.0, 1.0, t_ch)  # 1 at center, 0 at edge
-			h -= profile * STREAM_DEPTH
+		var hw_l: float = _stream_hw_at(x, z)
+		if sd2 < hw_l * hw_l:
+			# t = 0 at centreline, 1 at the rim; the concave U profile puts
+			# the low line in the middle so the channel actually holds water.
+			# The floor is cut DOWN TO THE GRADED BED (minus pool scour),
+			# never by a fixed offset from the local ground: that is what
+			# stops the channel floor — and the water on it — from rippling
+			# with the hillside and surfacing as disconnected puddles.
+			var t_ch: float = sqrt(sd2) / hw_l   # 0..1
+			var profile: float = _stream_cross_profile(t_ch)
+			var floor_y: float = float(stream_result[2]) - _stream_scour_at(x, z)
+			h = minf(h, lerpf(h, floor_y, profile))
 
 	# Safety clamp: Task 1's mountain-slope extras (rise + lip + jag, all layered on
 	# the border ring) can theoretically stack near CEILING_HEIGHT at rare
@@ -984,6 +1200,84 @@ func _compute_height_at(x: float, z: float) -> float:
 	return h
 
 
+## Is this cell inside the stream refinement band? Centre-distance test with a
+## margin of one cell, so the band is contiguous and its OUTER edge always sits
+## on un-carved prairie — that is what lets the stitched border be welded to
+## the coarse corners without a visible ridge.
+func _is_stream_cell(cx: float, cz: float, step: float) -> bool:
+	if _stream_bed_profile.is_empty():
+		return false
+	var reach: float = STREAM_HALF_WIDTH * 1.30 + step * 1.5
+	var q: Array = _dist_sq_to_streams(cx, cz)
+	return float(q[0]) < reach * reach
+
+
+## Retessellate one grid cell at SUB×SUB and emit it.
+## Interior sub-vertices sample the true height function. Sub-vertices lying on
+## an edge shared with a COARSE neighbour are welded by interpolating that
+## edge's two corner heights, so the two meshes meet exactly — no crack, no
+## T-junction gap. Edges shared with another refined cell are sampled truly on
+## both sides and therefore agree by construction.
+func _emit_refined_cell(st: SurfaceTool, ix: int, iz: int, x0: float, z0: float,
+		step: float, h00: float, h10: float, h01: float, h11: float) -> void:
+	const SUB: int = 5
+	const UV_SCALE: float = 0.22
+	var half_c: float = step * 0.5
+	# Which sides border a coarse cell and must be welded?
+	var weld_zmin: bool = not _is_stream_cell(x0 + half_c, z0 - half_c, step)
+	var weld_zmax: bool = not _is_stream_cell(x0 + half_c, z0 + step + half_c, step)
+	var weld_xmin: bool = not _is_stream_cell(x0 - half_c, z0 + half_c, step)
+	var weld_xmax: bool = not _is_stream_cell(x0 + step + half_c, z0 + half_c, step)
+
+	var hs: PackedFloat32Array = PackedFloat32Array()
+	hs.resize((SUB + 1) * (SUB + 1))
+	for a in range(SUB + 1):
+		var u: float = float(a) / float(SUB)
+		for b in range(SUB + 1):
+			var v: float = float(b) / float(SUB)
+			var wx: float = x0 + u * step
+			var wz: float = z0 + v * step
+			var hv: float
+			if b == 0 and weld_zmin:
+				hv = lerpf(h00, h10, u)
+			elif b == SUB and weld_zmax:
+				hv = lerpf(h01, h11, u)
+			elif a == 0 and weld_xmin:
+				hv = lerpf(h00, h01, v)
+			elif a == SUB and weld_xmax:
+				hv = lerpf(h10, h11, v)
+			else:
+				hv = _compute_height_at(wx, wz)
+			hs[a * (SUB + 1) + b] = hv
+
+	for a in range(SUB):
+		for b in range(SUB):
+			var sx0: float = x0 + float(a) / float(SUB) * step
+			var sx1: float = x0 + float(a + 1) / float(SUB) * step
+			var sz0: float = z0 + float(b) / float(SUB) * step
+			var sz1: float = z0 + float(b + 1) / float(SUB) * step
+			var q00: float = hs[a * (SUB + 1) + b]
+			var q10: float = hs[(a + 1) * (SUB + 1) + b]
+			var q01: float = hs[a * (SUB + 1) + (b + 1)]
+			var q11: float = hs[(a + 1) * (SUB + 1) + (b + 1)]
+			var w00 := Vector3(sx0, q00, sz0)
+			var w10 := Vector3(sx1, q10, sz0)
+			var w01 := Vector3(sx0, q01, sz1)
+			var w11 := Vector3(sx1, q11, sz1)
+			var k00: Color = _height_to_color_at(q00, sx0, sz0)
+			var k10: Color = _height_to_color_at(q10, sx1, sz0)
+			var k01: Color = _height_to_color_at(q01, sx0, sz1)
+			var k11: Color = _height_to_color_at(q11, sx1, sz1)
+			# Same v00-v11 diagonal as the coarse path, so
+			# get_render_surface_height's triangle rule still describes it.
+			st.set_color(k00); st.set_uv(Vector2(sx0, sz0) * UV_SCALE); st.add_vertex(w00)
+			st.set_color(k10); st.set_uv(Vector2(sx1, sz0) * UV_SCALE); st.add_vertex(w10)
+			st.set_color(k11); st.set_uv(Vector2(sx1, sz1) * UV_SCALE); st.add_vertex(w11)
+			st.set_color(k00); st.set_uv(Vector2(sx0, sz0) * UV_SCALE); st.add_vertex(w00)
+			st.set_color(k11); st.set_uv(Vector2(sx1, sz1) * UV_SCALE); st.add_vertex(w11)
+			st.set_color(k01); st.set_uv(Vector2(sx0, sz1) * UV_SCALE); st.add_vertex(w01)
+
+
 func _precompute_terrain_heights() -> void:
 	_terrain_stride = TERRAIN_RESOLUTION + 1
 	_terrain_heights = PackedFloat32Array()
@@ -1000,26 +1294,49 @@ func _precompute_terrain_heights() -> void:
 
 ## Consulta la altura del terreno en cualquier coordenada world.
 ## Usado por POIs, enemigos y vegetación para ajustarse al terreno.
-func get_terrain_height(x: float, z: float) -> float:
+## Height of the RENDERED terrain surface at (x,z) — exact, not bilinear.
+## _generate_terrain_mesh splits every grid quad along the v00-v11 diagonal;
+## get_terrain_height's bilinear read disagrees with those triangles by up to
+## ~0.3 m on steep cells (stream walls), which floated scatter rocks and buried
+## the gravel beds (Joan's 2026-08-31 screenshots). Anything PLACED ON the
+## visible ground must use this sampler.
+func get_render_surface_height(x: float, z: float) -> float:
 	if _terrain_heights.is_empty():
 		return 0.0
 	var half: float = proc_bounds.x * 0.5
 	var step: float = proc_bounds.x / float(TERRAIN_RESOLUTION)
+	# Inside the stream band the mesh is retessellated at ~0.9 m from the height
+	# function itself, so the function IS the rendered surface there. Reading
+	# the coarse grid instead would put every seated rock and gravel bed back on
+	# the tent the refinement just removed.
+	if _is_stream_cell(x, z, step):
+		return _compute_height_at(x, z)
 	var fx: float = (x + half) / step
 	var fz: float = (z + half) / step
 	var ix: int = clampi(int(fx), 0, TERRAIN_RESOLUTION - 1)
 	var iz: int = clampi(int(fz), 0, TERRAIN_RESOLUTION - 1)
-	var tx: float = fx - float(ix)
-	var tz: float = fz - float(iz)
-
-	# Bilinear interp
+	var tx: float = clampf(fx - float(ix), 0.0, 1.0)
+	var tz: float = clampf(fz - float(iz), 0.0, 1.0)
 	var h00: float = _terrain_heights[ix * _terrain_stride + iz]
 	var h10: float = _terrain_heights[(ix + 1) * _terrain_stride + iz]
 	var h01: float = _terrain_heights[ix * _terrain_stride + (iz + 1)]
 	var h11: float = _terrain_heights[(ix + 1) * _terrain_stride + (iz + 1)]
-	var h0: float = lerpf(h00, h10, tx)
-	var h1: float = lerpf(h01, h11, tx)
-	return lerpf(h0, h1, tz)
+	if tx >= tz:
+		# Triangle v00-v10-v11
+		return h00 + (h10 - h00) * tx + (h11 - h10) * tz
+	# Triangle v00-v11-v01
+	return h00 + (h11 - h01) * tx + (h01 - h00) * tz
+
+
+func get_terrain_height(x: float, z: float) -> float:
+	# 2026-08-31: was bilinear. The rendered mesh (and its trimesh collision)
+	# triangulates each cell along the v00-v11 diagonal, and on steep cells
+	# (stream walls: 0.8 m drop across a 6.25 m cell) bilinear disagrees with
+	# the visible surface by up to ~0.3 m — every consumer placing things ON
+	# the ground floated or buried them there (kit rocks, gravel beds, POI
+	# props stranded mid-air over the dry wash). Exact triangle interpolation
+	# costs the same and always matches what the player sees.
+	return get_render_surface_height(x, z)
 
 
 # ── Antesala de entrada: excavación del terreno ───────────────────────────────
@@ -1199,6 +1516,18 @@ func _generate_terrain_mesh() -> void:
 			var h01: float = _terrain_heights[ix * _terrain_stride + (iz + 1)]
 			var h11: float = _terrain_heights[(ix + 1) * _terrain_stride + (iz + 1)]
 
+			# A 4.7 m grid cannot hold a 4-10 m channel: with one vertex per
+			# cross-section at best, the cell interpolates rim-to-rim and tents
+			# OVER the carve — the water then surfaces as disconnected patches
+			# (Joan, 2026-08-31; probe: floor above water on 2/3 of samples).
+			# Cells near a stream are retessellated at ~0.9 m instead. Refining
+			# the whole map would quadruple 16k verts for a channel that covers
+			# ~3% of it, so the refinement is local and stitches to the coarse
+			# neighbours along their shared edge.
+			if _is_stream_cell(x0 + step * 0.5, z0 + step * 0.5, step):
+				_emit_refined_cell(st, ix, iz, x0, z0, step, h00, h10, h01, h11)
+				continue
+
 			var v00 := Vector3(x0, h00, z0)
 			var v10 := Vector3(x1, h10, z0)
 			var v01 := Vector3(x0, h01, z1)
@@ -1370,11 +1699,24 @@ func _height_to_color_at(h: float, x: float, z: float) -> Color:
 	if not _stream_polylines.is_empty() and dist_c2 > safe_r2:
 		var sr2: Array = _dist_sq_to_streams(x, z)
 		var sd2c: float = sr2[0]
-		var hw2c: float = STREAM_HALF_WIDTH * STREAM_HALF_WIDTH
-		if sd2c < hw2c:
-			var t_ch2: float = sqrt(sd2c) / STREAM_HALF_WIDTH
-			var profile2: float = 1.0 - smoothstep(0.0, 1.0, t_ch2)
-			result = result.lerp(WET_MUD, profile2 * 0.75)
+		var hw_lc: float = _stream_hw_at(x, z)
+		var fringe_r: float = hw_lc * 1.7
+		if sd2c < fringe_r * fringe_r:
+			var t_ch2: float = sqrt(sd2c) / hw_lc
+			if t_ch2 <= 1.0:
+				# Same cross-section as the geometry carve so the mud tint
+				# tracks the actual trench shape (thalweg wettest, walls fade).
+				var profile2: float = minf(_stream_cross_profile(t_ch2), 1.0)
+				result = result.lerp(WET_MUD, profile2 * 0.75)
+			else:
+				# Transition fringe: grass wears to bare earth in NOISY patches
+				# outside the rim — a razor grass/gravel border read as "un río
+				# con delimitación perfecta" (Joan, 2026-08-31).
+				const DRY_EARTH: Color = Color(0.42, 0.37, 0.28)
+				var fall: float = 1.0 - (t_ch2 - 1.0) / 0.7   # 1 at rim → 0
+				var fn: float = (_stream_width_noise.get_noise_2d(x * 3.0, z * 3.0) + 1.0) * 0.5
+				if fn > 0.35:
+					result = result.lerp(DRY_EARTH, clampf(fall * (fn - 0.35) * 2.0, 0.0, 0.55))
 
 	return result
 
@@ -3291,21 +3633,26 @@ func _scatter_stream_banks() -> void:
 		return
 
 	# Load assets — graceful degradation if a file isn't imported yet.
-	# PURGA M3 (2026-08-07). Toda la ribera pasa al motor. Y acá el cambio no es sólo
-	# de tier: el river_pack fue construido PARA la orilla —piedra seca contra piedra
-	# mojada partida por cara, junco propio— así que reemplaza a los proxies genéricos
-	# que había (un guijarro CC0, una roca chica CC0 y pasto escalado alto haciendo de
-	# junco) con las piezas que el rol pedía desde el principio.
-	const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
-	const SMALL_ROCK_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_01.glb"
+	# EGG PURGE round 2 (Joan 2026-08-31, playtest: "es un huevo, eliminarla"):
+	# env_river_rock_river_{dry,wet}_01 are the PRE-KIT egg-era river rocks —
+	# the exact shape the worn kit v5 replaced ("huevo→facetas"). Every bank
+	# stone now comes from the worn kit, same family as the channel and the
+	# bank-profile rocks. (Round 1 of this purge was M3 2026-08-07, when the
+	# prop_rock_* eggs left POOL_ROCKS.)
+	const ROCK_KIT_PATH: String = "res://assets/art/piso1_pradera/props/water/river_rock_worn_kit.glb"
 	const REED_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_reed_clump_01.glb"
 	const BUSH_PATHS: Array[String] = [
 		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_flowering_01.glb",
 		"res://assets/art/piso1_pradera/vegetation/bush/env_bush_low_01.glb",
 	]
 
-	var pebble_scene: PackedScene = load(PEBBLE_PATH) if ResourceLoader.exists(PEBBLE_PATH) else null
-	var small_rock_scene: PackedScene = load(SMALL_ROCK_PATH) if ResourceLoader.exists(SMALL_ROCK_PATH) else null
+	var kit_meshes: Array[Mesh] = []
+	if ResourceLoader.exists(ROCK_KIT_PATH):
+		var kit_scene: PackedScene = load(ROCK_KIT_PATH)
+		var kit_root: Node = kit_scene.instantiate()
+		_collect_meshes(kit_root, kit_meshes)
+		kit_root.free()
+	_kit_enable_vertex_tones(kit_meshes)
 	var reed_scene: PackedScene = load(REED_PATH) if ResourceLoader.exists(REED_PATH) else null
 	var bush_scenes: Array[PackedScene] = []
 	for bp in BUSH_PATHS:
@@ -3363,9 +3710,14 @@ func _scatter_stream_banks() -> void:
 					_rng.randf()   # scale/type draw
 					continue
 
-				# Random side (left or right bank) + radial offset within band
+				# Random side (left or right bank) + radial offset within band.
+				# The band rides the LOCAL rim: with variable channel width the
+				# old fixed 4-8 m band dropped bank rocks INSIDE a widened
+				# channel (Joan's mid-water egg, 2026-08-31). Same draw count —
+				# the drawn value is remapped onto the local band.
 				var side: float = 1.0 if _rng.randf() > 0.5 else -1.0
-				var dist_from_center: float = _rng.randf_range(BAND_INNER, BAND_OUTER)
+				var band_draw: float = _rng.randf_range(BAND_INNER, BAND_OUTER)
+				var dist_from_center: float = _stream_hw_at(cx_s, cz_s) + 0.4 + (band_draw - BAND_INNER)
 				var px: float = cx_s + perp_x * dist_from_center * side
 				var pz: float = cz_s + perp_z * dist_from_center * side
 
@@ -3383,19 +3735,20 @@ func _scatter_stream_banks() -> void:
 				var rot_y: float = _rng.randf_range(0.0, TAU)
 				var scale_draw: float = _rng.randf()  # consumed regardless of branch
 
-				if item_roll < 0.40 and pebble_scene != null:
-					# Pebble — no collider, tiny scale, shadow off
-					var inst: Node3D = pebble_scene.instantiate() as Node3D
-					if inst != null:
-						var s: float = lerpf(0.15, 0.45, scale_draw)
-						inst.transform = Transform3D(
-							Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
-							Vector3(px, terrain_y, pz)
-						)
-						_detail_apply_geo_flags(inst, 50.0)
-						container.add_child(inst)
+				if item_roll < 0.40 and not kit_meshes.is_empty():
+					# Pebble — worn kit stone at pebble scale, no collider.
+					# Variant picked from already-drawn values: no extra _rng.
+					var inst := MeshInstance3D.new()
+					inst.mesh = kit_meshes[int(scale_draw * 61.0) % kit_meshes.size()]
+					var s: float = lerpf(0.15, 0.45, scale_draw)
+					inst.transform = Transform3D(
+						Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+						Vector3(px, terrain_y - s * 0.10, pz)
+					)
+					_detail_apply_geo_flags(inst, 50.0)
+					container.add_child(inst)
 
-				elif item_roll < 0.70 and small_rock_scene != null:
+				elif item_roll < 0.70 and not kit_meshes.is_empty():
 					# Small rock — use _place_instance "rock" path for convex collider.
 					# _place_instance consumes 3 _rng draws (randi() + _age_scale roll×2 + randf()).
 					# We already consumed 3 draws above (item_roll, rot_y, scale_draw) before
@@ -3404,26 +3757,26 @@ func _scatter_stream_banks() -> void:
 					# restore, the total draw count variation is absorbed — enemy placement is
 					# protected by the restore at the end of this function.
 					var s: float = lerpf(0.3, 0.8, scale_draw)
-					var rock_inst: Node3D = small_rock_scene.instantiate() as Node3D
-					if rock_inst != null:
-						rock_inst.transform = Transform3D(
-							Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
-							Vector3(px, terrain_y, pz)
-						)
-						rock_inst.add_to_group("grounded")
-						container.add_child(rock_inst)
-						# Cheap box collider (no extra _rng needed)
-						var body := StaticBody3D.new()
-						body.collision_layer = 1
-						body.collision_mask = 0
-						var col := CollisionShape3D.new()
-						var box := BoxShape3D.new()
-						box.size = Vector3(s, s, s)
-						col.shape = box
-						col.position = Vector3(0.0, s * 0.5, 0.0)
-						body.add_child(col)
-						container.add_child(body)
-						body.global_position = Vector3(px, terrain_y, pz)
+					var rock_inst := MeshInstance3D.new()
+					rock_inst.mesh = kit_meshes[int(rot_y * 97.0) % kit_meshes.size()]
+					rock_inst.transform = Transform3D(
+						Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
+						Vector3(px, terrain_y - s * 0.12, pz)
+					)
+					rock_inst.add_to_group("grounded")
+					container.add_child(rock_inst)
+					# Cheap box collider (no extra _rng needed)
+					var body := StaticBody3D.new()
+					body.collision_layer = 1
+					body.collision_mask = 0
+					var col := CollisionShape3D.new()
+					var box := BoxShape3D.new()
+					box.size = Vector3(s, s, s)
+					col.shape = box
+					col.position = Vector3(0.0, s * 0.5, 0.0)
+					body.add_child(col)
+					container.add_child(body)
+					body.global_position = Vector3(px, terrain_y, pz)
 
 				elif item_roll < 0.90 and reed_scene != null:
 					# Reed proxy — env_grass_small scaled tall, no collider.
@@ -3464,6 +3817,466 @@ func _scatter_stream_banks() -> void:
 ## Stream 2 is left DRY — only a pebble line follows the channel.
 ## No _rng in the ribbon geometry; pebble scatter uses _rng.state save/restore.
 ## use_collision=false, shadows off for all stream water.
+## Gravel bed draped over the carved trench — the river v5 recipe brought to
+## the runtime streams (2026-08-31, Joan: "necesito verlo completo, con grava,
+## rocas, agua"). A 5-column strip follows the trough cross-section just above
+## the terrain, textured with the limestone-river gravel bake the segment
+## build already ships. Wet streams get a darkened tint (sediment under
+## water); the dry channel reads as bare dry wash.
+func _build_stream_beds() -> void:
+	if _stream_polylines.is_empty():
+		return
+	const GRAVEL_ALBEDO := "res://assets/art/piso1_pradera/props/water/river_gravel_fine_albedo.png"
+	const GRAVEL_NORMAL := "res://assets/art/piso1_pradera/props/water/river_gravel_fine_normal.png"
+	if not ResourceLoader.exists(GRAVEL_ALBEDO):
+		push_warning("StreamBeds: gravel textures missing (%s) — beds skipped" % GRAVEL_ALBEDO)
+		return
+
+	var container := Node3D.new()
+	container.name = "StreamBeds"
+	add_child(container)
+
+	# 7 columns / 1.2 m rows / 0.09 lift: the strip is linear BETWEEN samples
+	# while the terrain bends at cell diagonals crossing it at odd angles —
+	# at 5 cols / 2 m / 0.05 the ground poked through as polygonal holes
+	# (Joan's 2026-08-31 dry-wash screenshot).
+	const BED_COLS: int = 7           # cross-section samples: rim..floor..rim
+	const BED_LIFT: float = 0.09      # above the RENDERED surface — under the water
+	const GRAVEL_TILE: float = 2.0    # metres per texture repeat (segment convention)
+
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+		var is_dry: bool = (si == 2)
+
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+		# The polyline is 5 control points spanning ~100m — the bed must follow
+		# the terrain BETWEEN them or it floats over every undulation. Densify
+		# the centreline to ~2m steps first.
+		var line: Array = []
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+			var seg_len: float = a2.distance_to(b2)
+			var steps: int = maxi(1, int(ceil(seg_len / 1.2)))
+			for s in range(steps):
+				line.append(a2.lerp(b2, float(s) / float(steps)))
+		line.append(poly[poly.size() - 1])
+
+		# Cross-section rows per densified point, joined into quads.
+		var prev_row: Array = []
+		for pi in range(line.size()):
+			var c2: Vector2 = line[pi] as Vector2
+			# Perpendicular from the neighbouring segment direction.
+			var n2: Vector2 = (line[mini(pi + 1, line.size() - 1)] as Vector2) \
+					- (line[maxi(pi - 1, 0)] as Vector2)
+			var nl: float = maxf(n2.length(), 0.0001)
+			var perp := Vector2(-n2.y / nl, n2.x / nl)
+			# Bed follows the LOCAL channel width so the gravel narrows and
+			# widens with the carve instead of drawing a constant strip.
+			var bed_hw: float = _stream_hw_at(c2.x, c2.y) * 0.92
+			var row: Array = []
+			for ci in range(BED_COLS):
+				var t: float = (float(ci) / float(BED_COLS - 1)) * 2.0 - 1.0
+				var wx: float = c2.x + perp.x * t * bed_hw
+				var wz: float = c2.y + perp.y * t * bed_hw
+				row.append(Vector3(wx, get_render_surface_height(wx, wz) + BED_LIFT, wz))
+			if pi > 0:
+				for ci in range(BED_COLS - 1):
+					var a: Vector3 = prev_row[ci]
+					var b: Vector3 = prev_row[ci + 1]
+					var c: Vector3 = row[ci]
+					var d: Vector3 = row[ci + 1]
+					st.set_uv(Vector2(a.x, a.z) / GRAVEL_TILE); st.add_vertex(a)
+					st.set_uv(Vector2(b.x, b.z) / GRAVEL_TILE); st.add_vertex(b)
+					st.set_uv(Vector2(d.x, d.z) / GRAVEL_TILE); st.add_vertex(d)
+					st.set_uv(Vector2(a.x, a.z) / GRAVEL_TILE); st.add_vertex(a)
+					st.set_uv(Vector2(d.x, d.z) / GRAVEL_TILE); st.add_vertex(d)
+					st.set_uv(Vector2(c.x, c.z) / GRAVEL_TILE); st.add_vertex(c)
+			prev_row = row
+
+		st.generate_normals()
+		var bed_mat := StandardMaterial3D.new()
+		bed_mat.albedo_texture = load(GRAVEL_ALBEDO)
+		bed_mat.normal_enabled = true
+		bed_mat.normal_texture = load(GRAVEL_NORMAL)
+		bed_mat.normal_scale = 0.8
+		bed_mat.roughness = 0.95
+		# The strip's winding depends on stream direction — half the beds faced
+		# DOWN and were backface-culled from every view (2026-08-31 capture:
+		# "3 gravel beds built", zero visible). Draped ground needs both sides.
+		bed_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Submerged sediment reads darker and cooler than a dry wash — round 3
+		# read as a sand ROAD with the pale tint.
+		bed_mat.albedo_color = Color(0.55, 0.54, 0.50) if not is_dry else Color(0.82, 0.78, 0.70)
+
+		var bed_mi := MeshInstance3D.new()
+		bed_mi.name = "StreamBed%d" % si
+		bed_mi.mesh = st.commit()
+		bed_mi.material_override = bed_mat
+		bed_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		container.add_child(bed_mi)
+	print("[StreamBeds] %d gravel beds built" % container.get_child_count())
+
+
+## Bank profiles (2026-08-31) — Joan's tanda 3 verdict on river v2: "the river
+## always varies in three: gentle gradient / boulder wall / horizontal slabs —
+## never a channel with two walls". The terrain grid (6.25 m step) cannot
+## express a bank cross-section, so banks are DEDICATED GEOMETRY draped over
+## the coarse carve, same pattern as _build_stream_beds():
+##   0 gradiente:      fine-gravel wedge strip bed→rim (entry bar, no step)
+##   1 peñasco-pared:  worn-kit stones 0.6-1.2 m, buried 30-50%, face to water
+##   2 horizontal:     flattened kit slabs near the waterline, flat tops
+## Per ~4 m tramo each side picks a profile and the two sides never repeat the
+## same type (rule 1, _references/prairie_rivers/_synthesis.md tanda 3).
+## Deterministic per-tramo RNG seeded from world_seed — no _rng, seed-stable.
+func _build_stream_bank_profiles() -> void:
+	if _stream_polylines.is_empty():
+		return
+
+	const ROCK_KIT_PATH: String = "res://assets/art/piso1_pradera/props/water/river_rock_worn_kit.glb"
+	var kit_meshes: Array[Mesh] = []
+	if ResourceLoader.exists(ROCK_KIT_PATH):
+		var kit_scene: PackedScene = load(ROCK_KIT_PATH)
+		var kit_root: Node = kit_scene.instantiate()
+		_collect_meshes(kit_root, kit_meshes)
+		kit_root.free()
+	if kit_meshes.is_empty():
+		push_warning("StreamBankProfiles: worn kit missing — boulder/slab tramos skipped")
+	_kit_enable_vertex_tones(kit_meshes)
+
+	const GRAVEL_ALBEDO := "res://assets/art/piso1_pradera/props/water/river_gravel_fine_albedo.png"
+	const GRAVEL_NORMAL := "res://assets/art/piso1_pradera/props/water/river_gravel_fine_normal.png"
+	var has_gravel: bool = ResourceLoader.exists(GRAVEL_ALBEDO)
+
+	var container := Node3D.new()
+	container.name = "StreamBankProfiles"
+	add_child(container)
+
+	const TRAMO_LEN: float = 4.0
+	const GRAVEL_TILE: float = 2.0
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH
+
+	for si in range(_stream_polylines.size()):
+		var poly: Array = _stream_polylines[si]
+		if poly.size() < 2:
+			continue
+
+		# Densify centreline to TRAMO_LEN steps (same idiom as the beds).
+		var line: Array = []
+		for pi in range(poly.size() - 1):
+			var pa: Vector2 = poly[pi] as Vector2
+			var pb: Vector2 = poly[pi + 1] as Vector2
+			var steps: int = maxi(1, int(ceil(pa.distance_to(pb) / TRAMO_LEN)))
+			for s in range(steps):
+				line.append(pa.lerp(pb, float(s) / float(steps)))
+		line.append(poly[poly.size() - 1])
+
+		# Gravel wedges accumulate into ONE mesh per stream.
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var strip_quads: int = 0
+
+		for ti in range(line.size() - 1):
+			var a2: Vector2 = line[ti] as Vector2
+			var b2: Vector2 = line[ti + 1] as Vector2
+			var mid: Vector2 = (a2 + b2) * 0.5
+			if mid.length() < spawn_safe_r + 2.0:
+				continue
+			if not _is_inside_border(Vector3(mid.x, 0.0, mid.y)):
+				continue
+			var d2: Vector2 = b2 - a2
+			var dl: float = maxf(d2.length(), 0.0001)
+			var perp := Vector2(-d2.y / dl, d2.x / dl)
+
+			# Per-tramo deterministic RNG: profile pick + all jitter.
+			var trng := RandomNumberGenerator.new()
+			trng.seed = hash("bank_%d_%d_%d" % [world_seed, si, ti])
+			var left_type: int = trng.randi() % 3
+			var right_type: int = (left_type + 1 + (trng.randi() % 2)) % 3
+			# Bank bands ride the LOCAL channel width, or a narrow reach
+			# gets its wall stones stranded out on the grass.
+			var wf: float = _stream_hw_at(mid.x, mid.y) / STREAM_HALF_WIDTH
+
+			for side_i in range(2):
+				var side: float = -1.0 if side_i == 0 else 1.0
+				var btype: int = left_type if side_i == 0 else right_type
+				match btype:
+					0:
+						if has_gravel:
+							strip_quads += _bank_gravel_wedge(st, a2, b2, perp, side, GRAVEL_TILE, trng, wf)
+						# Beach reaches carry occasional stone mounds
+						# (montículos) instead of a bare bar.
+						if not kit_meshes.is_empty() and trng.randf() < 0.30:
+							_bank_stone_mound(container, kit_meshes, trng, a2, b2, perp, side, wf)
+					1:
+						if not kit_meshes.is_empty():
+							_bank_boulder_wall(container, kit_meshes, trng, a2, b2, perp, side, wf)
+					2:
+						if not kit_meshes.is_empty():
+							_bank_slab_row(container, kit_meshes, trng, a2, b2, perp, side, wf)
+
+		if strip_quads > 0:
+			st.generate_normals()
+			var mat := StandardMaterial3D.new()
+			mat.albedo_texture = load(GRAVEL_ALBEDO)
+			mat.normal_enabled = true
+			mat.normal_texture = load(GRAVEL_NORMAL)
+			mat.normal_scale = 0.8
+			mat.roughness = 0.95
+			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			# Entry bar: barely lighter than the submerged bed. Anything paler
+			# reads as sand, and the bar is wide enough to set the channel's
+			# whole tone from the air (round-3 lesson, twice).
+			mat.albedo_color = Color(0.58, 0.56, 0.51)
+			var mi := MeshInstance3D.new()
+			mi.name = "BankGravel%d" % si
+			mi.mesh = st.commit()
+			mi.material_override = mat
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			container.add_child(mi)
+
+	print("[StreamBankProfiles] %d bank nodes built" % container.get_child_count())
+
+
+## Gradiente tramo: fine-gravel strip draped bed→rim so the bank enters the
+## water without a step. 3 rows (2 m spacing) — a single 4 m span is linear
+## while the terrain bends, and the ground pokes through (beds lesson).
+## Returns the number of quads added so the caller knows to commit the mesh.
+func _bank_gravel_wedge(st: SurfaceTool, a2: Vector2, b2: Vector2, perp: Vector2, side: float, tile: float, trng: RandomNumberGenerator, wf: float) -> int:
+	const COLS: int = 5
+	const LAT_IN: float = 1.6     # below the waterline — the bar emerges from it
+	const LAT_OUT: float = 4.0    # up the wall band, NOT over the rim grass
+	const LIFT: float = 0.07
+	var rows: Array = []
+	for r in range(3):
+		var c2: Vector2 = a2.lerp(b2, float(r) * 0.5)
+		# Irregular outline: the outer edge wanders per row — a straight-edged
+		# strip read as rectangular TABS from the aerial (2026-08-31 capture,
+		# metric g: no straight bank edge > 2 m).
+		var lat_out_r: float = LAT_OUT * wf + trng.randf_range(-0.7, 0.5)
+		var lat_in_r: float = LAT_IN * wf + trng.randf_range(-0.2, 0.3)
+		var row: Array = []
+		for ci in range(COLS):
+			var lat: float = lerpf(lat_in_r, lat_out_r, float(ci) / float(COLS - 1)) * side
+			var wx: float = c2.x + perp.x * lat
+			var wz: float = c2.y + perp.y * lat
+			row.append(Vector3(wx, get_render_surface_height(wx, wz) + LIFT, wz))
+		rows.append(row)
+	for r in range(2):
+		for ci in range(COLS - 1):
+			var a: Vector3 = rows[r][ci]
+			var b: Vector3 = rows[r][ci + 1]
+			var c: Vector3 = rows[r + 1][ci]
+			var d: Vector3 = rows[r + 1][ci + 1]
+			st.set_uv(Vector2(a.x, a.z) / tile); st.add_vertex(a)
+			st.set_uv(Vector2(b.x, b.z) / tile); st.add_vertex(b)
+			st.set_uv(Vector2(d.x, d.z) / tile); st.add_vertex(d)
+			st.set_uv(Vector2(a.x, a.z) / tile); st.add_vertex(a)
+			st.set_uv(Vector2(d.x, d.z) / tile); st.add_vertex(d)
+			st.set_uv(Vector2(c.x, c.z) / tile); st.add_vertex(c)
+	return (COLS - 1) * 2
+
+
+## Peñasco-pared tramo: 2-3 worn-kit stones on the wall band (lat 2.6-3.6 m),
+## buried 30-50% of their height, often shouldered by a smaller overlapping
+## stone — stacked wall read, never a visible base (tanda 2: "mismo mesh
+## reusado, enterrado 30-50%, nunca lee como polígono separado").
+func _bank_boulder_wall(container: Node3D, kit: Array[Mesh], trng: RandomNumberGenerator, a2: Vector2, b2: Vector2, perp: Vector2, side: float, wf: float) -> void:
+	var n: int = 2 + (trng.randi() % 2)
+	for i in range(n):
+		var t: float = (float(i) + trng.randf_range(0.15, 0.85)) / float(n)
+		var lat: float = trng.randf_range(2.6, 3.6) * wf * side
+		var px: float = lerpf(a2.x, b2.x, t) + perp.x * lat
+		var pz: float = lerpf(a2.y, b2.y, t) + perp.y * lat
+		if not _is_inside_border(Vector3(px, 0.0, pz)):
+			continue
+		# 1.8-3.2 → stones 0.9-1.6 m tall; at 1.2-2.2 the buried stones peeked
+		# out as specks and no wall read existed (2026-08-31 capture).
+		var ks: float = trng.randf_range(1.8, 3.2)
+		var y: float = _bank_seat_y(px, pz, 0.28 * ks) - ks * trng.randf_range(0.15, 0.22)
+		var midx: int = trng.randi() % kit.size()
+		var mi := MeshInstance3D.new()
+		mi.mesh = kit[midx]
+		mi.transform = Transform3D(
+			Basis(Vector3.UP, trng.randf_range(0.0, TAU)).scaled(Vector3(ks, ks, ks)),
+			Vector3(px, y, pz))
+		_detail_apply_geo_flags(mi, 80.0)
+		# Wall stones are big enough to stand on — give them collision
+		# (Joan 2026-08-31: "rocas grandes que permiten subirse encima").
+		_add_rock_collision(mi, midx)
+		container.add_child(mi)
+		# Shoulder stone: overlap sells "stacked", separation reads as scatter.
+		if trng.randf() < 0.55:
+			var ks2: float = ks * trng.randf_range(0.55, 0.75)
+			var off: float = 0.22 * ks
+			var mi2 := MeshInstance3D.new()
+			mi2.mesh = kit[trng.randi() % kit.size()]
+			mi2.transform = Transform3D(
+				Basis(Vector3.UP, trng.randf_range(0.0, TAU)).scaled(Vector3(ks2, ks2, ks2)),
+				Vector3(px + perp.x * side * off, y + 0.30 * ks, pz + perp.y * side * off))
+			_detail_apply_geo_flags(mi2, 80.0)
+			container.add_child(mi2)
+
+
+## Horizontal tramo: flattened slabs near the waterline (lat 1.7-2.6 m), flat
+## tops just above the water — tanda 3: "lajas a nivel del agua, agua entre
+## ellas". Y-squash 0.5 turns the worn stones into low slabs.
+func _bank_slab_row(container: Node3D, kit: Array[Mesh], trng: RandomNumberGenerator, a2: Vector2, b2: Vector2, perp: Vector2, side: float, wf: float) -> void:
+	var n: int = 2 + (trng.randi() % 2)
+	for i in range(n):
+		var t: float = (float(i) + trng.randf_range(0.15, 0.85)) / float(n)
+		var lat: float = trng.randf_range(1.7, 2.6) * wf * side
+		var px: float = lerpf(a2.x, b2.x, t) + perp.x * lat
+		var pz: float = lerpf(a2.y, b2.y, t) + perp.y * lat
+		if not _is_inside_border(Vector3(px, 0.0, pz)):
+			continue
+		# Wide + moderately squashed: at 1.1-1.6 × y0.5 the slabs read as
+		# white shards, not lajas (2026-08-31 capture).
+		var ks: float = trng.randf_range(1.5, 2.2)
+		var y: float = _bank_seat_y(px, pz, 0.30 * ks) - trng.randf_range(0.06, 0.14)
+		var mi := MeshInstance3D.new()
+		mi.mesh = kit[trng.randi() % kit.size()]
+		mi.transform = Transform3D(
+			Basis(Vector3.UP, trng.randf_range(0.0, TAU)).scaled(Vector3(ks, ks * 0.55, ks)),
+			Vector3(px, y, pz))
+		_detail_apply_geo_flags(mi, 80.0)
+		container.add_child(mi)
+
+
+## The worn kit imports CORRECTLY (probe 2026-08-31: vertex_color_use_as_albedo
+## already on, vcols present at 0.73-0.84) — the stones read WHITE in-game
+## because pale limestone albedo × pale vcol × the toon key light washes out.
+## Darken the shared surface materials in-engine; the meshes are cached
+## resources, so this also tones every other kit user (channel rocks).
+## Idempotent via material meta — safe to call from every kit site.
+func _kit_enable_vertex_tones(kit_meshes: Array[Mesh]) -> void:
+	for m in kit_meshes:
+		for surf in range(m.get_surface_count()):
+			var mat: Material = m.surface_get_material(surf)
+			var smat := mat as StandardMaterial3D
+			if smat == null or smat.get_meta("dp_river_toned", false):
+				continue
+			var fixed: StandardMaterial3D = smat.duplicate()
+			fixed.set_meta("dp_river_toned", true)
+			fixed.vertex_color_use_as_albedo = true
+			# ~40% darker, slightly cool — river stone, not chalk.
+			fixed.albedo_color = Color(0.60, 0.61, 0.62)
+			m.surface_set_material(surf, fixed)
+
+
+## Montículo: 3-5 small stones piled tight on a gravel bar near the waterline
+## (Joan 2026-08-31: "montículos de piedra"). Heavy overlap — a pile, not a
+## scatter (golem lesson: cohesion is what reads, not presence).
+func _bank_stone_mound(container: Node3D, kit: Array[Mesh], trng: RandomNumberGenerator, a2: Vector2, b2: Vector2, perp: Vector2, side: float, wf: float) -> void:
+	var t: float = trng.randf_range(0.2, 0.8)
+	var lat: float = trng.randf_range(1.8, 2.8) * wf * side
+	var cx: float = lerpf(a2.x, b2.x, t) + perp.x * lat
+	var cz: float = lerpf(a2.y, b2.y, t) + perp.y * lat
+	if not _is_inside_border(Vector3(cx, 0.0, cz)):
+		return
+	var n: int = 3 + (trng.randi() % 3)
+	var base_y: float = _bank_seat_y(cx, cz, 0.5)
+	for i in range(n):
+		var ang: float = trng.randf_range(0.0, TAU)
+		var rr: float = trng.randf_range(0.0, 0.55)
+		var ks: float = trng.randf_range(0.6, 1.1) * (1.0 if i > 0 else 1.3)
+		var mi := MeshInstance3D.new()
+		mi.mesh = kit[trng.randi() % kit.size()]
+		mi.transform = Transform3D(
+			Basis(Vector3.UP, trng.randf_range(0.0, TAU)).scaled(Vector3(ks, ks, ks)),
+			Vector3(cx + cos(ang) * rr, base_y - 0.10 + (0.14 if i > 0 else 0.0) * trng.randf(), cz + sin(ang) * rr))
+		_detail_apply_geo_flags(mi, 65.0)
+		container.add_child(mi)
+
+
+## Convex collision for a kit rock big enough to climb. Shape cached per kit
+## mesh; the StaticBody3D child inherits the instance's UNIFORM scale (never
+## call this for squashed slabs).
+func _add_rock_collision(mi: MeshInstance3D, mesh_idx: int) -> void:
+	if not _kit_convex_cache.has(mesh_idx):
+		_kit_convex_cache[mesh_idx] = mi.mesh.create_convex_shape(true, true)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	cs.shape = _kit_convex_cache[mesh_idx]
+	body.add_child(cs)
+	mi.add_child(body)
+
+
+## Lowest rendered-surface point under a footprint — the exact-triangle read
+## that fixed the floating channel rocks (2026-08-31).
+func _bank_seat_y(px: float, pz: float, foot: float) -> float:
+	var y: float = get_render_surface_height(px, pz)
+	y = minf(y, get_render_surface_height(px + foot, pz))
+	y = minf(y, get_render_surface_height(px - foot, pz))
+	y = minf(y, get_render_surface_height(px, pz + foot))
+	y = minf(y, get_render_surface_height(px, pz - foot))
+	return y
+
+
+## Riparian trees — POOL_TREES instances hugging the wet stream banks, just
+## outside the carved channel (5.5-7.5 m from the centreline vs half-width 4).
+## Rivers gather the prairie's trees at the water: without this pass the banks
+## were bare grass (Joan, 2026-08-31). Same _rng save/restore convention as the
+## other stream passes so enemy placement stays seed-stable.
+func _scatter_stream_trees() -> void:
+	if _stream_polylines.is_empty() or POOL_TREES.is_empty():
+		return
+	var container := Node3D.new()
+	container.name = "StreamBankTrees"
+	add_child(container)
+
+	var flat_radius: float = FLAT_RADIUS_BASE * _scale
+	var spawn_safe_r: float = flat_radius + STREAM_HALF_WIDTH + 4.0
+	var rng_state_trees: int = _rng.state
+	const TREE_SPACING: float = 10.0
+	const TREE_CHANCE: float = 0.45
+
+	for si in range(_stream_polylines.size()):
+		if si == 2:
+			continue   # the dry wash lost its water — its trees died with it
+		var poly: Array = _stream_polylines[si]
+		for pi in range(poly.size() - 1):
+			var a2: Vector2 = poly[pi] as Vector2
+			var b2: Vector2 = poly[pi + 1] as Vector2
+			var seg_len: float = a2.distance_to(b2)
+			if seg_len < 0.001:
+				continue
+			var d2: Vector2 = (b2 - a2) / seg_len
+			var perp := Vector2(-d2.y, d2.x)
+			var candidates: int = maxi(1, int(round(seg_len / TREE_SPACING)))
+			for _c in range(candidates):
+				for side in [-1.0, 1.0]:
+					if _rng.randf() > TREE_CHANCE:
+						continue
+					var t_seg: float = _rng.randf()
+					var lat: float = side * _rng.randf_range(5.5, 7.5)
+					var px: float = lerpf(a2.x, b2.x, t_seg) + perp.x * lat
+					var pz: float = lerpf(a2.y, b2.y, t_seg) + perp.y * lat
+					if Vector2(px, pz).length() < spawn_safe_r:
+						continue
+					if not _is_inside_border(Vector3(px, 0.0, pz)):
+						continue
+					var scene: PackedScene = POOL_TREES[_rng.randi() % POOL_TREES.size()]
+					var inst: Node3D = scene.instantiate() as Node3D
+					if inst == null:
+						continue
+					var s: float = _rng.randf_range(0.85, 1.15)
+					inst.transform = Transform3D(
+						Basis(Vector3.UP, _rng.randf_range(0.0, TAU)).scaled(Vector3(s, s, s)),
+						Vector3(px, get_render_surface_height(px, pz) - 0.05, pz)
+					)
+					_detail_apply_geo_flags(inst, 120.0)
+					container.add_child(inst)
+
+	_rng.state = rng_state_trees
+	print("[StreamBankTrees] %d riparian trees placed" % container.get_child_count())
+
+
 func _build_stream_ribbons() -> void:
 	if _stream_polylines.is_empty():
 		return
@@ -3485,9 +4298,21 @@ func _build_stream_ribbons() -> void:
 			var st := SurfaceTool.new()
 			st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
+			# Densify to ~4 m: with depth varying along the run, a 25 m
+			# linear water span dives under the floor wherever the channel
+			# shallows between control points.
+			var wline: Array = []
 			for pi in range(poly.size() - 1):
-				var a2: Vector2 = poly[pi] as Vector2
-				var b2: Vector2 = poly[pi + 1] as Vector2
+				var pa: Vector2 = poly[pi] as Vector2
+				var pb: Vector2 = poly[pi + 1] as Vector2
+				var steps: int = maxi(1, int(ceil(pa.distance_to(pb) / 4.0)))
+				for s in range(steps):
+					wline.append(pa.lerp(pb, float(s) / float(steps)))
+			wline.append(poly[poly.size() - 1])
+
+			for pi in range(wline.size() - 1):
+				var a2: Vector2 = wline[pi] as Vector2
+				var b2: Vector2 = wline[pi + 1] as Vector2
 				var ax: float = a2.x; var az: float = a2.y
 				var bx: float = b2.x; var bz: float = b2.y
 
@@ -3495,11 +4320,15 @@ func _build_stream_ribbons() -> void:
 				# get_terrain_height already includes the carved trough, so this places
 				# the ribbon partway up the trench (above the carved floor, below the rim)
 				# → water visibly sits in the dip, not buried under the ground.
-				var ay: float = get_terrain_height(ax, az) + STREAM_DEPTH * 0.40
-				var by_: float = get_terrain_height(bx, bz) + STREAM_DEPTH * 0.40
-
-				# Width of ribbon = slightly narrower than the full channel for visual clarity
-				var ribbon_hw: float = STREAM_HALF_WIDTH * 0.65
+				# Water rides the GRADED profile, not the ground under it. This
+				# is the fix for Joan's "parches sueltos de agua" (2026-08-31):
+				# terrain + offset made the surface ripple with the bed and dive
+				# under the gravel between bumps. The graded line only ever
+				# falls, so the ribbon is a continuous descending sheet.
+				var ay: float = _stream_water_y_at(ax, az)
+				var by_: float = _stream_water_y_at(bx, bz)
+				if ay == -INF or by_ == -INF:
+					continue
 
 				# Segment direction + perpendicular (xz plane)
 				var dx: float = bx - ax
@@ -3508,15 +4337,22 @@ func _build_stream_ribbons() -> void:
 				var px: float = -dz * inv_len   # left perpendicular
 				var pz: float =  dx * inv_len
 
+				# Ribbon width = the SOLVED waterline, not a fixed fraction:
+				# the sheet ends where the bank rises to meet it, so scoured
+				# pools spread wide and riffles pinch in on their own.
+				var perp2 := Vector2(px, pz)
+				var rhw_a: float = _stream_waterline_hw(ax, az, perp2, ay, _stream_hw_at(ax, az))
+				var rhw_b: float = _stream_waterline_hw(bx, bz, perp2, by_, _stream_hw_at(bx, bz))
+
 				# Four corners of the quad strip segment
-				var v00 := Vector3(ax + px * ribbon_hw, ay,  az + pz * ribbon_hw)
-				var v01 := Vector3(ax - px * ribbon_hw, ay,  az - pz * ribbon_hw)
-				var v10 := Vector3(bx + px * ribbon_hw, by_, bz + pz * ribbon_hw)
-				var v11 := Vector3(bx - px * ribbon_hw, by_, bz - pz * ribbon_hw)
+				var v00 := Vector3(ax + px * rhw_a, ay,  az + pz * rhw_a)
+				var v01 := Vector3(ax - px * rhw_a, ay,  az - pz * rhw_a)
+				var v10 := Vector3(bx + px * rhw_b, by_, bz + pz * rhw_b)
+				var v11 := Vector3(bx - px * rhw_b, by_, bz - pz * rhw_b)
 
 				# UV along segment for flow animation in the shader
-				var u0: float = float(pi)       / float(poly.size() - 1)
-				var u1: float = float(pi + 1)   / float(poly.size() - 1)
+				var u0: float = float(pi)       / float(wline.size() - 1)
+				var u1: float = float(pi + 1)   / float(wline.size() - 1)
 
 				st.set_uv(Vector2(u0, 0.0)); st.add_vertex(v00)
 				st.set_uv(Vector2(u0, 1.0)); st.add_vertex(v01)
@@ -3544,13 +4380,23 @@ func _build_stream_ribbons() -> void:
 			var water_mat: ShaderMaterial = ShaderMaterial.new()
 			water_mat.shader = load("res://scenes/levels/water_toon.gdshader")
 			# water_color is a vec3 uniform — alpha is silently dropped; use base_transparency
-			# to control opacity. 0.55 < pond default (0.7) → streams are more see-through.
-			# Wave1.5: molten-gold color (warm amber) so river reads as gold vs cold crystals.
-			var stream_water_color: Color = Color(0.55, 0.38, 0.12)
+			# to control opacity. 0.42 → the new gravel bed reads THROUGH the water.
+			# 2026-08-31 (Joan: "necesito verlo completo, con grava, rocas, agua"):
+			# natural prairie-river teal replaces the Wave1.5 molten-gold amber —
+			# with a real gravel bed + worn stones the gold read as a dirt road.
+			var stream_water_color: Color = Color(0.16, 0.34, 0.38)
 			water_mat.set_shader_parameter("water_color", stream_water_color)
-			water_mat.set_shader_parameter("base_transparency", 0.55)
-			# Wave1.5: trim emission ~15% (0.06 → 0.051) — reads as molten gold, not white laser.
-			water_mat.set_shader_parameter("emission_strength", 0.051)
+			# 0.72, not 0.5: at half opacity the dark teal blended with the pale
+			# gravel under it and the sheet read as grey wash — invisible from
+			# the air (2026-08-31 round 7). The graded channel holds a real
+			# 0.45-1.1 m column now, so the water can afford to look like water.
+			water_mat.set_shader_parameter("base_transparency", 0.72)
+			water_mat.set_shader_parameter("emission_strength", 0.02)
+			# Depth fade = Beer-Lambert in miniature: clear at the shallow edge
+			# where the bed shows through, saturating teal over the scoured
+			# pools. 0.9 m matches the actual column; the old 0.35 was sized for
+			# a channel that was only ~0.3 m deep before the bed was graded.
+			water_mat.set_shader_parameter("depth_fade_dist", 0.9)
 			# Flow direction: xz world vector → shader vec2. Shader uniform hint_range is on
 			# individual components; pass as Vector2 which Godot sends as vec2.
 			water_mat.set_shader_parameter("flow_dir", fdir)
@@ -3564,14 +4410,19 @@ func _build_stream_ribbons() -> void:
 		else:
 			# ── Dry watercourse — pebble line along the channel centreline ─────────
 			# RNG save/restore so this scatter pass is INVISIBLE to enemy placement.
-			var pebble_scene: PackedScene = null
-			# PURGA M3 (2026-08-07): era env_pebble_round_01.gltf (CC0). El river_pack
-			# tiene la piedra de cauce SECO, que es literalmente este caso.
-			const PEBBLE_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
-			if ResourceLoader.exists(PEBBLE_PATH):
-				pebble_scene = load(PEBBLE_PATH)
-			if pebble_scene == null:
+			# EGG PURGE round 2 (Joan 2026-08-31): env_river_rock_river_dry_01
+			# was the egg-era dry rock — dry-wash pebbles now come from the
+			# worn kit v5 like every other river stone.
+			const DRY_KIT_PATH: String = "res://assets/art/piso1_pradera/props/water/river_rock_worn_kit.glb"
+			var dry_kit: Array[Mesh] = []
+			if ResourceLoader.exists(DRY_KIT_PATH):
+				var dk_scene: PackedScene = load(DRY_KIT_PATH)
+				var dk_root: Node = dk_scene.instantiate()
+				_collect_meshes(dk_root, dry_kit)
+				dk_root.free()
+			if dry_kit.is_empty():
 				continue
+			_kit_enable_vertex_tones(dry_kit)
 
 			var rng_state_pebble: int = _rng.state
 
@@ -3589,7 +4440,10 @@ func _build_stream_ribbons() -> void:
 				var pb2: Vector2 = poly[seg_i + 1] as Vector2
 				var cx2: float = lerpf(pa2.x, pb2.x, seg_frac)
 				var cz2: float = lerpf(pa2.y, pb2.y, seg_frac)
-				var cy2: float = get_terrain_height(cx2, cz2) - STREAM_DEPTH * 0.6
+				# Sit on the carved floor itself — the channel is already cut to
+				# the graded bed, so subtracting a nominal depth from the ground
+				# (the pre-grading idiom) buried the pebbles.
+				var cy2: float = get_render_surface_height(cx2, cz2) - 0.05
 
 				# Spawn bowl safety check (no pebbles inside the spawn bowl)
 				var dc: float = sqrt(cx2 * cx2 + cz2 * cz2)
@@ -3601,9 +4455,8 @@ func _build_stream_ribbons() -> void:
 				for _cp in range(clump):
 					var off_x: float = _rng.randf_range(-STREAM_HALF_WIDTH * 0.6, STREAM_HALF_WIDTH * 0.6)
 					var off_z: float = _rng.randf_range(-0.5, 0.5)
-					var pebble: Node3D = pebble_scene.instantiate() as Node3D
-					if pebble == null:
-						continue
+					var pebble := MeshInstance3D.new()
+					pebble.mesh = dry_kit[_rng.randi() % dry_kit.size()]
 					var ps: float = _rng.randf_range(0.3, 0.7)
 					var prot: float = _rng.randf() * TAU
 					pebble.transform = Transform3D(
@@ -3635,20 +4488,38 @@ func _build_stream_ribbons() -> void:
 ## Target density ~2-4 rocks per ~15m of stream length (moderate accent, not fill) —
 ## ROCK_SPACING_TARGET=6m averages ~2.5 candidates per 15m.
 ## RNG save/restore — invisible to enemy placement, same convention as Fix 2.
+## Collect every MeshInstance3D mesh under `root` (gltf kits: one object per
+## variant). Order follows the scene tree so it is stable across loads.
+func _collect_meshes(root: Node, out: Array[Mesh]) -> void:
+	var mi: MeshInstance3D = root as MeshInstance3D
+	if mi != null and mi.mesh != null:
+		out.append(mi.mesh)
+	for child in root.get_children():
+		_collect_meshes(child, out)
+
+
 func _scatter_stream_channel_rocks() -> void:
 	if _stream_polylines.is_empty():
 		return
 
-	const ROCK_WET_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_01.glb"
-	const ROCK_WET_CLUSTER_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_wet_cluster_01.glb"
-	const ROCK_DRY_PATH: String = "res://assets/art/piso1_pradera/props/water/env_river_rock_river_dry_01.glb"
+	# v5 worn-stone kit (2026-08-31): one GLB, 6 stone meshes sharing a material.
+	# The seeded scatter mixes variant, rotation, scale and runtime clusters, so
+	# no two worlds share a bed. EGG PURGE round 2 (Joan 2026-08-31): the legacy
+	# env_river_rock_river_{wet,wet_cluster,dry} fallbacks were the egg-era
+	# rocks — kit or nothing.
+	const ROCK_KIT_PATH: String = "res://assets/art/piso1_pradera/props/water/river_rock_worn_kit.glb"
 
-	var rock_wet_scene: PackedScene = load(ROCK_WET_PATH) if ResourceLoader.exists(ROCK_WET_PATH) else null
-	var rock_wet_cluster_scene: PackedScene = load(ROCK_WET_CLUSTER_PATH) if ResourceLoader.exists(ROCK_WET_CLUSTER_PATH) else null
-	var rock_dry_scene: PackedScene = load(ROCK_DRY_PATH) if ResourceLoader.exists(ROCK_DRY_PATH) else null
-
-	if rock_wet_scene == null and rock_dry_scene == null:
+	var kit_meshes: Array[Mesh] = []
+	if ResourceLoader.exists(ROCK_KIT_PATH):
+		var kit_scene: PackedScene = load(ROCK_KIT_PATH)
+		var kit_root: Node = kit_scene.instantiate()
+		_collect_meshes(kit_root, kit_meshes)
+		kit_root.free()
+	if kit_meshes.is_empty():
+		push_warning("StreamChannelRocks: worn kit missing/unimported (%s) — no channel rocks" % ROCK_KIT_PATH)
 		return
+	_kit_enable_vertex_tones(kit_meshes)
+	print("[StreamChannelRocks] worn kit loaded: %d variants" % kit_meshes.size())
 
 	var container := Node3D.new()
 	container.name = "StreamChannelRocks"
@@ -3667,10 +4538,6 @@ func _scatter_stream_channel_rocks() -> void:
 		if poly.size() < 2:
 			continue
 		var is_dry: bool = (si == 2)
-		if is_dry and rock_dry_scene == null:
-			continue
-		if not is_dry and rock_wet_scene == null:
-			continue
 
 		for pi in range(poly.size() - 1):
 			var a2: Vector2 = poly[pi] as Vector2
@@ -3695,9 +4562,10 @@ func _scatter_stream_channel_rocks() -> void:
 				if dc < spawn_safe_r:
 					continue
 
-				# Lateral jitter INSIDE the channel (stays within STREAM_HALF_WIDTH so
-				# rocks sit in the bed, never out on the bank — that's Fix 2's job).
-				var lat: float = _rng.randf_range(-STREAM_HALF_WIDTH * 0.75, STREAM_HALF_WIDTH * 0.75)
+				# Lateral jitter INSIDE the channel — LOCAL width, so rocks track
+				# the narrows/wide reaches instead of the nominal corridor.
+				var hw_here: float = _stream_hw_at(cx_s, cz_s)
+				var lat: float = _rng.randf_range(-hw_here * 0.75, hw_here * 0.75)
 				var px: float = cx_s + perp_x * lat
 				var pz: float = cz_s + perp_z * lat
 
@@ -3707,34 +4575,55 @@ func _scatter_stream_channel_rocks() -> void:
 				# Settle into the streambed — small sink so the rock reads as sitting IN
 				# the channel floor (poking through the water ribbon), not resting on top.
 				var sink: float = _rng.randf_range(0.04, 0.14)
-				var terrain_y: float = get_terrain_height(px, pz) - sink
 				var rot_y: float = _rng.randf_range(0.0, TAU)
 
-				var scene: PackedScene = null
-				var s: float = 1.0
-				if is_dry:
-					scene = rock_dry_scene
-					s = _rng.randf_range(0.45, 0.95)
-				else:
-					var cluster_roll: float = _rng.randf()
-					if cluster_roll < CLUSTER_CHANCE and rock_wet_cluster_scene != null:
-						scene = rock_wet_cluster_scene
-						s = _rng.randf_range(0.7, 1.3)
-					else:
-						scene = rock_wet_scene
-						s = _rng.randf_range(0.5, 1.1)
-
-				if scene == null:
-					continue
-				var inst: Node3D = scene.instantiate() as Node3D
-				if inst == null:
-					continue
-				inst.transform = Transform3D(
-					Basis(Vector3.UP, rot_y).scaled(Vector3(s, s, s)),
-					Vector3(px, terrain_y, pz)
-				)
-				_detail_apply_geo_flags(inst, 55.0)
-				container.add_child(inst)
+				# Cluster = 2-3 kit stones composed at runtime (the legacy pack
+				# shipped a pre-baked cluster mesh; the kit composes instead so
+				# every cluster is a different mix).
+				var n_rocks: int = 1
+				if not is_dry and _rng.randf() < CLUSTER_CHANCE:
+					n_rocks = 2 + (_rng.randi() % 2)
+				for k in range(n_rocks):
+					var ox: float = 0.0
+					var oz: float = 0.0
+					if k > 0:
+						var ang: float = _rng.randf_range(0.0, TAU)
+						var rr: float = _rng.randf_range(0.35, 0.85)
+						ox = cos(ang) * rr
+						oz = sin(ang) * rr
+					var kxp: float = px + ox
+					var kzp: float = pz + oz
+					if not _is_inside_border(Vector3(kxp, 0.0, kzp)):
+						continue
+					var kmidx: int = _rng.randi() % kit_meshes.size()
+					var mi := MeshInstance3D.new()
+					mi.mesh = kit_meshes[kmidx]
+					var ks: float = _rng.randf_range(0.7, 1.3)
+					# Occasional BOULDER in the flow: big enough to climb
+					# (collision below), submerged in pools, half out in
+					# shallows since the water level tracks local depth.
+					if k == 0 and _rng.randf() < 0.14:
+						ks *= _rng.randf_range(2.2, 3.0)
+					var krot: float = rot_y if k == 0 else _rng.randf_range(0.0, TAU)
+					# Seat on the LOWEST point of the RENDERED surface under the
+					# footprint: exact triangle sampling (not the bilinear grid
+					# read, which disagrees with the visible mesh by ~0.3 m on the
+					# channel walls and floated the rocks — Joan, 2026-08-31).
+					var foot: float = 0.28 * ks
+					var ky: float = get_render_surface_height(kxp, kzp)
+					ky = minf(ky, get_render_surface_height(kxp + foot, kzp))
+					ky = minf(ky, get_render_surface_height(kxp - foot, kzp))
+					ky = minf(ky, get_render_surface_height(kxp, kzp + foot))
+					ky = minf(ky, get_render_surface_height(kxp, kzp - foot))
+					ky -= sink
+					mi.transform = Transform3D(
+						Basis(Vector3.UP, krot).scaled(Vector3(ks, ks, ks)),
+						Vector3(kxp, ky, kzp)
+					)
+					_detail_apply_geo_flags(mi, 55.0)
+					if ks >= 1.6:
+						_add_rock_collision(mi, kmidx)
+					container.add_child(mi)
 
 	_rng.state = rng_state_channel
 	print("[StreamChannelRocks] %d channel rocks placed" % container.get_child_count())

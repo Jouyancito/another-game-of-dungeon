@@ -19,6 +19,11 @@ uniform float emission_strength : hint_range(0.0, 0.3) = 0.06;  // subtle — ca
 // Set per stream ribbon so water scrolls ALONG the channel, not uniformly in world X.
 // Ponds/wells leave this at default (1,0) — no visible difference for symmetric geometry.
 uniform vec2  flow_dir = vec2(1.0, 0.0);
+// Depth fade: soften the hard intersection line where water meets bed/rocks.
+// 0.0 = disabled (ponds/wells keep their exact previous look); streams set
+// ~1.2. Value = world metres of depth over which alpha ramps 0 → full.
+uniform float depth_fade_dist : hint_range(0.0, 4.0) = 0.0;
+uniform sampler2D depth_texture : hint_depth_texture, repeat_disable, filter_nearest;
 
 // ── Smooth value noise helpers ────────────────────────────────────────────────
 // Hash at integer lattice (returns [-1, 1])
@@ -97,5 +102,16 @@ void fragment() {
 	EMISSION = crystal_emission * emission_strength * (0.6 + fresnel * 0.4);
 
 	ALPHA = mix(base_transparency * 0.6, base_transparency, fresnel);
+	if (depth_fade_dist > 0.0) {
+		// Reconstruct view-space depth of the scene behind the water surface
+		// and fade alpha by the water column thickness.
+		float scene_raw = texture(depth_texture, SCREEN_UV).r;
+		vec4 scene_ndc = vec4(SCREEN_UV * 2.0 - 1.0, scene_raw, 1.0);
+		vec4 scene_view = INV_PROJECTION_MATRIX * scene_ndc;
+		float scene_depth = -(scene_view.xyz / scene_view.w).z;
+		float water_depth = -VERTEX.z;
+		float column = clamp((scene_depth - water_depth) / depth_fade_dist, 0.0, 1.0);
+		ALPHA *= column;
+	}
 	ROUGHNESS = 0.25;
 }

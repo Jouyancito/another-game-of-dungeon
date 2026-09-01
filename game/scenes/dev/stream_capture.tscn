@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://stream_capture_01"]
+
+[ext_resource type="Script" path="res://scenes/dev/stream_capture.gd" id="1_streamcap"]
+
+[node name="StreamCapture" type="Node3D"]
+script = ExtResource("1_streamcap")
