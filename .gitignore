@@ -112,3 +112,14 @@ game/tools/godot/shimmer_probe/*/
 
 # Salida del probe de entrada (regenerable con entrance_capture.tscn).
 game/tools/godot/entrance_capture/*.png
+
+# ── River pass 2026-08-31 ────────────────────────────────────────────────────
+# Stream capture output — regenerable with scenes/dev/stream_capture.tscn, same
+# rule as anim_capture/ and entrance_capture/ above (~19 MB per run).
+game/tools/godot/stream_capture/
+# River segment ramp: 13 GLB variants with a full texture set each, ~190 MB of
+# iteration output for a choice that is recorded in _references/prairie_rivers/,
+# not in the engine. The SHIPPED asset (river_rock_worn_kit.glb) is versioned.
+game/assets/art/piso1_pradera/props/water/river_segment_*
+# ...and the segment renders behind that ramp (~194 MB).
+game/tools/blender/river_segment/renders/

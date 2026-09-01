@@ -176,3 +176,96 @@ hunden en la tierra.
 > una superficie continua, tirar de una región estira hilos hacia el resto. Las
 > gotas son islas independientes desde el modelado. Además el slime estaba
 > enterrado 0.40 m bajo el suelo.
+
+## [ ] La tortuga entra al juego con caparazón real, marcha de tortuga y escamas
+
+Rehecha de punta a punta: el caparazón ahora está construido escudo por escudo
+(37 placas con anillos de crecimiento, relieve real que entra a la silueta),
+plastrón con puentes óseos y las patas saliendo por sus aberturas, marcha con
+arrastre de pie de verdad (el pie plantado viaja hacia atrás mientras el cuerpo
+pasa por encima), patas en X, cabeza soldada al cuello, y escamas grandes en
+patas y cuello. Todo con textura horneada que sí llega al juego.
+@ mob_lab con la tortuga (o el spawn de la pradera): tecla 2 para verla
+caminar, y mirala también desde abajo.
+> Tres causas raíz de la sesión: la esfera con escudos pintados no podía leer
+> como caparazón (el edge flow no sigue la anatomía — se rehízo la malla desde
+> los escudos); el GLB desplegado iba dos builds atrás del generado (ahora el
+> builder exporta directo y un gate por hash bloquea el desfase); y un nudo de
+> nodos mataba las texturas al exportar (el tono por región va en la textura
+> horneada, nunca en el grafo). Veredicto de Joan en vivo: 8/10.
+
+## [ ] El halcón vive: planea en círculos amplios, caza ratas y pica de verdad
+
+Rehecho de cero, construido pluma por pluma (10 primarias con "dedos", cola
+rufa en abanico, garras), con textura de barbas horneada y cinco animaciones
+nacidas de un spec de movimiento real de buteo. Y tiene vida propia: planea en
+térmica con vueltas de ~20 segundos, aletea solo cuando se traslada o remonta,
+caza ratas en picada diagonal — el loot de la rata queda tirado donde murió —
+golpea al pasar y sigue de largo con el impulso. Al morir, cae al suelo con
+las alas encogidas. El vuelo tiene inercia: curva sus giros como un ave real.
+@ mob_lab (T para la lista de mobs): G vuelve al poste un objetivo, H suelta
+una rata para verlo cazar, 6 lo mata en vuelo.
+> Bugs de fondo que pagó esta build: el punto de órbita viajaba más rápido de
+> lo que el ave vuela (por eso "giraba estático"); el GLB salía mirando +Z y
+> volaba de cola; y un dummy con la firma de take_damage en orden equivocado
+> abortaba la IA a mitad de frame y lo dejaba pegado al poste.
+
+## [ ] Los arroyos ahora llevan piedra de rio de verdad
+
+Las piedras de los tres arroyos de la pradera son nuevas: bloques gastados por
+el agua, con caras planas, hombros redondeados y grietas, y ninguna es igual a
+otra. Cada mundo mezcla seis formas distintas con rotacion y tamano al azar, y
+los grupos de piedras se componen en el momento en vez de repetir un bloque
+prefabricado.
+@ Piso 1: segui cualquiera de los dos arroyos con agua (o el cauce seco) y mira
+  las piedras del lecho de cerca y desde la orilla.
+> river_rock_worn_kit.glb (6 stones, 2032 tris total, shared limestone set) built
+> by build_river_rock_kit.py from the v5 worn-block recipe; floor1_prairie.gd
+> _scatter_stream_channel_rocks now instances kit meshes (seeded variant + scale
+> 0.7-1.3 + runtime clusters of 2-3), legacy env_river_rock_* kept as fallback.
+
+## [ ] Los arroyos son rios de verdad: grava, agua clara y arboles en la orilla
+
+El cauce ahora tiene lecho de grava que se ve a traves del agua, el agua dejo
+de ser ambar (era "oro fundido" de una version vieja) y es agua de rio, la
+linea de agua se funde suave contra la grava y las piedras, y las orillas de
+los arroyos con agua tienen arboles. El cauce seco quedo como lavado de grava
+clara. Ademas todo lo que se apoya en el suelo (piedras, props) ya no flota
+cerca de los canales: la altura del terreno que usaba el juego no coincidia
+con la superficie visible justo en las pendientes.
+@ Piso 1: segui cualquier arroyo desde el aire y despues baja a la orilla.
+> _build_stream_beds() + _scatter_stream_trees() + natural water + depth_fade
+> (water_toon.gdshader, default off) + get_terrain_height now samples the
+> rendered mesh triangles exactly (was bilinear, ~0.3m off on channel walls).
+
+## [ ] La tortuga camina como tortuga y el halcon no se clava en el aire
+
+La tortuga usa su animacion de caminata (dos patas en diagonal, paso lento) y
+apunta la cabeza hacia donde va; antes se deslizaba en pose quieta. El halcon
+ya no queda flotando estatico: al llegar a un punto de vuelo arranca el
+siguiente tramo.
+@ Piso 1: tortugas cerca de los arroyos; el halcon esta arriba, seguilo un rato.
+> turtle.gd: _get_anim_model_root override + walk_threshold 0.15 + 180 flip +
+> wander yaw; speed 1.5->0.6; enemy_animator.gd: move_ref_speed stride sync.
+> hawk.gd: arriving at wander target picks the next one instead of braking.
+
+## [ ] Los arroyos ahora están tallados en la pradera, con orillas de verdad
+
+El canal es más profundo (un corte de 1,3 m, ya no una hondonada de pasto) y
+las orillas cambian a lo largo del río: barras de grava que entran suaves al
+agua, muros de peñascos grises, lajas bajas al nivel del agua y montículos de
+piedra. Los dos lados de un mismo tramo nunca repiten el mismo tipo de orilla.
+El ancho y la profundidad varían a lo largo del cauce — pozones con piedras
+sumergidas, partes bajas de vadeo, angosturas — y el borde con la pradera se
+desgasta en parches de tierra en vez de cortar a cuchillo. Las rocas grandes
+tienen colisión: te podés subir. Las piedras dejaron de verse blancas.
+Los ríos además ahora obedecen la gravedad: el cauce se rutea caminando cuesta
+abajo por el terreno, así que rodea las colinas buscando la caída en vez de
+treparlas en línea recta. Y la piedra-huevo quedó eliminada de toda la
+generación del río — todo lo mineral del cauce sale del kit de piedra gastada.
+@ Freecam sobre cualquier arroyo — volar el cauce a nivel de ojo y en cenital; buscar un pozón, una angostura, y verificar que ningún arroyo trepa una colina.
+> floor1_prairie.gd: STREAM_DEPTH 0.8→1.3 + flat floor 30%; ancho 2,2-5,2 m y profundidad
+> 0,78-1,88 m por Perlin (seeds +72/+73); _build_stream_bank_profiles() (3 perfiles por
+> tramo de 4 m + montículos, deterministas); franja de transición en color de terreno;
+> convex collision en rocas ks≥1,6; kit worn v5 teñido en runtime (vcols estaban bien —
+> caliza pálida + luz toon lavaba a blanco).
