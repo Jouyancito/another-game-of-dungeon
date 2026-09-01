@@ -13,6 +13,7 @@ const SHELL_DURATION := 3.0
 var _in_shell := false
 var _shell_timer := 0.0
 var _current_def := BASE_DEF
+var _model: Node3D = null
 
 # Wander lento cerca del agua
 var spawn_position := Vector3.ZERO
@@ -49,7 +50,30 @@ func _on_enemy_ready() -> void:
 		model = EnemyModelBuilder.build_shelled(
 			default_color, Color(0.45, 0.5, 0.35), 0.25, 0.08, 4)
 	model.name = "Model"
+	# Motor GLBs face +Z while look_at points -Z (the hawk hunted tail-first
+	# until it got this same flip — _mob_pipeline.md gotcha list).
+	model.rotation_degrees.y = 180.0
 	add_child(model)
+	_model = model
+
+
+## The GLB ships idle/move/attack/hit/death clips; without this override the
+## base never creates the EnemyAnimator and the turtle slides like a cutout
+## (Joan, 2026-08-31 in-game).
+func _get_anim_model_root() -> Node3D:
+	return _model
+
+
+func _setup_anim() -> void:
+	super._setup_anim()
+	if _anim != null:
+		# The move-loop was authored as one chelonian stride per 2.67s cycle;
+		# ~0.3 m/s of travel matches that cadence, so the clip rate follows
+		# actual speed instead of skating.
+		_anim.move_ref_speed = 0.3
+		# Wander runs at 0.3 m/s — under the default 0.5 walk threshold the
+		# turtle plodded along stuck in the idle pose (Joan, 2026-08-31).
+		_anim.walk_threshold = 0.15
 
 
 # ─── Physics override: shell timer ──────────────────────────────────────────
@@ -64,6 +88,10 @@ func _physics_process(delta: float) -> void:
 		velocity.z = 0.0
 		_apply_gravity(delta)
 		move_and_slide()
+		# The shell path skips the base physics step, so drive the animator
+		# here or it stays frozen in whatever clip was playing when hit.
+		if _anim != null and not is_dead:
+			_anim.play_idle()
 		return
 
 	super._physics_process(delta)
@@ -83,6 +111,13 @@ func _idle_behavior(delta: float) -> void:
 
 	velocity.x = _wander_dir.x * speed * 0.5
 	velocity.z = _wander_dir.z * speed * 0.5
+
+	# Face where the feet go: the base only rotates the body while chasing a
+	# target, so a wandering turtle walked sideways/backwards (Joan,
+	# 2026-08-31). Same -Z-forward convention as _look_at_target.
+	if Vector2(velocity.x, velocity.z).length_squared() > 0.001:
+		var target_yaw := atan2(-velocity.x, -velocity.z)
+		rotation.y = lerp_angle(rotation.y, target_yaw, minf(1.0, delta * 2.5))
 
 
 # ─── Shell mechanic ─────────────────────────────────────────────────────────

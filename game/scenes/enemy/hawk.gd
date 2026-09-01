@@ -234,8 +234,11 @@ func _idle_behavior(delta: float) -> void:
 				WANDER_ACCEL, delta)
 		_face_flight_direction()
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, speed * delta * 3.0)
-		velocity.z = move_toward(velocity.z, 0.0, speed * delta * 3.0)
+		# A bird cannot park in mid-air (Joan, 2026-08-31: "un ave en el
+		# cielo no puede quedar estática"). Arriving at the wander point just
+		# means the next leg starts — never brake to a hover.
+		_pick_wander_target()
+		wander_timer = wander_interval
 
 	dive_cooldown -= delta
 

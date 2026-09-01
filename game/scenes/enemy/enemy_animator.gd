@@ -62,6 +62,17 @@ var _is_dp_type     := false   # true = bespoke mob from our Blender motor
 # the slime predates the contract and shipped "hop").
 var _dp_move_clip   := CLIP_DP_MOVE
 
+# Bespoke mobs ship ONE locomotion clip; rate goes through speed_scale
+# (contract §3). When > 0, the move clip's playback rate follows
+# horizontal_speed / move_ref_speed, so feet track the ground instead of
+# skating. 0 disables the sync (packs with per-speed clips don't need it).
+var move_ref_speed := 0.0
+
+# Speed above which the move/walk clip plays instead of idle. 0.5 suits the
+# pack humanoids; a slow creature (turtle wander = 0.3 m/s) needs it lower or
+# it walks in the idle pose.
+var walk_threshold := 0.5
+
 # Current logical state — avoids redundant play() calls.
 var _current_state := ""
 # True while a one-shot clip (attack, death, jump) is playing.
@@ -125,11 +136,14 @@ func play_state(horizontal_speed: float) -> void:
 	var target_clip: String
 	if horizontal_speed > WALK_RUN_THRESHOLD:
 		target_clip = _run_clip()
-	elif horizontal_speed > 0.5:
+	elif horizontal_speed > walk_threshold:
 		target_clip = _walk_clip()
 	else:
 		target_clip = _idle_clip()
 	_play_clip(target_clip, true)
+	if move_ref_speed > 0.0 and _is_dp_type:
+		_player.speed_scale = clampf(horizontal_speed / move_ref_speed, 0.5, 1.8) \
+				if target_clip == _dp_move_clip else 1.0
 
 
 ## Play idle (looping). Safe to call every frame — skipped if already playing.
