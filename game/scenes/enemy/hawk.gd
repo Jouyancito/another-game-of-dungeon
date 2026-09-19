@@ -288,6 +288,12 @@ func _stalk(delta: float, victim: Node3D, lethal: bool) -> void:
 			_steer(direction.x * dive_speed, direction.z * dive_speed,
 					DIVE_ACCEL, delta)
 			velocity.y = direction.y * dive_speed * 0.45
+			# Cerca del suelo, no clavarse. El guard vive ACA y no en
+			# _apply_gravity: alla queda pisado por la linea de arriba, que
+			# corre despues. Umbral 1.5 = la altura en que el halcon se
+			# vuelve atacable (ver cabecera).
+			if global_position.y <= 1.5:
+				velocity.y = maxf(velocity.y, 0.0)
 			_face_flight_direction()
 			# Llegar por rango, por suelo, O POR CHOQUE: un blanco con cuerpo
 			# (el dummy mide 1.75 m) bloquea antes del rango y sin el OR de
