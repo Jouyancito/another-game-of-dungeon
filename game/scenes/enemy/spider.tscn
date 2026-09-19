@@ -1,0 +1,32 @@
+[gd_scene load_steps=2 format=3 uid="uid://spider01"]
+
+[ext_resource type="Script" path="res://scenes/enemy/spider.gd" id="1_spider"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.4, 0.3, 0.45)
+
+[node name="Spider" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 7
+script = ExtResource("1_spider")
+speed = 4.2
+health = 55.0
+damage = 7.0
+attack_range = 1.6
+detection_range = 7.0
+xp_reward = 10.0
+attack_cooldown = 1.4
+aggression = 0
+enemy_type = "spider"
+enemy_tier = 1
+sub_tier = 0
+habitat_type = "cave"
+mass = 0.5
+display_name = "Araña"
+enemy_level = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]

@@ -1,0 +1,32 @@
+[gd_scene load_steps=2 format=3 uid="uid://gmoth001"]
+
+[ext_resource type="Script" path="res://scenes/enemy/giant_moth.gd" id="1_moth"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_001"]
+size = Vector3(0.5, 0.4, 0.6)
+
+[node name="GiantMoth" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 7
+script = ExtResource("1_moth")
+speed = 3.4
+health = 70.0
+damage = 11.0
+attack_range = 1.8
+detection_range = 14.0
+xp_reward = 22.0
+attack_cooldown = 1.6
+aggression = 0
+enemy_type = "giant_moth"
+enemy_tier = 2
+sub_tier = 0
+habitat_type = "aerial"
+mass = 0.4
+display_name = "Polilla Gigante"
+enemy_level = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+shape = SubResource("BoxShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]

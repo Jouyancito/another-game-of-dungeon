@@ -79,7 +79,7 @@ func _attack_mace() -> void:
 		_smite_loop()
 
 func _smite_loop() -> void:
-	while is_holding_attack and not is_dead:
+	while is_holding_attack and not is_incapacitated():
 		if mana < smite_mana_cost:
 			# Sin maná, salir del loop
 			is_holding_attack = false

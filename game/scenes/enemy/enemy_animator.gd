@@ -30,6 +30,24 @@ const CLIP_FLY_IDLE   := "Flying_Idle"
 const CLIP_FLY_MOVE   := "Fast_Flying"
 const CLIP_HEADBUTT   := "Headbutt"   # attack for flyers
 
+# Clip names — bespoke mobs from our own Blender motor.
+# _mob_style_contract.md §3 fixes these names for every mob we build, so one
+# mapping covers the whole bespoke roster. The generators author them with a
+# "-loop" suffix to opt into Godot's glTF auto-loop; the importer consumes the
+# suffix and registers the clip under the bare lowercase name (verified on
+# slime_dp_01: "idle-loop" imports as "idle" with loop_mode=1).
+const CLIP_DP_IDLE   := "idle"
+# _mob_style_contract.md 3 fixes the clip name as "move-loop" for EVERY mob,
+# with hop/slither/scurry/plod being descriptions of the locomotion, not names.
+# The slime shipped its clip as "hop-loop" and this constant was written to
+# match it -- the code followed the first case instead of the canon. Accept
+# both: "move" is the contract, "hop" is the slime already in the game.
+const CLIP_DP_MOVE   := "move"
+const CLIP_DP_MOVE_ALT := "hop"
+const CLIP_DP_ATTACK := "attack"
+const CLIP_DP_HIT    := "hit"
+const CLIP_DP_DEATH  := "death"
+
 # Speed threshold below which Walk is preferred over Run.
 # Enemies that are HUNTER_FAST (speed_mult ~1.4) will still use Walk
 # unless their resultant speed exceeds this; Run is reserved for dashes.
@@ -39,6 +57,21 @@ var _player: AnimationPlayer = null
 var _is_big_type    := false   # true = humanoid (orc/ninja clips)
 var _is_flying_type := false   # true = flying (pigeon/goleling clips)
 var _is_blob_type   := false   # true = slime/blob pack clips
+var _is_dp_type     := false   # true = bespoke mob from our Blender motor
+# Which name THIS mob used for its locomotion clip (contract: "move";
+# the slime predates the contract and shipped "hop").
+var _dp_move_clip   := CLIP_DP_MOVE
+
+# Bespoke mobs ship ONE locomotion clip; rate goes through speed_scale
+# (contract §3). When > 0, the move clip's playback rate follows
+# horizontal_speed / move_ref_speed, so feet track the ground instead of
+# skating. 0 disables the sync (packs with per-speed clips don't need it).
+var move_ref_speed := 0.0
+
+# Speed above which the move/walk clip plays instead of idle. 0.5 suits the
+# pack humanoids; a slow creature (turtle wander = 0.3 m/s) needs it lower or
+# it walks in the idle pose.
+var walk_threshold := 0.5
 
 # Current logical state — avoids redundant play() calls.
 var _current_state := ""
@@ -58,12 +91,15 @@ func _init(model_root: Node) -> void:
 
 	# Detect clip set
 	var clips := _player.get_animation_list()
+	_is_dp_type     = CLIP_DP_IDLE in clips and (CLIP_DP_MOVE in clips or CLIP_DP_MOVE_ALT in clips)
+	if _is_dp_type:
+		_dp_move_clip = CLIP_DP_MOVE if CLIP_DP_MOVE in clips else CLIP_DP_MOVE_ALT
 	_is_big_type    = "Walk" in clips and "Run" in clips and "Idle" in clips
 	_is_blob_type   = "Bite_Front" in clips
 	_is_flying_type = "Flying_Idle" in clips or "Fast_Flying" in clips
 
-	print("[EnemyAnimator] Found AnimationPlayer '%s'. Clips: %s | big=%s blob=%s fly=%s" % [
-		_player.name, ", ".join(clips), _is_big_type, _is_blob_type, _is_flying_type])
+	print("[EnemyAnimator] Found AnimationPlayer '%s'. Clips: %s | dp=%s big=%s blob=%s fly=%s" % [
+		_player.name, ", ".join(clips), _is_dp_type, _is_big_type, _is_blob_type, _is_flying_type])
 
 	# Start Idle immediately
 	_play_clip(_idle_clip(), true)
@@ -100,11 +136,14 @@ func play_state(horizontal_speed: float) -> void:
 	var target_clip: String
 	if horizontal_speed > WALK_RUN_THRESHOLD:
 		target_clip = _run_clip()
-	elif horizontal_speed > 0.5:
+	elif horizontal_speed > walk_threshold:
 		target_clip = _walk_clip()
 	else:
 		target_clip = _idle_clip()
 	_play_clip(target_clip, true)
+	if move_ref_speed > 0.0 and _is_dp_type:
+		_player.speed_scale = clampf(horizontal_speed / move_ref_speed, 0.5, 1.8) \
+				if target_clip == _dp_move_clip else 1.0
 
 
 ## Play idle (looping). Safe to call every frame — skipped if already playing.
@@ -143,6 +182,11 @@ func play_attack() -> void:
 func play_jump() -> void:
 	if not is_valid():
 		return
+	# For a bespoke mob the locomotion clip IS the hop — using the attack clip
+	# here would fire a lunge every time the slime simply moves.
+	if _is_dp_type:
+		_play_clip(_dp_move_clip, false)
+		return
 	if _has_clip(CLIP_JUMP):
 		_play_clip(CLIP_JUMP, false)
 	else:
@@ -155,18 +199,22 @@ func play_jump() -> void:
 func play_death() -> void:
 	if not is_valid():
 		return
-	_play_clip(CLIP_DEATH, false)
+	_play_clip(CLIP_DP_DEATH if _is_dp_type else CLIP_DEATH, false)
 
 
 # ── Internals ────────────────────────────────────────────────────────────────
 
 func _idle_clip() -> String:
+	if _is_dp_type:
+		return CLIP_DP_IDLE
 	if _is_flying_type:
 		return CLIP_FLY_IDLE
 	return CLIP_IDLE
 
 
 func _walk_clip() -> String:
+	if _is_dp_type:
+		return _dp_move_clip
 	if _is_flying_type:
 		return CLIP_FLY_MOVE
 	if _is_blob_type:
@@ -176,6 +224,10 @@ func _walk_clip() -> String:
 
 
 func _run_clip() -> String:
+	# Bespoke mobs ship ONE locomotion clip; speed is speed_scale in Godot, not
+	# a duplicate clip (contract §3).
+	if _is_dp_type:
+		return _dp_move_clip
 	if _is_flying_type:
 		return CLIP_FLY_MOVE
 	if _is_big_type and _has_clip(CLIP_RUN):
@@ -185,6 +237,8 @@ func _run_clip() -> String:
 
 
 func _attack_clip() -> String:
+	if _is_dp_type:
+		return CLIP_DP_ATTACK
 	if _is_flying_type:
 		return CLIP_HEADBUTT
 	if _is_blob_type:

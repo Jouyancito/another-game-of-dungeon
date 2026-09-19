@@ -127,7 +127,7 @@ func _stop_beam() -> void:
 	beam_line = null
 
 func _channel_beam() -> void:
-	while is_channeling and is_holding_attack and not is_dead:
+	while is_channeling and is_holding_attack and not is_incapacitated():
 		if not use_mana(beam_mana_cost):
 			_stop_beam()
 			return

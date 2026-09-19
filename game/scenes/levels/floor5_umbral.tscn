@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://floor5_umbral"]
+
+[ext_resource type="Script" path="res://scenes/levels/floor5_umbral.gd" id="1_floor5_umbral"]
+
+[node name="FLOOR5" type="Node3D"]
+script = ExtResource("1_floor5_umbral")

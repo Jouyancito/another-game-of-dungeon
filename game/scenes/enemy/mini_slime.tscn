@@ -1,14 +1,14 @@
 [gd_scene load_steps=3 format=3 uid="uid://minislime001"]
 
 [ext_resource type="Script" path="res://scenes/enemy/slime.gd" id="1_slime"]
-[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/enemies/slime/enemy_slime_green.gltf" id="2_slime_mesh"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/enemies/slime/slime_dp_01.glb" id="2_slime_mesh"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_001"]
-radius = 0.3
+radius = 0.26
 
 [node name="MiniSlime" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 script = ExtResource("1_slime")
 speed = 3.5
 health = 30.0
@@ -20,10 +20,10 @@ attack_cooldown = 0.8
 is_mini = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 shape = SubResource("SphereShape3D_001")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 
 [node name="SlimeMesh" parent="." instance=ExtResource("2_slime_mesh")]
-transform = Transform3D(-0.3, 0, 0, 0, 0.3, 0, 0, 0, -0.3, 0, 0, 0)
+transform = Transform3D(0.72, 0, 0, 0, 0.72, 0, 0, 0, 0.72, 0, 0, 0)

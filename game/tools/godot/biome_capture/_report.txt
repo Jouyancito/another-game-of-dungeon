@@ -1,0 +1,23 @@
+=== biome_capture — seed=424242 proc_bounds=260x260 ===
+
+-- New tree_pack trees (5 expected) --
+  tree_prairie: MISSING (never instantiated this seed)
+  tree_prairie_tall: MISSING (never instantiated this seed)
+  tree_prairie_wide: MISSING (never instantiated this seed)
+  tree_young: MISSING (never instantiated this seed)
+  tree_dry: MISSING (never instantiated this seed)
+-- New bush variants (5 expected) --
+  bush_round: FOUND @ (-12.82959, 11.50688, -19.52009)
+  bush_large_glb: FOUND @ (-45.67157, 13.62059, 24.8984)
+  bush_flowering: FOUND @ (-12.292, 11.54786, 18.08977)
+  bush_low: MISSING (never instantiated this seed)
+  bush_dry: FOUND @ (-12.14731, 8.20436, 7.524566)
+-- New flower_pack flowers (5 expected, pale_glow excluded — pre-existing) --
+  flower_yellow_clover: FOUND @ (-11.01385, 12.23128, -33.03658)
+  flower_bicolor_mix: FOUND @ (-7.383638, 11.01705, 27.11923)
+  flower_violet_cluster: FOUND @ (-59.55525, 13.88918, 11.1545)
+  flower_white_star: FOUND @ (-26.76332, 11.12709, 17.48543)
+  flower_tall_stalk: FOUND @ (-19.93579, 13.54288, -39.67464)
+
+[FINDING] shot (b) skipped — no new tree_pack species found this seed.
+[FINDING] dry zone shot: env_tree_dry_01 MISSING, framed on bush_dry only.

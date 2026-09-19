@@ -2,30 +2,11 @@
 
 [ext_resource type="Script" path="res://scenes/enemy/king_slime.gd" id="1_king"]
 [ext_resource type="PackedScene" path="res://scenes/enemy/mini_slime.tscn" id="2_mini"]
+[ext_resource type="PackedScene" path="res://assets/art/piso1_pradera/enemies/slime/king_slime_dp_01.glb" id="3_king_mesh"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_001"]
-radius = 3.0
-height = 6.0
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_001"]
-albedo_color = Color(0.25, 0.85, 0.3, 1.0)
-emission_enabled = true
-emission = Color(0.1, 0.5, 0.15, 1)
-emission_energy_multiplier = 1.8
-
-[sub_resource type="SphereMesh" id="SphereMesh_001"]
-radius = 3.0
-height = 6.0
-material = SubResource("StandardMaterial3D_001")
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_Crown"]
-albedo_color = Color(0.85, 0.75, 0.2, 1)
-metallic = 0.9
-roughness = 0.2
-
-[sub_resource type="BoxMesh" id="BoxMesh_Crown"]
-size = Vector3(1.6, 0.7, 1.6)
-material = SubResource("StandardMaterial3D_Crown")
+radius = 1.55
+height = 3.05
 
 [node name="KingSlime" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
@@ -46,23 +27,17 @@ mass = 16.0
 knockback_resistance = 0.95
 display_name = "Rey Slime"
 enemy_level = 5
-target_frame_offset = Vector3(0, 3.0, 0)
+target_frame_offset = Vector3(0, 3.2, 0)
 mini_slime_scene = ExtResource("2_mini")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.53, 0)
 shape = SubResource("CapsuleShape3D_001")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
-mesh = SubResource("SphereMesh_001")
-
-[node name="Crown" type="MeshInstance3D" parent="MeshInstance3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
-mesh = SubResource("BoxMesh_Crown")
+[node name="KingMesh" parent="." instance=ExtResource("3_king_mesh")]
 
 [node name="BossLight" type="OmniLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 light_color = Color(0.3, 1.0, 0.4, 1)
 light_energy = 3.0
 omni_range = 12.0

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://moblab001"]
+
+[ext_resource type="Script" path="res://scenes/dev/mob_lab.gd" id="1_moblab"]
+
+[node name="MobLab" type="Node3D"]
+script = ExtResource("1_moblab")

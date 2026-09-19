@@ -68,6 +68,53 @@ func _register_tables() -> void:
 		],
 	})
 
+	# --- Piso 2: Bosque ---
+	# Canon lore/_alpha_5_maps.md — bestiario P2: búhos, serpientes, polillas gigantes.
+	_add("giant_moth", {
+		"gold_min": 2,
+		"gold_max": 6,
+		"drops": [
+			{"item_id": "material_feather", "chance": 0.14, "qty_min": 1, "qty_max": 2},
+			{"item_id": "material_venom_sac", "chance": 0.05, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	# Piso 5 — Guardián-Cuervo (jefe de RANGO). Solo dropea si PELEÓ: un cuervo que te
+	# reconoce y se aparta no deja botín, porque no hubo victoria.
+	_add("guardian_cuervo", {
+		"gold_min": 200,
+		"gold_max": 400,
+		"drops": [
+			{"item_id": "material_black_feather", "chance": 1.0, "qty_min": 3, "qty_max": 6},
+			{"item_id": "corona_oxidada_menor", "chance": 0.35, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	# Bosses de piso — canon enemy_tier_system.md: "el boss de cada piso es un GATE".
+	_add("forest_watcher", {
+		"gold_min": 60, "gold_max": 120,
+		"drops": [
+			{"item_id": "material_black_feather", "chance": 1.0, "qty_min": 2, "qty_max": 4},
+			{"item_id": "cape_hunter", "chance": 0.30, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	_add("jotun_giant", {
+		"gold_min": 100, "gold_max": 200,
+		"drops": [
+			{"item_id": "material_stone_core", "chance": 1.0, "qty_min": 1, "qty_max": 3},
+			{"item_id": "shield_iron", "chance": 0.30, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	_add("samum", {
+		"gold_min": 150, "gold_max": 280,
+		"drops": [
+			{"item_id": "material_venom_sac", "chance": 1.0, "qty_min": 2, "qty_max": 5},
+			{"item_id": "corona_oxidada_menor", "chance": 0.30, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
 	_add("turtle", {
 		"gold_min": 2,
 		"gold_max": 5,
@@ -162,7 +209,6 @@ func _register_tables() -> void:
 		],
 	})
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("spider", {
 		"gold_min": 1,
 		"gold_max": 4,
@@ -172,12 +218,31 @@ func _register_tables() -> void:
 		],
 	})
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("rabbit", {
 		"gold_min": 0,
 		"gold_max": 1,
 		"drops": [
 			{"item_id": "material_rabbit_pelt", "chance": 0.12, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	# Canon _floor1_integral_plan.md TIER 2 §5 — pond frog.
+	_add("frog", {
+		"gold_min": 1,
+		"gold_max": 3,
+		"drops": [
+			{"item_id": "material_frog_leg", "chance": 0.10, "qty_min": 1, "qty_max": 1},
+			{"item_id": "material_venom_sac", "chance": 0.04, "qty_min": 1, "qty_max": 1},
+		],
+	})
+
+	# Canon _floor1_integral_plan.md TIER 2 §6 — territorial field boar.
+	_add("jabali", {
+		"gold_min": 3,
+		"gold_max": 8,
+		"drops": [
+			{"item_id": "material_leather", "chance": 0.15, "qty_min": 1, "qty_max": 1},
+			{"item_id": "material_tusk", "chance": 0.08, "qty_min": 1, "qty_max": 1},
 		],
 	})
 
@@ -232,7 +297,6 @@ func _register_tables() -> void:
 		],
 	})
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("bandit_leader", {
 		"gold_min": 15,
 		"gold_max": 35,
@@ -250,7 +314,6 @@ func _register_tables() -> void:
 
 	# --- Boss: Rey Slime (boss mantiene drops generosos) ---
 
-	# TODO: enemy not yet implemented — table ready for when added
 	_add("rey_slime", {
 		"gold_min": 40,
 		"gold_max": 80,

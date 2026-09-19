@@ -91,7 +91,7 @@ func _attack_arrow() -> void:
 		_charge_loop()
 
 func _charge_loop() -> void:
-	while is_holding_attack and not is_dead:
+	while is_holding_attack and not is_incapacitated():
 		is_charging = true
 		# Animación de tensar arco
 		if view_model:

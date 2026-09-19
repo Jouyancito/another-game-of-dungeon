@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://b7172x0n3up3f"
+path.s3tc="res://.godot/imported/env_tree_prairie_old_01_bark_brown_01_nor_512.jpg-653ea063080f5884e9bc448f5791ac54.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "76bdc4b8e71174b7e2098675320edc82"
+}
+
+[deps]
+
+source_file="res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01_bark_brown_01_nor_512.jpg"
+dest_files=["res://.godot/imported/env_tree_prairie_old_01_bark_brown_01_nor_512.jpg-653ea063080f5884e9bc448f5791ac54.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=1
+roughness/src_normal="res://assets/art/piso1_pradera/vegetation/tree_pack/env_tree_prairie_old_01_bark_brown_01_nor_512.jpg"
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

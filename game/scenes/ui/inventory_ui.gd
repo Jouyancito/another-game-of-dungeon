@@ -238,6 +238,8 @@ func _open() -> void:
 			player.equipment_changed.connect(_on_equipment_changed)
 		if player.has_signal("item_picked_up") and not player.item_picked_up.is_connected(_on_item_picked_up):
 			player.item_picked_up.connect(_on_item_picked_up)
+		if player.has_signal("gold_changed") and not player.gold_changed.is_connected(_on_gold_changed):
+			player.gold_changed.connect(_on_gold_changed)
 		_connected_player = player
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -260,6 +262,8 @@ func _close() -> void:
 			_connected_player.equipment_changed.disconnect(_on_equipment_changed)
 		if _connected_player.has_signal("item_picked_up") and _connected_player.item_picked_up.is_connected(_on_item_picked_up):
 			_connected_player.item_picked_up.disconnect(_on_item_picked_up)
+		if _connected_player.has_signal("gold_changed") and _connected_player.gold_changed.is_connected(_on_gold_changed):
+			_connected_player.gold_changed.disconnect(_on_gold_changed)
 	_connected_player = null
 	# Si el pause menu también está cerrado, volver a capturar el mouse
 	var pause_menu = _find_pause_menu()
@@ -278,6 +282,11 @@ func _on_item_picked_up(_item_id: String, _quantity: int) -> void:
 	_refresh()
 
 
+func _on_gold_changed(_amount: int) -> void:
+	# El jugador recogió/gastó oro — refrescar el contador en vivo
+	_refresh()
+
+
 func _find_pause_menu() -> Control:
 	for child in get_tree().current_scene.get_children():
 		if child.get_script() != null:
@@ -290,7 +299,12 @@ func _find_pause_menu() -> Control:
 func _refresh() -> void:
 	if inventory == null:
 		return
-	_coin_label.text = "Monedas: %d" % inventory.coins
+	# Canon: el oro vive en BasePlayer.gold (mutado por add_gold en pickup de GoldDrop),
+	# no en Inventory.coins — ese campo nunca se incrementa en runtime (solo round-trip
+	# de save/load legacy). Leer del jugador conectado es la fuente de verdad real.
+	var player := _connected_player if _connected_player != null else _find_player()
+	var coin_amount: int = int(player.get("gold")) if player != null and is_instance_valid(player) else inventory.coins
+	_coin_label.text = "Monedas: %d" % coin_amount
 	_grid_panel.queue_redraw()
 
 

@@ -44,6 +44,35 @@ Every game/mascot asset is judged on **four coupled properties**: how it **DEFOR
 
 ---
 
+### Hair (cards/shells) — the three-layer method
+
+**Established production technique, not something to rediscover per asset.** Written down
+2026-08-15 after the warrior's hair shipped full of holes and three ramps of plate width
+failed to close the crown (30.3% → 14.1% → 7.3% of scalp still exposed, and 18.9% from
+directly above even at 2.6× width).
+
+1. **Scalp cap FIRST.** An opaque shell in the hair colour, built by copying the `scalp`
+   group's own faces and inflating them ~3.5 mm along the normals. Coverage becomes 100% **by
+   construction** and never depends on cards happening to touch each other. Measured effect on
+   the warrior: **30.3% → 0.1% exposed**, in one step, with the cards untouched.
+2. **Cards in ordered layers on top** — nape → sides → front, lower layers built first so
+   upper ones fall ON them. Each layer lifts slightly more than the one below (~5.5 mm/layer)
+   so it rests on it instead of intersecting it.
+3. **Loose strands last**, few, asymmetric, for identity.
+
+The cards' job is **volume and silhouette**, never coverage. Sizing them for coverage is the
+trap: the warrior's original plates already had 3.8× the scalp's area in theory and still had
+holes, because total area says nothing about WHERE each plate lands.
+
+The part line is the only place scalp is meant to show.
+
+**Measure it, don't eyeball it** — `game/tools/blender/measure_hair_coverage.py`: paints the
+`scalp` group emissive white, the rest of the body mid-grey and the hair black, renders 6
+orthographic views with `view_transform='Standard'` and no lights, and reports
+`white / (white + black)` per view. Emissive on purpose: with lighting you would be measuring
+shading, and a scalp in shadow reads as covered. **Top-down is always the worst view** and the
+one every eyeball judgement had skipped.
+
 ## Per-category cheat-sheets
 
 ### Modular structures & architecture

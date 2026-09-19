@@ -5,10 +5,10 @@ extends BaseEnemy
 ## Issue #60. Canon completo `game/docs/balance/_mimic.md`.
 ## Mesh + anim `reveal`: `mimic_chest.tscn` (D). VFX reveal: `scenes/enemy/vfx/mimic_reveal_vfx.tscn`.
 
-# TODO spawn gate: mimic debe spawnearse como reemplazo de 5% de chests sub-B+
-# (canon _mimic.md §2.1-2.2). Requiere hook en loot_chest/spawner con flag
-# `arena.has_sub_b_enemies` + cooldown global "max 1 activo por escena".
-# Issue separado — no implementar en este merge.
+# Spawn gate lives in the level, not here: floor1_prairie._spawn_poi_chest() replaces a
+# POI's chest with a mimic per canon _mimic.md §2.1-2.2 — 5% only in a POI that spawned a
+# sub-B+ enemy, never at the entrance (that chest teaches "chest = loot"), and at most one
+# mimic per scene with no re-roll on cooldown loss.
 
 enum State { DISGUISED, REVEALING, AGGRESSIVE }
 

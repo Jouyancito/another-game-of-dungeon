@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://biome_capture_001"]
+
+[ext_resource type="Script" path="res://scenes/dev/biome_capture.gd" id="1_biomecap"]
+
+[node name="BiomeCapture" type="Node3D"]
+script = ExtResource("1_biomecap")

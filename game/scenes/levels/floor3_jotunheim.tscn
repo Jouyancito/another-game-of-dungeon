@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://floor3_jotunheim"]
+
+[ext_resource type="Script" path="res://scenes/levels/floor3_jotunheim.gd" id="1_floor3_jotunheim"]
+
+[node name="FLOOR3" type="Node3D"]
+script = ExtResource("1_floor3_jotunheim")

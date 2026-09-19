@@ -110,12 +110,8 @@ func test_take_damage_kills_at_zero() -> void:
 	var e = _create_enemy()
 	await get_tree().process_frame
 	e.take_damage(100.0)
-	# KNOWN GAME BUG: take_damage → die() → _spawn_loot() → DropController.spawn_drops()
-	# → gold.global_position (Area3D not yet in tree) + scene_root.call_deferred on null.
-	# Bugs in game/shared/loot/drop_controller.gd lines 47-48. Cannot fix from test code.
-	# assert_engine_error acknowledges the expected errors so GUT does not count as failures.
-	assert_engine_error("is_inside_tree", "gold.global_position on unparented Area3D — game bug")
-	assert_engine_error("call_deferred", "scene_root null — game bug in drop_controller.gd:48")
+	# The two DropController bugs these tests used to pin (scene_root null, and
+	# global_position set on an unparented Area3D) are FIXED — dying no longer errors.
 	assert_true(e.is_dead, "Muere con 0 HP")
 
 
@@ -157,11 +153,6 @@ func test_die_sets_is_dead() -> void:
 	var e = _create_enemy()
 	await get_tree().process_frame
 	e.die()
-	# KNOWN GAME BUG: die() → _spawn_loot() → DropController.spawn_drops()
-	# → gold.global_position (Area3D not yet in tree) + scene_root.call_deferred on null.
-	# Bugs in game/shared/loot/drop_controller.gd lines 47-48.
-	assert_engine_error("is_inside_tree", "gold.global_position on unparented Area3D — game bug")
-	assert_engine_error("call_deferred", "scene_root null — game bug in drop_controller.gd:48")
 	await get_tree().process_frame
 	assert_true(e.is_dead)
 
@@ -178,16 +169,10 @@ func test_die_gives_xp_to_target() -> void:
 	add_child_autofree(mock_target)
 
 	e.target = mock_target
-	# KNOWN GAME BUG: die() → _spawn_loot() → DropController.spawn_drops() calls
-	# query_node.get_tree().current_scene which is null in the GUT headless runner.
-	# The gold.global_position assignment also crashes because gold is not yet in tree.
-	# Both are bugs in game/shared/loot/drop_controller.gd (lines 47–48) that cannot
-	# be fixed from test code. die() sets is_dead = true and calls gain_xp BEFORE
+	# die() sets is_dead = true and calls gain_xp BEFORE
 	# _spawn_loot, so the XP assertion remains valid despite the expected errors.
 	e.die()
 	# Acknowledge engine errors from DropController so GUT does not count as test failures.
-	assert_engine_error("is_inside_tree", "gold.global_position on unparented Area3D — game bug")
-	assert_engine_error("call_deferred", "scene_root null — game bug in drop_controller.gd:48")
 	await get_tree().process_frame
 	assert_eq(mock_target.xp, 30.0, "Enemy da 30 XP al morir")
 
@@ -197,11 +182,6 @@ func test_die_no_crash_without_target() -> void:
 	await get_tree().process_frame
 	e.target = null
 	e.die()
-	# KNOWN GAME BUG: die() → _spawn_loot() → DropController.spawn_drops()
-	# → gold.global_position (Area3D not yet in tree) + scene_root.call_deferred on null.
-	# Bugs in game/shared/loot/drop_controller.gd lines 47-48.
-	assert_engine_error("is_inside_tree", "gold.global_position on unparented Area3D — game bug")
-	assert_engine_error("call_deferred", "scene_root null — game bug in drop_controller.gd:48")
 	await get_tree().process_frame
 	assert_true(e.is_dead, "Muere sin crash aunque no tenga target")
 

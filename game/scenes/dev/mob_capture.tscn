@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://dmobcapture01"]
+
+[ext_resource type="Script" path="res://scenes/dev/mob_capture.gd" id="1_mobcap"]
+
+[node name="MobCapture" type="Node3D"]
+script = ExtResource("1_mobcap")

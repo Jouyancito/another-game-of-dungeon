@@ -12,7 +12,7 @@ material = ExtResource("2_toon_wolf")
 
 [node name="Wolf" type="CharacterBody3D" groups=["enemies"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 script = ExtResource("1_wolf")
 speed = 4.5
 health = 90.0

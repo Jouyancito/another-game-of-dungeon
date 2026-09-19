@@ -46,6 +46,43 @@ const MAX_PLACE_TRIES: int     = 500
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+## Posición de la entrada, derivada SOLO de la semilla y el tamaño del mapa.
+##
+## Vive acá afuera porque el nivel necesita saber dónde cae la entrada ANTES de
+## generar el terreno (para excavar la depresión de la antesala), y los POI se
+## generan después. Dos cálculos separados de lo mismo divergen tarde o temprano
+## y el pozo termina en un lado y la sala en el otro — un solo lugar, dos lectores.
+##
+## Usa su propio RandomNumberGenerator y consume el PRIMER sorteo de la semilla.
+## generate_pois() quema ese mismo sorteo en su generador local para no correr el
+## resto de los POI.
+static func entrance_position(p_seed: int, map_size: Vector2, border_func: Callable = Callable()) -> Vector3:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = p_seed
+	var entrance_size: Vector2 = POI_CATALOG["entrance"]["size"] as Vector2
+	var entrance_z: float = rng.randf_range(-map_size.y * 0.15, map_size.y * 0.15)
+	var pos: Vector3 = Vector3(
+		-map_size.x * 0.5 + entrance_size.x * 0.5 + MIN_EDGE_MARGIN + 20.0,
+		0.0,
+		entrance_z
+	)
+	# El borde orgánico cambia por semilla; esta entrada del oeste se colocaba SIN
+	# validar (a diferencia del resto de los POI), así que en algunas semillas caía
+	# fuera del terreno jugable y el jugador aparecía en el vacío. Se la tira hacia
+	# el centro hasta que entre — el centro siempre está adentro, así que termina.
+	var pull_tries: int = 0
+	while not _inside_border(pos, border_func) and pull_tries < 64:
+		pos = pos.lerp(Vector3.ZERO, 0.1)
+		pull_tries += 1
+	return pos
+
+
+static func _inside_border(pos: Vector3, border_func: Callable) -> bool:
+	if not border_func.is_valid():
+		return true
+	return bool(border_func.call(pos))
+
+
 func generate_pois(p_seed: int, map_size: Vector2, border_func: Callable = Callable()) -> Array[POI]:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = p_seed
@@ -55,20 +92,11 @@ func generate_pois(p_seed: int, map_size: Vector2, border_func: Callable = Calla
 	# -- Entrada: borde West --
 	var entrance_def: Dictionary = POI_CATALOG["entrance"]
 	var entrance_size: Vector2 = entrance_def["size"] as Vector2
-	var entrance_z: float = rng.randf_range(-map_size.y * 0.15, map_size.y * 0.15)
-	var entrance_pos: Vector3 = Vector3(
-		-map_size.x * 0.5 + entrance_size.x * 0.5 + MIN_EDGE_MARGIN + 20.0,
-		0.0,
-		entrance_z
-	)
-	# The organic border varies per seed; this west-edge entrance was placed WITHOUT
-	# validating it (unlike the boss/major/minor POIs below), so for some seeds it
-	# landed outside the playable terrain and the player spawned into the void.
-	# Pull it toward center until it is inside — center is always inside → terminates.
-	var pull_tries: int = 0
-	while not _is_inside_border(entrance_pos, border_func) and pull_tries < 64:
-		entrance_pos = entrance_pos.lerp(Vector3.ZERO, 0.1)
-		pull_tries += 1
+	var entrance_pos: Vector3 = entrance_position(p_seed, map_size, border_func)
+	# entrance_position() consumes the FIRST draw of this seed's stream with its own
+	# generator. This local rng has to burn the identical draw or every POI placed
+	# after the entrance shifts, changing the layout of every already-played seed.
+	rng.randf_range(-map_size.y * 0.15, map_size.y * 0.15)
 	var entrance: POI = POI.new("entrance", entrance_size, entrance_pos)
 	entrance.is_entrance = true
 	entrance.enemy_count = entrance_def["enemy_count"]
@@ -107,7 +135,14 @@ func generate_pois(p_seed: int, map_size: Vector2, border_func: Callable = Calla
 	# -- Minor POIs (2-4) --
 	var minor_types: Array = _get_types_by_category("minor")
 	var minor_count: int = rng.randi_range(2, 4)
-	for i in range(minor_count):
+	# Targeted guarantee: pond is a minor POI split 3 ways with replacement, so
+	# an unguaranteed draw left ~31% of runs with ZERO ponds (audit
+	# bioma/cobertura-assets-vs-visible, 2026-07-30) — and no ponds means no
+	# damp-water dressing (reeds, future mushroom clusters) anywhere on the map.
+	# Force one pond first, then fill the rest with the normal random draw so
+	# altar/well keep their existing distribution untouched.
+	_try_place_poi("pond", pois, rng, map_size, border_func)
+	for i in range(minor_count - 1):
 		var poi_type: String = minor_types[rng.randi() % minor_types.size()]
 		_try_place_poi(poi_type, pois, rng, map_size, border_func)
 
@@ -138,10 +173,10 @@ func _try_place_poi(poi_type: String, pois: Array[POI], rng: RandomNumberGenerat
 			return
 	push_warning("POISystem: no se pudo colocar POI '%s'" % poi_type)
 
+## Delega en la versión estática: dos copias de la misma comprobación de borde es
+## exactamente la clase de duplicado que después se arregla en una sola.
 func _is_inside_border(pos: Vector3, border_func: Callable) -> bool:
-	if not border_func.is_valid():
-		return true
-	return border_func.call(pos) as bool
+	return _inside_border(pos, border_func)
 
 func _no_overlap(candidate: POI, existing: Array[POI]) -> bool:
 	for other in existing:

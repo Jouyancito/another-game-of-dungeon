@@ -14,6 +14,7 @@ extends CanvasLayer
 @onready var level_up_label: Label = $LevelUpNotification
 
 var _player: Node = null  # Referencia al jugador vinculado a este HUD
+var _level_up_tween: Tween = null  # Se mata al reentrar: ver _show_level_up_notification
 
 # Hint de interacción — "Presioná [E] para recoger" / "para abrir" / etc.
 var _pickup_hint_panel: PanelContainer
@@ -40,6 +41,15 @@ var _torch_slot_placeholder: Label
 var _torch_slot_status: Label
 var _torch_slot_hint: Label
 
+# True while the floor-cleared banner is up. It reuses DeathScreen/DeathLabel,
+# so it must suppress the [R]-respawn handler those normally arm — a victory
+# must never reload the run out from under the player.
+var _floor_cleared_active := false
+
+# Status readout (stun etc). Built in code rather than in the .tscn to keep this
+# self-contained — see _on_player_status_applied for why it is text and not icons yet.
+var _status_label: Label
+
 func _ready() -> void:
 	add_to_group("hud")
 	death_screen.visible = false
@@ -47,6 +57,7 @@ func _ready() -> void:
 	level_up_label.visible = false
 	# Font del death_label más chico y claro (antes 48 desde tscn).
 	death_label.add_theme_font_size_override("font_size", 22)
+	_build_status_label()
 	_build_pickup_hint()
 	_build_target_frame()
 	_wire_hotbar_slots()
@@ -316,6 +327,9 @@ func connect_to_player(player: Node) -> void:
 		player.player_downed.connect(_on_player_downed)
 	if player.has_signal("player_revived"):
 		player.player_revived.connect(_on_player_revived)
+	if player.has_signal("status_applied"):
+		player.status_applied.connect(_on_player_status_applied)
+		player.status_removed.connect(_on_player_status_removed)
 	player.level_up.connect(_on_level_up)
 	_on_health_changed(player.health, player.max_health)
 	_on_mana_changed(player.mana, player.max_mana)
@@ -359,20 +373,27 @@ func _on_level_up(new_level: int, _points: int) -> void:
 
 
 func _show_level_up_notification(new_level: int) -> void:
-	level_up_label.text = "¡NIVEL %d!" % new_level
+	level_up_label.text = "¡SUBISTE DE NIVEL!\nNIVEL %d" % new_level
 	level_up_label.visible = true
 	level_up_label.modulate = Color(1, 0.85, 0.1, 1)
 	level_up_label.scale = Vector2(0.5, 0.5)
 	level_up_label.pivot_offset = level_up_label.size / 2
 
+	# Dos niveles seguidos entran dentro de los 4.20 s que dura la animación —
+	# pasa con un solo golpe que otorgue mucha XP. Sin matar el tween anterior,
+	# su callback final oculta el cartel del segundo a mitad de camino.
+	if _level_up_tween and _level_up_tween.is_valid():
+		_level_up_tween.kill()
 	var tween = create_tween()
+	_level_up_tween = tween
 	# Aparece con scale up
 	tween.tween_property(level_up_label, "scale", Vector2(1.2, 1.2), 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 	tween.tween_property(level_up_label, "scale", Vector2(1.0, 1.0), 0.15)
-	# Se mantiene 1.5s
-	tween.tween_interval(1.5)
-	# Fade out hacia arriba
-	tween.tween_property(level_up_label, "modulate:a", 0.0, 0.8)
+	# El hold acompaña al sonido: level_up.wav dura 4.20 s y antes el cartel se
+	# iba a los 2.75 s, dejando la cola sonando sobre la pantalla vacia.
+	# 0.30 + 0.15 + 2.65 + 1.10 = 4.20 s exactos.
+	tween.tween_interval(2.65)
+	tween.tween_property(level_up_label, "modulate:a", 0.0, 1.10)
 	tween.tween_callback(func(): level_up_label.visible = false)
 
 
@@ -386,6 +407,8 @@ func _on_cooldown_tick(skill_id: StringName, remaining_s: float, total_s: float)
 
 
 func _on_player_died() -> void:
+	# Dying mid-celebration: death owns DeathScreen from here on.
+	_floor_cleared_active = false
 	crosshair.visible = false
 	death_screen.visible = true
 	stat_indicator.visible = false
@@ -393,6 +416,136 @@ func _on_player_died() -> void:
 	# El tween previo era invisible si venía de _on_player_downed (ya era rojizo).
 	death_screen.color = Color(0, 0, 0, 0.85)
 	death_label.text = "HAS CAÍDO\n\n[R] para volver al punto de partida"
+
+
+## Celebrates a boss kill. Deliberately NON-blocking: the boss just dropped its
+## loot at the player's feet, so seizing input here would be hostile. The banner
+## fades on its own and the player leaves through the existing pause menu.
+## Progress is already persisted by the time this is called — this is pure feedback.
+func show_floor_cleared(floor_number: int, boss_name: String, is_first_clear: bool) -> void:
+	_floor_cleared_active = true
+	death_screen.visible = true
+	death_screen.color = Color(0.6, 0.5, 0.1, 0.0)
+
+	var headline := "PISO %d DESPEJADO" % floor_number
+	if not is_first_clear:
+		headline += " (de nuevo)"
+	death_label.text = "%s\n\n%s derrotado" % [headline, boss_name]
+
+	if AudioManager:
+		# La pieza completa, no el corte. Derrotar un jefe pasa un puñado de
+		# veces por partida, asi que aca los 7.7 s lucen en vez de estorbar --
+		# al reves que subir de nivel, que pasa seguido y usa el corte.
+		AudioManager.play_sfx(&"level_up_fanfare")  # non-positional: the HUD is 2D
+
+	var tween := create_tween()
+	# Los tiempos acompañan a level_up_fanfare.wav, que dura 7.70 s: antes
+	# sumaban 5.0 s y dejaban 2.7 s de cola sonando sobre pantalla vacía —
+	# el mismo defecto que se corrigió en el cartel de nivel.
+	# 0.5 + 4.9 + 2.3 = 7.70 s exactos.
+	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.35), 0.5)
+	tween.tween_interval(4.9)
+	tween.tween_property(death_screen, "color", Color(0.6, 0.5, 0.1, 0.0), 2.3)
+	tween.tween_callback(_clear_floor_cleared_banner)
+
+
+## Human-readable names for the statuses the player can carry.
+const STATUS_LABELS: Dictionary = {
+	&"stun": "ATURDIDO",
+}
+
+
+## Centred above the crosshair: a stunned player is staring at the thing hitting them,
+## so that is where the news has to be.
+func _build_status_label() -> void:
+	_status_label = Label.new()
+	_status_label.name = "StatusLabel"
+	_status_label.visible = false
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.add_theme_font_size_override("font_size", 20)
+	_status_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_status_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_status_label.add_theme_constant_override("outline_size", 4)
+	_status_label.set_anchors_preset(Control.PRESET_CENTER)
+	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_status_label.position.y -= 80.0
+	add_child(_status_label)
+
+## Status feedback on the player.
+##
+## Canon docs/skills/_status_effects.md §4 specifies 24x24 icons with a category-coloured
+## border, a countdown, and stack counts. That icon set does not exist yet, and inventing
+## one for a single status would be art nobody asked for. This is the honest floor: the
+## player is TOLD, immediately and unmissably, that they cannot act and why. Upgrade path
+## is the §4 icon strip, reading the same status_applied/status_removed signals.
+func _on_player_status_applied(status_name: StringName, _duration: float) -> void:
+	_status_label.text = STATUS_LABELS.get(status_name, String(status_name).to_upper())
+	_status_label.visible = true
+
+
+func _on_player_status_removed(_status_name: StringName) -> void:
+	if _player == null or not _player.has_method("has_status"):
+		_status_label.visible = false
+		return
+	# Another status may still be running — only go quiet when they are all gone.
+	for name: StringName in STATUS_LABELS:
+		if _player.has_status(name):
+			_status_label.text = STATUS_LABELS[name]
+			return
+	_status_label.visible = false
+
+
+## El descenso por el acantilado. Canon docs/floor_transitions.md: "la animación de
+## transición ES la pantalla de carga" — el jugador no espera mirando una barra, BAJA.
+## Canon _alpha_5_maps.md: "la luz del cristal muere, empieza a sonar lluvia".
+##
+## No bloquea con un spinner: funde a negro mientras la luz se apaga, y recién ahí carga.
+func show_descent(next_scene: String) -> void:
+	_floor_cleared_active = true  # mantiene el [R]-respawn suprimido durante la bajada
+	crosshair.visible = false
+	death_screen.visible = true
+	death_screen.color = Color(0.05, 0.12, 0.14, 0.0)  # el verde-azul del núcleo, muriendo
+	death_label.text = "Descendés por el acantilado.\n\nLa luz se apaga.\nEmpieza a llover."
+
+	var t := create_tween()
+	t.tween_property(death_screen, "color", Color(0.02, 0.04, 0.06, 1.0), 2.6)
+	t.tween_interval(1.2)
+	t.tween_callback(func() -> void:
+		get_tree().change_scene_to_file(next_scene)
+	)
+
+
+## Ends the run: the player took the descent. Progress is already persisted, so this
+## is the send-off — hold on the cliffhanger, then hand back to the menu.
+## Canon (lore/_alpha_5_maps.md): the demo closes on "algo te observa" + "continuará".
+func show_demo_ending(from_floor: int) -> void:
+	_floor_cleared_active = true  # keeps [R]-respawn suppressed through the outro
+	crosshair.visible = false
+	death_screen.visible = true
+	death_screen.color = Color(0, 0, 0, 0)
+	# Desde el bosque (P2) el corte es el del canon: algo te observó y el bosque sigue.
+	# Desde cualquier otro piso sin destino construido, el corte es el descenso mismo.
+	if from_floor >= 2:
+		death_label.text = "El bosque sigue.\n\nAlgo te observó, y ya no está.\n\n— CONTINUARÁ —"
+	else:
+		death_label.text = "Descendés hacia el Piso %d.\n\n— CONTINUARÁ —" % (from_floor + 1)
+
+	var outro := create_tween()
+	outro.tween_property(death_screen, "color", Color(0, 0, 0, 0.95), 2.5)
+	outro.tween_interval(3.5)
+	outro.tween_callback(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+	)
+
+
+func _clear_floor_cleared_banner() -> void:
+	# A death during the banner already took over DeathScreen — do not stomp it.
+	if not _floor_cleared_active:
+		return
+	_floor_cleared_active = false
+	death_screen.visible = false
+	death_label.text = ""
 
 
 func _on_player_downed(_player_ref: BasePlayer) -> void:
@@ -416,7 +569,9 @@ func _on_player_revived(_player_ref: BasePlayer, _healer: Node) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Respawn temprano — R durante downed o dead recarga la escena actual.
 	# Canon futuro: revive ritual en ciudad/gremio reemplazará este flow.
-	if not death_screen.visible:
+	# The victory banner reuses DeathScreen but must not arm respawn — R during a
+	# floor-clear would reload the run and destroy the boss loot lying on the ground.
+	if not death_screen.visible or _floor_cleared_active:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:

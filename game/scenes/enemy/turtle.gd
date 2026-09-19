@@ -4,6 +4,8 @@ extends BaseEnemy
 ## Stats: HP 90, DMG 3, DEF 8, XP 12, speed 1.5, mass 1.5, knockback_resistance 0.5
 ## Mechanic: al recibir daño → retracción (DEF 20, 3s, no ataca ni persigue)
 
+const TURTLE_MODEL := "res://assets/art/piso1_pradera/enemies/small/turtle_dp_01.glb"
+
 const BASE_DEF := 8.0
 const SHELL_DEF := 20.0
 const SHELL_DURATION := 3.0
@@ -11,6 +13,7 @@ const SHELL_DURATION := 3.0
 var _in_shell := false
 var _shell_timer := 0.0
 var _current_def := BASE_DEF
+var _model: Node3D = null
 
 # Wander lento cerca del agua
 var spawn_position := Vector3.ZERO
@@ -24,16 +27,53 @@ func _on_enemy_ready() -> void:
 	knockback_resistance = 0.5
 	spawn_position = global_position
 	_pick_wander_dir()
+	# Hide every placeholder MeshInstance3D that ships in the .tscn, not just
+	# `mesh`: the scene also carries a "Shell" sphere as a sibling, and it kept
+	# floating above the real model. Caught only in Godot -- in Blender the GLB
+	# is alone in the file and the .tscn primitives do not exist.
 	mesh.visible = false
-	var model := EnemyModelBuilder.build_shelled(
-		default_color,
-		Color(0.45, 0.5, 0.35),  # shell_color (slightly different green)
-		0.25,   # shell_radius
-		0.08,   # body_height
-		4       # leg_count
-	)
+	for child in get_children():
+		if child is MeshInstance3D and child != mesh:
+			child.visible = false
+	# Bespoke model from the Blender motor, replacing the primitive stand-in
+	# that build_shelled() produced. The GLB carries its own animations
+	# (idle / move / attack / hit / death) and baked vertex colour -- see
+	# _mob_audit_2026-08-22.md for why the colour has to be IN the file.
+	var model: Node3D = null
+	var glb := load(TURTLE_MODEL) if ResourceLoader.exists(TURTLE_MODEL) else null
+	if glb != null:
+		model = glb.instantiate()
+	else:
+		# Fall back to the primitive build rather than spawning an invisible
+		# enemy: a missing asset should look wrong, not absent.
+		push_warning("turtle: no encuentro %s, uso el modelo primitivo" % TURTLE_MODEL)
+		model = EnemyModelBuilder.build_shelled(
+			default_color, Color(0.45, 0.5, 0.35), 0.25, 0.08, 4)
 	model.name = "Model"
+	# Motor GLBs face +Z while look_at points -Z (the hawk hunted tail-first
+	# until it got this same flip — _mob_pipeline.md gotcha list).
+	model.rotation_degrees.y = 180.0
 	add_child(model)
+	_model = model
+
+
+## The GLB ships idle/move/attack/hit/death clips; without this override the
+## base never creates the EnemyAnimator and the turtle slides like a cutout
+## (Joan, 2026-08-31 in-game).
+func _get_anim_model_root() -> Node3D:
+	return _model
+
+
+func _setup_anim() -> void:
+	super._setup_anim()
+	if _anim != null:
+		# The move-loop was authored as one chelonian stride per 2.67s cycle;
+		# ~0.3 m/s of travel matches that cadence, so the clip rate follows
+		# actual speed instead of skating.
+		_anim.move_ref_speed = 0.3
+		# Wander runs at 0.3 m/s — under the default 0.5 walk threshold the
+		# turtle plodded along stuck in the idle pose (Joan, 2026-08-31).
+		_anim.walk_threshold = 0.15
 
 
 # ─── Physics override: shell timer ──────────────────────────────────────────
@@ -48,6 +88,10 @@ func _physics_process(delta: float) -> void:
 		velocity.z = 0.0
 		_apply_gravity(delta)
 		move_and_slide()
+		# The shell path skips the base physics step, so drive the animator
+		# here or it stays frozen in whatever clip was playing when hit.
+		if _anim != null and not is_dead:
+			_anim.play_idle()
 		return
 
 	super._physics_process(delta)
@@ -67,6 +111,13 @@ func _idle_behavior(delta: float) -> void:
 
 	velocity.x = _wander_dir.x * speed * 0.5
 	velocity.z = _wander_dir.z * speed * 0.5
+
+	# Face where the feet go: the base only rotates the body while chasing a
+	# target, so a wandering turtle walked sideways/backwards (Joan,
+	# 2026-08-31). Same -Z-forward convention as _look_at_target.
+	if Vector2(velocity.x, velocity.z).length_squared() > 0.001:
+		var target_yaw := atan2(-velocity.x, -velocity.z)
+		rotation.y = lerp_angle(rotation.y, target_yaw, minf(1.0, delta * 2.5))
 
 
 # ─── Shell mechanic ─────────────────────────────────────────────────────────

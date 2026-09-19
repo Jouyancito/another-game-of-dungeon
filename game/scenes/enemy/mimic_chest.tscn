@@ -302,7 +302,7 @@ _data = {
 
 [node name="MimicChest" type="CharacterBody3D" groups=["enemies", "interactables"]]
 collision_layer = 4
-collision_mask = 3
+collision_mask = 7
 script = ExtResource("1_mimic")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

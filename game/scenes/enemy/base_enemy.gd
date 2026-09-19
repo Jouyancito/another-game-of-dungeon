@@ -86,8 +86,13 @@ const _ALERT_DURATION_S: float = 15.0
 const NAMEPLATE_VISIBLE_RANGE := 15.0
 const NAMEPLATE_AIM_RANGE := 30.0
 
-# Referencia al mesh — cada hijo define su nodo
-@onready var mesh: MeshInstance3D = $MeshInstance3D
+# Referencia al mesh — cada hijo define su nodo.
+# get_node_or_null y no $MeshInstance3D: los enemigos migrados a un GLB bespoke
+# ya no traen ese nodo (el King Slime lo cambió por "KingMesh"), y la ruta dura
+# tiraba un ERROR en _ready para todos ellos. El único uso de esta referencia
+# —el flash de daño en el mesh procedural, ~línea 946— ya se guarda con
+# `if mesh and mesh.mesh`, así que null siempre fue un estado contemplado.
+@onready var mesh: MeshInstance3D = get_node_or_null("MeshInstance3D")
 
 # Color original del mesh (cada hijo lo define)
 var default_color := Color(0.8, 0.2, 0.2)
@@ -102,6 +107,17 @@ var _is_flashing := false
 var _anim = null  # EnemyAnimator or null
 
 # Nameplate nodes
+#
+# HP_BAR_WIDTH is a const rather than a local because BOTH the builder and
+# _update_nameplate() need it: the fill is a centred QuadMesh, so emptying it to the
+# left means scaling it AND sliding it by half the bar's width. That half-width used
+# to be typed as a literal 0.25 in the update while the bar was built 0.8 wide, so the
+# fill slid only 62.5% of the way and never reached the left edge — at 20% HP it sat
+# detached, ending at 35% of the track. The tell was the colour disagreeing with the
+# length: red (the <=25% threshold) under a bar that looked more than half full.
+const HP_BAR_WIDTH: float = 0.8
+const HP_BAR_HEIGHT: float = 0.06
+
 var _nameplate: Node3D
 var _name_label: Label3D
 var _hp_bar_bg: MeshInstance3D
@@ -123,6 +139,9 @@ var status_effects: Dictionary = {}
 
 signal status_applied(status_name: StringName, duration: float)
 signal status_removed(status_name: StringName)
+## Emitted once, from die(), before the corpse tween starts. Levels listen to this
+## to react to a specific kill (e.g. the boss dying opens the descent).
+signal died(enemy: BaseEnemy)
 
 
 func _ready() -> void:
@@ -276,8 +295,8 @@ func _setup_nameplate() -> void:
 	_nameplate.add_child(_name_label)
 
 	# Barra HP — fondo (gris oscuro)
-	var bar_width := 0.8
-	var bar_height := 0.06
+	var bar_width := HP_BAR_WIDTH
+	var bar_height := HP_BAR_HEIGHT
 	var bg_mat := StandardMaterial3D.new()
 	bg_mat.albedo_color = Color(0.2, 0.2, 0.2, 0.8)
 	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
@@ -352,8 +371,10 @@ func _update_nameplate() -> void:
 
 	# Escala horizontal del fill según vida
 	_hp_bar_fill.scale.x = hp_ratio
-	# Offset para que la barra se vacíe de derecha a izquierda
-	_hp_bar_fill.position.x = -(1.0 - hp_ratio) * 0.25
+	# Offset para que la barra se vacíe de derecha a izquierda. La distancia es media
+	# anchura de barra: el quad está centrado, así que al escalarlo a `hp_ratio` su
+	# centro queda en el medio y hay que correrlo hasta apoyar el borde izquierdo.
+	_hp_bar_fill.position.x = -(1.0 - hp_ratio) * (HP_BAR_WIDTH / 2.0)
 
 	# Color: verde → amarillo → rojo
 	var fill_mat: StandardMaterial3D = _hp_bar_fill.mesh.material as StandardMaterial3D
@@ -387,7 +408,7 @@ func _physics_process(delta: float) -> void:
 	if has_status(&"stun"):
 		velocity.x = 0
 		velocity.z = 0
-		move_and_slide()
+		_move_body()
 		return
 
 	if target == null:
@@ -396,7 +417,7 @@ func _physics_process(delta: float) -> void:
 		_try_acquire_target()
 	if target == null:
 		_idle_behavior(delta)
-		move_and_slide()
+		_move_body()
 		return
 
 	var distance = global_position.distance_to(target.global_position)
@@ -409,7 +430,7 @@ func _physics_process(delta: float) -> void:
 		# ── SKITTISH: huir del jugador en lugar de perseguir ──────────────────
 		if personality == AggroPersonality.SKITTISH:
 			_process_skittish(delta, distance)
-			move_and_slide()
+			_move_body()
 			return
 
 		# ── CURIOUS: acercarse lento, atacar solo si muy cerca o provocado ────
@@ -425,7 +446,7 @@ func _physics_process(delta: float) -> void:
 				velocity.z = 0
 				if (is_provoked or distance <= attack_range) and can_attack and target.has_method("take_damage"):
 					perform_attack()
-			move_and_slide()
+			_move_body()
 			return
 
 		_look_at_target()
@@ -441,11 +462,11 @@ func _physics_process(delta: float) -> void:
 		# ── TERRITORIAL: volver al home cuando el jugador sale del territorio ─
 		if personality == AggroPersonality.TERRITORIAL:
 			_process_territorial_leash(delta)
-			move_and_slide()
+			_move_body()
 			return
 		_idle_behavior(delta)
 
-	move_and_slide()
+	_move_body()
 	# Drive animation state from actual horizontal speed after physics step.
 	if _anim != null and not is_dead:
 		var hspeed := Vector2(velocity.x, velocity.z).length()
@@ -622,6 +643,96 @@ func _idle_behavior(_delta: float) -> void:
 	velocity.z = 0
 
 
+# ---------------------------------------------------------------------------
+# Separación entre enemigos
+# ---------------------------------------------------------------------------
+# Cada enemigo apunta en línea recta al jugador sin saber que los demás existen,
+# así que una manada converge al mismo punto y se apila (reportado 2026-07-31:
+# 4-5 lobos en el mismo píxel). La colisión dura entre ellos evita el solape pero
+# sola no alcanza: dos CharacterBody3D cinemáticos se bloquean mutuamente y
+# ninguno cede, cambiando el apilamiento por un atasco en fila india. Este empuje
+# los separa ANTES de tocarse, dejando la colisión como red de contención.
+#
+# Vive acá y no en _move_toward_target porque 13 subclases pisan ese método; el
+# único punto por el que pasan todas es move_and_slide().
+
+## Radio de vecindad. Por debajo de esto los enemigos se empujan entre sí.
+@export var separation_radius: float = 1.1
+## Fuerza del empuje en m/s. 0 desactiva la separación para este enemigo.
+@export var separation_strength: float = 2.5
+
+const SEPARATION_MAX_NEIGHBOURS := 8
+
+var _sep_query: PhysicsShapeQueryParameters3D = null
+
+
+## Empuje normalizado que aleja de los enemigos cercanos. Vector3.ZERO si no hay.
+func _separation_push() -> Vector3:
+	if _sep_query == null:
+		var sphere := SphereShape3D.new()
+		sphere.radius = separation_radius
+		_sep_query = PhysicsShapeQueryParameters3D.new()
+		_sep_query.shape = sphere
+		_sep_query.collision_mask = 4  # Solo layer 3 (Enemies)
+		_sep_query.collide_with_areas = false
+		_sep_query.exclude = [get_rid()]
+
+	var world := get_world_3d()
+	if world == null:
+		return Vector3.ZERO
+	# Tipo explícito: inferirlo desde get_world_3d() da "Cannot infer type".
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	if space == null:
+		return Vector3.ZERO
+
+	_sep_query.transform = Transform3D(Basis(), global_position)
+	var hits := space.intersect_shape(_sep_query, SEPARATION_MAX_NEIGHBOURS)
+	var push := Vector3.ZERO
+	for hit in hits:
+		var other := hit.get("collider") as Node3D
+		if other == null:
+			continue
+		var away := global_position - other.global_position
+		away.y = 0.0
+		var dist := away.length()
+		if dist < 0.001:
+			# Spawnearon exactamente encima: sin esto el empuje sería cero y el par
+			# quedaría fundido para siempre. Desvío derivado del id de instancia →
+			# determinista y distinto para cada uno del par.
+			var seed_id := int(get_instance_id())
+			away = Vector3(float(seed_id % 7) - 3.0, 0.0, float((seed_id / 7) % 7) - 3.0)
+			dist = away.length()
+			if dist < 0.001:
+				away = Vector3.RIGHT
+				dist = 1.0
+		# Cada cuerpo cede en proporción a cuánto MÁS pesa el otro. Golem (3.0) vs
+		# avispa (0.1): el golem cede 0.1/3.1 = 3 %, la avispa 97 %. Sin esto un
+		# enjambre desviaba a un golem de piedra, que fue exactamente el reporte.
+		var other_mass_raw: Variant = other.get("mass")
+		var other_mass := float(other_mass_raw) if other_mass_raw != null else 1.0
+		var yield_share := other_mass / maxf(mass + other_mass, 0.001)
+		# Magnitud constante en vez de caída por distancia: intersect_shape compara
+		# FORMA contra FORMA, así que todo lo que devuelve ya está pegado a este
+		# cuerpo. Medir por distancia entre centros daría casi cero contra un golem,
+		# cuyo centro está lejos aunque su costado te esté tocando.
+		push += (away / dist) * yield_share
+	# Rodeado por muchos, la suma no debe convertirse en un cañonazo.
+	if push.length() > 1.0:
+		push = push.normalized()
+	return push
+
+
+## Único punto de movimiento del enemigo. Aplica la separación y luego mueve.
+## Se llama en TODAS las ramas de _physics_process, incluida la de ataque que deja
+## la velocidad en cero — la manada reportada estaba apilada mordiendo, quieta.
+func _move_body() -> void:
+	if separation_strength > 0.0:
+		var push := _separation_push()
+		velocity.x += push.x * separation_strength
+		velocity.z += push.z * separation_strength
+	move_and_slide()
+
+
 ## Movimiento hacia el target — override para movimiento custom (ej: saltos)
 ## speed_mult se aplica aquí para HUNTER_FAST / JUGGERNAUT_SLOW.
 ## DEFAULT (speed_mult=1.0) → idéntico al original.
@@ -762,8 +873,13 @@ func _try_acquire_target() -> void:
 
 
 func _look_at_target() -> void:
-	var look_pos = target.global_position
+	var look_pos: Vector3 = target.global_position
 	look_pos.y = global_position.y
+	# look_at() con origen y destino en la MISMA posición no tiene dirección que mirar y
+	# emite error. Pasa de verdad: un spawn superpuesto, un teleport, un enemigo que alcanza
+	# al jugador exacto. No hay a dónde girar — mantener el rumbo es la respuesta correcta.
+	if global_position.distance_squared_to(look_pos) < 0.0001:
+		return
 	look_at(look_pos)
 
 
@@ -855,9 +971,12 @@ func _flash_damage() -> void:
 		if material and material is StandardMaterial3D:
 			material.albedo_color = Color(1, 0, 0)
 			await get_tree().create_timer(0.2).timeout
-			if not is_instance_valid(self) or is_dead:
+			if not is_instance_valid(self):
 				_is_flashing = false
 				return
+			# Restored even when the blow was fatal. Bailing out on is_dead left
+			# the red tint applied for the whole death animation — and the blow
+			# that kills is ALWAYS mid-flash, so every enemy died bright red.
 			material.albedo_color = default_color
 
 	# Flash the gltf Model subtree (golem, bandits, slimes, and any enemy using
@@ -882,10 +1001,14 @@ func _flash_damage() -> void:
 		red_mat.albedo_color = Color(1.0, 0.2, 0.2)
 		mi.material_override = red_mat
 	await get_tree().create_timer(0.2).timeout
-	if not is_instance_valid(self) or is_dead:
+	if not is_instance_valid(self):
 		_is_flashing = false
 		return
 	# Restore originals (null = no override, correct to restore too).
+	# Deliberately NOT skipped when is_dead: the killing blow always lands
+	# mid-flash, so returning early here left the red override on for the entire
+	# death animation. Joan on the slime: "se pone rojo cuando lo matas, y se ve
+	# raro" — it was every enemy, not just this one.
 	for i in range(mesh_nodes.size()):
 		if is_instance_valid(mesh_nodes[i]):
 			mesh_nodes[i].material_override = originals[i]
@@ -908,15 +1031,22 @@ func die() -> void:
 		TitleTracker.on_enemy_killed(enemy_type)
 
 	# ── SFX muerte + CameraShake ─────────────────────────────────────────────
+	var is_boss: bool = sub_tier == SubTier.BOSS or enemy_tier >= 10
 	if AudioManager:
 		AudioManager.play_sfx(&"enemy_die_slime", global_position)
 	if CameraShake:
-		var is_boss: bool = sub_tier == SubTier.BOSS or enemy_tier >= 10
 		if is_boss:
 			CameraShake.shake_heavy()
 		else:
 			CameraShake.shake_light()
 
+	# ── Floor clear ──────────────────────────────────────────────────────────
+	# Hooked here, not in king_slime.gd: every boss dies through die(), so the
+	# floor-clear loop closes for future bosses without touching each one.
+	if is_boss:
+		_report_floor_cleared()
+
+	died.emit(self)
 	_spawn_loot()
 	_on_death()
 	# Play death animation if available (no-op when _anim is nil).
@@ -924,12 +1054,32 @@ func die() -> void:
 	# the enemy shrinks away. 0.6s covers most death clips without feeling slow.
 	if _anim != null and _anim.is_valid():
 		_anim.play_death()
-		await get_tree().create_timer(0.6).timeout
+		await get_tree().create_timer(_death_anim_hold()).timeout
 		if not is_instance_valid(self):
 			return
-	var tween = create_tween()
-	tween.tween_property(self, "scale", Vector3(0.1, 0.1, 0.1), 0.5)
-	tween.tween_callback(queue_free)
+	if not _death_clip_disposes_body():
+		var tween = create_tween()
+		tween.tween_property(self, "scale", Vector3(0.1, 0.1, 0.1), 0.5)
+		tween.tween_callback(queue_free)
+	else:
+		queue_free()
+
+
+## How long to let the death clip play before the body is disposed of.
+## Override alongside _death_clip_disposes_body when a clip needs its full run.
+func _death_anim_hold() -> float:
+	return 0.6
+
+
+## Whether the death CLIP already removes the body from view on its own.
+##
+## The default shrink tween exists for mobs that just stop — it scales the whole
+## node to nothing. On a mob whose death clip resolves the body itself (a slime
+## bursting into droplets that soak into the ground) that tween shrinks the
+## droplets mid-flight and destroys the effect, so those subclasses return true
+## and get a plain queue_free once the clip is done.
+func _death_clip_disposes_body() -> bool:
+	return false
 
 
 func _spawn_loot() -> void:
@@ -970,6 +1120,21 @@ func _spawn_damage_number(amount: int, is_crit: bool, element: String) -> void:
 	scene_root.add_child(fdn)
 	fdn.global_position = global_position + Vector3(0, 1.5, 0)
 	fdn.setup(amount, is_crit, element)
+
+
+## Persists the floor clear on the active world and tells the HUD to celebrate it.
+## enemy_tier is the floor this boss belongs to (1-100), so it IS the cleared floor.
+## Guarded on WorldManager having an active world: a boss killed from a dev/test
+## scene (no world selected) still dies normally, it just records nothing.
+func _report_floor_cleared() -> void:
+	if GameManager.world_index < 0:
+		return
+	var trophy := StringName("trophy_%s" % enemy_type)
+	var is_first_clear: bool = WorldManager.mark_floor_cleared(enemy_tier, trophy)
+
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_floor_cleared"):
+		hud.show_floor_cleared(enemy_tier, display_name if display_name != "" else enemy_type, is_first_clear)
 
 
 ## Override para efectos de muerte custom

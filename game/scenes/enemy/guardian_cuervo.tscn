@@ -1,0 +1,34 @@
+[gd_scene load_steps=2 format=3 uid="uid://gcuervo01"]
+
+[ext_resource type="Script" path="res://scenes/enemy/guardian_cuervo.gd" id="1_cuervo"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_001"]
+radius = 1.1
+height = 3.6
+
+[node name="GuardianCuervo" type="CharacterBody3D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_cuervo")
+speed = 3.6
+health = 8200.0
+damage = 52.0
+attack_range = 3.2
+detection_range = 30.0
+xp_reward = 1400.0
+attack_cooldown = 1.8
+aggression = 0
+enemy_type = "guardian_cuervo"
+enemy_tier = 5
+sub_tier = 3
+habitat_type = "boss_arena"
+mass = 5.0
+knockback_resistance = 1.0
+display_name = "El Que Recuerda"
+enemy_level = 5
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0)
+shape = SubResource("CapsuleShape3D_001")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
