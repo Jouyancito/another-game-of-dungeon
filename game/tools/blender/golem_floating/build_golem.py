@@ -41,8 +41,13 @@ import math
 import os
 import random
 import sys
-from mathutils import Vector
-from mathutils import noise as mnoise
+from mathutils import Vector, noise as mnoise
+
+from recetas import preflight_router
+from recetas.verdict import Report, PASS, FAIL, NOT_TESTED, NOT_APPLICABLE
+
+# 0b: Golem uses anatomical groups + EMISSIVE CRACKS.
+_ = preflight_router.require_technique("golem", "anatomical_groups_cracks")
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 REN_DIR = os.path.join(OUT_DIR, "renders")

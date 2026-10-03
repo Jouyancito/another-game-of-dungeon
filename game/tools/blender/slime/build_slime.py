@@ -46,6 +46,13 @@ import random
 import sys
 from mathutils import Vector, Matrix, noise as mnoise
 
+from recetas import preflight_router
+from recetas.verdict import Report, PASS, FAIL, NOT_TESTED, NOT_APPLICABLE
+
+# 0b: Require the established slime technique — FLOAT_COLOR + shape keys.
+# This catches discards (e.g. BYTE_COLOR) before the build proceeds.
+_ = preflight_router.require_technique("slime", "floating_color")
+
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 REN_DIR = os.path.join(OUT_DIR, "renders")
 ANIM_DIR = os.path.join(REN_DIR, "anim")

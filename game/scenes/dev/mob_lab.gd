@@ -178,6 +178,13 @@ func _freeze(node: Node) -> void:
 	node.set_process(false)
 	if node is CharacterBody3D:
 		(node as CharacterBody3D).velocity = Vector3.ZERO
+	# A MANUAL player is advanced by its owner's _process (slime), which we just
+	# disabled -- hand it back to the engine clock so the lab can play its clips.
+	if node is AnimationPlayer:
+		var ap := node as AnimationPlayer
+		if ap.callback_mode_process == AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL:
+			ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+			ap.set_meta("lab_was_manual", true)
 	for c in node.get_children():
 		_freeze(c)
 
@@ -300,6 +307,10 @@ func _kill_mob() -> void:
 func _unfreeze(node: Node) -> void:
 	node.set_physics_process(true)
 	node.set_process(true)
+	# Give MANUAL back to its owner, or the clip would be advanced twice.
+	if node is AnimationPlayer and node.has_meta("lab_was_manual"):
+		(node as AnimationPlayer).callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		node.remove_meta("lab_was_manual")
 	for c in node.get_children():
 		_unfreeze(c)
 

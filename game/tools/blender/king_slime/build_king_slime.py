@@ -9,6 +9,12 @@ import os
 import sys
 from mathutils import Vector
 
+from recetas import preflight_router
+from recetas.verdict import Report, PASS, FAIL, NOT_TESTED, NOT_APPLICABLE
+
+# 0b: King slime uses FLOAT_COLOR + facial relief (opt-in via --face).
+_ = preflight_router.require_technique("king_slime", "floating_color_with_face")
+
 S = 2.2                      # boss scale vs base slime
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 REN_DIR = os.path.join(OUT_DIR, "renders")
