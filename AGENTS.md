@@ -30,3 +30,14 @@ Rules:
 Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
 
 (Yes, this file also applies to agents working on the ponytail repo itself. Especially to them.)
+
+---
+
+# Game library (Dungeon Party): read before, update after
+
+Applies to every agent working in this repo (Hermes, Claude, others).
+
+- **Before** working on a game topic, open `game/docs/dungeon_biblioteca/dungeon_catalogo.md`, find your topic, and read ONLY that topic's file. Do not load all the docs.
+- **After** a task that changed the game, update that topic's file: move items between "Diseñado" and "Implementado" (with `path:line`), refresh the "Verificado contra código" date, and add a line to its Historial. If the topic has no file yet, create it from the template in the catalog.
+- Joan's design decisions that are not in code yet go under "Diseñado, no implementado" in the matching file, so they are not lost in chat.
+- Code is the source of truth. If a file or doc contradicts the code, fix the file.
