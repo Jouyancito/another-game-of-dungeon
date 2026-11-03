@@ -1,0 +1,52 @@
+{
+  "schema": 2,
+  "subject": "titlescreen logo wordmark gate arquitectura hall",
+  "created": "2026-11-03T01:34:32",
+  "routed_categories": [],
+  "unknown_subject": true,
+  "allow_unknown_reason": "no new modeling: re-exports two existing .blend files to glb; logo materials baked via bake_procedural; the router has no title-screen family",
+  "rules": [],
+  "generators": [
+    "/home/jouyan/proyectos/Juego/DungeonParty-A/game/tools/titlescreen/titlescreen_export.py"
+  ],
+  "generator_parts": {},
+  "helpers": [
+    "/home/jouyan/proyectos/Juego/DungeonParty-A/game/tools/titlescreen/titlescreen_showcase.py"
+  ],
+  "outputs": [
+    "/home/jouyan/proyectos/Juego/DungeonParty-A/game/tools/titlescreen/titlescreen_logo_baked.blend"
+  ],
+  "parts": {
+    "logo": {
+      "technique": "bake_procedural_to_float_color",
+      "validated_against": "titlescreen logo wordmark gate arquitectura hall"
+    },
+    "logo_sparse": {
+      "technique": "flat_fallback",
+      "validated_against": "titlescreen logo wordmark gate arquitectura hall",
+      "custom": true,
+      "custom_reason": "mesh under 600 verts: the recipe refuses to bake and flattens to a deliberate tone"
+    },
+    "room": {
+      "technique": "export_only",
+      "validated_against": "titlescreen logo wordmark gate arquitectura hall",
+      "custom": true,
+      "custom_reason": "export-only of an existing blockout, no new modeling"
+    }
+  },
+  "registry_snapshot": [
+    "bake_procedural_to_float_color",
+    "bvh_glue",
+    "engordar_anatomico",
+    "mpfb_human_base",
+    "paint_por_geometria",
+    "pose_solver",
+    "reproportion_humanoid",
+    "ribbon_tinta",
+    "surface_decal"
+  ],
+  "harvest": {
+    "entries": [],
+    "none": "asset_specific:titlescreen_export.py:91"
+  }
+}

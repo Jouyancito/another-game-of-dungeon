@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "blend": "/home/jouyan/proyectos/Juego/DungeonParty-A/game/tools/titlescreen/titlescreen_logo_baked.blend",
+  "blend_mtime": 1793679885.4052284,
+  "verified_at": "2026-11-03T01:35:02",
+  "verdict": "PASS",
+  "rows": [
+    {
+      "prop": "part:logo:exists",
+      "state": "PASS",
+      "detail": "19 object(s)",
+      "reason": ""
+    },
+    {
+      "prop": "part:logo:technique",
+      "state": "PASS",
+      "detail": "bake_procedural_to_float_color",
+      "reason": ""
+    },
+    {
+      "prop": "part:logo_sparse:exists",
+      "state": "PASS",
+      "detail": "7 object(s)",
+      "reason": ""
+    },
+    {
+      "prop": "part:logo_sparse:technique",
+      "state": "PASS",
+      "detail": "flat_fallback",
+      "reason": ""
+    },
+    {
+      "prop": "part:room:exists",
+      "state": "PASS",
+      "detail": "8 object(s)",
+      "reason": ""
+    },
+    {
+      "prop": "part:room:technique",
+      "state": "PASS",
+      "detail": "export_only",
+      "reason": ""
+    },
+    {
+      "prop": "unstamped_renderables",
+      "state": "PASS",
+      "detail": "every renderable in the scene is stamped (0 out-of-scene/orphan object(s) ignored)",
+      "reason": ""
+    },
+    {
+      "prop": "harvest",
+      "state": "PASS",
+      "detail": "none: asset_specific:titlescreen_export.py:91",
+      "reason": ""
+    }
+  ]
+}
