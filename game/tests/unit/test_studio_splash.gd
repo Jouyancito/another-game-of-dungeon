@@ -21,7 +21,7 @@ func test_targets_main_menu() -> void:
 
 func test_duration_within_bounds() -> void:
 	var s := _make()
-	assert_between(s.TOTAL_DURATION, 3.0, 4.0)
+	assert_between(s.TOTAL_DURATION, 4.0, 5.0)
 
 
 func test_skip_input_transitions_once() -> void:

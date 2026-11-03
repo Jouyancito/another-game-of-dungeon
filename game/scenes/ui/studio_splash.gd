@@ -8,7 +8,9 @@ const STUDIO_NAME := "AwAdeUwU"
 ## Name font: Russo One (owner choice, SIL OFL 1.1). Single swap point.
 @export var name_font: Font = preload("res://tools/logo/fonts/RussoOne-Regular.ttf")
 
-const BG_COLOR := Color("#f4ecdc")
+const BG_COLOR := Color("#ece2cd")
+## Warm near-black the splash melts into (the title screen's darkness).
+const DUNGEON_DARK := Color("#120d0b")
 const OUTLINE_COLOR := Color("#3b1f86")
 const EAR_COLOR := Color("#6440c9")
 const INNER_EAR_COLOR := Color("#c4a8ff")
@@ -18,9 +20,12 @@ const FACET_COLORS: Array[Color] = [
 	Color("#6440c9"), Color("#9370f2"), Color("#5534ad"),
 ]
 
-const FADE_START := 2.95
-const FADE_END := 3.5
-const TOTAL_DURATION := 3.6
+## Background melts BG_COLOR -> DUNGEON_DARK over [BG_FADE_START, TOTAL_DURATION].
+const BG_FADE_START := 2.0
+## Bunny and name stay opaque until VIS_FADE_START, gone by VIS_FADE_END.
+const VIS_FADE_START := 3.0
+const VIS_FADE_END := 4.2
+const TOTAL_DURATION := 4.5
 
 const EAR_L: Array[Vector2] = [Vector2(-0.30, -0.16), Vector2(-0.46, -0.98), Vector2(-0.21, -1.03), Vector2(-0.07, -0.22)]
 const IN_L: Array[Vector2] = [Vector2(-0.26, -0.26), Vector2(-0.37, -0.86), Vector2(-0.25, -0.89), Vector2(-0.14, -0.28)]
@@ -40,6 +45,7 @@ var transition_fn := Callable()
 var _transitioned := false
 var _u := 1.0
 var _c := Vector2.ZERO
+var _vis := 1.0  # global bunny/name opacity
 
 
 func _ready() -> void:
@@ -80,6 +86,11 @@ static func seg(time: float, start: float, dur: float) -> float:
 	return smoothstep(0.0, 1.0, clampf((time - start) / dur, 0.0, 1.0))
 
 
+## Same as seg() but takes the end time instead of a duration.
+static func seg_to(time: float, start: float, end: float) -> float:
+	return seg(time, start, end - start)
+
+
 static func mirrored(pts: Array[Vector2]) -> Array[Vector2]:
 	var out: Array[Vector2] = []
 	for i in range(pts.size() - 1, -1, -1):
@@ -99,7 +110,7 @@ func _poly(pts: Array[Vector2], col: Color) -> void:
 
 
 func _twitch(pts: Array[Vector2]) -> Array[Vector2]:
-	var ang := -0.2 * sin(PI * seg(t, 1.65, 2.05))
+	var ang := -0.2 * sin(PI * seg(t, 0.95, 0.30))
 	var out: Array[Vector2] = []
 	for p in pts:
 		out.append(EAR_PIVOT + (p - EAR_PIVOT).rotated(ang))
@@ -109,27 +120,28 @@ func _twitch(pts: Array[Vector2]) -> Array[Vector2]:
 func _draw() -> void:
 	_u = minf(size.x, size.y) * 0.30
 	_c = Vector2(size.x * 0.5, size.y * 0.47)
-	draw_rect(Rect2(Vector2.ZERO, size), BG_COLOR)
-	_draw_garden(t)
+	_vis = 1.0 - seg_to(t, VIS_FADE_START, VIS_FADE_END)
+	var bg := BG_COLOR.lerp(DUNGEON_DARK, seg_to(t, BG_FADE_START, TOTAL_DURATION))
+	draw_rect(Rect2(Vector2.ZERO, size), bg)
 
 	var ear_l := EAR_L
 	var ear_r := _twitch(mirrored(EAR_L))
 	var in_l := IN_L
 	var in_r := _twitch(mirrored(IN_L))
 
-	_poly(ear_l, _alpha(EAR_COLOR, seg(t, 0.62, 0.22)))
-	_poly(ear_r, _alpha(EAR_COLOR, seg(t, 0.62, 0.22)))
-	var a_in := seg(t, 0.74, 0.22)
+	_poly(ear_l, _alpha(EAR_COLOR, seg(t, 0.35, 0.15)))
+	_poly(ear_r, _alpha(EAR_COLOR, seg(t, 0.35, 0.15)))
+	var a_in := seg(t, 0.42, 0.15)
 	_poly(in_l, _alpha(INNER_EAR_COLOR, a_in))
 	_poly(in_r, _alpha(INNER_EAR_COLOR, a_in))
 
 	for i in HEAD.size():
-		var a := seg(t, 0.72 + i * 0.07, 0.22)
+		var a := seg(t, 0.40 + i * 0.04, 0.15)
 		if a > 0.0:
 			_poly([HEAD_CENTER, HEAD[i], HEAD[(i + 1) % HEAD.size()]],
 				_alpha(FACET_COLORS[i % FACET_COLORS.size()], a))
 
-	var a_face := seg(t, 1.35, 0.22)
+	var a_face := seg(t, 0.75, 0.15)
 	if a_face > 0.0:
 		_poly(EYE_L, _alpha(BG_COLOR, a_face))
 		_poly(mirrored(EYE_L), _alpha(BG_COLOR, a_face))
@@ -137,30 +149,22 @@ func _draw() -> void:
 
 	_draw_outline(ear_l, ear_r)
 
-	var a_name := seg(t, 1.85, 0.4)
+	var a_name := seg(t, 1.00, 0.30)
 	if a_name > 0.0:
 		var font: Font = name_font if name_font else ThemeDB.fallback_font
 		var fs := int(_u * 0.28)
 		draw_string(font, Vector2(0, _c.y + _u * 1.05), STUDIO_NAME,
 			HORIZONTAL_ALIGNMENT_CENTER, size.x, fs, _alpha(OUTLINE_COLOR, a_name))
 
-	var fade := seg(t, FADE_START, FADE_END - FADE_START)
-	if fade > 0.0:
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, fade))
 
 
-## TODO: geometric flowers growing along the bottom edge (design pending owner approval).
-func _draw_garden(_time: float) -> void:
-	pass
-
-
-static func _alpha(c: Color, a: float) -> Color:
-	return Color(c.r, c.g, c.b, a)
+func _alpha(c: Color, a: float) -> Color:
+	return Color(c.r, c.g, c.b, a * _vis)
 
 
 ## Strokes ear_l, ear_r, head in order as one progressive path of fraction p.
 func _draw_outline(ear_l: Array[Vector2], ear_r: Array[Vector2]) -> void:
-	var p := seg(t, 0.08, 0.92)
+	var p := seg(t, 0.05, 0.55)
 	if p <= 0.0:
 		return
 	var loops: Array = [ear_l, ear_r, HEAD]
@@ -186,8 +190,8 @@ func _draw_outline(ear_l: Array[Vector2], ear_r: Array[Vector2]) -> void:
 				break
 		if drawn.size() >= 2:
 			for i in range(drawn.size() - 1):
-				draw_line(drawn[i], drawn[i + 1], OUTLINE_COLOR, w)
-				draw_circle(drawn[i + 1], w * 0.5, OUTLINE_COLOR)
+				draw_line(drawn[i], drawn[i + 1], _alpha(OUTLINE_COLOR, 1.0), w)
+				draw_circle(drawn[i + 1], w * 0.5, _alpha(OUTLINE_COLOR, 1.0))
 		if remaining <= 0.0:
 			break
 
