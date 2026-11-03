@@ -32,12 +32,23 @@ func test_starts_in_dark_state() -> void:
 	assert_almost_eq(s._fire_light.light_energy, 0.0, 0.001)
 
 
-func test_fire_ignites_before_torch() -> void:
+func test_fire_ignites_and_corridor_has_no_light() -> void:
 	var s := _make()
 	_run(s, 1.0)
 	assert_eq(s.state, s.State.INTRO)
 	assert_gt(s._fire_light.light_energy, 0.2)
-	assert_almost_eq(s._torch_light.light_energy, 0.0, 0.001)
+	# Only the campfire and the cool fill are lights: the corridor stays dark.
+	var lights := s.find_children("*", "Light3D", true, false)
+	assert_eq(lights.size(), 2)
+	assert_almost_eq(s._fill_light.light_energy, 0.0, 0.001, "fill is not on before the title is revealed")
+
+
+func test_composition_placeholders_exist() -> void:
+	var s := _make()
+	for n in ["Warrior_Placeholder", "Shield_Placeholder", "Sword_Placeholder", "Archer_Placeholder",
+			"Mage_Placeholder", "Mimic_Placeholder", "Chameleon_Placeholder"]:
+		assert_not_null(s.find_child(n, true, false), n)
+	assert_false(s.find_child("ScaleRef_1_8m", true, false).visible)
 
 
 func test_intro_ends_idle_within_budget() -> void:

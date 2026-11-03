@@ -14,17 +14,15 @@ const ROOM_GLB := "res://assets/art/titlescreen/titlescreen_room.glb"
 const LOGO_GLB := "res://assets/art/titlescreen/titlescreen_logo.glb"
 ## Blender hall is x 54.5..65.5, y 0..8: this puts it on the origin (Godot z = 4 - y).
 const ROOM_OFFSET := Vector3(-60.0, 0.0, 4.0)
-const CAM_POS := Vector3(-2.4, 1.7, 7.6)
-const CAM_ROT := Vector3(3.0, -20.0, 0.0)
+const CAM_POS := Vector3(-0.3, 1.6, 7.4)
+const CAM_ROT := Vector3(0.0, -6.0, 0.0)
 const FILL_ENERGY := 0.6
-const TITLE_SCALE := 0.22
-const TITLE_POS := Vector3(-0.6, 2.0, -1.5)
+const TITLE_SCALE := 0.30
+const TITLE_POS := Vector3(-0.2, 2.3, -2.5)
 
 # Intro timeline (seconds)
 const T_DARK_END := 0.4
 const T_FIRE_END := 1.6
-const T_TORCH_START := 1.6
-const T_TORCH_END := 2.4
 const T_TITLE_START := 2.2
 const T_TITLE_END := 3.2
 const T_MENU_START := 3.0
@@ -33,9 +31,10 @@ const T_INTRO_END := 4.0
 enum State { DARK, INTRO, IDLE }
 
 ## One exported color for every pair of eyes (yellow-amber default, red is allowed).
+## Composition-review aid: a 1.8 m post (the player) next to the group.
+@export var show_scale_ref := false
 @export var eye_color := Color(1.0, 0.72, 0.12)
-@export var fire_energy := 4.8
-@export var torch_energy := 2.6
+@export var fire_energy := 2.0
 
 var state := State.DARK
 ## Intro time; stops at T_INTRO_END.
@@ -56,9 +55,6 @@ var _fire_pos := Vector3(-0.6, 0.5, 0.6)
 var _fire_flame: GPUParticles3D
 var _fire_embers: GPUParticles3D
 var _fill_light: OmniLight3D
-var _torch_light: OmniLight3D
-var _torch_pos := Vector3(6.6, 2.1, -0.95)
-var _torch_flame: GPUParticles3D
 var _title_root: Node3D
 var _title_mat: StandardMaterial3D
 var _eyes: Array[Dictionary] = []  # {node, next, start}
@@ -78,7 +74,7 @@ func _ready() -> void:
 	_build_room()
 	_build_title()
 	_build_fire()
-	_build_torch()
+	_build_placeholders()
 	_build_eyes()
 	_build_fill()
 	_build_ui()
@@ -180,19 +176,12 @@ func _apply(delta: float) -> void:
 	var full := seg(t, T_FIRE_END + 0.5, T_TITLE_END)
 	var flick := 1.0 + 0.28 * _noise.get_noise_1d(clock * 7.0) + 0.10 * _noise.get_noise_1d(clock * 23.0 + 50.0)
 	_fire_light.light_energy = fire_energy * (0.45 * ignite + 0.55 * full) * flick
-	_fire_light.omni_range = lerpf(1.5, 11.0, ignite)
+	_fire_light.omni_range = lerpf(1.5, 7.5, ignite)
 	_fire_light.position = _fire_pos + Vector3(
 		_noise.get_noise_1d(clock * 9.0 + 10.0), 0.0, _noise.get_noise_1d(clock * 9.0 + 30.0)) * 0.05
 	var burning := t >= T_DARK_END
 	_fire_flame.emitting = burning
 	_fire_embers.emitting = burning
-
-	# Corridor torch
-	var tk := seg(t, T_TORCH_START, T_TORCH_END)
-	var tflick := 1.0 + 0.3 * _noise.get_noise_1d(clock * 8.0 + 70.0)
-	_torch_light.light_energy = torch_energy * tk * tflick
-	_torch_light.omni_range = lerpf(1.0, 9.0, tk)
-	_torch_flame.emitting = t >= T_TORCH_START
 
 	# Title: a faint cold fill shows up while the light reaches it, so it reads.
 	var title_k := seg(t, T_TITLE_START, T_TITLE_END)
@@ -373,7 +362,7 @@ func _build_title() -> void:
 	# vegetation (canon: distinct from the climbing vine) and the U-gate door opening animation.
 
 
-# --- build: fire & torch --------------------------------------------------------
+# --- build: fire --------------------------------------------------------
 
 func _radial_tex() -> GradientTexture2D:
 	var g := Gradient.new()
@@ -472,7 +461,7 @@ func _build_fire() -> void:
 	_fire_light.light_color = Color(1.0, 0.72, 0.46)  # warm, desaturated vs pure orange
 	_fire_light.light_energy = 0.0
 	_fire_light.omni_range = 1.5
-	_fire_light.omni_attenuation = 1.6
+	_fire_light.omni_attenuation = 1.2
 	_fire_light.shadow_enabled = true
 	_fire_light.shadow_bias = 0.05
 	_fire_light.shadow_blur = 0.08
@@ -482,33 +471,87 @@ func _build_fire() -> void:
 	# TODO(titlescreen v2): warrior (pipe smoke), explorer + mage + mimic chest around the fire.
 
 
-func _build_torch() -> void:
-	var holder := Node3D.new()
-	holder.name = "CorridorTorch"
-	holder.position = _torch_pos
-	add_child(holder)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.10, 0.07, 0.04)
-	var stick := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.06
-	cm.bottom_radius = 0.04
-	cm.height = 0.9
-	stick.mesh = cm
-	stick.material_override = wood
-	stick.position = Vector3(0, -0.45, 0)
-	holder.add_child(stick)
-	_torch_flame = _make_flame(0.45, 22, false)
-	_torch_flame.position = Vector3(0, 0.12, 0)
-	holder.add_child(_torch_flame)
-	_torch_light = OmniLight3D.new()
-	_torch_light.light_color = Color(1.0, 0.55, 0.2)
-	_torch_light.light_energy = 0.0
-	_torch_light.omni_range = 1.0
-	_torch_light.omni_attenuation = 1.4
-	_torch_light.light_volumetric_fog_energy = 1.0
-	_torch_light.position = _torch_pos + Vector3(0.0, 0.25, 0.3)
-	add_child(_torch_light)
+## Composition placeholders (review only). Real models come later through the motor.
+## Layout from the owner's sketch: archer + mage/mimic LEFT of the fire, warrior RIGHT with
+## shield and sword leaning on a wall remain, chameleon on the upper-left wall, rubble at
+## the corridor mouth. Z is toward the camera; the fire sits at (-0.6, _, 0.6).
+func _ph_mat(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.roughness = 0.9
+	return m
+
+
+func _ph(parent: Node3D, node_name: String, mesh: Mesh, pos: Vector3, rot_deg := Vector3.ZERO, mat: Material = null) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = mesh
+	mi.material_override = mat if mat else _ph_mat(Color(0.30, 0.28, 0.26))
+	mi.position = pos
+	mi.rotation_degrees = rot_deg
+	parent.add_child(mi)
+	return mi
+
+
+func _capsule(radius: float, height: float) -> CapsuleMesh:
+	var c := CapsuleMesh.new()
+	c.radius = radius
+	c.height = height
+	return c
+
+
+func _boxmesh(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
+
+
+func _build_placeholders() -> void:
+	var root := Node3D.new()
+	root.name = "Placeholders"
+	add_child(root)
+	var dark := _ph_mat(Color(0.30, 0.28, 0.26))
+	var wood := _ph_mat(Color(0.22, 0.15, 0.10))
+	var steel := _ph_mat(Color(0.30, 0.31, 0.33))
+	# Warrior: seated right of the fire, ~1.1 m tall seated, facing the fire (-x).
+	_ph(root, "Warrior_Placeholder", _capsule(0.30, 1.1), Vector3(1.0, 0.55, 0.6), Vector3(0, 0, 8), dark)
+	# Wall remain behind him: the shield and sword lean on it.
+	var stump := _ph(root, "WallRemain_Placeholder", _boxmesh(Vector3(1.6, 0.8, 0.4)), Vector3(2.5, 0.4, -0.9), Vector3(0, -8, 0), _ph_mat(Color(0.35, 0.29, 0.24)))
+	stump.name = "WallRemain_Placeholder"
+	var shield_mesh := CylinderMesh.new()
+	shield_mesh.top_radius = 0.38
+	shield_mesh.bottom_radius = 0.38
+	shield_mesh.height = 0.06
+	_ph(root, "Shield_Placeholder", shield_mesh, Vector3(2.2, 0.5, -0.62), Vector3(-72, 0, 0), steel)
+	_ph(root, "Sword_Placeholder", _boxmesh(Vector3(0.09, 1.05, 0.03)), Vector3(2.95, 0.55, -0.62), Vector3(-14, 0, 8), steel)
+	# Archer: standing left of the chest, leaning back as if pulling the mage out.
+	_ph(root, "Archer_Placeholder", _capsule(0.24, 1.7), Vector3(-3.5, 0.85, 0.8), Vector3(0, 0, 14), dark)
+	# Mimic chest ~0.9 x 0.6 x 0.6 m with the mage half inside.
+	_ph(root, "Mimic_Placeholder", _boxmesh(Vector3(0.9, 0.6, 0.6)), Vector3(-2.2, 0.3, 0.4), Vector3(0, -10, 0), wood)
+	_ph(root, "Mage_Placeholder", _capsule(0.2, 1.3), Vector3(-2.4, 0.95, 0.4), Vector3(0, 0, -22), _ph_mat(Color(0.24, 0.20, 0.26)))
+	# Chameleon ~0.6 m long on the upper-left wall (body + head + curled tail).
+	var cham := Node3D.new()
+	cham.name = "Chameleon_Placeholder"
+	cham.position = Vector3(-4.7, 2.9, -3.85)
+	cham.scale = Vector3.ONE * 1.4
+	root.add_child(cham)
+	var green := _ph_mat(Color(0.55, 0.62, 0.45))
+	_ph(cham, "Body", _capsule(0.07, 0.34), Vector3(0, 0, 0), Vector3(0, 0, 90), green)
+	_ph(cham, "Head", _capsule(0.06, 0.16), Vector3(-0.22, 0.02, 0), Vector3(0, 0, 90), green)
+	_ph(cham, "Tail", _capsule(0.03, 0.28), Vector3(0.28, 0.08, 0), Vector3(0, 0, 70), green)
+	# Corridor-mouth rubble: low broken remains that cast extra shadow and deepen the dark.
+	var rub := _stone(Color("#80695a"), 0.09)
+	_box_at(root, "Rubble_A", Vector3(5.9, 0.18, -1.0), Vector3(0.7, 0.36, 0.5), Vector3(0, 20, 4), rub)
+	_box_at(root, "Rubble_B", Vector3(6.2, 0.28, 0.2), Vector3(0.6, 0.56, 0.7), Vector3(3, -15, -6), rub)
+	_box_at(root, "Rubble_C", Vector3(5.6, 0.14, 0.9), Vector3(0.9, 0.28, 0.4), Vector3(0, 35, 2), rub)
+	_box_at(root, "Rubble_D", Vector3(6.6, 0.4, -0.45), Vector3(0.5, 0.8, 0.5), Vector3(0, 8, 12), rub)
+	# Optional 1.8 m player reference (composition review only).
+	var ref := _ph(root, "ScaleRef_1_8m", _boxmesh(Vector3(0.1, 1.8, 0.1)), Vector3(0.9, 0.9, 1.9), Vector3.ZERO, _ph_mat(Color(0.8, 0.2, 0.18)))
+	ref.visible = show_scale_ref
+
+
+func _box_at(parent: Node3D, node_name: String, pos: Vector3, size: Vector3, rot_deg: Vector3, mat: Material) -> void:
+	_ph(parent, node_name, _boxmesh(size), pos, rot_deg, mat)
 
 
 func _build_eyes() -> void:
@@ -517,16 +560,16 @@ func _build_eyes() -> void:
 	mat.albedo_color = eye_color
 	mat.emission_enabled = true
 	mat.emission = eye_color
-	mat.emission_energy_multiplier = 3.0
+	mat.emission_energy_multiplier = 4.0
 	var sm := SphereMesh.new()
-	sm.radius = 0.085
-	sm.height = 0.17
+	sm.radius = 0.06
+	sm.height = 0.12
 	sm.radial_segments = 10
 	sm.rings = 5
-	# Pairs deep in the corridor, past the torch's reach. {x, y, z, spacing}
+	# Pairs in the corridor's darkness (it has NO light source: the dark is what the eyes need).
 	var spots := [
-		Vector3(7.6, 1.55, -1.15), Vector3(8.5, 0.9, -1.15),
-		Vector3(9.4, 2.0, -1.15), Vector3(10.6, 1.3, -1.15),
+		Vector3(6.6, 1.8, -0.9), Vector3(7.1, 1.0, -0.5),
+		Vector3(7.7, 2.1, -0.9), Vector3(8.3, 1.4, -0.3),
 	]
 	for i in spots.size():
 		var pair := Node3D.new()
@@ -579,8 +622,8 @@ func _build_ui() -> void:
 
 	var font: Font = load(FONT_PATH)
 	var col := VBoxContainer.new()
-	col.anchor_left = 0.81
-	col.anchor_right = 0.97
+	col.anchor_left = 0.70
+	col.anchor_right = 0.82
 	col.anchor_top = 0.5
 	col.anchor_bottom = 0.5
 	col.offset_top = -170
