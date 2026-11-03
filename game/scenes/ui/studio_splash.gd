@@ -45,7 +45,8 @@ var transition_fn := Callable()
 var _transitioned := false
 var _u := 1.0
 var _c := Vector2.ZERO
-var _vis := 1.0  # global bunny/name opacity
+var _vis := 1.0  # global bunny/name visibility: 1 = full color, 0 = melted into the background
+var _bg := BG_COLOR  # background color of the current frame
 
 
 func _ready() -> void:
@@ -121,8 +122,8 @@ func _draw() -> void:
 	_u = minf(size.x, size.y) * 0.30
 	_c = Vector2(size.x * 0.5, size.y * 0.47)
 	_vis = 1.0 - seg_to(t, VIS_FADE_START, VIS_FADE_END)
-	var bg := BG_COLOR.lerp(DUNGEON_DARK, seg_to(t, BG_FADE_START, TOTAL_DURATION))
-	draw_rect(Rect2(Vector2.ZERO, size), bg)
+	_bg = BG_COLOR.lerp(DUNGEON_DARK, seg_to(t, BG_FADE_START, TOTAL_DURATION))
+	draw_rect(Rect2(Vector2.ZERO, size), _bg)
 
 	var ear_l := EAR_L
 	var ear_r := _twitch(mirrored(EAR_L))
@@ -158,8 +159,11 @@ func _draw() -> void:
 
 
 
+## The fade-out blends each color toward the current background instead of lowering alpha:
+## shapes stay opaque, so overlapping pieces (ears over head, outline joints) never show seams.
 func _alpha(c: Color, a: float) -> Color:
-	return Color(c.r, c.g, c.b, a * _vis)
+	var mixed := c.lerp(_bg, 1.0 - _vis)
+	return Color(mixed.r, mixed.g, mixed.b, a)
 
 
 ## Strokes ear_l, ear_r, head in order as one progressive path of fraction p.
