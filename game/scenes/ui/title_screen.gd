@@ -15,9 +15,10 @@ const LOGO_GLB := "res://assets/art/titlescreen/titlescreen_logo.glb"
 ## Blender hall is x 54.5..65.5, y 0..8: this puts it on the origin (Godot z = 4 - y).
 const ROOM_OFFSET := Vector3(-60.0, 0.0, 4.0)
 const CAM_POS := Vector3(-2.4, 1.7, 7.6)
-const CAM_ROT := Vector3(3.0, -14.0, 0.0)
-const TITLE_SCALE := 0.27
-const TITLE_POS := Vector3(0.1, 1.75, -2.0)
+const CAM_ROT := Vector3(3.0, -20.0, 0.0)
+const FILL_ENERGY := 0.6
+const TITLE_SCALE := 0.22
+const TITLE_POS := Vector3(-0.6, 2.0, -1.5)
 
 # Intro timeline (seconds)
 const T_DARK_END := 0.4
@@ -45,6 +46,7 @@ var clock := 0.0
 var transition_fn := Callable()
 
 var _transitioned := false
+var _saved_atlas: Array = []
 var _noise := FastNoiseLite.new()
 var _rng := RandomNumberGenerator.new()
 
@@ -53,6 +55,7 @@ var _fire_light: OmniLight3D
 var _fire_pos := Vector3(-0.6, 0.5, 0.6)
 var _fire_flame: GPUParticles3D
 var _fire_embers: GPUParticles3D
+var _fill_light: OmniLight3D
 var _torch_light: OmniLight3D
 var _torch_pos := Vector3(6.6, 2.1, -0.95)
 var _torch_flame: GPUParticles3D
@@ -67,6 +70,7 @@ var _btn_jugar: Button
 
 
 func _ready() -> void:
+	_boost_shadow_atlas()
 	_rng.seed = 7
 	_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_noise.frequency = 1.0
@@ -76,8 +80,35 @@ func _ready() -> void:
 	_build_fire()
 	_build_torch()
 	_build_eyes()
+	_build_fill()
 	_build_ui()
 	_apply(0.0)
+
+
+## The title's shadow needs resolution: give the single shadowed light (the campfire) the whole
+## atlas. Restored on exit so gameplay keeps the project defaults.
+func _boost_shadow_atlas() -> void:
+	var vp := get_viewport()
+	_saved_atlas = [vp.positional_shadow_atlas_size, vp.positional_shadow_atlas_quad_0,
+		vp.positional_shadow_atlas_quad_1, vp.positional_shadow_atlas_quad_2, vp.positional_shadow_atlas_quad_3]
+	vp.positional_shadow_atlas_size = 8192
+	vp.positional_shadow_atlas_quad_0 = Viewport.SHADOW_ATLAS_QUADRANT_SUBDIV_4
+	vp.positional_shadow_atlas_quad_1 = Viewport.SHADOW_ATLAS_QUADRANT_SUBDIV_DISABLED
+	vp.positional_shadow_atlas_quad_2 = Viewport.SHADOW_ATLAS_QUADRANT_SUBDIV_DISABLED
+	vp.positional_shadow_atlas_quad_3 = Viewport.SHADOW_ATLAS_QUADRANT_SUBDIV_DISABLED
+
+
+func _exit_tree() -> void:
+	if _saved_atlas.is_empty():
+		return
+	var vp := get_viewport()
+	if vp == null:
+		return
+	vp.positional_shadow_atlas_size = _saved_atlas[0]
+	vp.positional_shadow_atlas_quad_0 = _saved_atlas[1]
+	vp.positional_shadow_atlas_quad_1 = _saved_atlas[2]
+	vp.positional_shadow_atlas_quad_2 = _saved_atlas[3]
+	vp.positional_shadow_atlas_quad_3 = _saved_atlas[4]
 
 
 func _process(delta: float) -> void:
@@ -168,6 +199,7 @@ func _apply(delta: float) -> void:
 	_title_mat.emission_energy_multiplier = 0.9 * title_k
 	_title_root.rotation.y = deg_to_rad(1.4) * sin(clock * 0.35)  # slow sway, shadow follows
 
+	_fill_light.light_energy = FILL_ENERGY * seg(t, T_TITLE_START, T_TITLE_END)
 	_update_eyes(seg(t, 2.0, 2.8))
 
 	_menu.modulate.a = seg(t, T_MENU_START, T_INTRO_END)
@@ -202,7 +234,7 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = DUNGEON_DARK
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.10, 0.08, 0.07)
+	env.ambient_light_color = Color(0.30, 0.40, 0.50)
 	env.ambient_light_energy = 0.05
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
@@ -276,9 +308,9 @@ func _build_room() -> void:
 	room.name = "Room"
 	room.position = ROOM_OFFSET
 	add_child(room)
-	var wall := _stone(Color(0.62, 0.48, 0.32))
+	var wall := _stone(Color("#a58b79"))  # tomb palette: stone #725D4D (noise texture averages ~0.5)
 	wall.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var floor_m := _stone(Color(0.50, 0.40, 0.29), 0.04)
+	var floor_m := _stone(Color("#80695a"), 0.04)  # shadow-leaning #47372C..#725D4D
 	floor_m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for mi in room.find_children("*", "MeshInstance3D", true, false):
 		mi.material_override = floor_m if "floor" in String(mi.name) or "debris" in String(mi.name) else wall
@@ -314,6 +346,12 @@ func _build_title() -> void:
 		var n := String(mi.name)
 		if n.begins_with("glyph") or n.begins_with("gate"):
 			mi.material_override = _title_mat
+		else:
+			# Only the lettering and the U-gate may cast the readable shadow on the wall.
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# The small top rows ("ANOTHER gAME OF") would merge into one band with DUNGEON.
+		if n in ["glyph_bigA", "glyph_gee", "glyph_me", "glyph_nother", "glyph_of"]:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# Hanging roots hold the title (owner canon: it hangs from the ceiling, not magic).
 	var root_mat := StandardMaterial3D.new()
 	root_mat.albedo_color = Color(0.10, 0.08, 0.05)
@@ -327,6 +365,7 @@ func _build_title() -> void:
 		cm.radial_segments = 6
 		cyl.mesh = cm
 		cyl.material_override = root_mat
+		cyl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cyl.position = Vector3(rx, 1.2 + 0.35, -0.05)
 		cyl.rotation_degrees = Vector3(0, 0, rx * 2.0)
 		_title_root.add_child(cyl)
@@ -422,7 +461,7 @@ func _build_fire() -> void:
 		l.position = Vector3(0, 0.16, 0)
 		l.rotation_degrees = Vector3(78, i * 60.0, 0)
 		fire.add_child(l)
-	_fire_flame = _make_flame(0.42, 36, false)
+	_fire_flame = _make_flame(0.34, 36, false)
 	_fire_flame.position = Vector3(0, 0.35, 0)
 	fire.add_child(_fire_flame)
 	_fire_embers = _make_flame(0.45, 14, true)
@@ -430,13 +469,13 @@ func _build_fire() -> void:
 	fire.add_child(_fire_embers)
 
 	_fire_light = OmniLight3D.new()
-	_fire_light.light_color = Color(1.0, 0.52, 0.16)  # ~2000 K look
+	_fire_light.light_color = Color(1.0, 0.72, 0.46)  # warm, desaturated vs pure orange
 	_fire_light.light_energy = 0.0
 	_fire_light.omni_range = 1.5
 	_fire_light.omni_attenuation = 1.6
 	_fire_light.shadow_enabled = true
 	_fire_light.shadow_bias = 0.05
-	_fire_light.shadow_blur = 0.4
+	_fire_light.shadow_blur = 0.08
 	_fire_light.light_volumetric_fog_energy = 1.0
 	_fire_light.position = _fire_pos
 	add_child(_fire_light)
@@ -506,6 +545,18 @@ func _build_eyes() -> void:
 		_eyes.append({"node": pair, "next": _rng.randf_range(2.0, 5.0), "start": -1.0})
 
 
+func _build_fill() -> void:
+	# Dim cool fill from behind the camera: separates the cold title from the warm wall.
+	_fill_light = OmniLight3D.new()
+	_fill_light.light_color = Color(0.50, 0.68, 0.85)
+	_fill_light.light_energy = 0.0
+	_fill_light.omni_range = 16.0
+	_fill_light.omni_attenuation = 0.8
+	_fill_light.shadow_enabled = false
+	_fill_light.position = Vector3(-1.5, 2.8, 6.0)
+	add_child(_fill_light)
+
+
 # --- build: ui ---------------------------------------------------------------------
 
 func _build_ui() -> void:
@@ -528,8 +579,8 @@ func _build_ui() -> void:
 
 	var font: Font = load(FONT_PATH)
 	var col := VBoxContainer.new()
-	col.anchor_left = 0.70
-	col.anchor_right = 0.93
+	col.anchor_left = 0.81
+	col.anchor_right = 0.97
 	col.anchor_top = 0.5
 	col.anchor_bottom = 0.5
 	col.offset_top = -170
