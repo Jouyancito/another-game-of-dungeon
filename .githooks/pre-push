@@ -9,17 +9,27 @@
 # Bypass (leaves a trace in your terminal): git push --no-verify
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-GODOT="$REPO_ROOT/Godot_v4.6.2-stable_win64.exe/Godot_v4.6.2-stable_win64_console.exe"
 
-echo "[pre-push gate] 1/2 validate.ps1 (import + compile sweep)..."
-powershell.exe -ExecutionPolicy Bypass -File "$REPO_ROOT/game/tools/godot/validate.ps1"
+# Windows keeps the bundled Godot + validate.ps1; Linux/macOS use validate.sh + godot on PATH
+# (override with GODOT=/path/to/godot).
+if command -v powershell.exe >/dev/null 2>&1; then
+  GODOT="$REPO_ROOT/Godot_v4.6.2-stable_win64.exe/Godot_v4.6.2-stable_win64_console.exe"
+  VALIDATE="validate.ps1"
+  echo "[pre-push gate] 1/2 $VALIDATE (import + compile sweep)..."
+  powershell.exe -ExecutionPolicy Bypass -File "$REPO_ROOT/game/tools/godot/validate.ps1"
+else
+  GODOT=${GODOT:-godot}
+  VALIDATE="validate.sh"
+  echo "[pre-push gate] 1/2 $VALIDATE (import + compile sweep)..."
+  GODOT="$GODOT" sh "$REPO_ROOT/game/tools/godot/validate.sh"
+fi
 STATUS=$?
 
 if [ "$STATUS" -ne 0 ]; then
   {
-    printf '\n[pre-push gate] BLOQUEADO: validate.ps1 fallo (exit %s).\n' "$STATUS"
+    printf '\n[pre-push gate] BLOQUEADO: %s fallo (exit %s).\n' "$VALIDATE" "$STATUS"
     printf '  Hay errores de import o scripts que no compilan.\n'
-    printf '  Corre: powershell -ExecutionPolicy Bypass -File game\\tools\\godot\\validate.ps1\n'
+    printf '  Corre a mano: game/tools/godot/%s\n' "$VALIDATE"
     printf '  Bypass deliberado: git push --no-verify\n\n'
   } >&2
   exit 1
