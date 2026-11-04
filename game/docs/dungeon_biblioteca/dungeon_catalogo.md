@@ -21,7 +21,7 @@ Las fichas se crean **por demanda**: cuando alguien trabaja un tema que todavía
 | Enemigos y bosses | dungeon_enemigos.md | mobs, fauna, IA/aggro, bosses, mimic, floor-clear | `../_estado_vivo.md` (mobs), `../enemy_tier_system.md`, `../art/_mob_audit_2026-08-22.md` | pendiente |
 | Mundo y pisos | dungeon_mundo_pisos.md | torre, biomas, transiciones, generación procedural, aldea, zonas de farmeo | `../tower_biome_system.md`, `../floor_transitions.md`, `../village_builder.md` | pendiente |
 | Lore | dungeon_lore.md | canon del mundo, historia de las clases y de los pisos, textos | `../lore/_world_canon.md`, `../lore/_floor_sketches.md` (ver su ⚠️) | pendiente |
-| Flujo y UI | dungeon_flujo_ui.md | splash, menú, creación de personaje, sala de preparación, guardado, HUD | `../ui/_onboarding_flow.md`, `../ui/_design_package.md`, engram `dungeon_` | pendiente |
+| Flujo y UI | [dungeon_flujo_ui.md](dungeon_flujo_ui.md) | splash, menú, creación de personaje, sala de preparación, guardado, HUD | `../ui/_onboarding_flow.md`, `../ui/_design_package.md`, engram `dungeon_` | 2026-11-04 |
 | Party y social | dungeon_party_social.md | multijugador, co-op, actividades de party, mascotas (Nami), monturas | `../party_activities.md`, `../pets_and_mounts.md` | pendiente |
 | Arte | dungeon_arte.md | estilo visual, pipeline de assets, shaders/VFX, animación, marca del estudio | `../art/_art_canon.md`, `../art/_mob_pipeline.md`; índice de canon en `CLAUDE.md` | pendiente |
 | Técnico | dungeon_tecnico.md | stack, carpetas, autoloads, tests, hooks, problemas conocidos | `CLAUDE.md` (raíz), `project.godot` | pendiente |
@@ -35,6 +35,8 @@ Al crear una ficha: convierte el nombre en link (`[dungeon_x.md](dungeon_x.md)`)
 > Verificado contra código: AAAA-MM-DD · Rama: <rama>
 > Leer esto si: <una línea>
 
+## Intención de Joan                      ← lo que Joan quiere, en sus palabras; se refina conversando
+- AAAA-MM-DD: <idea o aclaración de Joan>
 ## Resumen
 ## Implementado (verificado en código)   ← con `ruta:línea`
 ## Diseñado, no implementado              ← con su fuente (doc o engram #id)
@@ -60,6 +62,8 @@ Al cerrar una tarea que cambió el juego:
 3. Actualiza la línea **"Verificado contra código"** y la columna **Verificado** de esta tabla.
 4. Agrega una línea al **Historial** de la ficha: `- AAAA-MM-DD — qué cambió (Hermes|Claude)`.
 5. Si Joan tomó una decisión de diseño que aún no está en el código, anótala en **Diseñado, no implementado** de la ficha que corresponde. Así no se pierde en el chat.
+
+**Mientras conversas con Joan** (no hace falta haber tocado código): ve puliendo **Intención de Joan** con lo que explica. Reescríbelo más claro, junta ideas repetidas y fecha cada aclaración. Es la única sección que no necesita verificación contra código. Una intención **nunca** pasa a *Implementado* hasta que se vea en el código con `ruta:línea`.
 
 Reglas:
 - **Tema nuevo sin ficha** → crea `dungeon_<tema>.md` con la misma plantilla y agrégalo a esta tabla.
