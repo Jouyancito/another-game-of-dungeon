@@ -15,75 +15,15 @@ Ambos rigen todo el trabajo en Dungeon Party. No son opt-in.
 
 ## 🔨 MODELAR = MODELADO FULL (regla dura — Joan, 2026-08-15)
 
-Joan, textual: *"ya ha pasado muchas veces que te digo modelar y lo haces al mínimo"*. **Es un
-patrón recurrente, no un incidente.** Vive acá, en el archivo que se carga siempre, y no sólo
-en la skill `blender-asset-smith` — porque una regla que depende de que yo me acuerde de
-invocar la skill ya falló antes de empezar.
+Las reglas de modelado viven en UN solo archivo, del motor:
+**`~/proyectos/motor-blender/REGLAS_MODELADO.md`** (decisión D1, 2026-11-23). El hook
+`~/.claude/hooks/motor-rules-inject.py` lo entrega solo la primera vez que una sesión habla de
+modelar, desde cualquier carpeta. Este archivo ya no tiene copia: si hace falta y no está en
+contexto, se lee.
 
-**Cualquier pedido de modelar dispara el preflight, y el preflight se ESCRIBE en la respuesta
-antes de generar.** Incluye "solo re-correr un generador que ya existe" — ese fue exactamente
-el caso del pelo del guerrero (2026-08-15): re-corrido con los defaults sobre un cráneo nuevo,
-salió agujereado, y la referencia, la lección del golem sobre solapamiento, la receta
-`bvh_glue.py` y los gates estaban TODOS disponibles sin invocar. El fallo es de activación, no
-de conocimiento.
-
-```
-PREFLIGHT modelado full — <asset>
-0. QUÉ ES ................ qué es la cosa, cómo funciona, cómo es normalmente
-                           → de ahí sale el criterio de éxito, ANTES de tocar nada
-                           REGLA DE TRADUCCIÓN: cada frase del "qué es" termina
-                           en un NÚMERO o en una ORIENTACIÓN. "Patas palmeadas"
-                           NO es un punto cumplido; "húmero horizontal,
-                           antebrazo vertical, yaw ±40° por cuadrante" SÍ.
-                           La prosa que no baja a geometría no se construye.
-0b. CON QUÉ TRUCO ........ técnica establecida de la familia (capa B).
-                           Si no se sabe cuál es, DECIRLO. Si el contrato la
-                           marca DESCARTADA, no se usa.
-1. refs cargadas ......... _references/<X>/ CITADAS + los DOCS del índice de abajo
-                           que aplican, citados por archivo y sección.
-                           Contar imágenes NO es cargar el contrato.
-2. lecciones aplicables .. <asset previo con el mismo fallo de forma> → <regla>
-3. recetas del motor ..... <cuáles> (o: ninguna aplica, porque <razón>)
-4. métrica de éxito ...... <el número que decide, definido ANTES de construir>
-                           ¿puede esta métrica VER el defecto que busco?
-4d. PARÁMETROS ........... DOS mitades, las dos obligatorias:
-    · MEDIDA ....... cuánto mide, cuántos hay, a qué velocidad
-    · ESTRUCTURA ... por cada parte móvil: qué PLANO ocupa, qué ÁNGULO
-                     tiene respecto del cuerpo, y qué la LIMITA
-                     Parte sin renglón estructural = NO se modela, se
-                     investiga primero.
-4b. COMPOSICIÓN .......... qué zonas del cuerpo respeta y qué oculta
-4c. PRESUPUESTO .......... qué NO se modela porque no se ve
-5. rampa .................. <N variantes del parámetro dudoso> — elige Joan
-6. vistas de juicio ....... frente/perfil/3-4 + ingratas (nuca, cenital) + tamaño de uso
-7. LECTURA DEL RESULTADO . ¿encaja? ¿se fusiona con la malla? — no "¿está puesto?"
-```
-
-**Los puntos 0b, 4b y 4c estaban SÓLO en `_asset_creation_contract.md` §4, que es un doc que
-hay que ir a buscar.** El 2026-08-22 se construyeron dos técnicas de pelo seguidas que el
-contrato marcaba como descartadas: el preflight de 8 se escribió completo y no preguntaba por
-la técnica. Por eso ahora los 10 viven acá, donde se cargan solos.
-
-**El punto 0 es el que más rinde y el que más se saltea.** Joan: *"sin el pensar qué es, cómo
-funciona, cómo es normalmente"*. El pelo del guerrero se generó como "placas apoyadas sobre un
-cráneo" sin preguntarse qué es el pelo: crece de folículos, cae por gravedad, se peina en una
-dirección, y **los mechones SE SOLAPAN** — en una cabeza con pelo no se ve el cuero cabelludo
-salvo en la raya. Razonado eso primero, el criterio de éxito era obvio sin renderizar nada.
-
-**El punto 7 es el que convierte "terminado" en "hecho".** La pregunta no es si la pieza está
-puesta sino si **encaja y se fusiona**: las 38 placas estaban todas ahí y no formaban pelo.
-Mismo error que el golem ("¿están juntos los chunks?" en vez de "¿lee como una masa?") y que
-el corpóreo ("está todo" en vez de "se ve natural"). Cohesión NUNCA es aprobación.
-
-Un punto sin evidencia concreta al lado cuenta como NO hecho. Si el preflight no aparece
-escrito, el trabajo se hizo al mínimo — y Joan lo detecta de un vistazo, que es el punto.
-
-**La métrica (4) se define ANTES de construir.** Definida después de ver el render, se elige la
-que aprueba lo que ya se hizo.
-
-**El valor lo elige Joan sobre una rampa (5), no yo.** Medido en la sesión del guerrero: cuello
-0.70, nubian 0.70, frente 1.00, ceja 0.85 y los cinco de piel entraron todos pasados de rosca.
-Cinco de cinco.
+Lo mecánico lo hacen cumplir los hooks del motor: el preflight es un archivo
+(`<asset>/_motor/preflight.md`) que Joan aprueba antes de que Blender corra, y el veredicto exige
+la corrida de calidad y la nota de Joan.
 
 ## 📇 ÍNDICE DE CANON — qué documento manda sobre qué (regla dura, 2026-08-23)
 
@@ -102,12 +42,12 @@ sección**. Un punto sin cita cuenta como no hecho.
 
 | Documento | Manda sobre | Abrir SIEMPRE que… |
 |---|---|---|
-| **`~/motor-blender/LECCIONES.md`** | **las 11 formas de equivocarse que este motor YA demostró tener**, cada una con el caso que la pagó: valores correctos e invisibles · métricas ciegas · prosa que no baja a geometría · pintar estructura sobre superficie continua · arreglos a medias · constantes obsoletas en gates | **antes de cualquier sesión de modelado.** Es corto a propósito |
+| **`~/proyectos/motor-blender/LECCIONES.md`** | **las formas de equivocarse que este motor YA demostró tener**, cada una con el caso que la pagó: valores correctos e invisibles · métricas ciegas · prosa que no baja a geometría · pintar estructura sobre superficie continua · arreglos a medias · constantes obsoletas en gates | **antes de cualquier sesión de modelado.** Es corto a propósito |
 | `art/_asset_creation_contract.md` | capa A (mecanismo real) / capa B (técnica) · composición contra el cuerpo · presupuesto · **techo de fidelidad = Skyrim** · sistema de equipo · **técnicas DESCARTADAS** | modeles cualquier cosa que se lleve puesta o se vea de cerca. **Y siempre antes de elegir una técnica** |
 | `art/_modeling_knowledge_base.md` | el *por qué* universal · contrato Blender→glTF→Godot · cheat-sheets por categoría · **pelo en 3 capas** · gate de validación pre-export | escribas o edites cualquier generador |
-| `~/motor-blender/CREATION_PROTOCOL.md` | el diseño ANTES de construir: categoría real · investigación visual+funcional · dimensiones contra el maniquí 1,80 m · función compartida · autocrítica | arranques un asset o un módulo nuevo |
-| `~/motor-blender/recetas/RECETAS.md` | técnicas verificadas + **anti-recetas** (callejones ya probados) | vayas a escribir bpy nuevo |
-| `~/motor-blender/TECNICAS.md` | trucos de referencias traducidos a capacidades del motor · showcase_ficha | montes una escena o presentes un modelo |
+| `~/proyectos/motor-blender/CREATION_PROTOCOL.md` | el diseño ANTES de construir: categoría real · investigación visual+funcional · dimensiones contra el maniquí 1,80 m · función compartida · autocrítica | arranques un asset o un módulo nuevo |
+| `~/proyectos/motor-blender/recetas/RECETAS.md` | técnicas verificadas + **anti-recetas** (callejones ya probados) | vayas a escribir bpy nuevo |
+| `~/proyectos/motor-blender/TECNICAS.md` | trucos de referencias traducidos a capacidades del motor · showcase_ficha | montes una escena o presentes un modelo |
 | **`art/_mob_pipeline.md`** | **EL PIPELINE POR MOB** destilado de tortuga+halcon (8/10 ambos): fases con gate y herramienta, catalogo de gotchas por familia, roadmap del mobpack piso 1 con orden de ataque | **antes de tocar CUALQUIER mob** — es el primer doc que se abre, manda sobre el orden del trabajo |
 | `art/_bestiary_visual_bible.md` | identidad visual de criaturas · familias de silueta · **build-method por bicho** · color por bioma y tier | toques cualquier mob |
 | `art/_mob_style_contract.md` | contrato de estilo de mobs | toques cualquier mob |
@@ -124,7 +64,7 @@ sección**. Un punto sin cita cuenta como no hecho.
 | `art/_mob_audit_2026-08-22.md` | estado real medido de cada mob (quién está roto, quién no llegó al juego) | vayas a "modelar un mob que falta" |
 | `docs/balance_v2.md` | curvas y fórmulas de balance | toques daño, HP, XP o escalado |
 | `docs/skills/_system.md` | canon del sistema de skills v1.0 | toques skills, ascendencia o recursos de clase |
-| `~/motor-blender/AUDIT_ACTIVACION_2026-08-23.md` | por qué las reglas no se activan · push vs pull | propongas "escribamos esto en un doc" como solución |
+| `~/proyectos/motor-blender/AUDIT_ACTIVACION_2026-08-23.md` | por qué las reglas no se activan · push vs pull | propongas "escribamos esto en un doc" como solución |
 
 **Regla que sale de la auditoría**: *si una regla necesita que yo me acuerde de ir a buscarla,
 ya falló.* Cuando aparezca conocimiento nuevo que valga, la pregunta no es dónde documentarlo
